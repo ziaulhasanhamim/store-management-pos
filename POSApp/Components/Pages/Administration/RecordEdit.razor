@@ -8,7 +8,13 @@
 <PageTitle>Record correction · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
 
 <div class="page-heading">
-    <h1>@(Data?.Name ?? "Record correction")</h1>
+    <div>
+        <h1>@(Data?.Name ?? "Record correction")</h1>
+        @if (Data is not null && Kind != "product")
+        {
+            <p class="text-xs text-slate-500 mt-1">Transaction recorded on @Data.At.ToBusinessTime(Configuration).ToString("dd MMM yyyy, HH:mm") (@Zone.Id)</p>
+        }
+    </div>
     <a href="@BackUrl" class="btn-secondary">Back</a>
 </div>
 @if (Error is not null)
@@ -34,14 +40,6 @@ else
                     <AntiforgeryToken />
                     <input type="hidden" name="Input.ExpectedRevision" value="@Data.Revision" />
                     <div class="space-y-4">
-                        <div>
-                            <label class="field-label">Transaction Date & Time (@Zone.Id)</label>
-                            <div class="field bg-slate-50 text-slate-700 flex items-center justify-between">
-                                <span class="font-medium">@Data.At.ToBusinessTime(Configuration).ToString("dd MMM yyyy, HH:mm")</span>
-                                <span class="text-xs text-slate-600 font-semibold bg-slate-200 px-2 py-0.5 rounded">Immutable</span>
-                            </div>
-                            <p class="mt-1 text-xs text-slate-500">Transaction dates and times cannot be edited. If this transaction was recorded on the wrong date, void it and re-enter it on the open working day.</p>
-                        </div>
                         <div>
                             <label class="field-label" for="record-party">@(Kind == "sale" ? "Customer" : "Supplier")</label>
                             <select id="record-party" class="field" name="Input.PartyId">
@@ -72,10 +70,12 @@ else
             @if (Data.Total is { } transactionTotal)
             {
                 <dl class="mb-4 grid grid-cols-2 gap-2 text-sm">
+                    <dt>Date & time</dt>
+                    <dd>@Data.At.ToBusinessTime(Configuration).ToString("dd MMM yyyy, HH:mm")</dd>
                     <dt>Transaction value</dt>
-                    <dd>@transactionTotal.ToString("N2")</dd>
+                    <dd class="tabular-nums">@(Configuration["CurrencyCode"] ?? "BDT") @transactionTotal.ToString("N2")</dd>
                     <dt>Payments to reverse</dt>
-                    <dd>@Data.Paid?.ToString("N2")</dd>
+                    <dd class="tabular-nums">@(Configuration["CurrencyCode"] ?? "BDT") @(Data.Paid?.ToString("N2") ?? "0.00")</dd>
                 </dl>
                 <details class="mb-4 text-sm">
                     <summary class="cursor-pointer text-blue-700">Stock changes if voided · @Data.StockEffects.Count items</summary>
