@@ -273,7 +273,8 @@ public sealed class FinanceService(IServiceScopeFactory scopes, IConfiguration c
                     Revenue = sale.TotalAmount
                 }).ToListAsync(ct);
             var adjustments = await db.InventoryMovements.AsNoTracking()
-                .Where(move => move.StockTakeItemId != null && move.OccurredAt >= range.FromUtc && move.OccurredAt < range.ToUtc)
+                .Where(move => (move.StockTakeItemId != null || move.StockAdjustmentItemId != null || move.Type == InventoryMovementType.Adjustment)
+                    && move.OccurredAt >= range.FromUtc && move.OccurredAt < range.ToUtc)
                 .Select(move => new { move.OccurredAt, move.Quantity, move.UnitCost }).ToArrayAsync(ct);
             var variance = adjustments.Select(move => new DatedAmount(move.OccurredAt,
                 decimal.Round(move.Quantity * move.UnitCost, 2, MidpointRounding.AwayFromZero))).ToArray();

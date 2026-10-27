@@ -21,7 +21,9 @@ public static class FinanceEndpoints
         var data = await closings.ReadAsync(context.User, date, kind, context.RequestAborted, locationId);
         var currency = configuration["CurrencyCode"] ?? "BDT";
         var storeName = configuration["StoreName"] ?? "RetailPOS";
-        var bytes = FinanceExportService.GenerateMonthExcel(data, currency, storeName);
+        var bytes = kind == ClosingKind.Month
+            ? FinanceExportService.GenerateMonthExcel(data, currency, storeName)
+            : FinanceExportService.GenerateDayExcel(data, currency, storeName);
         var locationSuffix = data.SelectedLocationName != null
             ? $"_{NameNormalization.Normalize(data.SelectedLocationName).Replace(' ', '_')}"
             : "";

@@ -3,11 +3,11 @@ FROM mcr.microsoft.com/dotnet/sdk:11.0-preview AS build
 WORKDIR /src
 
 # Copy solution and project definitions for optimized layer caching
-COPY ["POSApp.sln", "./"]
-COPY ["POSApp/POSApp.csproj", "POSApp/"]
-COPY ["POSApp.Client/POSApp.Client.csproj", "POSApp.Client/"]
-COPY ["tests/POSApp.Tests.Unit/POSApp.Tests.Unit.csproj", "tests/POSApp.Tests.Unit/"]
-COPY ["tests/POSApp.Tests.Integration/POSApp.Tests.Integration.csproj", "tests/POSApp.Tests.Integration/"]
+COPY POSApp.sln .
+COPY POSApp/POSApp.csproj POSApp/
+COPY POSApp.Client/POSApp.Client.csproj POSApp.Client/
+COPY tests/POSApp.Tests.Unit/POSApp.Tests.Unit.csproj tests/POSApp.Tests.Unit/
+COPY tests/POSApp.Tests.Integration/POSApp.Tests.Integration.csproj tests/POSApp.Tests.Integration/
 
 RUN dotnet restore "POSApp/POSApp.csproj"
 

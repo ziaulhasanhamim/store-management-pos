@@ -36,6 +36,292 @@ public static class FinanceExportService
         return stream.ToArray();
     }
 
+    public static byte[] GenerateDayExcel(ClosingTotals totals, string currencyCode = "BDT", string storeName = "RetailPOS")
+    {
+        using var workbook = new XLWorkbook();
+        var dateStr = totals.Start.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+
+        BuildDaySummarySheet(workbook, totals, dateStr, currencyCode, storeName);
+        if (totals.SelectedLocationId == null && totals.LocationBreakdown.Count > 0)
+        {
+            BuildLocationsSheet(workbook, totals, currencyCode);
+        }
+        if (totals.Locations.Count > 0)
+        {
+            BuildDayDrawersSheet(workbook, totals, currencyCode);
+        }
+        if (totals.Daily?.Categories.Count > 0)
+        {
+            BuildDayExpensesSheet(workbook, totals, currencyCode);
+        }
+        if (totals.Daily?.Payments.Count > 0)
+        {
+            BuildDayPaymentsSheet(workbook, totals, currencyCode);
+        }
+
+        using var stream = new MemoryStream();
+        workbook.SaveAs(stream);
+        return stream.ToArray();
+    }
+
+    private static void BuildDaySummarySheet(XLWorkbook workbook, ClosingTotals totals, string dateStr, string currency, string storeName)
+    {
+        var ws = workbook.Worksheets.Add("Day Overview");
+        ws.ShowGridLines = true;
+
+        ws.Cell("A1").Value = (storeName ?? "RetailPOS").ToUpperInvariant();
+        ws.Cell("A1").Style.Font.Bold = true;
+        ws.Cell("A1").Style.Font.FontSize = 16;
+        ws.Cell("A1").Style.Font.FontColor = BrandBlue;
+
+        var subtitle = totals.SelectedLocationName != null
+            ? $"Daily Financial Closing Report · {totals.SelectedLocationName} · {dateStr}"
+            : $"Daily Financial Closing Report · {dateStr}";
+        ws.Cell("A2").Value = subtitle;
+        ws.Cell("A2").Style.Font.Bold = true;
+        ws.Cell("A2").Style.Font.FontSize = 12;
+        ws.Cell("A2").Style.Font.FontColor = BrandDark;
+
+        var locationTag = totals.SelectedLocationName != null ? $"Location: {totals.SelectedLocationName} · " : "";
+        ws.Cell("A3").Value = $"{locationTag}Status: {(totals.ClosedAt is null ? "Provisional (Open)" : $"Closed at {totals.ClosedAt:yyyy-MM-dd HH:mm}")} · Currency: {currency}";
+        ws.Cell("A3").Style.Font.Italic = true;
+        ws.Cell("A3").Style.Font.FontSize = 10;
+        ws.Cell("A3").Style.Font.FontColor = XLColor.SlateGray;
+
+        var r = 5;
+
+        void DrawKpiTable(string title, (string Label, decimal Value, bool Highlight, bool IsNegativeGood)[] rows)
+        {
+            ws.Cell(r, 1).Value = title;
+            ws.Cell(r, 1).Style.Font.Bold = true;
+            ws.Cell(r, 1).Style.Font.FontSize = 11;
+            ws.Cell(r, 1).Style.Font.FontColor = BrandBlue;
+            r++;
+
+            var header = ws.Range(r, 1, r, 2);
+            ws.Cell(r, 1).Value = "Metric";
+            ws.Cell(r, 2).Value = $"Amount ({currency})";
+            header.Style.Font.Bold = true;
+            header.Style.Font.FontColor = XLColor.White;
+            header.Style.Fill.BackgroundColor = BrandDark;
+            ws.Cell(r, 1).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Left;
+            ws.Cell(r, 2).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
+            r++;
+
+            foreach (var row in rows)
+            {
+                ws.Cell(r, 1).Value = row.Label;
+                ws.Cell(r, 2).Value = row.Value;
+                ws.Cell(r, 2).Style.NumberFormat.Format = CurrencyFormat;
+
+                if (row.Highlight)
+                {
+                    ws.Range(r, 1, r, 2).Style.Font.Bold = true;
+                    ws.Range(r, 1, r, 2).Style.Fill.BackgroundColor = TotalBg;
+                    ws.Cell(r, 2).Style.Font.FontColor = (row.Value >= 0 != row.IsNegativeGood) ? SuccessGreen : DangerRed;
+                }
+                r++;
+            }
+            r++;
+        }
+
+        var grossProfit = totals.Revenue - totals.Cogs;
+        var operatingExpenses = totals.Expenses + totals.Salaries;
+        var netProfit = grossProfit - operatingExpenses + totals.StockVariance;
+
+        DrawKpiTable("Trading & Profitability",
+        [
+            ("Gross Sales Revenue", totals.Revenue, false, false),
+            ("Cost of Goods Sold (COGS)", -totals.Cogs, false, true),
+            ("Gross Profit on Sales", grossProfit, true, false),
+            ("Operating Expenses", -totals.Expenses, false, true),
+            ("Staff Salaries / Payroll", -totals.Salaries, false, true),
+            ("Stock Adjustment / Variance", totals.StockVariance, false, false),
+            ("Net Operating Profit", netProfit, true, false)
+        ]);
+
+        var totalInflows = totals.CashIn + totals.BankIn;
+        var totalOutflows = totals.CashOut + totals.BankOut;
+        var netCashFlow = totalInflows - totalOutflows;
+
+        DrawKpiTable("Cash & Bank Liquidity",
+        [
+            ("Opening Drawer Cash", totals.OpeningCash, false, false),
+            ("Opening Bank Balance", totals.OpeningBank, false, false),
+            ("Total Inflows (Cash & Bank)", totalInflows, false, false),
+            ("Total Outflows (Cash & Bank)", -totalOutflows, false, true),
+            ("Net Day Cash Flow", netCashFlow, true, false),
+            ("Expected Closing Cash", totals.ClosingCash, false, false),
+            ("Expected Closing Bank", totals.ClosingBank, false, false),
+            ("Counted Cash (Drawers)", totals.CountedCash ?? totals.ClosingCash, false, false),
+            ("Cash Variance / Drawer Discrepancy", totals.Difference ?? totals.CashVariance, true, false)
+        ]);
+
+        DrawKpiTable("Receivables & Payables Position",
+        [
+            ("Outstanding Customer Due (Receivable)", totals.CustomerDue, false, false),
+            ("Outstanding Supplier Due (Payable)", totals.SupplierDue, false, true),
+            ("Outstanding Lender Debt (Payable)", totals.OutstandingDebt, false, true),
+            ("Closing Stock Valuation", totals.StockValue, true, false)
+        ]);
+
+        ws.Columns(1, 2).AdjustToContents();
+        ws.Column(1).Width = Math.Max(ws.Column(1).Width, 40);
+        ws.Column(2).Width = Math.Max(ws.Column(2).Width, 22);
+    }
+
+    private static void BuildDayDrawersSheet(XLWorkbook workbook, ClosingTotals totals, string currency)
+    {
+        var ws = workbook.Worksheets.Add("Cash Drawers");
+        ws.ShowGridLines = true;
+
+        ws.Cell("A1").Value = "Stock Location / Drawer";
+        ws.Cell("B1").Value = "Status";
+        ws.Cell("C1").Value = "Opening Cash";
+        ws.Cell("D1").Value = "Expected Cash";
+        ws.Cell("E1").Value = "Counted Cash";
+        ws.Cell("F1").Value = "Discrepancy";
+
+        var header = ws.Range("A1:F1");
+        header.Style.Font.Bold = true;
+        header.Style.Font.FontColor = XLColor.White;
+        header.Style.Fill.BackgroundColor = BrandDark;
+        for (var c = 3; c <= 6; c++)
+        {
+            ws.Cell(1, c).Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
+        }
+
+        var r = 2;
+        foreach (var drawer in totals.Locations)
+        {
+            ws.Cell(r, 1).Value = drawer.Location;
+            ws.Cell(r, 2).Value = drawer.Status;
+            ws.Cell(r, 3).Value = drawer.Opening;
+            ws.Cell(r, 4).Value = drawer.Expected;
+            ws.Cell(r, 5).Value = drawer.Counted ?? drawer.Expected;
+            ws.Cell(r, 6).Value = drawer.Difference ?? 0m;
+
+            for (var c = 3; c <= 6; c++)
+            {
+                ws.Cell(r, c).Style.NumberFormat.Format = CurrencyFormat;
+            }
+
+            if ((drawer.Difference ?? 0m) != 0)
+            {
+                ws.Cell(r, 6).Style.Font.Bold = true;
+                ws.Cell(r, 6).Style.Font.FontColor = (drawer.Difference ?? 0m) > 0 ? SuccessGreen : DangerRed;
+            }
+
+            r++;
+        }
+
+        ws.Columns(1, 6).AdjustToContents();
+    }
+
+    private static void BuildDayExpensesSheet(XLWorkbook workbook, ClosingTotals totals, string currency)
+    {
+        var categories = totals.Daily?.Categories ?? [];
+        if (categories.Count == 0) return;
+
+        var ws = workbook.Worksheets.Add("Expense Categories");
+        ws.ShowGridLines = true;
+
+        ws.Cell("A1").Value = "Expense Category";
+        ws.Cell("B1").Value = $"Total Amount ({currency})";
+        ws.Cell("C1").Value = "% of Total Spend";
+
+        var header = ws.Range("A1:C1");
+        header.Style.Font.Bold = true;
+        header.Style.Font.FontColor = XLColor.White;
+        header.Style.Fill.BackgroundColor = BrandDark;
+        ws.Cell("B1").Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
+        ws.Cell("C1").Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
+
+        var totalSpend = categories.Sum(c => c.Amount);
+        var r = 2;
+
+        foreach (var cat in categories.OrderByDescending(c => c.Amount))
+        {
+            ws.Cell(r, 1).Value = cat.Name;
+            ws.Cell(r, 2).Value = cat.Amount;
+            ws.Cell(r, 2).Style.NumberFormat.Format = CurrencyFormat;
+            ws.Cell(r, 3).Value = totalSpend > 0 ? (cat.Amount / totalSpend) : 0m;
+            ws.Cell(r, 3).Style.NumberFormat.Format = "0.0%";
+            r++;
+        }
+
+        ws.Cell(r, 1).Value = "Total Operating Spend";
+        ws.Cell(r, 2).FormulaA1 = $"=SUM(B2:B{r - 1})";
+        ws.Cell(r, 3).Value = 1.0m;
+        ws.Cell(r, 2).Style.NumberFormat.Format = CurrencyFormat;
+        ws.Cell(r, 3).Style.NumberFormat.Format = "0.0%";
+
+        var totalRange = ws.Range(r, 1, r, 3);
+        totalRange.Style.Font.Bold = true;
+        totalRange.Style.Fill.BackgroundColor = TotalBg;
+        totalRange.Style.Border.TopBorder = XLBorderStyleValues.Thin;
+        totalRange.Style.Border.BottomBorder = XLBorderStyleValues.Double;
+
+        ws.Columns(1, 3).AdjustToContents();
+        ws.Column(1).Width = Math.Max(ws.Column(1).Width, 32);
+    }
+
+    private static void BuildDayPaymentsSheet(XLWorkbook workbook, ClosingTotals totals, string currency)
+    {
+        var payments = totals.Daily?.Payments ?? [];
+        if (payments.Count == 0) return;
+
+        var ws = workbook.Worksheets.Add("Itemized Transactions");
+        ws.ShowGridLines = true;
+
+        ws.Cell("A1").Value = "Time";
+        ws.Cell("B1").Value = "Type";
+        ws.Cell("C1").Value = "Party / Description";
+        ws.Cell("D1").Value = "Account";
+        ws.Cell("E1").Value = "Payment Method";
+        ws.Cell("F1").Value = $"Amount ({currency})";
+        ws.Cell("G1").Value = "Notes";
+
+        var header = ws.Range("A1:G1");
+        header.Style.Font.Bold = true;
+        header.Style.Font.FontColor = XLColor.White;
+        header.Style.Fill.BackgroundColor = BrandDark;
+        ws.Cell("F1").Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
+
+        var r = 2;
+        foreach (var p in payments.OrderBy(p => p.At))
+        {
+            ws.Cell(r, 1).Value = p.At.ToString("HH:mm:ss");
+            ws.Cell(r, 2).Value = p.Type;
+            ws.Cell(r, 3).Value = p.Party;
+            ws.Cell(r, 4).Value = p.Account;
+            ws.Cell(r, 5).Value = p.Method.ToString();
+            ws.Cell(r, 6).Value = p.Amount;
+            ws.Cell(r, 6).Style.NumberFormat.Format = CurrencyFormat;
+            ws.Cell(r, 7).Value = p.Notes ?? "";
+
+            if (r % 2 == 1)
+            {
+                ws.Range(r, 1, r, 7).Style.Fill.BackgroundColor = ZebraBg;
+            }
+            r++;
+        }
+
+        ws.Cell(r, 1).Value = "Total Net Flow";
+        ws.Cell(r, 6).FormulaA1 = $"=SUM(F2:F{r - 1})";
+        ws.Cell(r, 6).Style.NumberFormat.Format = CurrencyFormat;
+
+        var totalRange = ws.Range(r, 1, r, 7);
+        totalRange.Style.Font.Bold = true;
+        totalRange.Style.Fill.BackgroundColor = TotalBg;
+        totalRange.Style.Border.TopBorder = XLBorderStyleValues.Thin;
+        totalRange.Style.Border.BottomBorder = XLBorderStyleValues.Double;
+
+        ws.Columns(1, 7).AdjustToContents();
+        ws.Column(3).Width = Math.Max(ws.Column(3).Width, 24);
+        ws.Column(7).Width = Math.Max(ws.Column(7).Width, 30);
+    }
+
     private static void BuildSummarySheet(XLWorkbook workbook, ClosingTotals totals, string monthName, string currency, string storeName)
     {
         var ws = workbook.Worksheets.Add("Overview");

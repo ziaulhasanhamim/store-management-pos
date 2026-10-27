@@ -238,10 +238,6 @@ public sealed partial class StockTakeService(IServiceScopeFactory scopes, IConfi
                     item.CountedQuantity = null;
                     continue;
                 }
-                if (item.ExpectedQuantity != stock.Quantity || item.LastMovementId != stock.MovementId)
-                {
-                    item.CountedQuantity = null;
-                }
                 item.ExpectedQuantity = stock.Quantity;
                 item.LastMovementId = stock.MovementId;
                 item.UnitCost = stock.Cost;

@@ -9,19 +9,17 @@ internal static class FinancePositionReader
         AppDbContext db, DateTimeOffset before, CancellationToken ct)
     {
         // Stored balances include imported opening dues. Undo later operational postings rather
-        // than subtracting the initial opening balance.
+        // than subtracting the initial opening balance, and exclude accounts opened on/after the target date.
         var suppliers = await db.SupplierBalances.AsNoTracking()
-            .Where(balance => balance.OpenedAt == null || balance.OpenedAt < before
-                || balance.Entries.Any(entry => entry.OccurredAt < before || entry.Type == BalanceEntryType.OpeningBalance))
+            .Where(balance => balance.OpenedAt == null || balance.OpenedAt < before)
             .Select(balance => balance.CurrentBalance
-                - (balance.Entries.Where(entry => entry.OccurredAt >= before && entry.Type != BalanceEntryType.OpeningBalance)
+                - (balance.Entries.Where(entry => entry.OccurredAt >= before)
                     .Select(entry => (decimal?)entry.Amount).Sum() ?? 0))
             .ToArrayAsync(ct);
         var customers = await db.CustomerBalances.AsNoTracking()
-            .Where(balance => balance.OpenedAt == null || balance.OpenedAt < before
-                || balance.Entries.Any(entry => entry.OccurredAt < before || entry.Type == BalanceEntryType.OpeningBalance))
+            .Where(balance => balance.OpenedAt == null || balance.OpenedAt < before)
             .Select(balance => balance.CurrentBalance
-                - (balance.Entries.Where(entry => entry.OccurredAt >= before && entry.Type != BalanceEntryType.OpeningBalance)
+                - (balance.Entries.Where(entry => entry.OccurredAt >= before)
                     .Select(entry => (decimal?)entry.Amount).Sum() ?? 0))
             .ToArrayAsync(ct);
 

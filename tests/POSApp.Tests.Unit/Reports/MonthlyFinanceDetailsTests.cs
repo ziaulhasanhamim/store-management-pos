@@ -216,4 +216,80 @@ public class MonthlyFinanceDetailsTests
         await scopedOverview.Cell("A2").GetString().Should().Contain("Main Store");
         await scopedOverview.Cell("A3").GetString().Should().Contain("Location: Main Store");
     }
+
+    [Test]
+    public async Task GenerateDayExcel_GeneratesOverviewDrawersExpensesAndPayments()
+    {
+        var dayDate = new DateOnly(2026, 10, 27);
+        var totals = new ClosingTotals(
+            Start: dayDate,
+            End: dayDate,
+            OpeningCash: 5000m,
+            OpeningBank: 15000m,
+            CashIn: 8000m,
+            CashOut: 3000m,
+            BankIn: 2000m,
+            BankOut: 0m,
+            ClosingCash: 10000m,
+            ClosingBank: 17000m,
+            Revenue: 9000m,
+            Cogs: 6000m,
+            Expenses: 500m,
+            Salaries: 200m,
+            SupplierPaid: 2000m,
+            PayrollPaid: 200m,
+            SupplierDue: 8000m,
+            CustomerDue: 4000m,
+            StockValue: 35000m,
+            ClosedAt: DateTimeOffset.UtcNow,
+            Notes: "Day test")
+        {
+            CountedCash = 9950m,
+            Difference = -50m,
+            Locations =
+            [
+                new LocationCashClosing("Main Store", 1, "Closed", 5000m, 10000m, 9950m, -50m)
+            ],
+            Daily = new DailyFinanceDetails(
+                Categories:
+                [
+                    new ExpenseCategoryTotal(ExpenseCategory.Transport, 300m) { Name = "Transport" },
+                    new ExpenseCategoryTotal(ExpenseCategory.Refreshments, 200m) { Name = "Refreshments" }
+                ],
+                Payments:
+                [
+                    new DayPayment(DateTimeOffset.UtcNow, "Sale", "Walk-in", "Cash drawer", PaymentMethod.Cash, 1500m, "Bill #101"),
+                    new DayPayment(DateTimeOffset.UtcNow, "Expense", "Local Shop", "Cash drawer", PaymentMethod.Cash, -200m, "Snacks")
+                ]
+            )
+        };
+
+        var bytes = POSApp.Services.FinanceExportService.GenerateDayExcel(totals, "BDT", "RetailPOS");
+        await bytes.Length.Should().BeGreaterThan(0);
+
+        using var stream = new MemoryStream(bytes);
+        using var workbook = new ClosedXML.Excel.XLWorkbook(stream);
+
+        await workbook.Worksheets.Contains("Day Overview").Should().BeEqualTo(true);
+        await workbook.Worksheets.Contains("Cash Drawers").Should().BeEqualTo(true);
+        await workbook.Worksheets.Contains("Expense Categories").Should().BeEqualTo(true);
+        await workbook.Worksheets.Contains("Itemized Transactions").Should().BeEqualTo(true);
+
+        var overview = workbook.Worksheet("Day Overview");
+        await overview.Cell("A1").GetString().Should().BeEqualTo("RETAILPOS");
+        await overview.Cell("A2").GetString().Should().Contain("Daily Financial Closing Report");
+
+        var drawers = workbook.Worksheet("Cash Drawers");
+        await drawers.Cell("A2").GetString().Should().BeEqualTo("Main Store");
+        await drawers.Cell("B2").GetString().Should().BeEqualTo("Closed");
+        await drawers.Cell("F2").GetValue<decimal>().Should().BeEqualTo(-50m);
+
+        var expenses = workbook.Worksheet("Expense Categories");
+        await expenses.Cell("A2").GetString().Should().BeEqualTo("Transport");
+        await expenses.Cell("B2").GetValue<decimal>().Should().BeEqualTo(300m);
+
+        var payments = workbook.Worksheet("Itemized Transactions");
+        await payments.Cell("B2").GetString().Should().BeEqualTo("Sale");
+        await payments.Cell("F2").GetValue<decimal>().Should().BeEqualTo(1500m);
+    }
 }

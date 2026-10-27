@@ -55,6 +55,18 @@ public sealed class BalanceIntegrityService(IServiceScopeFactory scopes)
             {
                 issues.Add(new("Customer", $"Customer #{row.CustomerId}", row.CurrentBalance, row.Latest));
             }
+            var lenders = await db.LenderBalances.AsNoTracking().Select(balance => new
+            {
+                balance.LenderId,
+                balance.CurrentBalance,
+                Latest = (balance.Entries.OrderBy(entry => entry.Id)
+                    .Select(entry => (decimal?)(entry.BalanceAfter - entry.Amount)).FirstOrDefault() ?? balance.OpeningBalance)
+                    + (balance.Entries.Select(entry => (decimal?)entry.Amount).Sum() ?? 0)
+            }).ToArrayAsync(ct);
+            foreach (var row in lenders.Where(row => row.Latest != row.CurrentBalance))
+            {
+                issues.Add(new("Lender", $"Lender #{row.LenderId}", row.CurrentBalance, row.Latest));
+            }
             var banks = await db.BankAccounts.AsNoTracking().Select(bank => new
             {
                 bank.Code,

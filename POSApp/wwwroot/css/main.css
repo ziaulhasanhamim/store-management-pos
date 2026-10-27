@@ -83,13 +83,28 @@
 .barcode-label svg { display: block; margin: 0 auto; max-width: 100%; }
 .barcode-label strong { display: block; margin-top: 5px; font-size: 17px; }
 @media print {
-    @page { margin: 10mm; }
+    @page { margin: 8mm; }
+    @page receipt {
+        size: 80mm auto;
+        margin: 0;
+    }
+    body:has(.bill) {
+        page: receipt;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
     body { background: white !important; }
     aside, header, .no-print, #navigation-progress, #blazor-error-ui, #components-reconnect-modal { display: none !important; }
     body > div, main { padding: 0 !important; margin: 0 !important; max-width: none !important; }
     .print-area { border: 0 !important; box-shadow: none !important; background: white !important; }
     .barcode-sheet { grid-template-columns: repeat(2, 1fr); gap: 6mm; padding: 0; }
-    .bill { max-width: 80mm !important; margin: 0 auto !important; font-size: 11px; }
+    .bill {
+        width: 80mm !important;
+        max-width: 80mm !important;
+        margin: 0 auto !important;
+        padding: 4mm !important;
+        font-size: 11px;
+    }
     .bill table, .bill article { break-inside: avoid; }
 }
 

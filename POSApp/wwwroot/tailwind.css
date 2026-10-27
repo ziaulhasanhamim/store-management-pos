@@ -2292,7 +2292,16 @@
 }
 @media print {
   @page {
-    margin: 10mm;
+    margin: 8mm;
+  }
+  @page receipt {
+    size: 80mm auto;
+    margin: 0;
+  }
+  body:has(.bill) {
+    page: receipt;
+    margin: 0 !important;
+    padding: 0 !important;
   }
   body {
     background: white !important;
@@ -2316,8 +2325,10 @@
     padding: 0;
   }
   .bill {
+    width: 80mm !important;
     max-width: 80mm !important;
     margin: 0 auto !important;
+    padding: 4mm !important;
     font-size: 11px;
   }
   .bill table, .bill article {

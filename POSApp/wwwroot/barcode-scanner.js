@@ -50,19 +50,21 @@ export async function start(video, callback) {
 
 const keyboardScanners = new WeakMap();
 
-// Keyboard-wedge scanners emit a fast burst. Capture its boundary locally so the
-// next scan can begin while the previous barcode lookup is still on the server.
+// Keyboard-wedge scanners emit a fast burst. Capture globally on window so scanning works
+// even if focus shifts away from the search input during checkout.
 export function attachKeyboard(input, callback) {
     detachKeyboard(input);
     const state = { buffer: '', firstAt: 0, lastAt: 0, timer: undefined, queue: Promise.resolve(), disposed: false };
     function finish() {
         clearTimeout(state.timer);
         const code = state.buffer;
-        const fast = code.length >= 3 && (state.lastAt - state.firstAt) / (code.length - 1) < 40;
+        const fast = code.length >= 3 && (state.lastAt - state.firstAt) / (code.length - 1) < 50;
         state.buffer = '';
-        if (!fast || input.value.trim() !== code) return false;
-        input.value = '';
-        input.dispatchEvent(new Event('input', { bubbles: true }));
+        if (!fast) return false;
+        if (input && input.value && input.value.trim() === code) {
+            input.value = '';
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+        }
         state.queue = state.queue.then(async () => {
             if (!state.disposed) await callback.invokeMethodAsync('KeyboardScanned', code);
         }).catch(error => {
@@ -84,18 +86,18 @@ export function attachKeyboard(input, callback) {
             return;
         }
         const now = performance.now();
-        if (now - state.lastAt > 60) {
+        if (now - state.lastAt > 70) {
             state.buffer = '';
             state.firstAt = now;
         }
         state.buffer += event.key;
         state.lastAt = now;
         clearTimeout(state.timer);
-        state.timer = setTimeout(finish, 90);
+        state.timer = setTimeout(finish, 100);
     }
     state.keydown = keydown;
     keyboardScanners.set(input, state);
-    input.addEventListener('keydown', keydown, true);
+    window.addEventListener('keydown', keydown, true);
 }
 
 export function detachKeyboard(input) {
@@ -103,6 +105,6 @@ export function detachKeyboard(input) {
     if (!state) return;
     state.disposed = true;
     clearTimeout(state.timer);
-    input.removeEventListener('keydown', state.keydown, true);
+    window.removeEventListener('keydown', state.keydown, true);
     keyboardScanners.delete(input);
 }

@@ -50,7 +50,8 @@ internal static class MonthlyFinanceBuilder
         var byDay = sales.GroupBy(sale => Date(sale.SoldAt)).ToDictionary(group => group.Key,
             group => (Sales: group.Sum(sale => sale.TotalAmount), Cogs: group.Sum(sale => costs.GetValueOrDefault(sale.Id))));
         var adjustments = await db.InventoryMovements.AsNoTracking()
-            .Where(move => move.StockTakeItemId != null && move.OccurredAt >= from && move.OccurredAt < through
+            .Where(move => (move.StockTakeItemId != null || move.StockAdjustmentItemId != null || move.Type == InventoryMovementType.Adjustment)
+                && move.OccurredAt >= from && move.OccurredAt < through
                 && (locationId == null || move.StockLocationId == locationId.Value))
             .Select(move => new { move.OccurredAt, move.Quantity, move.UnitCost }).ToArrayAsync(ct);
         var dailyVariance = adjustments.GroupBy(move => Date(move.OccurredAt))

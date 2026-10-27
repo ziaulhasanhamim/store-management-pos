@@ -20,17 +20,31 @@ public class InventoryValuationCalculatorTests
     }
 
     [Test]
-    public async Task CalculateMovingAverageCost_WhenExistingStockIsNegative_ReturnsIncomingUnitCost()
+    public async Task CalculateMovingAverageCost_WhenExistingStockIsNegative_CalculatesWeightedAverageForNetPositiveStock()
     {
-        // Arrange & Act (backorder scenario)
+        // Arrange & Act: -2 units @ 6 + 4 units @ 8 => ((-2 * 6) + (4 * 8)) / (-2 + 4) = (-12 + 32) / 2 = 20 / 2 = 10
         var result = InventoryValuationCalculator.CalculateMovingAverageCost(
-            existingStock: -5,
-            currentCost: 80m,
-            incomingQuantity: 10,
-            incomingUnitCost: 120m);
+            existingStock: -2,
+            currentCost: 6m,
+            incomingQuantity: 4,
+            incomingUnitCost: 8m);
 
         // Assert
-        await result.Should().BeEqualTo(120m);
+        await result.Should().BeEqualTo(10m);
+    }
+
+    [Test]
+    public async Task CalculateMovingAverageCost_WhenTotalQuantityIsZero_ReturnsIncomingUnitCost()
+    {
+        // Arrange & Act: Divide by zero protection (-2 existing + 2 incoming = 0)
+        var result = InventoryValuationCalculator.CalculateMovingAverageCost(
+            existingStock: -2,
+            currentCost: 6m,
+            incomingQuantity: 2,
+            incomingUnitCost: 8m);
+
+        // Assert
+        await result.Should().BeEqualTo(8m);
     }
 
     [Test]

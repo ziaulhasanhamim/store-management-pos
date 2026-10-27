@@ -525,7 +525,7 @@ public sealed class ClosingService(IServiceScopeFactory scopes, IConfiguration c
             PurchaseTotal = purchaseTotal,
             AdvancesPaid = advances,
             CashVariance = variance,
-            StockVariance = (await db.InventoryMovements.Where(move => move.StockTakeItemId != null
+            StockVariance = (await db.InventoryMovements.Where(move => (move.StockTakeItemId != null || move.StockAdjustmentItemId != null || move.Type == InventoryMovementType.Adjustment)
                     && move.OccurredAt >= from && move.OccurredAt < through
                     && (locationId == null || move.StockLocationId == locationId.Value))
                 .Select(move => new { move.Quantity, move.UnitCost }).ToArrayAsync(ct))

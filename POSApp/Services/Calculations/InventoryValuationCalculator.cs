@@ -9,18 +9,19 @@ public static class InventoryValuationCalculator
             return currentCost;
         }
 
-        if (existingStock <= 0)
-        {
-            return decimal.Round(incomingUnitCost, 2, MidpointRounding.AwayFromZero);
-        }
-
         var totalQuantity = existingStock + incomingQuantity;
         if (totalQuantity <= 0)
         {
             return decimal.Round(incomingUnitCost, 2, MidpointRounding.AwayFromZero);
         }
 
-        var newAverage = currentCost + (incomingUnitCost - currentCost) * (incomingQuantity / totalQuantity);
+        var totalValue = (existingStock * currentCost) + (incomingQuantity * incomingUnitCost);
+        if (totalValue <= 0)
+        {
+            return decimal.Round(incomingUnitCost, 2, MidpointRounding.AwayFromZero);
+        }
+
+        var newAverage = totalValue / totalQuantity;
         return decimal.Round(newAverage, 2, MidpointRounding.AwayFromZero);
     }
 }

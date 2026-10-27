@@ -25,6 +25,10 @@ builder.Services.ConfigureApplicationCookie(o =>
     {
         o.LoginPath = "/account/login";
         o.AccessDeniedPath = "/account/access-denied";
+        o.ExpireTimeSpan = TimeSpan.FromHours(12);
+        o.SlidingExpiration = true;
+        o.Cookie.HttpOnly = true;
+        o.Cookie.SameSite = SameSiteMode.Lax;
         o.Events.OnRedirectToLogin = ctx =>
         {
             if (ctx.Request.Path.StartsWithSegments("/api"))

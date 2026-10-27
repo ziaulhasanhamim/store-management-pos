@@ -890,18 +890,22 @@ public sealed class InventoryService(IServiceScopeFactory scopes, IConfiguration
         var from = Utc(businessDate);
         var through = Utc(businessDate.AddDays(1));
 
-        // Keep a compact projection for dashboard totals without loading catalog entities.
-        var stock = await db.Products
-            .Where(product => !product.IsDeleted)
-            .Select(product => new
-            {
-                product.IsNonStocked,
-                Quantity = product.InventoryBalances.Select(balance => (decimal?)balance.QuantityOnHand).Sum() ?? 0,
-                Cost = costs ? product.CostPrice : 0
-            })
-            .ToListAsync(ct);
+        // Execute aggregated queries directly in PostgreSQL without loading entire catalogs into memory.
+        var activeProducts = db.Products.Where(product => !product.IsDeleted);
+        var productCount = await activeProducts.CountAsync(ct);
+        var totalQuantity = await db.InventoryBalances
+            .Where(balance => !balance.Product!.IsDeleted)
+            .SumAsync(balance => (decimal?)balance.QuantityOnHand, ct) ?? 0m;
+        var outOfStockCount = await activeProducts
+            .Where(product => !product.IsNonStocked && product.InventoryBalances.Sum(balance => (decimal?)balance.QuantityOnHand ?? 0) <= 0)
+            .CountAsync(ct);
+        decimal? stockValuation = costs
+            ? await db.InventoryBalances
+                .Where(balance => !balance.Product!.IsDeleted)
+                .SumAsync(balance => (decimal?)(balance.QuantityOnHand * balance.Product!.CostPrice), ct) ?? 0m
+            : null;
 
-        decimal? due = costs ? (await db.SupplierBalances.Select(b => b.CurrentBalance).ToListAsync(ct)).Sum() : null;
+        decimal? due = costs ? (await db.SupplierBalances.SumAsync(b => (decimal?)b.CurrentBalance, ct) ?? 0m) : null;
         var receipts = costs
             ? await ReceiptQuery(db.Purchases
                 .Where(purchase => !purchase.IsDeleted && purchase.Status == PurchaseStatus.Received)
@@ -919,9 +923,8 @@ public sealed class InventoryService(IServiceScopeFactory scopes, IConfiguration
         decimal? todayProfit = null;
         if (costs)
         {
-            var saleIds = await salesQuery.Select(s => s.Id).ToListAsync(ct);
             var todayCogs = await db.SaleItems.AsNoTracking()
-                .Where(item => saleIds.Contains(item.SaleId))
+                .Where(item => salesQuery.Any(s => s.Id == item.SaleId))
                 .SumAsync(item => (decimal?)(item.UnitCost * item.Quantity), ct) ?? 0m;
             todayProfit = todaySalesAmount - todayCogs;
         }
@@ -981,10 +984,10 @@ public sealed class InventoryService(IServiceScopeFactory scopes, IConfiguration
             .ToListAsync(ct);
 
         return new(
-            stock.Count,
-            stock.Sum(item => item.Quantity),
-            stock.Count(item => !item.IsNonStocked && item.Quantity <= 0),
-            costs ? stock.Sum(item => item.Quantity * item.Cost) : null,
+            productCount,
+            totalQuantity,
+            outOfStockCount,
+            stockValuation,
             due,
             receipts)
         {
