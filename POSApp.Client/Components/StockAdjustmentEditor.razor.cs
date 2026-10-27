@@ -48,7 +48,7 @@ public partial class StockAdjustmentEditor
     private string? StorageWarning;
     private EditForm? AdjustmentForm;
     private bool Ready;
-    private bool ServerRecoveryReady;
+    private bool ServerRecoveryReady = true;
     private bool Restored;
     private bool Busy;
     private bool Searching;

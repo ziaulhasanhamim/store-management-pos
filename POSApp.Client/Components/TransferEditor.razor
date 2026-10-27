@@ -1,7 +1,7 @@
 @inject IReceivingClient Inventory
 @implements IDisposable
 
-<EditorDraft TState="TransferEditorState" Kind="transfer" ShowResetAction="false" ResetLabel="New transfer" State="DraftState" Empty="@(Completed is not null || (Lines.Count == 0 && string.IsNullOrWhiteSpace(Notes)))" Paused="Busy" Restore="RestoreDraft" Clear="Reset" ReadyChanged="@(ready => DraftReady = ready)" @ref="Recovery" />
+<LocalDraft TState="TransferEditorState" Kind="transfer" State="DraftState" Empty="@(Completed is not null || (Lines.Count == 0 && string.IsNullOrWhiteSpace(Notes)))" Paused="Busy" Restore="RestoreDraft" Clear="Reset" ReadyChanged="@(ready => DraftReady = ready)" @ref="Recovery" />
 
 <ReceivingModePicker Mode="transfer" Disabled="Busy" />
 

@@ -6,7 +6,7 @@
 <div @onkeydown="HandleShortcutAsync">
 <p class="mb-3 text-xs text-slate-400">F2 search · F4 hold sale · Ctrl + Enter complete</p>
 
-<EditorDraft TState="SalesEditorState" Kind="sales" ShowResetAction="false" ResetLabel="New sale" State="DraftState" Empty="@(Lines.Count == 0 && string.IsNullOrWhiteSpace(Notes))" Paused="Busy" Restore="RestoreDraft" Clear="NewSale" ReadyChanged="@(ready => DraftReady = ready)" @ref="Recovery" />
+<LocalDraft TState="SalesEditorState" Kind="sales" State="DraftState" Empty="@(Lines.Count == 0 && string.IsNullOrWhiteSpace(Notes) && Discount == 0)" Paused="Busy" Restore="RestoreDraft" Clear="NewSale" ReadyChanged="@(ready => DraftReady = ready)" @ref="Recovery" />
 
 @if (Error is not null)
 {

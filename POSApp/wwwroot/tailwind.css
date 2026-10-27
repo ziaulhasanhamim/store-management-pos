@@ -23,6 +23,7 @@
     --color-amber-600: oklch(66.6% 0.179 58.318);
     --color-amber-700: oklch(55.5% 0.163 48.998);
     --color-amber-800: oklch(47.3% 0.137 46.201);
+    --color-amber-950: oklch(27.9% 0.077 45.635);
     --color-emerald-50: oklch(97.9% 0.021 166.113);
     --color-emerald-100: oklch(95% 0.052 163.051);
     --color-emerald-200: oklch(90.5% 0.093 164.15);
@@ -1642,6 +1643,9 @@
       .hover\:bg-violet-50\/40:hover {
         background-color: color-mix(in oklab, var(--color-violet-50) 40%, transparent);
       }
+    }
+    .hover\:text-amber-950:hover {
+      color: var(--color-amber-950);
     }
     .hover\:text-blue-600:hover {
       color: var(--color-blue-600);

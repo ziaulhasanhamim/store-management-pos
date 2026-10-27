@@ -1,6 +1,6 @@
 @inject IMoneyEntryClient Entries
 
-<EditorDraft TState="MoneyEditorState" Kind="@Data.Kind" ResetLabel="New batch" State="DraftState" Empty="@(Lines.All(line => line.Input.Id is null && line.Input.Amount == 0 && string.IsNullOrWhiteSpace(line.Input.Notes)))" Paused="Busy" Restore="RestoreDraft" Clear="ResetDraft" ReadyChanged="@(ready => DraftReady = ready)" @ref="Recovery" />
+<LocalDraft TState="MoneyEditorState" Kind="@Data.Kind" State="DraftState" Empty="@(Lines.All(line => line.Input.Id is null && line.Input.Amount == 0 && string.IsNullOrWhiteSpace(line.Input.Notes)))" Paused="Busy" Restore="RestoreDraft" Clear="ResetDraft" ReadyChanged="@(ready => DraftReady = ready)" @ref="Recovery" />
 
 <div class="mb-6 grid gap-4 sm:grid-cols-3">
     <div class="metric">

@@ -2,7 +2,7 @@
 
 @if (Ready)
 {
-    <EditorDraft TState="StockAdjustmentDraft" Kind="stock-adjustment" ResetLabel="New adjustment" State="ServerDraftState"
+    <LocalDraft TState="StockAdjustmentDraft" Kind="stock-adjustment" State="ServerDraftState"
                  Empty="@(Rows.Count == 0 && string.IsNullOrWhiteSpace(Notes))" Paused="Busy" Restore="RestoreServerDraft" Clear="ClearAsync" ReadyChanged="@(ready => ServerRecoveryReady = ready)" />
 }
 

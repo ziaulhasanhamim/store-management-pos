@@ -12,10 +12,8 @@ public sealed class DraftService(IServiceScopeFactory scopes)
 {
     private static string Role(string kind) => kind.Split(':')[0] switch
     {
-        "sales" or "expenses" or "customer-payments" => AppRoles.SalesAssociate,
-        "receiving" or "transfer" or "supplier-payments" or "stock-take" => AppRoles.InventoryManager,
-        "stock-adjustment" or "payroll" or "debt" or "bank" => AppRoles.Admin,
-        _ => throw new ValidationException("Unknown draft type.")
+        "stock-take" => AppRoles.InventoryManager,
+        _ => throw new ValidationException("Server drafts are only supported for stock takes.")
     };
 
     private static void ValidateKind(string kind)
@@ -24,6 +22,10 @@ public sealed class DraftService(IServiceScopeFactory scopes)
             && character is not '-' and not ':'))
         {
             throw new ValidationException("Invalid draft name.");
+        }
+        if (!kind.StartsWith("stock-take", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ValidationException("Server drafts are only supported for stock takes.");
         }
     }
 

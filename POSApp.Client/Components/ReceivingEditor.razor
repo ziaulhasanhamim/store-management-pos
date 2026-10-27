@@ -2,7 +2,7 @@
 @inject ILogger<ReceivingEditor> Logger
 @implements IDisposable
 
-<EditorDraft TState="ReceivingEditorState" Kind="receiving" ShowResetAction="false" ResetLabel="New receipt" State="DraftState" Empty="@(Completed is not null || (Lines.Count == 0 && string.IsNullOrWhiteSpace(Invoice) && string.IsNullOrWhiteSpace(Notes)))" Paused="Busy" Restore="RestoreDraft" Clear="NewReceipt" ReadyChanged="@(ready => DraftReady = ready)" @ref="Recovery" />
+<LocalDraft TState="ReceivingEditorState" Kind="receiving" State="DraftState" Empty="@(Completed is not null || (Lines.Count == 0 && string.IsNullOrWhiteSpace(Invoice) && string.IsNullOrWhiteSpace(Notes)))" Paused="Busy" Restore="RestoreDraft" Clear="NewReceipt" ReadyChanged="@(ready => DraftReady = ready)" @ref="Recovery" />
 
 <div inert="@(Dialog is not null)">
     <ReceivingModePicker Disabled="Busy" />

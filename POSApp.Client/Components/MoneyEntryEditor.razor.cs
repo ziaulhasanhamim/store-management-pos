@@ -7,7 +7,7 @@ namespace POSApp.Client.Components;
 
 public partial class MoneyEntryEditor
 {
-    private EditorDraft<MoneyEditorState>? Recovery;
+    private LocalDraft<MoneyEditorState>? Recovery;
     private MoneyEditorState DraftState => new(BatchId, Data.WorkingDate,
         Lines.Select(line => new MoneyEditorLine(line.Input, line.ValidAmount, line.FixedParty)).ToArray());
 
@@ -48,7 +48,7 @@ public partial class MoneyEntryEditor
     private string NewCategory = "";
     private bool Busy;
     private bool LoadingRows;
-    private bool DraftReady;
+    private bool DraftReady = true;
     private IReadOnlySet<int> PendingIds => Lines
         .Where(line => line.Input.Id.HasValue)
         .Select(line => line.Input.Id!.Value)

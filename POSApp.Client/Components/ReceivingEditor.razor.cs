@@ -9,7 +9,7 @@ namespace POSApp.Client.Components;
 
 public partial class ReceivingEditor
 {
-    private EditorDraft<ReceivingEditorState>? Recovery;
+    private LocalDraft<ReceivingEditorState>? Recovery;
     private ReceivingEditorState DraftState => new(RequestId, SupplierId, LocationId, Options.WorkingDate,
         Invoice, AllowDuplicateInvoice, Notes, Payments.ToArray(), Lines.Select(line => new ReceivingEditorLine(
             line.Product, line.Quantity, line.Cost, line.QuantityValid, line.CostValid)).ToArray());
@@ -54,7 +54,7 @@ public partial class ReceivingEditor
     private ReceivingOptions Options = default!;
     private IReadOnlyList<Lookup> Categories = [];
     private bool Busy;
-    private bool DraftReady;
+    private bool DraftReady = true;
     private bool Searching;
     private bool ReturnMode;
     private bool DialogBusy;

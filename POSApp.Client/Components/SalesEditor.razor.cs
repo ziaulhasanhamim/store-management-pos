@@ -8,7 +8,7 @@ namespace POSApp.Client.Components;
 
 public partial class SalesEditor
 {
-    private EditorDraft<SalesEditorState>? Recovery;
+    private LocalDraft<SalesEditorState>? Recovery;
     private SalesEditorState DraftState => new(RequestId, SaleRevision, LocationId, CustomerId, Options.WorkingDate,
         Discount, DiscountValid, Notes, Payments.ToArray(), Lines.Select(line => new SalesEditorLine(
             line.Product, line.Quantity, line.Price, line.QuantityValid, line.PriceValid)).ToArray());
@@ -64,7 +64,7 @@ public partial class SalesEditor
     private IReadOnlyList<PaymentInput> Payments = [];
     private bool ReturnMode;
     private bool Busy;
-    private bool DraftReady;
+    private bool DraftReady = true;
     private bool Searching;
     private bool CustomerDialog;
     private bool CameraDialog;

@@ -1,0 +1,11 @@
+@typeparam TState
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+@if (Recovered)
+{
+    <div class="mb-3 flex items-center justify-between rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800" role="status">
+        <span>Restored unfinished draft from this browser</span>
+        <button type="button" class="font-medium underline hover:text-amber-950" @onclick="DiscardAsync">Discard draft</button>
+    </div>
+}

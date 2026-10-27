@@ -9,7 +9,7 @@ public partial class TransferEditor
     [Parameter]
     public DateOnly? WorkingDate { get; set; }
 
-    private EditorDraft<TransferEditorState>? Recovery;
+    private LocalDraft<TransferEditorState>? Recovery;
     private TransferEditorState DraftState => new(RequestId, SourceId, DestinationId, WorkingDate,
         Notes, Lines.Select(line => new TransferEditorLine(line.Item, line.Quantity, line.Valid)).ToArray());
 
@@ -46,7 +46,7 @@ public partial class TransferEditor
     private string? Error;
     private bool Searching;
     private bool Busy;
-    private bool DraftReady;
+    private bool DraftReady = true;
     private Guid RequestId = Guid.NewGuid();
     private TransferResult? Completed;
     private List<Line> Lines = [];
