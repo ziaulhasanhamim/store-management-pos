@@ -40,8 +40,7 @@
                         InitialKind="PayrollForm.Kind"
                         InitialAmount="PayrollForm.Amount"
                         Month="PayrollForm.Month"
-                        Currency="@Currency"
-                        @rendermode="InteractiveAuto" />
+                        Currency="@Currency" />
                     <input type="hidden" name="PayrollForm.Month" value="@PayrollForm.Month.ToString("yyyy-MM-dd")" />
                     <p class="mt-3 text-sm text-slate-500">Salary month: @PayrollForm.Month.ToString("MMMM yyyy")</p>
                     <div class="mt-4 grid gap-4 sm:grid-cols-2">

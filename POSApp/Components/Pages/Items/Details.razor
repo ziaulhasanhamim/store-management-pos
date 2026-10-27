@@ -114,10 +114,17 @@ else
             </h2>
             @if (Detail.Locations.Count > 0)
             {
-                <StockLocationSelector ProductId="Id"
-                                       Locations="Detail.Locations.ToArray()"
-                                       SelectedLocationId="Detail.SelectedHistoryLocationId"
-                                       @rendermode="InteractiveAuto" />
+                <form method="get" action="@($"/items/{Id}")" data-enhance class="flex min-w-48 flex-col gap-2">
+                    <label class="text-xs text-slate-500" for="history-location">Stock location</label>
+                    <select id="history-location" name="locationId" class="field" onchange="this.form.requestSubmit()">
+                        @foreach (var location in Detail.Locations)
+                        {
+                            <option value="@location.Id" selected="@(location.Id == Detail.SelectedHistoryLocationId)">
+                                @location.Name@(location.IsDeleted ? " (Archived)" : "")
+                            </option>
+                        }
+                    </select>
+                </form>
             }
         </div>
 

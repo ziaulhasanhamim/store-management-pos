@@ -39,7 +39,7 @@
                 <form method="post" @formname="cash-close" @onsubmit="CloseAsync" data-enhance data-submit-indication="true">
                     <AntiforgeryToken />
                     <input type="hidden" name="Close.SessionId" value="@current.Id" />
-                    <CashCount Value="Close.ActualCash" Expected="current.Expected" Currency="@Currency" @rendermode="InteractiveAuto" />
+                    <CashCount Value="Close.ActualCash" Expected="current.Expected" Currency="@Currency" />
                     <label class="field-label mt-4" for="close-notes">Reconciliation notes</label>
                     <textarea id="close-notes" name="Close.Notes" class="field" maxlength="2000">@Close?.Notes</textarea>
                     <p class="mt-2 text-xs text-slate-500">A shortage or overage requires a note. Closing saves the final count.</p>

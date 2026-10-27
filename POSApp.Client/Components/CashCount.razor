@@ -1,17 +1,23 @@
 @using System.Globalization
 
+@{
+    var initialValue = Value?.ToString("0.00", CultureInfo.InvariantCulture) ?? "";
+    decimal? diff = Value.HasValue ? Value.Value - Expected : null;
+}
+
 <label class="field-label" for="counted-cash">Counted cash (@Currency)</label>
 <input id="counted-cash" name="@FieldName" class="field" type="text" inputmode="decimal"
        data-select-on-focus="true" required="@Required" pattern="[0-9]+([.][0-9]{1,2})?"
-       @bind="Count" @bind:event="oninput" />
-@if (decimal.TryParse(Count, NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out var actual) && actual >= 0)
-{
-    var difference = actual - Expected;
-    <p class="mt-3 text-sm font-semibold @(difference == 0 ? "text-emerald-700" : "text-amber-700")" role="status">
-        @(difference == 0 ? "Balanced" : difference < 0 ? "Shortage" : "Overage")
-        · @Currency @Math.Abs(difference).ToString("N2")
-    </p>
-}
+       value="@initialValue"
+       data-cash-count data-expected="@Expected.ToString("0.00", CultureInfo.InvariantCulture)" data-currency="@Currency" />
+
+<p class="mt-3 text-sm font-semibold @(diff is null ? "hidden" : diff == 0 ? "text-emerald-700" : "text-amber-700")"
+   data-cash-count-diff role="status">
+    @if (diff.HasValue)
+    {
+        @($"{(diff == 0 ? "Balanced" : diff < 0 ? "Shortage" : "Overage")} · {Currency} {Math.Abs(diff.Value).ToString("N2")}")
+    }
+</p>
 
 @code {
     [Parameter]
@@ -28,11 +34,4 @@
 
     [Parameter]
     public decimal? Value { get; set; }
-
-    private string Count = "";
-
-    protected override void OnInitialized()
-    {
-        Count = Value?.ToString("0.00", CultureInfo.InvariantCulture) ?? "";
-    }
 }
