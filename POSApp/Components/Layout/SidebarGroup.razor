@@ -1,0 +1,37 @@
+@inject NavigationManager Navigation
+
+<details class="sidebar-group" open="@IsActive">
+    <summary class="nav-link">
+        <Icon Name="@IconName" />
+        <span>@Title</span>
+        <span class="sidebar-chevron" aria-hidden="true">›</span>
+    </summary>
+    <div class="sidebar-children">
+        @ChildContent
+    </div>
+</details>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = "";
+
+    [Parameter]
+    public string IconName { get; set; } = "box";
+
+    [Parameter, EditorRequired]
+    public string Prefix { get; set; } = "";
+
+    [Parameter]
+    public string? AlternatePrefix { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    private bool IsActive => Matches(Prefix) || (AlternatePrefix is not null && Matches(AlternatePrefix));
+
+    private bool Matches(string prefix)
+    {
+        var path = new Uri(Navigation.Uri).AbsolutePath;
+        return path == prefix || path.StartsWith(prefix + "/", StringComparison.OrdinalIgnoreCase);
+    }
+}

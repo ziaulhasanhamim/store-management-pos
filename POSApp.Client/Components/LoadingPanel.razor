@@ -1,0 +1,8 @@
+<div role="status" aria-live="polite" aria-busy="true" class="flex min-h-40 items-center justify-center gap-3 p-8 text-sm text-slate-500">
+    <span aria-hidden="true" class="size-5 animate-spin rounded-full border-2 border-slate-200 border-t-indigo-600 motion-reduce:animate-none"></span>
+    <span>@Message</span>
+</div>
+
+@code {
+    [Parameter] public string Message { get; set; } = "Loading…";
+}

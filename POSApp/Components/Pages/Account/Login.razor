@@ -1,0 +1,82 @@
+@page "/account/login"
+@layout AuthLayout
+@attribute [AllowAnonymous]
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Identity
+@using POSApp.Persistence.Entities
+@inject SignInManager<User> SignInManager
+
+<PageTitle>Sign in · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
+<h1 class="text-2xl font-semibold tracking-tight text-slate-900">Welcome back</h1>
+<p class="mt-2 mb-7 text-sm text-slate-500">Sign in with your store account to continue.</p>
+@if (Error is not null)
+{
+    <div role="alert" class="mb-5 rounded-lg bg-red-50 p-3 text-sm text-red-700">@Error</div>
+}
+<EditForm Model="Input" method="post" FormName="login" Enhance data-submit-indication="true" data-spinner-selector="#login-spinner" OnValidSubmit="SignInAsync" OnInvalidSubmit="ClearPassword">
+    <DataAnnotationsValidator />
+    <div class="space-y-5">
+        <div>
+            <label for="username" class="field-label">Username</label>
+            <InputText id="username" @bind-Value="Input!.Username" class="field" autocomplete="username" autofocus required />
+            <ValidationMessage For="() => Input!.Username" />
+        </div>
+        <div>
+            <label for="password" class="field-label">Password</label>
+            <InputText id="password" @bind-Value="Input!.Password" type="password" class="field" autocomplete="current-password" required />
+            <ValidationMessage For="() => Input!.Password" />
+        </div>
+        <label class="flex items-center gap-2 text-sm text-slate-600">
+            <InputCheckbox @bind-Value="Input!.RememberMe" class="size-4 accent-indigo-600" /> Keep me signed in
+        </label>
+        <button type="submit" class="btn-primary w-full" data-pending-text="Signing in…">
+            <span id="login-spinner" class="form-submit-spinner" hidden aria-hidden="true"></span>
+            <span data-submit-label>Sign in</span>
+        </button>
+    </div>
+</EditForm>
+
+@code {
+    [CascadingParameter] private HttpContext HttpContext { get; set; } = default!;
+    [SupplyParameterFromQuery] public string? ReturnUrl { get; set; }
+    [SupplyParameterFromForm(FormName = "login")] private LoginInput? Input { get; set; }
+    private string? Error;
+
+    protected override void OnInitialized()
+    {
+        Input ??= new();
+        if (HttpContext.User.Identity?.IsAuthenticated == true)
+            RedirectToWorkspace();
+    }
+
+    private async Task SignInAsync()
+    {
+        var result = await SignInManager.PasswordSignInAsync(Input!.Username.Trim(), Input!.Password, Input!.RememberMe, lockoutOnFailure: true);
+        Input!.Password = string.Empty;
+        if (result.Succeeded)
+        {
+            RedirectToWorkspace();
+            return;
+        }
+        Error = result.IsLockedOut
+            ? "This account is temporarily locked. Try again later or contact an admin."
+            : "The username or password is incorrect.";
+    }
+
+    private void ClearPassword(EditContext _) => Input!.Password = string.Empty;
+
+    private void RedirectToWorkspace()
+    {
+        // Explicit post/redirect/get: the follow-up request must not replay the
+        // anonymous login form after Identity has issued an authenticated cookie.
+        HttpContext.Response.StatusCode = StatusCodes.Status303SeeOther;
+        HttpContext.Response.Headers.Location = LocalReturnUrl.GetSafePath(ReturnUrl);
+    }
+
+    public sealed class LoginInput
+    {
+        [Required, StringLength(256)] public string Username { get; set; } = string.Empty;
+        [Required] public string Password { get; set; } = string.Empty;
+        public bool RememberMe { get; set; }
+    }
+}

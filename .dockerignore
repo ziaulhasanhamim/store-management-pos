@@ -1,0 +1,11 @@
+**/.git
+**/.vs
+**/.vscode
+**/bin
+**/obj
+**/TestResults
+**/Library
+**/node_modules
+build.binlog
+*.md
+docs/

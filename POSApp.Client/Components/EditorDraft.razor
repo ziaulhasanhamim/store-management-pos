@@ -1,0 +1,37 @@
+@typeparam TState
+@inject IDraftClient Drafts
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+@if (Ready)
+{
+    <div class="mb-3 flex flex-wrap items-center gap-3 text-xs text-slate-500" role="status">
+        <span>@Status</span>
+        @if (ShowResetAction)
+        {
+            <button type="button" class="btn-secondary" disabled="@(Paused || Resetting)" @onclick="RequestResetAsync">
+                @(Resetting ? "Clearing…" : ResetLabel)
+            </button>
+        }
+        @if (Conflict)
+        {
+            <button type="button" class="underline" disabled="@(Paused || Resetting)" @onclick="KeepLocalAsync">Keep recovered copy</button>
+            <button type="button" class="underline" disabled="@(Paused || Resetting)" @onclick="RestoreServerAsync">Use server copy</button>
+        }
+        @if (Warning is not null)
+        {
+            <span class="text-amber-700">@Warning</span>
+        }
+    </div>
+}
+
+@if (Ready && ConfirmReset)
+{
+    <div class="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm" role="alert">
+        <p class="mb-3">@ResetPrompt</p>
+        <div class="flex gap-3">
+            <button type="button" class="btn-secondary" disabled="@Resetting" @onclick="() => ConfirmReset = false">Keep editing</button>
+            <button type="button" class="btn-primary" disabled="@(Paused || Resetting)" @onclick="ResetConfirmedAsync">Clear draft and start fresh</button>
+        </div>
+    </div>
+}

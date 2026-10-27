@@ -1,0 +1,105 @@
+@page "/suppliers/{Id:int}"
+@attribute [Authorize(Policy = AppPolicies.ManageInventory)]
+@attribute [StreamRendering]
+@inject SupplierService Suppliers
+
+<PageTitle>Supplier account · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
+
+<AuthorizeView Policy="@AppPolicies.ManageUsers">
+    <a href="@($"/accounts/suppliers/adjust?partyId={Id}")" class="btn-secondary mb-4">Opening balance / due adjustment</a>
+</AuthorizeView>
+<div class="page-heading">
+    <div>
+        <a href="/suppliers" class="text-sm text-slate-500">Suppliers</a>
+        <h1>@(Detail?.Supplier.Name ?? "Supplier account")</h1>
+    </div>
+    <a href="@($"/suppliers/payments?supplierId={Id}")" class="btn-primary">Make payment</a>
+</div>
+
+@if (Loading)
+{
+    <LoadingPanel Message="Loading supplier account…" />
+}
+else if (Detail is null)
+{
+    <p>Supplier not found.</p>
+}
+else
+{
+    <div class="metric mb-6">
+        <p>Current balance</p>
+        <strong>@Money(Detail.Supplier.Balance)</strong>
+        <span class="metric-note">Opening balance @Money(Detail.Supplier.OpeningBalance)</span>
+    </div>
+    <div class="mb-6 grid gap-4 sm:grid-cols-2">
+        <div class="metric">
+            <p>Assigned inventory at average cost</p>
+            <strong class="text-2xl!">@Money(Detail.Supplier.StockValue)</strong>
+            <a href="@($"/reports/inventory?supplierId={Id}")" class="mt-3 inline-block text-sm text-blue-700">View inventory</a>
+        </div>
+        <div class="metric">
+            <p>Inventory value less supplier balance</p>
+            <strong class="text-2xl!">@Money(Detail.Supplier.StockValue - Detail.Supplier.Balance)</strong>
+        </div>
+    </div>
+    <section class="panel">
+        <div class="panel-heading">
+            <h2>Account history</h2>
+            <span class="text-xs text-slate-400">Account activity</span>
+        </div>
+        <div class="table-scroll">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Activity</th>
+                        <th class="text-right">Amount</th>
+                        <th class="text-right">Balance after</th>
+                        <th>Notes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var entry in Detail.Entries)
+                    {
+                        <tr>
+                            <td>@entry.At.ToBusinessTime(Configuration).ToString("dd MMM yyyy, HH:mm")</td>
+                            <td>@entry.Type</td>
+                            <td class="text-right">@Money(entry.Amount)</td>
+                            <td class="text-right">@Money(entry.BalanceAfter)</td>
+                            <td>@entry.Notes</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            @if (Detail.Pagination is not null)
+            {
+                <PageNavigation Info="Detail.Pagination" Label="entries" />
+            }
+        </div>
+    </section>
+}
+
+@code {
+    [SupplyParameterFromQuery]
+    public int Page { get; set; } = 1;
+
+    [SupplyParameterFromQuery]
+    public int PageSize { get; set; } = 30;
+
+    [Parameter]
+    public int Id { get; set; }
+
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    private SupplierDetail? Detail;
+    private bool Loading = true;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        Detail = await Suppliers.DetailAsync(HttpContext.User, Id, HttpContext.RequestAborted, Page, PageSize);
+        Loading = false;
+    }
+
+    private string Money(decimal amount) => $"{amount:N2} {Configuration["CurrencyCode"] ?? "BDT"}";
+}

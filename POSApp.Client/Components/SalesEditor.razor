@@ -1,0 +1,289 @@
+@implements IAsyncDisposable
+@inject ISalesClient Sales
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<div @onkeydown="HandleShortcutAsync">
+<p class="mb-3 text-xs text-slate-400">F2 search · F4 hold sale · Ctrl + Enter complete</p>
+
+<EditorDraft TState="SalesEditorState" Kind="sales" ShowResetAction="false" ResetLabel="New sale" State="DraftState" Empty="@(Lines.Count == 0 && string.IsNullOrWhiteSpace(Notes))" Paused="Busy" Restore="RestoreDraft" Clear="NewSale" ReadyChanged="@(ready => DraftReady = ready)" @ref="Recovery" />
+
+@if (Error is not null)
+{
+    <p class="error-panel" role="alert">@Error</p>
+}
+@if (Notice is not null)
+{
+    <p class="success-panel" role="status">@Notice</p>
+}
+<fieldset disabled="@(!RendererInfo.IsInteractive || !DraftReady || Busy)" inert="@(CustomerDialog || CameraDialog)" class="min-w-0">
+    <div class="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <section class="panel min-w-0">
+            <div class="space-y-4 border-b border-slate-100 p-5">
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                    <h2 class="font-semibold">Sale items</h2>
+                    <select class="field w-auto!" aria-label="Stock location" value="@LocationId" @onchange="ChangeLocationAsync" disabled="@(Lines.Count > 0)">
+                        @foreach (var location in Options.Locations)
+                        {
+                            <option value="@location.Id">@location.Name</option>
+                        }
+                    </select>
+                </div>
+                <div class="flex gap-2">
+                    <input class="field flex-1" aria-label="Search products or scan barcode"
+                           placeholder="Scan barcode or search products…" autocomplete="off"
+                           @bind="Search" @bind:event="oninput" @bind:after="SearchChangedAsync"
+                           @onkeydown="SearchKeyAsync" @ref="SearchField" />
+                    <button type="button" class="btn-secondary" @onclick="OpenCamera" aria-label="Scan with camera">
+                        <Icon Name="camera" />
+                    </button>
+                </div>
+                <label class="flex items-center gap-2 text-sm text-slate-600">
+                    <input type="checkbox" @bind="ReturnMode" />
+                    Add scanned / selected items as returns
+                </label>
+                @if (ReturnMode)
+                {
+                    <p class="text-xs text-slate-500">Use the original net unit price for returns. Returns and new sales can share the same bill.</p>
+                }
+                @if (Searching)
+                {
+                    <p class="text-xs text-slate-500" role="status">Searching…</p>
+                }
+                @if (!string.IsNullOrWhiteSpace(Search))
+                {
+                    <div class="max-h-64 divide-y divide-slate-100 overflow-y-auto rounded-lg border border-slate-200">
+                        @foreach (var product in Products)
+                        {
+                            <button type="button" class="flex w-full items-center justify-between gap-4 p-3 text-left hover:bg-blue-50" @onclick="() => SelectProductAsync(product)">
+                                <span>
+                                    <strong class="block text-sm text-slate-900">@product.Name</strong>
+                                    <span class="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                                        <span>@(product.Barcode ?? "No barcode") · @(product.IsNonStocked ? "Non-stocked" : $"{product.Available:0.###} {product.Unit}")</span>
+                                        @foreach (var itemAttribute in product.Attributes.Where(itemAttribute => itemAttribute.ShowInSales))
+                                        {
+                                            <span class="inline-flex items-center rounded bg-slate-100 px-1.5 py-0.5 text-[11px] font-medium text-slate-600">
+                                                @itemAttribute.DisplayName: @itemAttribute.Value
+                                            </span>
+                                        }
+                                    </span>
+                                </span>
+                                <strong class="text-sm text-blue-700 shrink-0">@Money(product.Price)</strong>
+                            </button>
+                        }
+                        @if (!Searching && Products.Count == 0)
+                        {
+                            <p class="p-3 text-sm text-slate-500">No matching products.</p>
+                        }
+                    </div>
+                }
+            </div>
+            @if (Lines.Count == 0)
+            {
+                <div class="empty-state">
+                    <Icon Name="box" />
+                    <p>Scan a barcode or search to add your first item.</p>
+                </div>
+            }
+            else
+            {
+                <div class="table-scroll">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Item</th>
+                                <th>Quantity</th>
+                                <th>Unit price</th>
+                                <th class="text-right">Amount</th>
+                                <th>
+                                    <span class="sr-only">Remove</span>
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var line in Lines)
+                            {
+                                <tr @key="line.Key">
+                                    <td>
+                                        <strong class="block min-w-32 text-slate-900">@line.Product.Name</strong>
+                                        @if (line.Quantity < 0)
+                                        {
+                                            <span class="badge mt-1">Return</span>
+                                        }
+                                        @if (!string.IsNullOrWhiteSpace(line.Product.Barcode))
+                                        {
+                                            <span class="mt-1 block font-mono text-xs text-slate-500">@line.Product.Barcode</span>
+                                        }
+                                        <span class="mt-1 block text-xs text-slate-400">@(line.Product.IsNonStocked ? "Non-stocked" : $"{line.Product.Available:0.###} {line.Product.Unit} on hand")</span>
+                                        @if (line.Product.Attributes.Any(a => a.ShowInSales))
+                                        {
+                                            <div class="mt-1 flex flex-wrap gap-1">
+                                                @foreach (var itemAttribute in line.Product.Attributes.Where(itemAttribute => itemAttribute.ShowInSales))
+                                                {
+                                                    <span class="inline-flex items-center rounded bg-slate-100 px-1.5 py-0.5 text-[11px] font-medium text-slate-600">@itemAttribute.DisplayName: @itemAttribute.Value</span>
+                                                }
+                                            </div>
+                                        }
+                                    </td>
+                                    <td>
+                                        <DecimalField class="field min-w-24" @bind-Value="line.Quantity"
+                                                      Minimum="-999999999999999.999m"
+                                                      Maximum="999999999999999.999m" DecimalPlaces="@(line.Product.AllowFractionUnit ? 3 : 0)"
+                                                      ValidityChanged="valid => line.QuantityValid = valid" aria-label="@($"Quantity for {line.Product.Name}")" />
+                                    </td>
+                                    <td>
+                                        <DecimalField class="field min-w-28" @bind-Value="line.Price"
+                                                      ValidityChanged="valid => line.PriceValid = valid" aria-label="@($"Unit price for {line.Product.Name}")" />
+                                    </td>
+                                    <td class="text-right whitespace-nowrap font-semibold">@Money(line.Total)</td>
+                                    <td>
+                                        <button type="button" class="icon-button" aria-label="Remove @line.Product.Name" @onclick="() => Lines.Remove(line)">
+                                            <Icon Name="trash" />
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            <div class="border-t border-slate-100 p-5">
+                <input class="field" placeholder="Notes (optional)" aria-label="Sale notes" @bind="Notes" />
+            </div>
+        </section>
+        <section class="panel xl:sticky xl:top-6" id="checkout-section">
+            <div class="panel-heading">
+                <h2>Checkout</h2>
+                <Icon Name="wallet" />
+            </div>
+            <div class="space-y-5 p-5">
+                <div class="flex items-end gap-2">
+                    <label class="min-w-0 flex-1">
+                        <span class="field-label">Customer</span>
+                        <select class="field" aria-label="Customer" @bind="CustomerId">
+                            <option value="">Walk-in customer</option>
+                            @foreach (var customer in Options.Customers)
+                            {
+                                <option value="@customer.Id">@customer.Name · Due @Money(customer.Balance)</option>
+                            }
+                        </select>
+                    </label>
+                    <button type="button" class="btn-secondary px-3!" aria-label="Add customer" @onclick="OpenCustomer">
+                        <Icon Name="plus" />
+                    </button>
+                </div>
+                <div class="flex justify-between text-sm">
+                    <span class="text-slate-500">Subtotal</span>
+                    <strong>@Money(Subtotal)</strong>
+                </div>
+                <label class="block">
+                    <span class="field-label">Order discount (@Currency)</span>
+                    <DecimalField @key="(RequestId, DiscountRevision)" class="field" @bind-Value="Discount"
+                                  Maximum="DiscountLimit" ValidityChanged="valid => DiscountValid = valid" />
+                </label>
+                <div class="flex justify-between border-t border-slate-100 pt-4 text-xl font-bold">
+                    <span>Total</span>
+                    <span>@Money(Total)</span>
+                </div>
+                <SplitPayments @key="(RequestId, Total < 0)" Total="Math.Abs(Total)" Currency="@Currency" Refund="@(Total < 0)" AllowCashChange="@(Total > 0)" @bind-Payments="Payments" />
+                @if (!PaymentsValid)
+                {
+                    <p class="text-sm text-red-600" role="alert">Review confirmed payments after changing the order total.</p>
+                }
+                @if (WalkInUnsettled)
+                {
+                    <p class="text-xs text-slate-500">Select a customer to leave a due or credit balance.</p>
+                }
+                <button type="button" class="btn-primary w-full" disabled="@(Invalid || (WalkInUnsettled))" @onclick="() => SaveAsync(true)">
+                    @if (Busy)
+                    {
+                        <span class="form-submit-spinner"></span>
+                    }
+                    Complete sale
+                </button>
+                <div class="grid grid-cols-2 gap-2">
+                    <button type="button" class="btn-secondary" disabled="@(Invalid || Busy)" @onclick="() => SaveAsync(false)">
+                        @if (Busy)
+                        {
+                            <span class="form-submit-spinner"></span>
+                        }
+                        Save draft
+                    </button>
+                    <button type="button" class="btn-secondary" disabled="@Busy" @onclick="() => Recovery!.RequestResetAsync()">New sale</button>
+                </div>
+                @if (Options.Drafts.Length > 0)
+                {
+                    <label class="block">
+                        <span class="field-label">Resume draft</span>
+                        <select class="field" value="" @onchange="ResumeAsync">
+                            <option value="">Choose draft…</option>
+                            @foreach (var draft in Options.Drafts)
+                            {
+                                <option value="@draft.RequestId">@draft.Number · @draft.Customer · @Money(draft.Total)</option>
+                            }
+                        </select>
+                    </label>
+                }
+            </div>
+        </section>
+    </div>
+</fieldset>
+@if (CustomerDialog)
+{
+    <Modal Title="Add customer" Busy="Busy" OnClose="CloseDialogsAsync">
+        @if (CustomerError is not null)
+        {
+            <p class="error-panel" role="alert">@CustomerError</p>
+        }
+        <label class="block">
+            Name
+            <input class="field mt-1 w-full" @bind="CustomerName" maxlength="200" />
+        </label>
+        <label class="mt-3 block">
+            Phone
+            <input class="field mt-1 w-full" @bind="CustomerPhone" />
+        </label>
+        @if (Options.CanSetOpeningBalance)
+        {
+            <label class="mt-3 block">
+                Opening due / credit (@Currency)
+                <DecimalField class="field mt-1 w-full" @bind-Value="CustomerOpening" Minimum="-9999999999999999.99m" />
+            </label>
+        }
+        <button type="button" class="btn-primary mt-4" disabled="@(Busy || string.IsNullOrWhiteSpace(CustomerName))" @onclick="AddCustomerAsync">
+            @if (Busy)
+            {
+                <span class="form-submit-spinner"></span>
+            }
+            Save customer
+        </button>
+    </Modal>
+}
+@if (CameraDialog)
+{
+    <Modal Title="Scan barcode" OnClose="CloseDialogsAsync">
+        <video class="w-full rounded-xl" autoplay muted playsinline @ref="Video"></video>
+        @if (CameraError is not null)
+        {
+            <p class="error-panel mt-3" role="alert">@CameraError</p>
+        }
+    </Modal>
+}
+
+@if (Lines.Count > 0)
+{
+    <aside class="xl:hidden fixed bottom-0 inset-x-0 z-30 border-t border-slate-200 bg-white/95 px-4 py-3 shadow-lg backdrop-blur-md">
+        <div class="flex items-center justify-between gap-3">
+            <div>
+                <span class="block text-xs text-slate-500">Total (@Lines.Count @(Lines.Count == 1 ? "item" : "items"))</span>
+                <strong class="text-lg font-bold text-slate-900">@Money(Total)</strong>
+            </div>
+            <a href="#checkout-section" class="btn-primary py-2 px-4 text-sm font-semibold shadow-sm">
+                Pay / Checkout →
+            </a>
+        </div>
+    </aside>
+}
+
+
+</div>

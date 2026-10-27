@@ -1,0 +1,91 @@
+<div class="no-print mb-5 flex flex-wrap gap-2">
+    @foreach (var preset in Presets)
+    {
+        <a href="@($"{Path}?period={preset.Key}&group={Group}&sort={Sort}")" class="@(Period == preset.Key ? "btn-primary" : "btn-secondary")">@preset.Value</a>
+    }
+    @if (Range is { } range && range.Start == range.End)
+    {
+        @if (range.Start > DateOnly.MinValue)
+        {
+            <a href="@DayLink(range.Start.AddDays(-1))" class="btn-secondary" aria-label="Previous day">← Previous day</a>
+        }
+        @if (range.End < DateOnly.MaxValue.AddDays(-1))
+        {
+            <a href="@DayLink(range.End.AddDays(1))" class="btn-secondary" aria-label="Next day">Next day →</a>
+        }
+    }
+</div>
+<form method="get" action="@Path" class="no-print mb-6 flex flex-wrap items-end gap-3" data-enhance>
+    <input type="hidden" name="period" value="@Period" />
+    <div class="w-full sm:w-72">
+        <label class="field-label">Date range</label>
+        <DateRangePicker Id="finance-date-range" Start="@Range?.Start" End="@Range?.End" />
+    </div>
+    @if (Grouping)
+    {
+        <div>
+            <label class="field-label" for="finance-group">Group by</label>
+            <select id="finance-group" name="group" class="field">
+                <option value="day" selected="@(Group == "day")">Day</option>
+                <option value="week" selected="@(Group == "week")">Week (Monday)</option>
+                <option value="month" selected="@(Group == "month")">Month</option>
+            </select>
+        </div>
+    }
+    @if (Grouping)
+    {
+        <div>
+            <label class="field-label" for="finance-sort">Sort by</label>
+            <select id="finance-sort" name="sort" class="field">
+                @foreach (var option in SortOptions)
+                {
+                    <option value="@option.Key" selected="@(Sort == option.Key)">@option.Value</option>
+                }
+            </select>
+        </div>
+    }
+    <button class="btn-secondary">Search</button>
+</form>
+
+@code {
+    [Parameter]
+    public string Path { get; set; } = "";
+
+    [Parameter]
+    public string Period { get; set; } = "month";
+
+    [Parameter]
+    public string Group { get; set; } = "day";
+
+    [Parameter]
+    public string Sort { get; set; } = "date";
+
+    [Parameter]
+    public bool Grouping { get; set; }
+
+    [Parameter]
+    public ReportRange? Range { get; set; }
+
+    private string DayLink(DateOnly date) => $"{Path}?period=custom&start={date:yyyy-MM-dd}&end={date:yyyy-MM-dd}&group={Uri.EscapeDataString(Group)}&sort={Uri.EscapeDataString(Sort)}";
+
+    private static readonly Dictionary<string, string> SortOptions = new()
+    {
+        ["date"] = "Date · oldest first",
+        ["date-desc"] = "Date · newest first",
+        ["revenue-desc"] = "Revenue · high to low",
+        ["revenue"] = "Revenue · low to high",
+        ["profit-desc"] = "Net profit · high to low",
+        ["profit"] = "Net profit · low to high",
+        ["expenses-desc"] = "Expenses · high to low",
+        ["expenses"] = "Expenses · low to high"
+    };
+
+    private static readonly Dictionary<string, string> Presets = new()
+    {
+        ["today"] = "Today",
+        ["yesterday"] = "Yesterday",
+        ["week"] = "Last 7 days",
+        ["month"] = "This month",
+        ["lastmonth"] = "Last month"
+    };
+}

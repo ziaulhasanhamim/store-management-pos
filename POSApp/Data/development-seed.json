@@ -1,0 +1,154 @@
+{
+  "openingDate": "2026-01-01",
+  "categories": [
+    {
+      "name": "Electronics",
+      "description": "Devices and computer accessories"
+    },
+    {
+      "name": "Stationery",
+      "description": "Office and school supplies"
+    },
+    {
+      "name": "Home Essentials",
+      "description": "Everyday household items"
+    }
+  ],
+  "locations": [
+    {
+      "code": "DEMO-MAIN",
+      "name": "Main Store (Demo)"
+    },
+    {
+      "code": "DEMO-BACK",
+      "name": "Back Room (Demo)"
+    }
+  ],
+  "suppliers": [
+    {
+      "name": "Aster Wholesale (Demo)",
+      "contactName": "Aster Sales",
+      "openingBalance": 2400.0
+    },
+    {
+      "name": "Coastal Imports (Demo)",
+      "contactName": "Coastal Accounts",
+      "openingBalance": -500.0
+    },
+    {
+      "name": "Paper House (Demo)",
+      "openingBalance": 0.0
+    }
+  ],
+  "customers": [
+    {
+      "name": "Mira Rahman (Demo)",
+      "openingBalance": 750.0
+    },
+    {
+      "name": "Saffron Caf\u00e9 (Demo)",
+      "openingBalance": -100.0
+    },
+    {
+      "name": "Walk-in Account (Demo)",
+      "openingBalance": 0.0
+    }
+  ],
+  "products": [
+    {
+      "barcode": "DEMO-1001",
+      "name": "Wireless Mouse",
+      "category": "Electronics",
+      "unit": "piece",
+      "allowFractionUnit": false,
+      "costPrice": 550.0,
+      "sellingPrice": 790.0,
+      "stock": [
+        {
+          "location": "DEMO-MAIN",
+          "quantity": 24
+        },
+        {
+          "location": "DEMO-BACK",
+          "quantity": 12
+        }
+      ],
+      "supplier": "Aster Wholesale (Demo)"
+    },
+    {
+      "barcode": "DEMO-1002",
+      "name": "USB-C Cable",
+      "category": "Electronics",
+      "unit": "piece",
+      "allowFractionUnit": false,
+      "costPrice": 180.0,
+      "sellingPrice": 290.0,
+      "stock": [
+        {
+          "location": "DEMO-MAIN",
+          "quantity": 35
+        }
+      ],
+      "supplier": "Aster Wholesale (Demo)"
+    },
+    {
+      "barcode": "DEMO-1003",
+      "name": "Notebook A5",
+      "category": "Stationery",
+      "unit": "piece",
+      "allowFractionUnit": false,
+      "costPrice": 65.0,
+      "sellingPrice": 100.0,
+      "stock": [
+        {
+          "location": "DEMO-MAIN",
+          "quantity": 80
+        }
+      ],
+      "supplier": "Paper House (Demo)"
+    },
+    {
+      "barcode": "DEMO-1004",
+      "name": "Ballpoint Pen Pack",
+      "category": "Stationery",
+      "unit": "pack",
+      "allowFractionUnit": false,
+      "costPrice": 90.0,
+      "sellingPrice": 140.0,
+      "stock": [
+        {
+          "location": "DEMO-MAIN",
+          "quantity": 18
+        }
+      ],
+      "supplier": "Paper House (Demo)"
+    },
+    {
+      "barcode": "DEMO-1005",
+      "name": "Desk Lamp",
+      "category": "Home Essentials",
+      "unit": "piece",
+      "allowFractionUnit": false,
+      "costPrice": 620.0,
+      "sellingPrice": 890.0,
+      "stock": [
+        {
+          "location": "DEMO-BACK",
+          "quantity": 7
+        }
+      ],
+      "supplier": "Aster Wholesale (Demo)"
+    },
+    {
+      "barcode": "DEMO-1006",
+      "name": "Storage Box",
+      "category": "Home Essentials",
+      "unit": "piece",
+      "allowFractionUnit": false,
+      "costPrice": 230.0,
+      "sellingPrice": 350.0,
+      "stock": [],
+      "supplier": "Aster Wholesale (Demo)"
+    }
+  ]
+}

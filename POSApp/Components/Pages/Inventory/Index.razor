@@ -1,0 +1,24 @@
+@page "/inventory"
+@attribute [Authorize]
+
+<PageTitle>Inventory · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
+<div class="page-heading">
+    <div>
+        <p class="eyebrow">Stock operations</p>
+        <h1>Inventory</h1>
+    </div>
+</div>
+<div class="grid gap-4 md:grid-cols-2">
+    <HubCard Href="/items" Title="Items" Hint="Catalog, availability and barcode labels" IconName="box" />
+    <AuthorizeView Policy="@AppPolicies.ManageStockAdjustment">
+        <HubCard Href="/stock/adjustments" Title="Stock adjustments" Hint="Add stock without purchases or import a JSON file" IconName="box" />
+    </AuthorizeView>
+    <AuthorizeView Policy="@AppPolicies.ManageInventory">
+        <HubCard Href="/receiving" Title="Purchases & transfers" Hint="Receive purchases, return goods and move stock" IconName="receive" />
+        <HubCard Href="/suppliers" Title="Suppliers" Hint="Accounts, payments and supplier stock value" IconName="users" />
+        <HubCard Href="/stock/locations" Title="Stock locations" Hint="Selling locations and storage warehouses" IconName="box" />
+        <HubCard Href="/reports/inventory" Title="Inventory valuation" Hint="Current quantities and value at average cost" IconName="dashboard" />
+        <HubCard Href="/stock/takes" Title="Stock takes" Hint="Physical counts, shortages and extra stock" IconName="check" />
+        <HubCard Href="/reports/receiving" Title="Receiving history" Hint="Purchases, returns and transfers by date" IconName="history" />
+    </AuthorizeView>
+</div>

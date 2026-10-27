@@ -1,0 +1,10 @@
+@page "/account/access-denied"
+@attribute [AllowAnonymous]
+
+<PageTitle>Access denied · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
+<div class="max-w-lg rounded-2xl border border-slate-200 bg-white p-8">
+    <p class="text-sm font-medium text-indigo-600">Permission required</p>
+    <h1 class="mt-2 text-2xl font-semibold text-slate-900">You don't have access to this page</h1>
+    <p class="mt-3 mb-6 text-slate-500">Ask an admin if your role needs to be changed.</p>
+    <a href="/" class="btn-primary">Back to workspace</a>
+</div>

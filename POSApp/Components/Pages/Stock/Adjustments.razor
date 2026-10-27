@@ -1,0 +1,64 @@
+@page "/stock/adjustments"
+@page "/stock/opening"
+@attribute [Authorize(Policy = AppPolicies.ManageStockAdjustment)]
+@attribute [StreamRendering]
+@inject StockAdjustmentService AdjustmentsService
+@inject ILogger<Adjustments> Logger
+
+<PageTitle>Stock adjustments · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
+<div class="page-heading">
+    <div>
+        <p class="eyebrow">Inventory</p>
+        <h1>Stock adjustments</h1>
+    </div>
+    <a href="/items" class="btn-secondary">Items</a>
+</div>
+<p class="mb-6 text-sm text-slate-500">Add products to stock without a supplier invoice or payment. Use this for existing stock or other stock additions.</p>
+@if (Error is not null)
+{
+    <p class="error-panel" role="alert">@Error</p>
+}
+else if (Options is null)
+{
+    <LoadingPanel Message="Loading stock adjustment…" />
+}
+else if (Options.Locations.Count == 0)
+{
+    <section class="panel p-6">
+        <p class="mb-4 text-sm text-slate-500">Create a store or warehouse before adding stock.</p>
+        <a href="/stock/locations" class="btn-primary">Stock locations</a>
+    </section>
+}
+else
+{
+    <StockAdjustmentEditor Options="Options" InitialHistory="@(History?.ToArray() ?? [])" InitialHistoryPagination="HistoryPagination" DraftOwner="@HttpContext.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)!.Value"
+                            Currency="@(Configuration["CurrencyCode"] ?? "BDT")" @rendermode="InteractiveAuto" />
+}
+@code {
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    private StockAdjustmentOptions? Options;
+    private IReadOnlyList<StockAdjustmentHistory>? History;
+    private PageInfo? HistoryPagination;
+    private string? Error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var options = AdjustmentsService.OptionsAsync(HttpContext.User, HttpContext.RequestAborted);
+            var history = AdjustmentsService.HistoryPageAsync(HttpContext.User, ct: HttpContext.RequestAborted);
+            await Task.WhenAll(options, history);
+            Options = await options;
+            var result = await history;
+            History = result.Items;
+            HistoryPagination = result.Pagination;
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Stock adjustments page failed.");
+            Error = "Unable to load stock adjustment. Refresh to try again.";
+        }
+    }
+}

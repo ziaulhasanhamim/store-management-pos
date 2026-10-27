@@ -1,0 +1,106 @@
+@page "/administration/audit"
+@attribute [Authorize(Policy = AppPolicies.ManageUsers)]
+@attribute [StreamRendering]
+@using System.Text.Json
+@inject ClosureService Closures
+
+<PageTitle>Audit history · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
+<div class="page-heading">
+    <h1>Audit history</h1>
+</div>
+<form method="get" data-enhance class="mb-6 flex gap-3" data-auto-search="true">
+    <input type="hidden" name="pageSize" value="@PageSize" />
+    <input id="audit-search" class="field max-w-lg" name="search" value="@Search" placeholder="Record ID, type, action or reason" aria-label="Search audit history" maxlength="200" data-auto-search="true" autocomplete="off" data-permanent />
+    <button class="btn-primary">Search</button>
+</form>
+    <section class="panel table-scroll">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>When / by whom</th>
+                    <th>Record</th>
+                    <th>Action</th>
+                    <th>Reason / details</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Rows is null)
+                {
+                    <TableStatusRow Columns="4" Message="Loading audit history…" Loading="true" />
+                }
+                else
+                {
+
+                @foreach (var row in Rows)
+                {
+                    <tr>
+                        <td>
+                            <span>@row.At.ToBusinessTime(Configuration).ToString("dd MMM yyyy, HH:mm")</span>
+                            <span class="block text-xs text-slate-500">@row.Actor</span>
+                        </td>
+                        <td>@row.Kind #@row.Id</td>
+                        <td>@row.Action</td>
+                        <td>
+                            <span>@row.Reason</span>
+                            <details class="mt-2">
+                                <summary class="cursor-pointer text-sm text-blue-700">Before / after</summary>
+                                <div class="mt-3 grid max-w-3xl gap-4 lg:grid-cols-2">
+                                    <div>
+                                        <h2 class="mb-2 font-semibold">Before</h2>
+                                        <pre class="max-h-80 overflow-auto rounded-lg bg-slate-50 p-3 text-xs whitespace-pre-wrap break-all">@Format(row.Before)</pre>
+                                    </div>
+                                    <div>
+                                        <h2 class="mb-2 font-semibold">After</h2>
+                                        <pre class="max-h-80 overflow-auto rounded-lg bg-slate-50 p-3 text-xs whitespace-pre-wrap break-all">@Format(row.After)</pre>
+                                    </div>
+                                </div>
+                            </details>
+                        </td>
+                    </tr>
+                }
+                            }
+            </tbody>
+        </table>
+        @if (Pagination is not null)
+        {
+            <PageNavigation Info="Pagination" Label="events" />
+        }
+        <p class="p-4 text-xs text-slate-500">@Pagination?.Total matching events. Original counts and closing snapshots are preserved here.</p>
+    </section>
+
+@code {
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromQuery]
+    public string? Search { get; set; }
+
+    [SupplyParameterFromQuery]
+    public int Page { get; set; } = 1;
+
+    [SupplyParameterFromQuery]
+    public int PageSize { get; set; } = 30;
+
+    private PageInfo? Pagination;
+
+    private IReadOnlyList<AuditRow>? Rows;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var result = await Closures.HistoryPageAsync(HttpContext.User, Search, Page, PageSize, HttpContext.RequestAborted);
+            Rows = result.Items;
+            Pagination = result.Pagination;
+    }
+
+    private static string Format(string json)
+    {
+        try
+        {
+            return JsonSerializer.Serialize(JsonSerializer.Deserialize<JsonElement>(json), new JsonSerializerOptions { WriteIndented = true });
+        }
+        catch (JsonException)
+        {
+            return json;
+        }
+    }
+}

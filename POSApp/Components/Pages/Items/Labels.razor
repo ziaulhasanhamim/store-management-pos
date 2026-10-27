@@ -1,0 +1,127 @@
+@page "/items/labels"
+@attribute [Authorize(Policy = AppPolicies.ManageInventory)]
+@using System.ComponentModel.DataAnnotations
+@inject BarcodeService Barcodes
+@inject NavigationManager Navigation
+
+<PageTitle>Barcode labels · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
+<HeadContent>
+    <style>
+        @@page barcode-roll { size: @(Dimensions.Width)mm @(Dimensions.Height)mm; margin: 0; }
+        .barcode-sheet.label-roll { --label-width: @(Dimensions.Width)mm; --label-height: @(Dimensions.Height)mm; }
+    </style>
+</HeadContent>
+
+<div class="page-heading no-print">
+    <h1>Barcode labels</h1>
+    <div class="flex gap-3">
+        <a href="/items" class="btn-secondary">Items</a>
+        <button type="button" class="btn-primary" data-print>Print labels</button>
+    </div>
+</div>
+
+<form method="post" @formname="labels" @onsubmit="GenerateAsync" class="hidden" data-enhance data-submit-indication="true">
+    <AntiforgeryToken />
+</form>
+
+@if (Error is not null)
+{
+    <p class="error-panel" role="alert">@Error</p>
+}
+
+@if (LabelItems.Count == 0)
+{
+    <p class="panel p-6">Select products on the items page to generate printable labels.</p>
+}
+else
+{
+    <form method="get" action="/items/labels" class="no-print mb-6 flex flex-wrap items-end gap-3" data-enhance data-submit-indication="true">
+        <input type="hidden" name="ids" value="@Ids" />
+        <div>
+            <label class="field-label" for="label-copies">Copies per product</label>
+            <input id="label-copies" type="number" min="1" max="100" name="copies" value="@CopyCount" class="field" />
+        </div>
+        <div>
+            <label class="field-label" for="label-size">Label roll size</label>
+            <select id="label-size" name="size" class="field">
+                @foreach (var preset in Sizes)
+                {
+                    <option value="@preset.Key" selected="@(Size == preset.Key)">@preset.Value.Name</option>
+                }
+            </select>
+        </div>
+        <button class="btn-secondary">Update</button>
+    </form>
+    <p class="no-print mb-5 text-sm text-slate-500">One label per page. Select the matching roll size in your printer settings, print at 100%, and turn off headers and footers.</p>
+    <div class="barcode-sheet label-roll print-area">
+        @foreach (var label in LabelItems)
+        {
+            var svg = BarcodeService.Svg(label.Barcode);
+            @for (var copy = 0; copy < CopyCount; copy++)
+            {
+                <article class="barcode-label">
+                    <h2>@label.Name</h2>
+                    @((MarkupString)svg)
+                    <strong>@label.Barcode</strong>
+                </article>
+            }
+        }
+    </div>
+}
+
+@code {
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromForm(FormName = "labels")]
+    private BarcodeLabelInput? Input { get; set; }
+
+    [SupplyParameterFromQuery]
+    public string? Ids { get; set; }
+
+    [SupplyParameterFromQuery]
+    public int Copies { get; set; } = 1;
+
+    [SupplyParameterFromQuery]
+    public string Size { get; set; } = "57x25";
+
+    private static readonly Dictionary<string, (string Name, string Width, string Height)> Sizes = new()
+    {
+        ["57x25"] = ("57.15 × 25.4 mm (2.25 × 1 in)", "57.15", "25.4"),
+        ["50x30"] = ("50 × 30 mm", "50", "30"),
+        ["50x25"] = ("50 × 25 mm", "50", "25"),
+        ["40x30"] = ("40 × 30 mm", "40", "30"),
+        ["60x40"] = ("60 × 40 mm", "60", "40")
+    };
+
+    private (string Name, string Width, string Height) Dimensions => Sizes.GetValueOrDefault(Size ?? "57x25", Sizes["57x25"]);
+
+    private int CopyCount => Math.Clamp(Copies, 1, 100);
+    private IReadOnlyList<BarcodeLabel> LabelItems = [];
+    private string? Error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Input ??= new();
+        if (!HttpMethods.IsPost(HttpContext.Request.Method))
+        {
+            var ids = (Ids ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries)
+                .Select(value => int.TryParse(value, out var id) ? id : 0).Where(id => id > 0).Distinct().Take(200).ToArray();
+            LabelItems = await Barcodes.LabelsAsync(HttpContext.User, ids, HttpContext.RequestAborted);
+        }
+    }
+
+    private async Task GenerateAsync()
+    {
+        try
+        {
+            await Barcodes.GenerateMissingAsync(HttpContext.User, Input!.ProductIds, HttpContext.RequestAborted);
+            Navigation.NavigateTo($"/items/labels?ids={string.Join(',', Input.ProductIds.Distinct())}&copies={Math.Clamp(Input.Copies, 1, 100)}");
+        }
+        catch (ValidationException exception)
+        {
+            Error = exception.Message;
+        }
+    }
+
+}

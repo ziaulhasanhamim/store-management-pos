@@ -1,0 +1,60 @@
+@attribute [StreamRendering]
+@using POSApp.Services
+@inject UserAdministration Administration
+@inject ILogger<UserEditLoader> Logger
+
+@if (Loading)
+{
+    <LoadingPanel Message="Loading user details…" />
+}
+else if (Failed)
+{
+    <div role="alert" class="text-sm text-red-700">
+        We couldn't load this user.
+        <a href="@HttpContext.Request.Path" class="font-semibold underline">Try again</a>
+    </div>
+}
+else if (User is null)
+{
+    <h2 class="text-lg font-semibold text-slate-900">User not found</h2>
+    <p class="mt-2 text-sm text-slate-500">This account no longer exists.</p>
+}
+else
+{
+    @Found?.Invoke(User)
+}
+
+@code {
+    [Parameter]
+    public int UserId { get; set; }
+
+    [Parameter]
+    public RenderFragment<UserListItem>? Found { get; set; }
+
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    private UserListItem? User;
+    private bool Loading = true;
+    private bool Failed;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            User = await Administration.FindAsync(HttpContext.User, UserId, HttpContext.RequestAborted);
+        }
+        catch (OperationCanceledException) when (HttpContext.RequestAborted.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception) when (exception is not UnauthorizedAccessException)
+        {
+            Failed = true;
+            Logger.LogError(exception, "Failed to load user {UserId}.", UserId);
+        }
+        finally
+        {
+            Loading = false;
+        }
+    }
+}

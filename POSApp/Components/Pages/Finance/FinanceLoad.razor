@@ -1,0 +1,52 @@
+@typeparam TData
+@attribute [StreamRendering]
+@using System.ComponentModel.DataAnnotations
+@inject ILogger<FinanceLoad<TData>> Logger
+
+@if (Error is not null)
+{
+    <p class="error-panel" role="alert">@Error</p>
+}
+else if (!Loaded)
+{
+    <LoadingPanel Message="@Message" />
+}
+else
+{
+    @ChildContent(Data!)
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public Func<Task<TData>> Load { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public RenderFragment<TData> ChildContent { get; set; } = default!;
+
+    [Parameter]
+    public string Message { get; set; } = "Loading…";
+
+    private TData? Data;
+    private bool Loaded;
+    private string? Error;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        Loaded = false;
+        Error = null;
+        try
+        {
+            Data = await Load();
+            Loaded = true;
+        }
+        catch (ValidationException exception)
+        {
+            Error = exception.Message;
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Finance page loading failed.");
+            Error = "Unable to load this page. Reload to try again.";
+        }
+    }
+}

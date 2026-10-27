@@ -1,0 +1,107 @@
+@page "/customers/{Id:int}"
+@attribute [Authorize(Policy = AppPolicies.MakeSales)]
+@attribute [StreamRendering]
+@inject CustomerService Customers
+@inject ILogger<Details> Logger
+
+<PageTitle>Customer account · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
+@if (Error is not null)
+{
+    <p class="error-panel" role="alert">@Error</p>
+}
+else if (Loading)
+{
+    <LoadingPanel Message="Loading customer account…" />
+}
+else if (Data is null)
+{
+    <p class="error-panel">Customer not found.</p>
+}
+else
+{
+    <div class="page-heading">
+        <h1>@Data.Customer.Name</h1>
+        <div class="flex gap-3">
+            <AuthorizeView Policy="@AppPolicies.ManageUsers">
+                <a href="@($"/accounts/customers/adjust?partyId={Id}")" class="btn-secondary">Adjust balance / opening</a>
+            </AuthorizeView>
+            <a href="/customers" class="btn-secondary">Customers</a>
+            <a href="@($"/customers/payments?customerId={Id}")" class="btn-primary">Collect payment</a>
+        </div>
+    </div>
+    <div class="mb-6 grid gap-4 sm:grid-cols-2">
+        <div class="metric">
+            <p>Opening balance</p>
+            <strong class="text-2xl!">@Money(Data.Customer.OpeningBalance)</strong>
+        </div>
+        <div class="metric">
+            <p>@(Data.Customer.Balance < 0 ? "Customer credit" : "Outstanding due")</p>
+            <strong class="text-2xl!">@Money(Math.Abs(Data.Customer.Balance))</strong>
+        </div>
+    </div>
+    <section class="panel table-scroll">
+        <div class="panel-heading">
+            <h2>Account history</h2>
+        </div>
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Type</th>
+                    <th>Notes</th>
+                    <th class="text-right">Change</th>
+                    <th class="text-right">Balance after</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var entry in Data.History)
+                {
+                    <tr>
+                        <td>@entry.At.ToBusinessTime(Configuration).ToString("dd MMM yyyy, HH:mm")</td>
+                        <td>@entry.Type</td>
+                        <td>@entry.Notes</td>
+                        <td class="text-right">@Money(entry.Amount)</td>
+                        <td class="text-right">@Money(entry.BalanceAfter)</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </section>
+}
+
+@code {
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromQuery]
+    public int Page { get; set; } = 1;
+
+    [SupplyParameterFromQuery]
+    public int PageSize { get; set; } = 30;
+
+    [Parameter]
+    public int Id { get; set; }
+
+    private CustomerAccount? Data;
+    private bool Loading = true;
+    private string? Error;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        try
+        {
+            Data = await Customers.ReadAsync(HttpContext.User, Id, HttpContext.RequestAborted, Page, PageSize);
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Customer account failed to load.");
+            Error = "Unable to load this customer account. Refresh to try again.";
+        }
+        finally
+        {
+            Loading = false;
+        }
+    }
+
+    private string Money(decimal amount) => $"{amount:N2} {Configuration["CurrencyCode"] ?? "BDT"}";
+}

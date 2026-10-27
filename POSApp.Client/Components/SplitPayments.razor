@@ -1,0 +1,133 @@
+<div class="space-y-4">
+    @if (Payments.Count > 0)
+    {
+        <ul class="divide-y divide-slate-100 rounded-xl border border-slate-200">
+            @for (var index = 0; index < Payments.Count; index++)
+            {
+                var paymentIndex = index;
+                var payment = Payments[index];
+                <li class="flex items-center justify-between gap-3 p-3">
+                    <div>
+                        <span class="block text-sm font-semibold">@MethodName(payment.Method)</span>
+                        <span class="text-sm text-slate-500">@Money(Math.Abs(payment.Amount))</span>
+                    </div>
+                    <button type="button" class="icon-button" aria-label="Remove payment @(index + 1)" @onclick="() => RemoveAsync(paymentIndex)">
+                        <Icon Name="trash" />
+                    </button>
+                </li>
+            }
+        </ul>
+    }
+    @if (Remaining > 0 && (AddingPayment || Payments.Count == 0))
+    {
+        <div class="rounded-xl bg-slate-50 p-4">
+            <div class="grid grid-cols-2 items-end gap-3">
+                <label class="block">
+                    <span class="field-label">@(Refund ? "Refund method" : "Payment method")</span>
+                    <select class="field" aria-label="@(Refund ? "Refund method" : "Payment method")" @bind="Method">
+                        @foreach (var method in Enum.GetValues<PaymentMethod>())
+                        {
+                            <option value="@method">@MethodName(method)</option>
+                        }
+                    </select>
+                </label>
+                <label class="block">
+                    <span class="field-label">@(Refund ? "Refund amount" : Method == PaymentMethod.Cash ? "Cash payment" : "Payment amount") (@Currency)</span>
+                    <DecimalField @key="Revision" class="field" @bind-Value="Amount" Maximum="@(AllowCashChange && Method == PaymentMethod.Cash ? 9999999999999999.99m : Remaining)" ValidityChanged="valid => AmountValid = valid" />
+                </label>
+            </div>
+            <div class="mt-3 flex flex-wrap gap-2">
+                <button type="button" class="btn-secondary" @onclick="UseRemaining">Remaining amount</button>
+                <button type="button" class="btn-primary" disabled="@(!AmountValid || Amount <= 0 || Payments.Count >= 20 || (Amount > Remaining && !(AllowCashChange && Method == PaymentMethod.Cash)))" @onclick="ConfirmAsync">@(Refund ? "Confirm refund" : "Confirm payment")</button>
+            </div>
+            <p class="mt-3 text-xs text-slate-500">Confirm each payment to add it to this order.</p>
+        </div>
+    }
+    else if (Remaining > 0)
+    {
+        <button type="button" class="btn-secondary w-full" @onclick="() => AddingPayment = true">
+            <Icon Name="plus" />
+            @(Refund ? "Add another refund" : "Add another payment")
+        </button>
+    }
+    @if (Confirmed > Math.Max(Total, 0) && (!AllowCashChange || NonCashOverpayment))
+    {
+        <p class="text-sm text-red-600" role="alert">Payments exceed the total. Remove a payment before continuing.</p>
+    }
+    <div class="space-y-2 text-sm">
+        <div class="flex justify-between">
+            <span>@(Refund ? "Confirmed refunds" : "Confirmed payments")</span>
+            <strong>@Money(Math.Min(Confirmed, Math.Max(Total, 0)))</strong>
+        </div>
+        <div class="flex justify-between">
+            <span>@(Refund ? "Customer credit remaining" : "Due")</span>
+            <strong>@Money(Remaining)</strong>
+        </div>
+        @if (AllowCashChange && Confirmed > Math.Max(Total, 0))
+        {
+            <div class="flex justify-between">
+                <span>Cash change</span>
+                <strong>@Money(Confirmed - Math.Max(Total, 0))</strong>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public decimal Total { get; set; }
+
+    [Parameter]
+    public string Currency { get; set; } = "BDT";
+
+    [Parameter]
+    public bool Refund { get; set; }
+
+    [Parameter]
+    public bool AllowCashChange { get; set; }
+
+    [Parameter]
+    public IReadOnlyList<PaymentInput> Payments { get; set; } = [];
+
+    [Parameter]
+    public EventCallback<IReadOnlyList<PaymentInput>> PaymentsChanged { get; set; }
+
+    private decimal Amount;
+    private bool AddingPayment;
+    private bool AmountValid = true;
+    private PaymentMethod Method = PaymentMethod.Cash;
+    private int Revision;
+    private decimal Confirmed => Payments.Sum(payment => Math.Abs(payment.Amount));
+    private decimal Remaining => Math.Max(Total - Confirmed, 0);
+    private bool NonCashOverpayment => Payments.Count > 0 && Payments[^1].Method != PaymentMethod.Cash;
+
+    public static string MethodName(PaymentMethod method) => method switch
+    {
+        PaymentMethod.MobileWallet => "Mobile wallet",
+        PaymentMethod.BankTransfer => "Bank transfer",
+        _ => method.ToString()
+    };
+
+    private string Money(decimal amount) => $"{Currency} {amount:N2}";
+
+    private void UseRemaining()
+    {
+        Amount = Remaining;
+        AmountValid = true;
+        Revision++;
+    }
+
+    private async Task ConfirmAsync()
+    {
+        await PaymentsChanged.InvokeAsync(Payments.Append(new PaymentInput(Method, Refund ? -Amount : Amount)).ToArray());
+        Amount = 0;
+        AmountValid = true;
+        AddingPayment = false;
+        Revision++;
+    }
+
+    private Task RemoveAsync(int index)
+    {
+        return PaymentsChanged.InvokeAsync(Payments.Where((payment, paymentIndex) => paymentIndex != index).ToArray());
+    }
+}

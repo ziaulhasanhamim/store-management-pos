@@ -1,0 +1,24 @@
+@attribute [StreamRendering]
+@inject ClosingService Closings
+@inject CashDrawerService Drawers
+
+<a data-draft-owner="@HttpContext.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value" data-working-date="@Date?.ToString("yyyy-MM-dd")" href="/finance/day" class="text-xs font-medium text-blue-700">
+    Working day @(Date?.ToString("dd MMM yyyy") ?? "…")
+</a>
+<a href="/cash-drawer" class="text-xs font-medium text-blue-700">
+    Cash: @(CashLocation ?? "select location")
+</a>
+
+@code {
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    private DateOnly? Date;
+    private string? CashLocation;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Date = await Closings.SelectedAsync(HttpContext.User, HttpContext.RequestAborted);
+        CashLocation = await Drawers.SelectedLocationNameAsync(HttpContext.User, HttpContext.RequestAborted);
+    }
+}

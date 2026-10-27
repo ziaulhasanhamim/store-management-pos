@@ -1,0 +1,91 @@
+@attribute [StreamRendering]
+@inject MoneyEntryService Entries
+@inject ILogger<MoneyEntriesPage> Logger
+
+<PageTitle>@Title · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
+<div class="page-heading">
+    <h1>@Title</h1>
+    <div class="flex gap-3">
+        @if (Kind == "expenses")
+        {
+            <AuthorizeView Policy="@AppPolicies.ManageUsers">
+                <a class="btn-secondary" href="/expenses/categories">Categories</a>
+            </AuthorizeView>
+        }
+        @if (Kind == "supplier-payments")
+        {
+            <a class="btn-secondary" href="/suppliers">Suppliers</a>
+        }
+        else if (Kind == "customer-payments")
+        {
+            <a class="btn-secondary" href="/customers">Customers</a>
+        }
+        @if (Kind is "supplier-payments" or "customer-payments")
+        {
+            <AuthorizeView Policy="@AppPolicies.ManageUsers">
+                <a class="btn-secondary" href="@($"/accounts/{(Kind == "supplier-payments" ? "suppliers" : "customers")}/adjust?partyId={PartyId}")">Adjust balance / opening</a>
+            </AuthorizeView>
+        }
+        <a class="btn-secondary" href="/finance">Finance</a>
+    </div>
+</div>
+<form method="get" action="@Path" class="mb-6 flex flex-wrap items-end gap-3" data-enhance data-submit-indication="true">
+    <div>
+        <label class="field-label" for="entry-date">View day</label>
+        <input id="entry-date" name="date" type="date" class="field" value="@((Date ?? Data?.Date)?.ToString("yyyy-MM-dd"))" required />
+    </div>
+    <button class="btn-secondary">View</button>
+    <a class="btn-secondary" href="@Path">Current working day</a>
+</form>
+@if (Error is not null)
+{
+    <p class="error-panel" role="alert">@Error</p>
+}
+else if (Data is null)
+{
+    <LoadingPanel Message="@($"Loading {Title.ToLowerInvariant()}…")" />
+}
+else
+{
+    <MoneyEntryEditor InitialData="Data" InitialPartyId="PartyId" Currency="@(Configuration["CurrencyCode"] ?? "BDT")" @rendermode="InteractiveAuto" />
+}
+
+@code {
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public string Kind { get; set; } = "expenses";
+
+    [Parameter]
+    public DateOnly? Date { get; set; }
+
+    [Parameter]
+    public int? PartyId { get; set; }
+
+    [Parameter]
+    public int Page { get; set; } = 1;
+
+    [Parameter]
+    public int PageSize { get; set; } = 30;
+
+    private MoneyEntryPage? Data;
+    private string? Error;
+    private string Title => Kind == "expenses" ? "Expenses" : Kind == "supplier-payments" ? "Supplier payments" : "Customer collections";
+    private string Path => Kind == "expenses" ? "/expenses" : Kind == "supplier-payments" ? "/suppliers/payments" : "/customers/payments";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        Data = null;
+        Error = null;
+        try
+        {
+            Data = await Entries.ReadAsync(HttpContext.User, Kind, Date, HttpContext.RequestAborted, Page, PageSize);
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Money entry page failed to load.");
+            Error = "Unable to load entries. Refresh to try again.";
+        }
+    }
+}

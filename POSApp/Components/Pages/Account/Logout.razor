@@ -1,0 +1,49 @@
+@page "/account/logout"
+@attribute [Authorize]
+@using Microsoft.AspNetCore.Identity
+@using POSApp.Persistence.Entities
+@inject SignInManager<User> SignInManager
+@inject NavigationManager Navigation
+@inject CashDrawerService Drawers
+
+<PageTitle>Sign out · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
+<div class="max-w-md rounded-2xl border border-slate-200 bg-white p-8">
+    <h1 class="text-xl font-semibold text-slate-900">Sign out of your workspace?</h1>
+    <p class="mt-2 mb-6 text-sm text-slate-500">You can sign in again whenever you need to.</p>
+    @if (OpenSessionId is { } sessionId)
+    {
+        <p class="mb-4 rounded-xl bg-amber-50 p-4 text-sm text-amber-800">
+            The selected location’s drawer is still open. Signing out leaves it available to other staff; close it when the location finishes trading.
+        </p>
+        <a href="@($"/cash-drawer?sessionId={sessionId}")" class="btn-primary mb-4">Count and close drawer</a>
+    }
+    <EditForm Model="Form" method="post" FormName="logout" Enhance data-submit-indication="true" data-spinner-selector="#logout-spinner" OnSubmit="SignOutAsync">
+        <button type="submit" class="btn-primary" data-pending-text="Signing out…">
+            <span id="logout-spinner" class="form-submit-spinner" hidden aria-hidden="true"></span>
+            <span data-submit-label>Sign out</span>
+        </button>
+        <a href="/" class="btn-secondary ml-2">Cancel</a>
+    </EditForm>
+</div>
+
+@code {
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    private int? OpenSessionId;
+    private readonly object Form = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (HttpMethods.IsGet(HttpContext.Request.Method))
+        {
+            OpenSessionId = (await Drawers.ReadAsync(HttpContext.User, ct: HttpContext.RequestAborted)).Current?.Id;
+        }
+    }
+
+    private async Task SignOutAsync()
+    {
+        await SignInManager.SignOutAsync();
+        Navigation.NavigateTo("/account/login");
+    }
+}

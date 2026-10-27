@@ -1,0 +1,612 @@
+@page "/"
+@using POSApp.Components.Pages.Finance
+@attribute [Authorize]
+@attribute [StreamRendering]
+@inject InventoryService Inventory
+@inject ILogger<Home> Logger
+
+<PageTitle>Dashboard · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
+
+@if (Data is null && !Failed)
+{
+    <LoadingPanel Message="Loading command center…" />
+}
+else if (Failed)
+{
+    <p role="alert" class="error-panel">
+        Unable to load dashboard.
+        <a href="/" class="underline">Retry</a>
+    </p>
+}
+else if (Data is { } data)
+{
+    <!-- Executive Command Center Header -->
+    <div class="mb-7 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+            <p class="eyebrow">@Greeting, @(DisplayName)</p>
+            <h1 class="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900">Executive Command Center</h1>
+            <div class="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                <span class="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-2.5 py-1 font-semibold text-blue-700">
+                    <Icon Name="receipt" Class="size-3.5" />
+                    @data.BusinessDate.ToString("dddd, dd MMM yyyy")
+                </span>
+                <span class="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-700">
+                    <Icon Name="dashboard" Class="size-3.5 text-slate-500" />
+                    @(data.LocationName ?? "All Locations")
+                </span>
+                <span class="inline-flex items-center gap-1.5 rounded-full @(data.OpenDrawersCount > 0 ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600") px-2.5 py-1 font-medium">
+                    <span class="size-1.5 rounded-full @(data.OpenDrawersCount > 0 ? "bg-emerald-500 animate-pulse" : "bg-slate-400")"></span>
+                    @(data.OpenDrawersCount > 0 ? $"{data.OpenDrawersCount} Active Drawer{(data.OpenDrawersCount == 1 ? "" : "s")}" : "Drawers Closed")
+                </span>
+            </div>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2.5">
+            <AuthorizeView Policy="@AppPolicies.MakeSales">
+                <a href="/sales" class="btn-primary shadow-xs">
+                    <Icon Name="cart" Class="size-4" />
+                    New Sale / POS
+                </a>
+            </AuthorizeView>
+
+            <AuthorizeView Policy="@AppPolicies.ManageInventory">
+                <a href="/receiving" class="btn-secondary">
+                    <Icon Name="receive" Class="size-4" />
+                    Receive stock
+                </a>
+            </AuthorizeView>
+        </div>
+    </div>
+
+    <AuthorizeView Policy="@AppPolicies.ManageUsers">
+        <POSApp.Components.Pages.Finance.WorkdayBoard />
+    </AuthorizeView>
+
+    <!-- Hero 4-Card KPI Grid -->
+    <div class="grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
+        <!-- Today's Sales Card -->
+        <a href="/reports/sales" class="metric group hover:shadow-md transition">
+            <span class="metric-icon bg-emerald-50! text-emerald-600!">
+                <Icon Name="cart" />
+            </span>
+            <p>Today's Sales</p>
+            <strong class="tabular-nums">@Money(data.TodaySales)</strong>
+            <div class="mt-2.5 flex flex-wrap items-center justify-between gap-1 text-[11px]">
+                <span class="text-slate-500">@data.TodayOrdersCount @(data.TodayOrdersCount == 1 ? "order" : "orders") completed</span>
+                <AuthorizeView Policy="@AppPolicies.ManageUsers">
+                    @if (data.TodayProfit is { } profit)
+                    {
+                        <span class="font-medium text-emerald-600 tabular-nums" title="Estimated gross margin">
+                            +@Money(profit) profit
+                        </span>
+                    }
+                </AuthorizeView>
+            </div>
+        </a>
+
+        <!-- Present Funds Card -->
+        <a href="/cash-drawer" class="metric group hover:shadow-md transition">
+            <span class="metric-icon bg-blue-50! text-blue-600!">
+                <Icon Name="cash" />
+            </span>
+            <p>Present Funds</p>
+            <strong class="tabular-nums">@Money(data.OfficeCash + (data.BankBalance ?? 0m))</strong>
+            <div class="mt-2.5 flex flex-wrap items-center justify-between gap-1 text-[11px] text-slate-500">
+                <span>Cash: @Money(data.OfficeCash)</span>
+                @if (data.BankBalance is { } heroBank)
+                {
+                    <span>Bank: @Money(heroBank)</span>
+                }
+            </div>
+            <span class="metric-note">
+                @data.OpenDrawersCount of @data.TotalDrawersCount drawers open
+            </span>
+        </a>
+
+        <!-- Units in Stock Card -->
+        <a href="/items" class="metric group hover:shadow-md transition">
+            <span class="metric-icon @(data.OutOfStock > 0 ? "bg-amber-50! text-amber-600!" : "bg-blue-50! text-blue-600!")">
+                <Icon Name="box" />
+            </span>
+            <p>Units in Stock</p>
+            <strong class="tabular-nums">@data.Stock.ToString("N0")</strong>
+            <div class="mt-2.5 flex flex-wrap items-center justify-between gap-1 text-[11px]">
+                <span class="text-slate-500">@data.Items catalog items</span>
+                @if (data.OutOfStock > 0)
+                {
+                    <span class="font-semibold text-amber-600">@data.OutOfStock out of stock</span>
+                }
+                else
+                {
+                    <span class="font-medium text-emerald-600">Healthy stock</span>
+                }
+            </div>
+        </a>
+
+        <!-- Inventory Valuation / Staff Card -->
+        <div class="metric">
+            <span class="metric-icon bg-indigo-50! text-indigo-600!">
+                <Icon Name="wallet" />
+            </span>
+            @if (data.StockValue is { } value)
+            {
+                <p>Inventory Valuation</p>
+                <strong class="tabular-nums text-2xl!">@Money(value)</strong>
+                <div class="mt-2.5 flex flex-wrap items-center justify-between gap-1 text-[11px]">
+                    <span class="text-slate-500">At weighted cost</span>
+                    @if (data.SupplierDue is { } heroDue && heroDue > 0)
+                    {
+                        <a href="/suppliers" class="font-semibold text-red-600 hover:underline" title="Outstanding supplier balance">
+                            Due: @Money(heroDue)
+                        </a>
+                    }
+                    else if (data.SupplierDue is { } clearDue)
+                    {
+                        <span class="font-medium text-emerald-600">Dues clear</span>
+                    }
+                </div>
+            }
+            else
+            {
+                <p>Register Status</p>
+                <strong class="text-2xl!">@(data.OpenDrawersCount > 0 ? "Active" : "Closed")</strong>
+                <span class="metric-note">@(data.LocationName ?? "Ready for transactions")</span>
+            }
+        </div>
+    </div>
+
+    <!-- Dual-Panel Command Hub -->
+    <div class="mt-7 grid gap-6 grid-cols-1 xl:grid-cols-[2fr_1fr]">
+        <!-- Left: Multi-View Activity Hub -->
+        <section class="panel">
+            <div class="border-b border-slate-100 px-5 pt-4 pb-3">
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                    <div class="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
+                        <a href="@TabUrl("sales")" class="@TabChipClass("sales")">
+                            <Icon Name="cart" Class="size-4" />
+                            <span>Today's Sales</span>
+                            <span class="@TabBadgeClass("sales")">@data.RecentSales.Count</span>
+                        </a>
+
+                        @if (data.StockValue is not null)
+                        {
+                            <a href="@TabUrl("deliveries")" class="@TabChipClass("deliveries")">
+                                <Icon Name="receive" Class="size-4" />
+                                <span>Recent Deliveries</span>
+                                <span class="@TabBadgeClass("deliveries")">@data.Receipts.Count</span>
+                            </a>
+                        }
+
+                        <a href="@TabUrl("alerts")" class="@TabChipClass("alerts")">
+                            <Icon Name="alert" Class="@(data.StockAlerts.Count > 0 ? "size-4 text-amber-500" : "size-4")" />
+                            <span>Stock Alerts</span>
+                            @if (data.StockAlerts.Count > 0)
+                            {
+                                <span class="ml-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-700">@data.StockAlerts.Count</span>
+                            }
+                            else
+                            {
+                                <span class="@TabBadgeClass("alerts")">0</span>
+                            }
+                        </a>
+                    </div>
+
+                    <div>
+                        @if (ResolvedTab == "sales")
+                        {
+                            <a href="/reports/sales" class="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-700 hover:underline">
+                                All sales
+                                <Icon Name="arrow" Class="size-3" />
+                            </a>
+                        }
+                        else if (ResolvedTab == "deliveries")
+                        {
+                            <AuthorizeView Policy="@AppPolicies.ManageInventory">
+                                <a href="/reports/receiving" class="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-700 hover:underline">
+                                    All receipts
+                                    <Icon Name="arrow" Class="size-3" />
+                                </a>
+                            </AuthorizeView>
+                        }
+                        else if (ResolvedTab == "alerts")
+                        {
+                            <a href="/items" class="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-700 hover:underline">
+                                All items
+                                <Icon Name="arrow" Class="size-3" />
+                            </a>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            @if (ResolvedTab == "sales")
+            {
+                @if (data.RecentSales.Count == 0)
+                {
+                    <div class="empty-state">
+                        <Icon Name="cart" Class="size-10 text-slate-300" />
+                        <p class="font-medium text-slate-700">No sales recorded today yet</p>
+                        <p class="text-xs text-slate-400">Transactions processed at the counter will stream here in real time.</p>
+                        <AuthorizeView Policy="@AppPolicies.MakeSales">
+                            <a href="/sales" class="btn-primary mt-2">
+                                <Icon Name="plus" Class="size-4" />
+                                Start a new sale
+                            </a>
+                        </AuthorizeView>
+                    </div>
+                }
+                else
+                {
+                    <div class="table-scroll">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Receipt</th>
+                                    <th>Time</th>
+                                    <th>Cashier</th>
+                                    <th>Customer</th>
+                                    <th>Items</th>
+                                    <th class="text-right">Total</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var sale in data.RecentSales)
+                                {
+                                    <tr>
+                                        <td class="font-semibold">
+                                            <a href="/sales/bill/@sale.Id" class="text-blue-600 hover:underline">
+                                                @sale.ReceiptNumber
+                                            </a>
+                                        </td>
+                                        <td class="tabular-nums text-slate-500">
+                                            @sale.SoldAt.ToBusinessTime(Configuration).ToString("HH:mm")
+                                        </td>
+                                        <td class="text-slate-700">@sale.Cashier</td>
+                                        <td>
+                                            <span class="max-w-[140px] truncate block text-slate-700" title="@sale.Customer">
+                                                @sale.Customer
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <span class="badge bg-slate-100 text-slate-700">
+                                                @sale.ItemCount @(sale.ItemCount == 1 ? "item" : "items")
+                                            </span>
+                                        </td>
+                                        <td class="text-right font-semibold tabular-nums text-slate-900">
+                                            @Money(sale.Total)
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            }
+            else if (ResolvedTab == "deliveries")
+            {
+                @if (data.Receipts.Count == 0)
+                {
+                    <div class="empty-state">
+                        <Icon Name="receive" Class="size-10 text-slate-300" />
+                        <p class="font-medium text-slate-700">No recent receiving records</p>
+                        <p class="text-xs text-slate-400">Incoming stock deliveries logged from suppliers will appear here.</p>
+                        <AuthorizeView Policy="@AppPolicies.ManageInventory">
+                            <a href="/receiving" class="btn-secondary mt-2">
+                                <Icon Name="receive" Class="size-4" />
+                                Receive stock
+                            </a>
+                        </AuthorizeView>
+                    </div>
+                }
+                else
+                {
+                    <div class="table-scroll">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Supplier</th>
+                                    <th>Date</th>
+                                    <th class="text-right">Total</th>
+                                    <th class="text-right">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var receipt in data.Receipts)
+                                {
+                                    var unpaid = receipt.Total - receipt.Paid;
+                                    <tr>
+                                        <td class="font-medium text-slate-900">@receipt.Supplier</td>
+                                        <td class="tabular-nums text-slate-500">
+                                            @receipt.At.ToBusinessTime(Configuration).ToString("dd MMM, HH:mm")
+                                        </td>
+                                        <td class="text-right font-medium tabular-nums text-slate-900">
+                                            @Money(receipt.Total)
+                                        </td>
+                                        <td class="text-right">
+                                            @if (unpaid > 0)
+                                            {
+                                                <span class="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-700">
+                                                    @Money(unpaid) due
+                                                </span>
+                                            }
+                                            else
+                                            {
+                                                <span class="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">
+                                                    Paid in full
+                                                </span>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            }
+            else if (ResolvedTab == "alerts")
+            {
+                @if (data.StockAlerts.Count == 0)
+                {
+                    <div class="empty-state">
+                        <div class="flex size-12 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 mb-1">
+                            <Icon Name="check" Class="size-6" />
+                        </div>
+                        <p class="font-medium text-slate-700">All inventory items are well-stocked</p>
+                        <p class="text-xs text-slate-400">No items are currently out of stock or below low stock thresholds.</p>
+                    </div>
+                }
+                else
+                {
+                    <div class="table-scroll">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Item</th>
+                                    <th>Barcode</th>
+                                    <th>Supplier</th>
+                                    <th>Stock Level</th>
+                                    <th class="text-right">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var alert in data.StockAlerts)
+                                {
+                                    <tr>
+                                        <td class="font-medium">
+                                            <a href="/items/@alert.Id" class="text-slate-900 hover:text-blue-600 hover:underline">
+                                                @alert.Name
+                                            </a>
+                                        </td>
+                                        <td class="font-mono text-xs text-slate-500">
+                                            @(alert.Barcode ?? "—")
+                                        </td>
+                                        <td class="text-slate-600">@alert.Supplier</td>
+                                        <td>
+                                            @if (alert.Stock <= 0)
+                                            {
+                                                <span class="inline-flex items-center gap-1.5 rounded-full bg-red-50 px-2.5 py-0.5 text-xs font-semibold text-red-700">
+                                                    <span class="size-1.5 rounded-full bg-red-600"></span>
+                                                    Out of stock
+                                                </span>
+                                            }
+                                            else
+                                            {
+                                                <span class="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-700">
+                                                    <span class="size-1.5 rounded-full bg-amber-600"></span>
+                                                    @alert.Stock.ToString("0.###") @alert.Unit left
+                                                </span>
+                                            }
+                                        </td>
+                                        <td class="text-right">
+                                            <AuthorizeView Policy="@AppPolicies.ManageInventory">
+                                                <a href="/receiving" class="text-xs font-semibold text-blue-600 hover:underline">
+                                                    Restock &rarr;
+                                                </a>
+                                            </AuthorizeView>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            }
+        </section>
+
+        <!-- Right: Quick Action Launchpad & Store Status -->
+        <div class="space-y-6">
+            <!-- Launchpad Panel -->
+            <section class="panel">
+                <div class="panel-heading">
+                    <h2>Quick Launchpad</h2>
+                    <span class="text-xs text-slate-400">Shortcuts</span>
+                </div>
+                <div class="grid grid-cols-2 gap-2.5 p-4">
+                    <AuthorizeView Policy="@AppPolicies.MakeSales">
+                        <a href="/sales" class="flex flex-col gap-1.5 rounded-xl border border-slate-200/80 p-3 transition hover:border-emerald-300 hover:bg-emerald-50/40 group">
+                            <div class="flex size-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 group-hover:bg-emerald-100">
+                                <Icon Name="cart" Class="size-4" />
+                            </div>
+                            <span class="text-xs font-semibold text-slate-900">New Sale</span>
+                            <span class="text-[10px] text-slate-500">POS checkout</span>
+                        </a>
+                    </AuthorizeView>
+
+                    <AuthorizeView Policy="@AppPolicies.ManageInventory">
+                        <a href="/receiving" class="flex flex-col gap-1.5 rounded-xl border border-slate-200/80 p-3 transition hover:border-blue-300 hover:bg-blue-50/40 group">
+                            <div class="flex size-8 items-center justify-center rounded-lg bg-blue-50 text-blue-600 group-hover:bg-blue-100">
+                                <Icon Name="receive" Class="size-4" />
+                            </div>
+                            <span class="text-xs font-semibold text-slate-900">Receive Stock</span>
+                            <span class="text-[10px] text-slate-500">Log incoming</span>
+                        </a>
+                    </AuthorizeView>
+
+                    <a href="/cash-drawer" class="flex flex-col gap-1.5 rounded-xl border border-slate-200/80 p-3 transition hover:border-sky-300 hover:bg-sky-50/40 group">
+                        <div class="flex size-8 items-center justify-center rounded-lg bg-sky-50 text-sky-600 group-hover:bg-sky-100">
+                            <Icon Name="cash" Class="size-4" />
+                        </div>
+                        <span class="text-xs font-semibold text-slate-900">Cash Drawers</span>
+                        <span class="text-[10px] text-slate-500">Count / operate</span>
+                    </a>
+
+                    <AuthorizeView Policy="@AppPolicies.ManageInventory">
+                        <a href="/items/new" class="flex flex-col gap-1.5 rounded-xl border border-slate-200/80 p-3 transition hover:border-violet-300 hover:bg-violet-50/40 group">
+                            <div class="flex size-8 items-center justify-center rounded-lg bg-violet-50 text-violet-600 group-hover:bg-violet-100">
+                                <Icon Name="plus" Class="size-4" />
+                            </div>
+                            <span class="text-xs font-semibold text-slate-900">Add Item</span>
+                            <span class="text-[10px] text-slate-500">New product</span>
+                        </a>
+                    </AuthorizeView>
+
+                    <AuthorizeView Policy="@AppPolicies.ManageUsers">
+                        <a href="/finance/day" class="flex flex-col gap-1.5 rounded-xl border border-slate-200/80 p-3 transition hover:border-indigo-300 hover:bg-indigo-50/40 group">
+                            <div class="flex size-8 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 group-hover:bg-indigo-100">
+                                <Icon Name="receipt" Class="size-4" />
+                            </div>
+                            <span class="text-xs font-semibold text-slate-900">Day Finance</span>
+                            <span class="text-[10px] text-slate-500">Daily breakdown</span>
+                        </a>
+                    </AuthorizeView>
+
+                    <AuthorizeView Policy="@AppPolicies.ManageInventory">
+                        <a href="/stock/take" class="flex flex-col gap-1.5 rounded-xl border border-slate-200/80 p-3 transition hover:border-amber-300 hover:bg-amber-50/40 group">
+                            <div class="flex size-8 items-center justify-center rounded-lg bg-amber-50 text-amber-600 group-hover:bg-amber-100">
+                                <Icon Name="dashboard" Class="size-4" />
+                            </div>
+                            <span class="text-xs font-semibold text-slate-900">Stock Take</span>
+                            <span class="text-[10px] text-slate-500">Inventory audit</span>
+                        </a>
+                    </AuthorizeView>
+
+                    <AuthorizeView Policy="@AppPolicies.ManageInventory">
+                        <NotAuthorized>
+                            <a href="/customers" class="flex flex-col gap-1.5 rounded-xl border border-slate-200/80 p-3 transition hover:border-purple-300 hover:bg-purple-50/40 group">
+                                <div class="flex size-8 items-center justify-center rounded-lg bg-purple-50 text-purple-600 group-hover:bg-purple-100">
+                                    <Icon Name="users" Class="size-4" />
+                                </div>
+                                <span class="text-xs font-semibold text-slate-900">Customers</span>
+                                <span class="text-[10px] text-slate-500">Balances & dues</span>
+                            </a>
+                            <a href="/reports/sales" class="flex flex-col gap-1.5 rounded-xl border border-slate-200/80 p-3 transition hover:border-teal-300 hover:bg-teal-50/40 group">
+                                <div class="flex size-8 items-center justify-center rounded-lg bg-teal-50 text-teal-600 group-hover:bg-teal-100">
+                                    <Icon Name="history" Class="size-4" />
+                                </div>
+                                <span class="text-xs font-semibold text-slate-900">Sales History</span>
+                                <span class="text-[10px] text-slate-500">Order lookup</span>
+                            </a>
+                        </NotAuthorized>
+                    </AuthorizeView>
+                </div>
+            </section>
+
+            <!-- Store & Register Status Panel -->
+            <section class="panel">
+                <div class="panel-heading">
+                    <h2>Store & Register Status</h2>
+                    <span class="inline-flex size-2 rounded-full @(data.OpenDrawersCount > 0 ? "bg-emerald-500 animate-pulse" : "bg-slate-300")" title="@(data.OpenDrawersCount > 0 ? "Registers active" : "No open registers")"></span>
+                </div>
+                <div class="p-4 space-y-3">
+                    <div class="flex items-center justify-between text-xs">
+                        <span class="text-slate-500">Active Location</span>
+                        <span class="font-medium text-slate-800">@(data.LocationName ?? "All Locations")</span>
+                    </div>
+                    <div class="flex items-center justify-between text-xs">
+                        <span class="text-slate-500">Open Drawers</span>
+                        <span class="font-medium text-slate-800">@data.OpenDrawersCount of @data.TotalDrawersCount</span>
+                    </div>
+                    <div class="flex items-center justify-between text-xs">
+                        <span class="text-slate-500">Drawer Cash</span>
+                        <span class="font-medium tabular-nums text-slate-800">@Money(data.OfficeCash)</span>
+                    </div>
+                    @if (data.BankBalance is { } statusBank)
+                    {
+                        <div class="flex items-center justify-between text-xs">
+                            <span class="text-slate-500">Bank / Digital</span>
+                            <span class="font-medium tabular-nums text-slate-800">@Money(statusBank)</span>
+                        </div>
+                    }
+                    @if (data.SupplierDue is { } statusDue && statusDue > 0)
+                    {
+                        <div class="flex items-center justify-between border-t border-slate-100 pt-2.5 text-xs">
+                            <span class="text-slate-500">Supplier Dues</span>
+                            <a href="/suppliers" class="font-semibold tabular-nums text-red-600 hover:underline">@Money(statusDue)</a>
+                        </div>
+                    }
+
+                    <div class="pt-2">
+                        <a href="/cash-drawer" class="btn-secondary w-full text-xs py-2">
+                            <Icon Name="wallet" Class="size-3.5" />
+                            Manage Cash Drawers
+                        </a>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </div>
+}
+
+@code {
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromQuery]
+    public string? Tab { get; set; }
+
+    private DashboardData? Data;
+    private bool Failed;
+
+    private string ResolvedTab
+    {
+        get
+        {
+            if (Tab == "deliveries" && Data?.StockValue is not null) return "deliveries";
+            if (Tab == "alerts") return "alerts";
+            return "sales";
+        }
+    }
+
+    private string Greeting
+    {
+        get
+        {
+            var zone = AccountingCalendar.Zone(Configuration);
+            var localHour = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, zone).Hour;
+            if (localHour < 12) return "Good morning";
+            if (localHour < 17) return "Good afternoon";
+            return "Good evening";
+        }
+    }
+
+    private string DisplayName =>
+        HttpContext.User.Identity?.Name?.Split('@')[0]
+        ?? "there";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Data is not null) return;
+        try
+        {
+            Data = await Inventory.DashboardAsync(HttpContext.User, HttpContext.RequestAborted);
+        }
+        catch (OperationCanceledException) when (HttpContext.RequestAborted.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            Failed = true;
+            Logger.LogError(exception, "Dashboard failed.");
+        }
+    }
+
+    private string Money(decimal value) => $"{Configuration["CurrencyCode"] ?? "BDT"} {value:N2}";
+
+    private string TabUrl(string tab) => tab == "sales" ? "/" : $"/?tab={tab}";
+
+    private string TabChipClass(string tab) => ResolvedTab == tab ? "filter-chip active" : "filter-chip";
+
+    private string TabBadgeClass(string tab) => ResolvedTab == tab
+        ? "ml-1 rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-semibold text-blue-700"
+        : "ml-1 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600";
+}

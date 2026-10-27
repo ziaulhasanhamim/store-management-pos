@@ -1,0 +1,227 @@
+@page "/reports/receiving"
+@attribute [Authorize(Policy = AppPolicies.ManageInventory)]
+@attribute [StreamRendering]
+@using System.ComponentModel.DataAnnotations
+@inject ReceivingReportService Reports
+@inject ILogger<Receiving> Logger
+
+<PageTitle>Receiving & transfers report · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
+
+<div class="page-heading no-print">
+    <h1>Receiving & transfers report</h1>
+    <div class="flex gap-3">
+        <a href="/receiving" class="btn-secondary">Receive / transfer</a>
+        <button type="button" class="btn-secondary" data-print>Print</button>
+    </div>
+</div>
+<ReportFilters Path="/reports/receiving" Period="@Period" Range="Data?.Range" Start="Start" End="End" Search="@Search" Sort="@Sort"
+    SortOptions="SortOptions" SearchHint="Purchase / transfer ID, supplier or location" PageSize="PageSize"
+    ShowLocation="true" LocationId="LocationId" Locations="@(Data?.Locations ?? [])" />
+
+@if (Error is not null)
+{
+    <p class="error-panel" role="alert">@Error</p>
+}
+<section class="print-area">
+    @if (Data is not null)
+    {
+        <p class="mb-4 text-sm text-slate-500">
+            @Data.Range.Start.ToString("dd MMM yyyy") – @Data.Range.End.ToString("dd MMM yyyy") ·
+            @(Data.Locations.FirstOrDefault(location => location.Id == LocationId)?.Name ?? "All locations")
+        </p>
+        <div class="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+            <div class="metric">
+                <p>Purchases / supplier returns</p>
+                <strong class="text-2xl!">@Money(Data.PurchaseValue)</strong>
+            </div>
+            <div class="metric">
+                <p>Purchase payments</p>
+                <strong class="text-2xl!">@Money(Data.SupplierPaid)</strong>
+                <span class="metric-note">Unpaid / credit @Money(Data.SupplierUnpaid)</span>
+            </div>
+            <div class="metric">
+                <p>Transfers in</p>
+                <strong class="text-2xl!">@Money(Data.TransferInValue)</strong>
+            </div>
+            <div class="metric">
+                <p>Transfers out</p>
+                <strong class="text-2xl!">@Money(Data.TransferOutValue)</strong>
+            </div>
+            <div class="metric">
+                <p>Net received value</p>
+                <strong class="text-2xl!">@Money(Data.NetValue)</strong>
+            </div>
+        </div>
+    }
+
+    <div class="panel table-scroll">
+        <table id="receiving-table" class="data-table" aria-busy="@(Data is null && Error is null)">
+            <thead>
+                <tr>
+                    <SortHeader Column="id" Label="ID" Sort="@Sort" Numeric="true" />
+                    <SortHeader Column="date" Label="Date" Sort="@Sort" Numeric="false" />
+                    <SortHeader Column="source" Label="From → to" Sort="@Sort" Numeric="false" />
+                    <th class="text-right">Items</th>
+                    <SortHeader Column="quantity" Label="Quantity" Sort="@Sort" Numeric="true" />
+                    <SortHeader Column="value" Label="Stock value" Sort="@Sort" Numeric="true" />
+                    <th class="text-right">Paid / Due</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Data is null)
+                {
+                    <TableStatusRow Columns="7" Loading="@(Error is null)" Error="@(Error is not null)"
+                        Message="@(Error ?? "Loading receiving and transfers…")" />
+                }
+                @foreach (var row in Data?.Rows ?? [])
+                {
+                    <tr>
+                        <td>
+                            <a href="@(row.IsTransfer ? $"/receiving?mode=transfer#transfer-{row.Id}" : $"/receiving/{row.Id}")" class="font-semibold text-blue-700">
+                                @(row.IsTransfer ? "Transfer" : "Purchase") #@row.Id
+                            </a>
+                            <span class="mt-1 block text-xs text-slate-400">
+                                @(row.IsTransfer ? (row.Quantity >= 0 ? "Transfer in" : "Transfer out") : (row.Quantity >= 0 ? "Receiving" : "Supplier return"))
+                            </span>
+                            @if (!string.IsNullOrWhiteSpace(row.Number))
+                            {
+                                <span class="block max-w-36 truncate text-xs text-slate-400" title="@row.Number">@row.Number</span>
+                            }
+                        </td>
+                        <td class="whitespace-nowrap">@row.At.ToBusinessTime(Configuration).ToString("dd MMM yyyy, HH:mm")</td>
+                        <td>@row.Source → @row.Destination</td>
+                        <td class="text-right whitespace-nowrap">@row.Items.Count @(row.Items.Count == 1 ? "item" : "items")</td>
+                        <td class="text-right whitespace-nowrap">@row.Quantity.ToString("+0.###;-0.###;0")</td>
+                        <td class="text-right whitespace-nowrap font-medium">@Money(row.Value)</td>
+                        <td class="text-right whitespace-nowrap">
+                            @if (!row.IsTransfer)
+                            {
+                                <span>@Money(row.Paid)</span>
+                                @if (row.Unpaid != 0)
+                                {
+                                    <span class="block text-xs @(row.Unpaid > 0 ? "text-rose-600" : "text-emerald-600")">
+                                        @(row.Unpaid > 0 ? "Due: " : "Credit: ")@Money(Math.Abs(row.Unpaid))
+                                    </span>
+                                }
+                            }
+                            else
+                            {
+                                <span class="text-xs text-slate-400">—</span>
+                            }
+                        </td>
+                    </tr>
+                    @if (row.Items.Count > 0)
+                    {
+                        <tr class="report-detail-row">
+                            <td colspan="7">
+                                <details>
+                                    <summary class="cursor-pointer py-2 text-sm font-medium text-blue-700">View items · @row.Items.Count</summary>
+                                    <ReceivingLineTable Items="row.Items" />
+                                </details>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+            @if (Data is not null)
+            {
+                <tfoot>
+                    <tr>
+                        <th colspan="5">This page · net stock received</th>
+                        <td class="text-right font-medium">@Money(Data.Rows.Sum(row => row.Value))</td>
+                        <td></td>
+                    </tr>
+                    <tr>
+                        <th colspan="5">All matching transactions (@Data.Count)</th>
+                        <td class="text-right font-medium">@Money(Data.NetValue)</td>
+                        <td></td>
+                    </tr>
+                </tfoot>
+            }
+
+        </table>
+        @if (Data is not null && Data.Count == 0)
+        {
+            <p class="p-6 text-sm text-slate-500">No receiving or transfers in this date range.</p>
+        }
+        <p class="p-4 text-xs text-slate-500">Transfer values use average cost saved when stock moved. All locations includes both sides, so transfers net to zero. Net received value covers purchases, supplier returns and transfers; it is not the closing inventory value.</p>
+    </div>
+    @if (Data is not null)
+    {
+        <PageNavigation Info="@(new PageInfo(Data.Page, QueryPagination.Size(PageSize), Data.Count))" Label="transactions" />
+    }
+
+</section>
+
+@code {
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromQuery]
+    public string Period { get; set; } = "today";
+
+    [SupplyParameterFromQuery]
+    public DateOnly? Start { get; set; }
+
+    [SupplyParameterFromQuery]
+    public DateOnly? End { get; set; }
+
+    [SupplyParameterFromQuery]
+    public int? LocationId { get; set; }
+
+    [SupplyParameterFromQuery]
+    public string? Search { get; set; }
+
+    [SupplyParameterFromQuery]
+    public string Sort { get; set; } = "id";
+
+    [SupplyParameterFromQuery]
+    public int Page { get; set; } = 1;
+
+    [SupplyParameterFromQuery]
+    public int PageSize { get; set; } = 30;
+
+    private ReceivingActivityReport? Data;
+    private string? Error;
+    private static readonly Dictionary<string, string> SortOptions = new()
+    {
+        ["product-desc"] = "Item · Z–A",
+        ["source"] = "Source · A–Z",
+        ["source-desc"] = "Source · Z–A",
+        ["date-desc"] = "Date · newest first",
+        ["date"] = "Date · oldest first",
+        ["id-desc"] = "ID · high to low",
+        ["id"] = "ID · low to high",
+        ["product"] = "Item · A–Z",
+        ["quantity-desc"] = "Quantity · high to low",
+        ["quantity"] = "Quantity · low to high",
+        ["value-desc"] = "Value · high to low",
+        ["value"] = "Value · low to high",
+        ["cost-desc"] = "Cost · high to low",
+        ["cost"] = "Cost · low to high"
+    };
+
+    protected override async Task OnParametersSetAsync()
+    {
+        Sort = string.IsNullOrWhiteSpace(Sort) ? "id" : Sort;
+        Period = string.IsNullOrWhiteSpace(Period) ? "today" : Period;
+        Data = null;
+        Error = null;
+        try
+        {
+            Data = await Reports.ReadAsync(HttpContext.User, Period, Start, End, LocationId, Page,
+                HttpContext.RequestAborted, Search, Sort, QueryPagination.Size(PageSize));
+        }
+        catch (ValidationException exception)
+        {
+            Error = exception.Message;
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Receiving report loading failed.");
+            Error = "Unable to load this report. Try again.";
+        }
+    }
+
+    private string Money(decimal value) => $"{value:N2} {Configuration["CurrencyCode"] ?? "BDT"}";
+}

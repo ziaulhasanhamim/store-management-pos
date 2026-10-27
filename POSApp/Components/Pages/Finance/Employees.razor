@@ -1,0 +1,225 @@
+@page "/employees"
+@attribute [Authorize(Policy = AppPolicies.ManageUsers)]
+@using System.ComponentModel.DataAnnotations
+@inject EmployeeService EmployeesService
+@inject FinanceService Finance
+@inject ClosingService Closings
+@inject NavigationManager Navigation
+
+<PageTitle>Employees & salaries · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
+<div class="page-heading">
+    <h1>Employees & salaries</h1>
+    <a href="/finance" class="btn-secondary">Payroll payments</a>
+</div>
+@if (Error is not null)
+{
+    <p class="error-panel" role="alert">@Error</p>
+}
+@if (Data is null)
+{
+    <LoadingPanel Message="Loading employees & salaries…" />
+}
+else
+{
+    <div class="mb-6 grid items-start gap-6 lg:grid-cols-2">
+        <section class="panel p-6">
+            <h2 class="mb-4 font-semibold">@(EmployeeForm!.Id is null ? "Add employee" : "Edit employee")</h2>
+            <form method="post" @formname="employee" @onsubmit="SaveEmployeeAsync" data-enhance data-submit-indication="true">
+                <AntiforgeryToken />
+                <input type="hidden" name="EmployeeForm.Id" value="@EmployeeForm.Id" />
+                <label class="field-label" for="employee-name">Name</label>
+                <input id="employee-name" name="EmployeeForm.Name" class="field" value="@EmployeeForm.Name" maxlength="200" required />
+                <label class="field-label mt-4" for="employee-phone">Phone</label>
+                <input id="employee-phone" name="EmployeeForm.Phone" class="field" value="@EmployeeForm.Phone" maxlength="64" />
+                <label class="field-label mt-4" for="employee-salary">Default monthly salary</label>
+                <input id="employee-salary" name="EmployeeForm.MonthlySalary" class="field" inputmode="decimal" value="@EmployeeForm.MonthlySalary" required />
+                <div class="mt-4 flex gap-3">
+                    <button class="btn-primary" data-pending-text="Saving…">Save employee</button>
+                    <a href="/employees" class="btn-secondary">New employee</a>
+                </div>
+            </form>
+        </section>
+        <section class="panel p-6">
+            <h2 class="mb-4 font-semibold">Create monthly salary</h2>
+            <p class="mb-4 text-sm text-slate-500">Enter this month's base salary. Unpaid earlier salary is added automatically and previous advances are applied. Creating salary does not spend cash; payments are expenses when paid.</p>
+            <form method="post" @formname="monthly-salary" @onsubmit="CreateSalaryAsync" data-enhance data-submit-indication="true">
+                <AntiforgeryToken />
+                <label class="field-label" for="salary-employee">Employee · default salary</label>
+                <select id="salary-employee" name="SalaryForm.EmployeeId" class="field" required>
+                    <option value="">Select employee</option>
+                    @foreach (var employee in Data!.Employees)
+                    {
+                        <option value="@employee.Id" selected="@(SalaryForm!.EmployeeId == employee.Id)">@employee.Name · @Money(employee.MonthlySalary)</option>
+                    }
+                </select>
+                <div class="mt-4 grid gap-4 sm:grid-cols-2">
+                    <div>
+                        <label class="field-label" for="salary-month">Month</label>
+                        <input type="hidden" name="SalaryForm.Month" value="@WorkingMonth.ToString("yyyy-MM-dd")" />
+                        <p id="salary-month" class="py-2 text-sm">@WorkingMonth.ToString("MMMM yyyy") · working month</p>
+                    </div>
+                    <div>
+                        <label class="field-label" for="salary-amount">Salary amount</label>
+                        <input id="salary-amount" name="SalaryForm.Amount" class="field" inputmode="decimal" value="@SalaryForm!.Amount" required />
+                    </div>
+                </div>
+                <label class="field-label mt-4" for="salary-notes">Notes (optional)</label>
+                <input id="salary-notes" name="SalaryForm.Notes" class="field" maxlength="2000" value="@SalaryForm.Notes" />
+                <p class="mt-3 text-xs text-slate-500">Any carried advance is applied automatically. Creating salary records the obligation; money is expensed when paid.</p>
+                <button class="btn-primary mt-4" data-pending-text="Creating…">Create salary</button>
+            </form>
+        </section>
+    </div>
+    <section class="panel mb-6 table-scroll">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Employee</th>
+                    <th>Phone</th>
+                    <th class="text-right">@Month.ToString("MMM yyyy") salary</th>
+                    <th class="text-right">Previous month advance</th>
+                    <th class="text-right">Unpaid brought forward</th>
+                    <th class="text-right">Total paid</th>
+                    <th class="text-right">Bonus included</th>
+                    <th class="text-right">Salary left / advance</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var employee in Data!.Employees)
+                {
+                    <tr>
+                        <td>@employee.Name</td>
+                        <td>@employee.Phone</td>
+                        <td class="text-right">@(employee.SalaryAmount is { } salary ? Money(salary) : "Not created")</td>
+                        <td class="text-right">@Money(employee.PriorAdvance)</td>
+                        <td class="text-right">@Money(employee.BroughtForward)</td>
+                        <td class="text-right">@Money(employee.Paid)</td>
+                        <td class="text-right">@Money(employee.Bonus)</td>
+                        <td class="text-right font-semibold">@(employee.Remaining < 0 ? "Advance " + Money(-employee.Remaining) : employee.SalaryAmount is null ? "Salary not created" : Money(employee.Remaining))</td>
+                        <td>
+                            <a class="text-blue-700" href="@($"/employees?page={Page}&pageSize={PageSize}&employeeId={employee.Id}&month={Month:yyyy-MM-dd}")">Manage</a>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+        @if (Data.Pagination is not null)
+        {
+            <PageNavigation Info="Data.Pagination" Label="employees" />
+        }
+    </section>
+    <form method="get" action="/employees" class="mb-4 flex items-end gap-3" data-enhance data-submit-indication="true">
+        <div>
+            <label class="field-label" for="salary-view-month">Salary records for</label>
+            <input id="salary-view-month" name="month" class="field" type="date" value="@Month.ToString("yyyy-MM-dd")" required />
+        </div>
+        <button class="btn-secondary">View month</button>
+    </form>
+    <section class="panel table-scroll">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Employee</th>
+                    <th>Month</th>
+                    <th class="text-right">Salary</th>
+                    <th class="text-right">Settled</th>
+                    <th class="text-right">Remaining</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var salary in Data.Salaries)
+                {
+                    <tr>
+                        <td>@salary.Employee</td>
+                        <td>@salary.Month.ToString("MMM yyyy")</td>
+                        <td class="text-right">@Money(salary.Amount)</td>
+                        <td class="text-right">@Money(salary.Settled)</td>
+                        <td class="text-right">@BalanceText(Data.Employees.Single(employee => employee.Id == salary.EmployeeId).Remaining)</td>
+                        <td>
+                            <a class="text-blue-700" href="@($"/payroll?employeeId={salary.EmployeeId}&salaryMonth={salary.Month:yyyy-MM-dd}")">Pay / bonus</a>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </section>
+}
+
+@code {
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromQuery]
+    public int? EmployeeId { get; set; }
+
+    [SupplyParameterFromQuery]
+    public DateOnly Month { get; set; }
+
+    [SupplyParameterFromForm(FormName = "employee")]
+    private EmployeeInput? EmployeeForm { get; set; }
+
+    [SupplyParameterFromForm(FormName = "monthly-salary")]
+    private SalaryInput? SalaryForm { get; set; }
+
+    [SupplyParameterFromQuery]
+    public int Page { get; set; } = 1;
+
+    [SupplyParameterFromQuery]
+    public int PageSize { get; set; } = 30;
+
+    private DateOnly WorkingMonth;
+    private PayrollSetup? Data;
+    private string? Error;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var working = await Closings.SelectedAsync(HttpContext.User, HttpContext.RequestAborted);
+        WorkingMonth = new(working.Year, working.Month, 1);
+        if (Month == default)
+        {
+            Month = working;
+        }
+        Month = new(Month.Year, Month.Month, 1);
+        Data = await EmployeesService.ReadAsync(HttpContext.User, Month, HttpContext.RequestAborted, Page, PageSize);
+        EmployeeForm ??= new();
+        SalaryForm ??= new() { Month = WorkingMonth.ToDateTime(TimeOnly.MinValue) };
+        if (HttpMethods.IsGet(HttpContext.Request.Method) && EmployeeId is { } id)
+        {
+            var employee = Data.Employees.SingleOrDefault(employee => employee.Id == id);
+            if (employee is not null)
+            {
+                EmployeeForm = new() { Id = id, Name = employee.Name, Phone = employee.Phone, MonthlySalary = employee.MonthlySalary };
+                SalaryForm.EmployeeId = id;
+                SalaryForm.Amount = employee.MonthlySalary;
+            }
+            else if (await EmployeesService.FindAsync(HttpContext.User, id, HttpContext.RequestAborted) is { } selected)
+            {
+                EmployeeForm = selected;
+                SalaryForm.EmployeeId = id;
+                SalaryForm.Amount = selected.MonthlySalary;
+            }
+        }
+    }
+
+    private Task SaveEmployeeAsync() => SaveAsync(async () => await EmployeesService.SaveAsync(HttpContext.User, EmployeeForm!, HttpContext.RequestAborted));
+    private Task CreateSalaryAsync() => SaveAsync(() => EmployeesService.CreateSalaryAsync(HttpContext.User, SalaryForm!, HttpContext.RequestAborted));
+
+    private async Task SaveAsync(Func<Task> action)
+    {
+        try
+        {
+            await action();
+            Navigation.NavigateTo($"/employees?month={WorkingMonth:yyyy-MM-dd}");
+        }
+        catch (ValidationException exception)
+        {
+            Error = exception.Message;
+        }
+    }
+
+    private string BalanceText(decimal remaining) => remaining < 0 ? $"Advance {Money(-remaining)}" : Money(remaining);
+
+    private string Money(decimal amount) => $"{Configuration["CurrencyCode"] ?? "BDT"} {amount:N2}";
+}

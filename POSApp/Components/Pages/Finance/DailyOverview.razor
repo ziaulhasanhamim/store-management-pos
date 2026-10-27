@@ -1,0 +1,68 @@
+@attribute [StreamRendering]
+@inject ClosingService Closings
+@inject ILogger<DailyOverview> Logger
+
+@if (Data is null && !Failed)
+{
+    <LoadingPanel Message="Loading working day…" />
+}
+else if (Data is { } day)
+{
+    <section class="panel mb-6 p-6">
+        <div class="mb-4 flex items-center justify-between gap-4">
+            <div>
+                <h2 class="font-semibold">Working day · @day.Date.ToString("dd MMM yyyy")</h2>
+                <p class="text-sm text-slate-500">@(day.ClosedAt is null ? "Open · all users share this day" : "Closed · open the next working day to continue")</p>
+            </div>
+            <a href="/finance/day" class="btn-primary">@(day.ClosedAt is null ? "Review / close day" : "View closing")</a>
+        </div>
+        <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <div>
+                <p class="text-sm text-slate-500">Opening cash</p>
+                <strong>@Money(day.OpeningCash)</strong>
+            </div>
+            <div>
+                <p class="text-sm text-slate-500">Cash received</p>
+                <strong>@Money(day.CashIn)</strong>
+            </div>
+            <div>
+                <p class="text-sm text-slate-500">Cash paid out</p>
+                <strong>@Money(day.CashOut)</strong>
+            </div>
+            <div>
+                <p class="text-sm text-slate-500">@(day.CountedCash is null ? "Expected cash" : "Counted closing cash")</p>
+                <strong>@Money(day.CountedCash ?? day.ExpectedCash)</strong>
+            </div>
+        </div>
+    </section>
+}
+else
+{
+    <p class="error-panel">Unable to load the working day. <a href="/finance/day">Open finance</a></p>
+}
+
+@code {
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    private DayOverview? Data;
+    private bool Failed;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            Data = await Closings.OverviewAsync(HttpContext.User, HttpContext.RequestAborted);
+        }
+        catch (OperationCanceledException) when (HttpContext.RequestAborted.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            Failed = true;
+            Logger.LogError(exception, "Working day overview failed.");
+        }
+    }
+
+    private string Money(decimal amount) => $"{Configuration["CurrencyCode"] ?? "BDT"} {amount:N2}";
+}

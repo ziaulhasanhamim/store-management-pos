@@ -1,0 +1,149 @@
+@page "/users"
+@attribute [StreamRendering]
+@attribute [Authorize(Policy = AppPolicies.ManageUsers)]
+@using POSApp.Services
+@inject UserAdministration Administration
+@inject ILogger<Index> Logger
+
+<PageTitle>Users · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
+
+<div class="mb-8 flex flex-wrap items-center justify-between gap-4">
+    <div>
+        <p class="text-sm font-medium text-indigo-600">Administration</p>
+        <h1 class="mt-1 text-3xl font-semibold tracking-tight text-slate-900">Your team</h1>
+    </div>
+    <a href="/users/new" class="btn-primary">
+        <Icon Name="plus" />
+        Add user
+    </a>
+</div>
+
+@if (Saved)
+{
+    <div role="status" class="mb-5 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
+        User saved successfully.
+    </div>
+}
+
+<div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <div class="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+        <h2 class="font-semibold text-slate-900">
+            All users
+            <span class="ml-2 rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-600">@(Loading ? "…" : Pagination?.Total.ToString() ?? "—")</span>
+        </h2>
+        <span class="text-xs text-slate-500">Username accounts</span>
+    </div>
+
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm">
+                <caption class="sr-only">Store user accounts and assigned roles</caption>
+                <thead class="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                    <tr>
+                        <th scope="col" class="px-6 py-3">Username</th>
+                        <th scope="col" class="px-6 py-3">Role</th>
+                        <th scope="col" class="px-6 py-3 text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                @if (Users is null)
+                {
+                    <tr>
+                        <td colspan="3">
+                            <LoadingPanel Message="Loading users…" />
+                        </td>
+                    </tr>
+                }
+                else
+                {
+
+                    @if (Failed)
+                    {
+                        <tr>
+                            <td colspan="3" role="alert">We couldn't load the team. Refresh to try again.</td>
+                        </tr>
+                    }
+                    else if (Users!.Count == 0)
+                    {
+                        <TableStatusRow Columns="3" Message="No users found." />
+                    }
+                    else
+                    {
+                        @foreach (var user in Users!)
+                        {
+                            <tr class="hover:bg-slate-50">
+                                <td class="px-6 py-5 font-medium text-slate-900">@user.Username</td>
+                                <td class="px-6 py-5">
+                                    @foreach (var role in user.Roles)
+                                    {
+                                        <span class="mr-2 inline-flex rounded-full bg-indigo-50 px-3 py-1 text-xs font-medium text-indigo-700">
+                                            @AppRoles.DisplayName(role)
+                                        </span>
+                                    }
+                                    @if (user.Roles.Length == 0)
+                                    {
+                                        <span class="text-slate-500">No role assigned</span>
+                                    }
+                                </td>
+                                <td class="px-6 py-5 text-right">
+                                    <a href="@($"/users/{user.Id}/edit")" class="font-medium text-indigo-700 hover:text-indigo-900" aria-label="@($"Edit {user.Username}")">
+                                        <Icon Name="edit" />
+                                    </a>
+                                </td>
+                            </tr>
+                        }
+                    }
+                                }
+            </tbody>
+            </table>
+        </div>
+        @if (Pagination is not null)
+        {
+            <PageNavigation Info="Pagination" Label="users" />
+        }
+</div>
+
+@code {
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromQuery]
+    public bool Saved { get; set; }
+
+    [SupplyParameterFromQuery]
+    public int Page { get; set; } = 1;
+
+    [SupplyParameterFromQuery]
+    public int PageSize { get; set; } = 30;
+
+    private PageInfo? Pagination;
+
+    private IReadOnlyList<UserListItem>? Users;
+    private bool Loading = true;
+    private bool Failed;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        try
+        {
+            Loading = true;
+            Failed = false;
+            Users = null;
+            var result = await Administration.PageAsync(HttpContext.User, Page, PageSize, HttpContext.RequestAborted);
+            Users = result.Items;
+            Pagination = result.Pagination;
+        }
+        catch (OperationCanceledException) when (HttpContext.RequestAborted.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception) when (exception is not UnauthorizedAccessException)
+        {
+            Users = [];
+            Failed = true;
+            Logger.LogError(exception, "Failed to load users.");
+        }
+        finally
+        {
+            Loading = false;
+        }
+    }
+}

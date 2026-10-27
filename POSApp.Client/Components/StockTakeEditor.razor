@@ -1,0 +1,410 @@
+@inject IStockTakeClient Takes
+
+@if (RecoveryReady && Data.CanEdit)
+{
+    <EditorDraft TState="StockTakeLocalDraft" Kind="@($"stock-take:{Data.Id}")" ResetLabel="Discard unsaved changes"
+                 ResetPrompt="Discard unsaved changes and return to the saved stock counts? Already saved counts remain available." State="ServerRecoveryState"
+                 Empty="@(!Unsaved)" Paused="@(Busy || Saving)" Restore="RestoreServerRecoveryAsync" Clear="UseSavedCountsAsync" ReadyChanged="@(ready => ServerRecoveryReady = ready)" />
+}
+
+<NavigationLock OnBeforeInternalNavigation="BeforeNavigationAsync" ConfirmExternalNavigation="@Unsaved" />
+<div class="mb-4 flex flex-wrap items-center gap-3 text-sm" role="status" aria-live="polite">
+    <span class="@(Unsaved && !Saving ? "text-amber-700" : "text-emerald-700")">@SaveStatus</span>
+    <span class="text-xs text-slate-500">Counts save automatically. Inventory changes only after confirmation.</span>
+</div>
+@if (StorageWarning is not null)
+{
+    <p class="error-panel" role="alert">@StorageWarning</p>
+}
+@if (Recovery is not null)
+{
+    <section class="panel mb-5 p-5">
+        <h2 class="mb-2 font-semibold">An unsaved draft was found</h2>
+        <p class="mb-4 text-sm text-slate-600">This stock take was also changed on the server. Restore your browser draft to review it, or keep the saved version. Changed stock will need recounting.</p>
+        <div class="flex gap-3">
+            <button type="button" class="btn-primary" @onclick="RestoreRecoveryAsync">Restore browser draft</button>
+            <button type="button" class="btn-secondary" @onclick="DiscardRecoveryAsync">Keep saved version</button>
+        </div>
+    </section>
+}
+
+<div class="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <div class="metric">
+        <p>Counted items</p>
+        <strong>@Rows.Count(row => row.Count.HasValue)</strong>
+        <span class="metric-note">@Rows.Count items added to this count</span>
+    </div>
+    <div class="metric">
+        <p>Shortages · @Rows.Count(row => row.Difference < 0) items</p>
+        <strong class="text-2xl! text-rose-700!">@Money(-Rows.Where(row => row.Difference < 0).Sum(row => row.Value))</strong>
+    </div>
+    <div class="metric">
+        <p>Extras · @Rows.Count(row => row.Difference > 0) items</p>
+        <strong class="text-2xl! text-emerald-700!">@Money(Rows.Where(row => row.Difference > 0).Sum(row => row.Value))</strong>
+    </div>
+    <div class="metric">
+        <p>Net inventory adjustment</p>
+        <strong class="text-2xl!">@Money(Rows.Sum(row => row.Value))</strong>
+    </div>
+</div>
+@if (Error is not null)
+{
+    <p class="error-panel" role="alert">@Error</p>
+}
+@if (HiddenInvalid.Any())
+{
+    <section class="panel mb-5 border-amber-200 p-5">
+        <h2 class="mb-2 font-semibold">Finish these counts</h2>
+        <p class="mb-4 text-sm text-slate-600">These unfinished entries are outside the current page. Correct them here to continue.</p>
+        @foreach (var row in HiddenInvalid.ToArray())
+        {
+            <div class="mb-3 flex flex-wrap items-center gap-3" @key="row.Item.ProductId">
+                <label class="min-w-48 text-sm font-semibold" for="@($"recover-count-{row.Item.ProductId}")">@row.Item.Name</label>
+                <input id="@($"recover-count-{row.Item.ProductId}")" class="field w-40!" type="text" inputmode="decimal"
+                       value="@row.Text" @onfocus="() => EditingId = row.Item.ProductId"
+                       @oninput="args => SetCount(row, args)" @onblur="FinishEditing"
+                       aria-label="@($"Correct count for {row.Item.Name}")" aria-invalid="@(!row.Valid)" />
+            </div>
+        }
+    </section>
+}
+@if (Notice is not null)
+{
+    <p class="success-panel" role="status">@Notice</p>
+}
+@if (Data.CompletedAt is { } completed)
+{
+    <p class="success-panel">Applied by @Data.CompletedBy · @completed.ToString("u"). This stock take is read-only.</p>
+}
+else if (!Data.CanEdit)
+{
+    <p class="mb-5 text-sm text-slate-500">This draft belongs to another or closed working day, or an archived location. Start a new stock take on the current open day.</p>
+}
+else if (Review)
+{
+    <section class="panel mb-6 border-blue-200 p-5">
+        <h2 class="mb-3 text-lg font-semibold">Apply this stock take?</h2>
+        <p class="mb-4 text-sm text-slate-600">Only counted items at @Data.Location will be adjusted. Uncounted items stay unchanged. Review the differences below before confirming.</p>
+        <label class="mb-4 flex items-start gap-3 text-sm">
+            <input type="checkbox" @bind="Confirmed" disabled="@Busy" />
+            I checked the quantities and confirm these inventory adjustments.
+        </label>
+        <div class="flex gap-3">
+            <button type="button" class="btn-secondary" @onclick="BackToCounting" disabled="@Busy">Continue counting</button>
+            <button type="button" class="btn-primary" @onclick="ApplyAsync" disabled="@(Busy || !Confirmed)">@(Busy ? "Applying…" : "Confirm & adjust stock")</button>
+        </div>
+    </section>
+}
+else if (ConfirmRefresh)
+{
+    <section class="panel mb-6 p-5">
+        <h2 class="mb-3 font-semibold">Refresh expected stock?</h2>
+        <p class="mb-4 text-sm text-slate-600">Your draft will be saved first. Counts for items with new stock activity will be cleared for recounting. Unchanged counts will be kept. Average costs will be refreshed for review.</p>
+        <div class="flex gap-3">
+            <button type="button" class="btn-secondary" @onclick="() => ConfirmRefresh = false" disabled="@Busy">Cancel</button>
+            <button type="button" class="btn-primary" @onclick="RefreshAsync" disabled="@(Busy || HasInvalid)">Save & refresh</button>
+        </div>
+    </section>
+}
+
+@if (!ReadOnly)
+{
+    <section class="panel mb-6">
+        <div class="panel-heading">
+            <h2>Add found items</h2>
+            <span class="text-xs text-slate-500">@Data.Location</span>
+        </div>
+        <fieldset class="min-w-0 p-5" disabled="@(!RendererInfo.IsInteractive || !RecoveryReady || !ServerRecoveryReady || Recovery is not null || Busy)">
+            <div id="@($"take-product-entry-{Data.Id}")" data-permanent>
+                <label class="mb-4 flex items-center gap-2 text-sm font-semibold">
+                    <input type="checkbox" @bind="BatchMode" @bind:after="BatchChangedAsync" disabled="@(BatchRows.Count > 0)" />
+                    Batch entry
+                </label>
+                <label class="field-label" for="take-product-search">Search or scan a product</label>
+                <div class="relative">
+                    <Icon Name="search" Class="absolute top-3 left-3 text-slate-400" />
+                    <input id="take-product-search" class="field pl-10!" placeholder="Name, barcode or ID"
+                           @ref="ProductSearchField" @bind="ProductSearch" @bind:event="oninput"
+                           @bind:after="ProductSearchChanged" @onkeydown="SearchKeyDown" autocomplete="off" maxlength="200" data-select-on-focus="true" />
+                </div>
+            </div>
+            @if (!string.IsNullOrWhiteSpace(ProductSearch) && Selected is null)
+            {
+                @if (Searching)
+                {
+                    <p class="mt-3 text-sm text-slate-500" role="status">Searching products…</p>
+                }
+                <div class="mt-3 max-h-72 overflow-y-auto rounded-xl border border-slate-200">
+                    @foreach (var row in SearchResults)
+                    {
+                        <button type="button" class="flex w-full items-center justify-between gap-4 border-b border-slate-100 p-3 text-left last:border-b-0 hover:bg-blue-50"
+                                @onclick="() => SelectProduct(row.Item.ProductId)">
+                            <span>
+                                <strong class="block text-sm">@row.Item.Name</strong>
+                                <span class="mt-1 block text-xs text-slate-500">#@row.Item.ProductId · @row.Item.Barcode · @row.Item.Unit</span>
+                            </span>
+                            <span class="text-right text-xs text-slate-500">
+                                Expected @row.Item.Expected.ToString("0.###")
+                                <span class="mt-1 block font-semibold text-blue-700">@(QueuedCount(row.Item.ProductId) is { } queued ? $"Queued total {queued:0.###}" : row.Count is { } count ? $"Counted {count:0.###}" : "Not counted")</span>
+                            </span>
+                        </button>
+                    }
+                    @if (SearchResults.Count == 0 && !Searching)
+                    {
+                        <p class="p-4 text-sm text-slate-500">No matching stocked products.</p>
+                    }
+                </div>
+                @if (SearchResults.Count == 12)
+                {
+                    <p class="mt-2 text-xs text-slate-500">Showing up to 12 matches. Refine your search to find a specific item.</p>
+                }
+            }
+            @if (Selected is { } selected)
+            {
+                <div class="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-4">
+                    <div class="mb-4 flex items-start justify-between gap-3">
+                        <div>
+                            <strong>@selected.Item.Name</strong>
+                            <p class="mt-1 text-xs text-slate-600">Expected @selected.Item.Expected.ToString("0.###") · Already counted @(selected.Count?.ToString("0.###") ?? "0") @selected.Item.Unit</p>
+                        </div>
+                        <button type="button" class="icon-button" @onclick="ClearSelection" aria-label="Choose another product">
+                            <Icon Name="close" />
+                        </button>
+                    </div>
+                    <div class="flex flex-wrap items-end gap-3">
+                        <div>
+                            <label class="field-label" for="take-found-quantity">Quantity found this time</label>
+                            <DecimalField @key="selected.Item.ProductId" @ref="FoundQuantityField" id="take-found-quantity" class="field w-40!" @bind-Value="FoundQuantity"
+                                          Maximum="999999999999999.999m" DecimalPlaces="@(selected.Item.AllowFractionUnit ? 3 : 0)"
+                                          ValidityChanged="valid => FoundQuantityValid = valid" @onkeydown="QuantityKeyDown" />
+                        </div>
+                        <button type="button" class="btn-primary" @onclick="AddSelected" disabled="@(!CanAdd)">
+                            <Icon Name="plus" />
+                            @(BatchMode ? "Queue item" : "Add to counted list")
+                        </button>
+                        <button type="button" class="btn-secondary" @onclick="MarkNoneFound">Set counted total to 0</button>
+                    </div>
+                    @if (!FoundQuantityValid)
+                    {
+                        <p class="mt-2 text-xs text-red-700">@(selected.Item.AllowFractionUnit ? "Use up to 3 decimal places." : "This item requires whole quantities.")</p>
+                    }
+                </div>
+            }
+            @if (BatchRows.Count > 0)
+            {
+                <div class="mt-5 rounded-xl border border-blue-200 bg-blue-50/40 p-4">
+                    <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
+                        <h3 class="font-semibold">Batch · @BatchRows.Count items</h3>
+                        <span class="text-xs text-slate-500">Queued on this browser · not added to the count yet</span>
+                    </div>
+                    @foreach (var row in BatchRows)
+                    {
+                        <div class="mb-3 flex flex-wrap items-center gap-3" @key="row.Item.ProductId">
+                            <div class="min-w-48 flex-1">
+                                <strong class="block text-sm">@row.Item.Name</strong>
+                                <span class="text-xs text-slate-500">@row.Item.Barcode · @row.Item.Unit</span>
+                            </div>
+                            <div>
+                                <label class="field-label" for="@($"batch-total-{row.Item.ProductId}")">Counted total</label>
+                                <input id="@($"batch-total-{row.Item.ProductId}")" class="field w-32! text-right" type="text" inputmode="decimal"
+                                       value="@row.Text" @oninput="args => SetBatchCountAsync(row, args)" data-select-on-focus="true"
+                                       aria-label="@($"Batch counted total for {row.Item.Name}")" aria-invalid="@(!row.Valid)" />
+                                @if (!row.Valid)
+                                {
+                                    <span class="mt-1 block text-xs text-red-700">@(row.Item.AllowFractionUnit ? "Use a nonnegative quantity, up to 3 decimals." : "Use a nonnegative whole number.")</span>
+                                }
+                            </div>
+                            <button type="button" class="icon-button" @onclick="() => RemoveBatchRowAsync(row.Item.ProductId)" aria-label="@($"Remove {row.Item.Name} from batch")">
+                                <Icon Name="trash" />
+                            </button>
+                        </div>
+                    }
+                    <button type="button" class="btn-primary mt-2" @onclick="AddBatchAsync" disabled="@(Busy || BatchInvalid || HasInvalid)">
+                        @(Busy ? "Adding batch…" : $"Add batch · {BatchRows.Count} items")
+                    </button>
+                </div>
+            }
+            <p class="mt-3 text-xs text-slate-500">Adding an item again adds to its counted total. Found 4, then found 1 more: the total becomes 5. Edit the total below to correct a mistake.</p>
+        </fieldset>
+    </section>
+}
+
+<form id="@($"take-filters-{Data.Id}")" data-permanent class="panel mb-6 p-5" @onsubmit="FilterListAsync" @onsubmit:preventDefault>
+    <fieldset class="min-w-0 flex flex-wrap items-end gap-3" disabled="@(!RendererInfo.IsInteractive || !RecoveryReady || !ServerRecoveryReady || Busy || Recovery is not null)">
+        <div class="min-w-52 flex-1">
+            <label class="field-label" for="take-search">Filter products</label>
+            <input id="take-search" class="field" placeholder="Name, barcode or ID" maxlength="200" @bind="Search" @bind:event="oninput" @bind:after="RememberFiltersAsync" />
+        </div>
+        <div>
+            <label class="field-label" for="take-view">Show</label>
+            <select id="take-view" class="field" @bind="View" @bind:after="RememberFiltersAsync">
+                <option value="">All products</option>
+                <option value="added">Added items</option>
+                <option value="counted">Counted</option>
+                <option value="uncounted">Not counted</option>
+                <option value="recount">Recount needed</option>
+                <option value="differences">Shortages & extras</option>
+                <option value="shortage">Shortages</option>
+                <option value="extra">Extras</option>
+                <option value="matched">Matched</option>
+            </select>
+        </div>
+        <div>
+            <label class="field-label" for="take-category">Category</label>
+            <select id="take-category" class="field" @bind="CategoryId" @bind:after="RememberFiltersAsync">
+                <option value="">All categories</option>
+                @foreach (var category in ListData?.Categories ?? [])
+                {
+                    <option value="@category.Id">@category.Name</option>
+                }
+            </select>
+        </div>
+        <div>
+            <label class="field-label" for="take-size">Rows</label>
+            <select id="take-size" class="field" @bind="PageSize" @bind:after="RememberFiltersAsync">
+                <option value="30">30</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+            </select>
+        </div>
+        <button type="submit" class="btn-primary" disabled="@(!RendererInfo.IsInteractive || !RecoveryReady || !ServerRecoveryReady || Recovery is not null || Busy || ListLoading || HasInvalid)">
+            <Icon Name="search" />
+            Search
+        </button>
+        @if (!ReadOnly)
+        {
+            <button type="button" class="btn-secondary" @onclick="() => ConfirmRefresh = true" disabled="@(!RendererInfo.IsInteractive || !RecoveryReady || !ServerRecoveryReady || Recovery is not null || Busy || BatchRows.Count > 0)">Refresh expected stock</button>
+        }
+    </fieldset>
+</form>
+
+<section class="panel table-scroll relative" aria-busy="@ListLoading.ToString().ToLowerInvariant()">
+    @if (ListLoading)
+    {
+        <div class="absolute inset-0 z-10 flex items-center justify-center bg-white/75" role="status" aria-live="polite">
+            <div class="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-5 py-3 shadow-sm">
+                <span class="h-5 w-5 animate-spin rounded-full border-2 border-blue-200 border-t-blue-600" aria-hidden="true"></span>
+                <span class="text-sm font-medium text-slate-700">Refreshing counts…</span>
+            </div>
+        </div>
+    }
+    <div class="panel-heading">
+        <h2>@(Review ? "Review differences" : "Stock count")</h2>
+        <span class="text-xs text-slate-500">@MatchingCount matching products · @Rows.Count added to this count</span>
+    </div>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <CountSortHeader Column="name" Label="Item / barcode" Sort="@Sort" Changed="SortListAsync" Disabled="@(!RendererInfo.IsInteractive || !RecoveryReady || !ServerRecoveryReady || ListLoading || Busy || HasInvalid)" />
+                <th>Status</th>
+                <CountSortHeader Column="expected" Label="Expected" Sort="@Sort" Changed="SortListAsync" Numeric="true" Disabled="@(!RendererInfo.IsInteractive || !RecoveryReady || !ServerRecoveryReady || ListLoading || Busy || HasInvalid)" />
+                <CountSortHeader Column="counted" Label="Counted" Sort="@Sort" Changed="SortListAsync" Numeric="true" Disabled="@(!RendererInfo.IsInteractive || !RecoveryReady || !ServerRecoveryReady || ListLoading || Busy || HasInvalid)" />
+                <CountSortHeader Column="difference" Label="Difference" Sort="@Sort" Changed="SortListAsync" Numeric="true" Disabled="@(!RendererInfo.IsInteractive || !RecoveryReady || !ServerRecoveryReady || ListLoading || Busy || HasInvalid)" />
+                <CountSortHeader Column="cost" Label="Average cost" Sort="@Sort" Changed="SortListAsync" Numeric="true" Disabled="@(!RendererInfo.IsInteractive || !RecoveryReady || !ServerRecoveryReady || ListLoading || Busy || HasInvalid)" />
+                <CountSortHeader Column="value" Label="Value change" Sort="@Sort" Changed="SortListAsync" Numeric="true" Disabled="@(!RendererInfo.IsInteractive || !RecoveryReady || !ServerRecoveryReady || ListLoading || Busy || HasInvalid)" />
+                @if (!ReadOnly)
+                {
+                    <th>
+                        <span class="sr-only">Remove count</span>
+                    </th>
+                }
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var row in ListRows)
+            {
+                <tr @key="row.Item.ProductId" class="@(Added(row) ? "bg-blue-50/40" : null)">
+                    <td>
+                        <a href="@($"/items/{row.Item.ProductId}")" target="_blank" class="font-semibold text-blue-700">@row.Item.Name</a>
+                        <span class="mt-1 block text-xs text-slate-500">#@row.Item.ProductId · @row.Item.Barcode · @row.Item.Unit</span>
+                    </td>
+                    <td>
+                        <span class="badge">@RowStatus(row)</span>
+                        @if (Added(row))
+                        {
+                            <span class="mt-1 block text-xs font-semibold text-blue-700">Added</span>
+                        }
+                    </td>
+                    <td class="text-right">@row.Item.Expected.ToString("0.###")</td>
+                    <td class="text-right">
+                        @if (ReadOnly)
+                        {
+                            @(row.Count?.ToString("0.###") ?? "Not counted")
+                        }
+                        else
+                        {
+                            <input type="text" inputmode="decimal" class="field w-32! text-right" data-select-on-focus="true"
+                                   value="@row.Text" @onfocus="() => EditingId = row.Item.ProductId"
+                                   @oninput="args => SetCount(row, args)" @onblur="FinishEditing"
+                                   disabled="@(!RendererInfo.IsInteractive || !RecoveryReady || !ServerRecoveryReady || Recovery is not null || Busy || ListLoading || Queued(row.Item.ProductId))"
+                                   aria-label="@($"Counted quantity for {row.Item.Name}")" aria-invalid="@(!row.Valid)" />
+                            @if (!row.Valid)
+                            {
+                                <span class="mt-1 block text-xs text-red-700">@(row.Item.AllowFractionUnit ? "Enter a nonnegative quantity (up to 3 decimals)." : "Enter a nonnegative whole number.")</span>
+                            }
+                        }
+                    </td>
+                    <td class="text-right @(row.Difference < 0 ? "text-rose-700!" : "text-emerald-700!")">@(row.Difference?.ToString("+0.###;-0.###;0") ?? "—")</td>
+                    <td class="text-right">@Money(row.Item.UnitCost)</td>
+                    <td class="text-right">@(row.Count.HasValue ? Money(row.Value) : "—")</td>
+                    @if (!ReadOnly)
+                    {
+                        <td>
+                            <button type="button" class="icon-button" @onclick="() => RemoveCount(row.Item.ProductId)"
+                                    disabled="@(Busy || ListLoading || !Added(row) || Queued(row.Item.ProductId))" aria-label="@($"Remove {row.Item.Name} from counted list")">
+                                <Icon Name="trash" />
+                            </button>
+                        </td>
+                    }
+                </tr>
+            }
+        </tbody>
+        <tfoot>
+            <tr>
+                <th colspan="6">This page · @ListRows.Count products</th>
+                <td class="text-right">@Money(ListRows.Sum(row => row.Value))</td>
+                @if (!ReadOnly)
+                {
+                    <td></td>
+                }
+            </tr>
+            <tr>
+                <th colspan="6">Entire stock take · net value change</th>
+                <td class="text-right">@Money(Rows.Sum(row => row.Value))</td>
+                @if (!ReadOnly)
+                {
+                    <td></td>
+                }
+            </tr>
+        </tfoot>
+    </table>
+    @if (ListLoading)
+    {
+        <p class="p-5 text-sm text-slate-500" role="status">Loading products…</p>
+    }
+    else if (ListRows.Count == 0)
+    {
+        <p class="p-5 text-sm text-slate-500">No products match these filters.</p>
+    }
+</section>
+<section class="panel mt-6 p-5">
+    <label class="field-label" for="take-reason">Reason / count notes</label>
+    <textarea id="take-reason" class="field" rows="2" maxlength="2000" @bind="Reason" @bind:event="oninput" @bind:after="() => ChangedAsync()" disabled="@(!RendererInfo.IsInteractive || !RecoveryReady || !ServerRecoveryReady || ReadOnly || Busy)"></textarea>
+    <p class="mt-3 text-xs text-slate-500">Items you haven’t added stay untouched. Search for an item and enter 0 when none are found.</p>
+    @if (!ReadOnly)
+    {
+        <div class="mt-4 flex flex-wrap items-center gap-3">
+            <button type="button" class="btn-secondary" @onclick="SaveDraftAsync" disabled="@(!RendererInfo.IsInteractive || !RecoveryReady || !ServerRecoveryReady || Recovery is not null || Busy || HasInvalid)">@(Busy ? "Saving…" : "Save draft")</button>
+            <button type="button" class="btn-primary" @onclick="ReviewAsync" disabled="@(!RendererInfo.IsInteractive || !RecoveryReady || !ServerRecoveryReady || Recovery is not null || Busy || HasInvalid || BatchRows.Count > 0 || !Rows.Any(row => row.Count.HasValue) || string.IsNullOrWhiteSpace(Reason))">Review adjustments</button>
+            <span class="text-xs text-slate-500">@SaveStatus</span>
+        </div>
+    }
+</section>
+
+<div class="mt-4 flex items-center justify-between">
+    <span class="text-xs text-slate-500">Page @Page · @MatchingCount matching products</span>
+    <div class="flex gap-3">
+        <button type="button" class="btn-secondary" @onclick="() => ChangePageAsync(-1)" disabled="@(!RendererInfo.IsInteractive || !RecoveryReady || !ServerRecoveryReady || Page <= 1 || ListLoading || Busy || HasInvalid)">Previous</button>
+        <button type="button" class="btn-secondary" @onclick="() => ChangePageAsync(1)" disabled="@(!RendererInfo.IsInteractive || !RecoveryReady || !ServerRecoveryReady || Page * PageSize >= MatchingCount || ListLoading || Busy || HasInvalid)">Next</button>
+    </div>
+</div>

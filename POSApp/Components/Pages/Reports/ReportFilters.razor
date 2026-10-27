@@ -1,0 +1,161 @@
+<div class="report-filters no-print">
+    @if (ExportKind is { } exportKind)
+    {
+        <details class="mb-3 rounded-xl border border-slate-200 bg-white p-3">
+            <summary class="cursor-pointer text-sm font-semibold text-indigo-700">Export CSV · choose columns</summary>
+            <form method="get" action="@($"/api/reports/export/{exportKind}")" class="mt-3" data-enhance="false">
+                <input type="hidden" name="period" value="@Period" />
+                <input type="hidden" name="start" value="@Range?.Start.ToString("yyyy-MM-dd")" />
+                <input type="hidden" name="end" value="@Range?.End.ToString("yyyy-MM-dd")" />
+                <input type="hidden" name="search" value="@Search" />
+                <input type="hidden" name="sort" value="@Sort" />
+                @if (LocationId is not null)
+                {
+                    <input type="hidden" name="locationId" value="@LocationId" />
+                }
+                @if (SupplierId is not null)
+                {
+                    <input type="hidden" name="supplierId" value="@SupplierId" />
+                }
+                <div class="mb-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                    @foreach (var column in ExportColumns(exportKind))
+                    {
+                        <label class="flex items-center gap-2 text-sm text-slate-700">
+                            <input type="checkbox" name="columns" value="@column" checked />
+                            @column
+                        </label>
+                    }
+                </div>
+                <button class="btn-secondary" type="submit" formtarget="_self">Download CSV</button>
+            </form>
+        </details>
+    }
+    <div class="mb-4 flex flex-wrap items-center gap-2">
+        @foreach (var preset in Presets)
+        {
+            <a href="@Link(preset.Key)" class="@(Period == preset.Key ? "filter-chip active" : "filter-chip")">@preset.Value</a>
+        }
+        @if (Range is { } range && range.Start == range.End)
+        {
+            <div class="ml-auto flex items-center gap-2">
+                @if (range.Start > DateOnly.MinValue)
+                {
+                    <a href="@DayLink(range.Start.AddDays(-1))" class="filter-chip" aria-label="Previous day">← Previous day</a>
+                }
+                @if (range.End < DateOnly.MaxValue.AddDays(-1))
+                {
+                    <a href="@DayLink(range.End.AddDays(1))" class="filter-chip" aria-label="Next day">Next day →</a>
+                }
+            </div>
+        }
+    </div>
+    <form method="get" action="@Path" class="grid items-end gap-3 sm:grid-cols-2 xl:grid-cols-5" data-enhance data-auto-search="false">
+        <input type="hidden" id="report-period" name="period" value="@Period" />
+        <input type="hidden" name="pageSize" value="@PageSize" />
+        <input type="hidden" name="sort" value="@Sort" />
+        <div class="sm:col-span-2">
+            <label class="field-label">Date range</label>
+            <DateRangePicker Id="report-date-range" Start="@EffectiveStart" End="@EffectiveEnd" AutoSubmit="false" />
+        </div>
+        <div class="@(ShowLocation ? "" : "sm:col-span-2")">
+            <label class="field-label" for="report-search">Search</label>
+            <input id="report-search" name="search" class="field" value="@Search" placeholder="@SearchHint" maxlength="200" autocomplete="off" data-auto-search="false" />
+        </div>
+        @if (ShowLocation)
+        {
+            <div>
+                <label class="field-label" for="report-location">Location</label>
+                <select id="report-location" name="locationId" class="field">
+                    <option value="">All locations</option>
+                    @foreach (var location in Locations)
+                    {
+                        <option value="@location.Id" selected="@(LocationId == location.Id)">@location.Name</option>
+                    }
+                </select>
+            </div>
+        }
+        <button class="btn-primary justify-center xl:col-start-5">
+            <Icon Name="search" />
+            Search
+        </button>
+    </form>
+</div>
+
+@code {
+    private string? ExportKind => Path switch
+    {
+        "/reports/sales" => "sales",
+        "/reports/items" => "items",
+        "/reports/receiving" => "receiving",
+        "/reports/inventory" => "inventory",
+        _ => null
+    };
+
+    private static IReadOnlyList<string> ExportColumns(string kind) => kind switch
+    {
+        "sales" => ["Sale ID", "Receipt", "Customer", "Date (UTC)", "Sales", "Paid", "Due", "Cost", "Profit"],
+        "items" => ["Item ID", "Item", "Barcode", "Unit", "Net quantity", "Average cost", "Cost", "Subtotal", "Discount", "Sales", "Profit"],
+        "receiving" => ["ID", "Type", "Date (UTC)", "Item", "Barcode", "From", "To", "Quantity", "Unit cost", "Value"],
+        "inventory" => ["Item ID", "Item", "Barcode", "Default supplier", "Quantity", "Average cost", "Stock value"],
+        _ => []
+    };
+
+    [Parameter]
+    public string Path { get; set; } = "";
+
+    [Parameter]
+    public string Period { get; set; } = "today";
+
+    [Parameter]
+    public DateOnly? Start { get; set; }
+
+    [Parameter]
+    public DateOnly? End { get; set; }
+
+    [Parameter]
+    public ReportRange? Range { get; set; }
+
+    private DateOnly? EffectiveStart => Range?.Start ?? Start;
+    private DateOnly? EffectiveEnd => Range?.End ?? End;
+
+    [Parameter]
+    public string? Search { get; set; }
+
+    [Parameter]
+    public string SearchHint { get; set; } = "Reference, ID or name";
+
+    [Parameter]
+    public string Sort { get; set; } = "date-desc";
+
+    [Parameter]
+    public IReadOnlyDictionary<string, string> SortOptions { get; set; } = new Dictionary<string, string>();
+
+    [Parameter]
+    public bool ShowLocation { get; set; }
+
+    [Parameter]
+    public int? LocationId { get; set; }
+
+    [Parameter]
+    public int? SupplierId { get; set; }
+
+    [Parameter]
+    public int PageSize { get; set; } = 30;
+
+    [Parameter]
+    public IReadOnlyList<Lookup> Locations { get; set; } = [];
+
+    private static readonly Dictionary<string, string> Presets = new()
+    {
+        ["today"] = "Today",
+        ["yesterday"] = "Yesterday",
+        ["week"] = "Last 7 days",
+        ["month"] = "This month",
+        ["lastmonth"] = "Last month",
+        ["year"] = "This year"
+    };
+
+    private string Link(string period) => ReportLinks.Create(Path, period, Range?.Start, Range?.End,
+        Search, Sort, locationId: LocationId, pageSize: QueryPagination.Size(PageSize));
+    private string DayLink(DateOnly date) => ReportLinks.Create(Path, "custom", date, date, Search, Sort, locationId: LocationId);
+}

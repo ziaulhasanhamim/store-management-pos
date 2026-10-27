@@ -1,0 +1,117 @@
+@attribute [StreamRendering]
+@inject InventoryService Inventory
+@inject ILogger<EditLoader> Logger
+
+@if (Loading)
+{
+    <LoadingPanel Message="Loading item…" />
+}
+else if (Error is not null)
+{
+    <p role="alert" class="error-panel">@Error</p>
+}
+else
+{
+    <ProductEditor Input="Input" Categories="Categories" Suppliers="SupplierOptions" Definitions="Definitions" OnSave="OnSave" CancelUrl="@CancelUrl" />
+}
+
+@code {
+    [Parameter]
+    public int? Id { get; set; }
+
+    [Parameter, EditorRequired]
+    public ProductInput Input { get; set; } = default!;
+
+    [Parameter]
+    public EventCallback OnSave { get; set; }
+
+    [Parameter]
+    public string CancelUrl { get; set; } = "/items";
+
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    private bool Loading = true;
+    private string? Error;
+    private IReadOnlyList<Lookup> Categories = [];
+    private IReadOnlyList<Lookup> SupplierOptions = [];
+    private IReadOnlyList<ProductAttributeDefinitionOption> Definitions = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            Categories = await Inventory.CategoriesAsync(HttpContext.User, HttpContext.RequestAborted);
+            SupplierOptions = (await Inventory.OptionsAsync(HttpContext.User, HttpContext.RequestAborted)).Suppliers
+                .Select(supplier => new Lookup(supplier.Id, supplier.Name)).ToArray();
+            Definitions = await Inventory.AttributeDefinitionsAsync(HttpContext.User, HttpContext.RequestAborted);
+
+            if (Id is { } id)
+            {
+                var detail = await Inventory.FindAsync(HttpContext.User, id, HttpContext.RequestAborted);
+                if (detail is null)
+                {
+                    Error = "Item not found.";
+                    return;
+                }
+
+                Input.SupplierId = detail.Item.SupplierId;
+                Input.Name = detail.Item.Name;
+                Input.Barcode = detail.Item.Barcode;
+                Input.Unit = detail.Item.Unit;
+                Input.AllowFractionUnit = detail.Item.AllowFractionUnit;
+                Input.IsNonStocked = detail.Item.IsNonStocked;
+                Input.CostPrice = detail.Item.Cost ?? 0;
+                Input.SellingPrice = detail.Item.Price;
+                Input.Description = detail.Description;
+                Input.CategoryId = detail.CategoryId;
+                Input.Attributes = detail.Attributes.Select(value =>
+                {
+                    var definition = Definitions.FirstOrDefault(item => item.Key == value.Key);
+                    if (definition is null)
+                    {
+                        return null;
+                    }
+                    var attribute = new ProductAttributeInput { DefinitionId = definition.Id };
+                    if (definition.Kind == "Checkbox")
+                    {
+                        attribute.BooleanValue = string.Equals(value.StoredValue ?? value.Value, "true", StringComparison.OrdinalIgnoreCase)
+                            || string.Equals(value.Value, "Yes", StringComparison.OrdinalIgnoreCase);
+                    }
+                    else if (definition.Kind == "Number"
+                        && decimal.TryParse(value.StoredValue ?? value.Value, System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture, out var number))
+                    {
+                        attribute.NumberValue = number;
+                    }
+                    else if (definition.Kind == "Select")
+                    {
+                        attribute.TextValue = definition.Options.FirstOrDefault(option =>
+                            string.Equals(option.Value, value.StoredValue, StringComparison.Ordinal))?.Value
+                            ?? definition.Options.FirstOrDefault(option =>
+                            string.Equals(option.DisplayName, value.Value, StringComparison.Ordinal))?.Value
+                            ?? definition.Options.FirstOrDefault(option =>
+                                string.Equals(option.Value, value.Value, StringComparison.Ordinal))?.Value
+                            ?? value.Value;
+                    }
+                    else
+                    {
+                        attribute.TextValue = value.Value;
+                    }
+                    return attribute;
+                }).Where(attribute => attribute is not null).Select(attribute => attribute!).ToList();
+            }
+        }
+        catch (OperationCanceledException) when (HttpContext.RequestAborted.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            Error = "Unable to load item.";
+            Logger.LogError(exception, "Item editor failed.");
+        }
+        finally
+        {
+            Loading = false;
+        }
+    }
+}

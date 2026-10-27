@@ -1,0 +1,242 @@
+@attribute [StreamRendering]
+@using System.ComponentModel.DataAnnotations
+@inject ReportService Reports
+@inject ILogger<TransactionReport> Logger
+
+<PageTitle>@Title report · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
+
+<div class="page-heading no-print">
+    <h1>@Title report</h1>
+    <div class="flex gap-3">
+        <a href="/reports" class="btn-secondary">Reports</a>
+        <button type="button" class="btn-secondary" data-print>Print</button>
+    </div>
+</div>
+<ReportFilters Path="@Path" Period="@Period" Range="Data?.Range" Start="Start" End="End" Search="@Search" Sort="@Sort"
+    SortOptions="SortOptions" SearchHint="ID, reference or customer"
+    ShowLocation="true" LocationId="LocationId" Locations="@(Data?.Locations ?? [])" />
+
+@if (Error is not null)
+{
+    <p role="alert" class="error-panel">@Error</p>
+}
+<section class="print-area">
+    @if (Data is not null)
+    {
+        <h2 class="mb-4 text-sm text-slate-500">@Data.Range.Start.ToString("dd MMM yyyy") – @Data.Range.End.ToString("dd MMM yyyy")</h2>
+        <div class="@(Data.CanViewCosts && Sales ? "mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-5" : "mb-6 grid gap-4 sm:grid-cols-3")">
+            <div class="metric">
+                <p>Transactions</p>
+                <strong>@Data.Count</strong>
+            </div>
+            <div class="metric">
+                <p>Net total</p>
+                <strong class="text-2xl!">@Money(Data.Total)</strong>
+            </div>
+            @if (Data.CanViewCosts && Sales)
+            {
+                <div class="metric">
+                    <p>Cost of goods sold</p>
+                    <strong class="text-2xl!">@Money(Data.Cost ?? 0)</strong>
+                </div>
+                <div class="metric metric-profit">
+                    <p>Gross profit</p>
+                    <strong class="text-2xl!">@Money(Data.Profit ?? 0)</strong>
+                </div>
+            }
+            <div class="metric">
+                <p>Paid</p>
+                <strong class="text-2xl!">@Money(Data.Paid)</strong>
+            </div>
+        </div>
+    }
+
+    <div class="panel table-scroll">
+        <table id="transactionreport-table" class="data-table" aria-busy="@(Data is null && Error is null)">
+            <thead>
+                <tr>
+                    <SortHeader Column="id" Label="ID" Sort="@Sort" Numeric="true" />
+                    <SortHeader Column="party" Label="@(Sales ? "Customer" : "Supplier")" Sort="@Sort" Numeric="false" />
+                    <SortHeader Column="date" Label="Date" Sort="@Sort" Numeric="false" />
+                    <SortHeader Column="total" Label="Total" Sort="@Sort" Numeric="true" />
+                    @if (CanViewCosts && Sales)
+                    {
+                        <SortHeader Column="cost" Label="Cost" Sort="@Sort" Numeric="true" />
+                        <SortHeader Column="profit" Label="Profit" Sort="@Sort" Numeric="true" />
+                    }
+                    <SortHeader Column="paid" Label="Paid" Sort="@Sort" Numeric="true" />
+                    <SortHeader Column="due" Label="@(Sales ? "Due" : "Net unpaid / credit")" Sort="@Sort" Numeric="true" />
+                </tr>
+            </thead>
+            <tbody>
+                @if (Data is null)
+                {
+                    <TableStatusRow Columns="ColumnCount" Loading="@(Error is null)" Error="@(Error is not null)"
+                        Message="@(Error ?? "Loading report…")" />
+                }
+                @foreach (var row in Data?.Rows ?? [])
+                {
+                    <tr>
+                        <td>
+                            <a href="@(Sales ? $"/sales/{row.Id}/bill" : $"/receiving/{row.Id}")" class="font-semibold text-blue-700">#@row.Id</a>
+                            <span class="block max-w-36 truncate text-xs text-slate-400" title="@row.Number">@row.Number</span>
+                        </td>
+                        <td>@row.Party</td>
+                        <td>@TimeZoneInfo.ConvertTime(row.At, Zone).ToString("dd MMM yyyy, HH:mm")</td>
+                        <td class="text-right">@Money(row.Total)</td>
+                        @if (CanViewCosts && Sales)
+                        {
+                            <td class="text-right">@Money(row.Cost ?? 0)</td>
+                            <td class="text-right font-semibold @(row.Profit < 0 ? "text-rose-700" : "text-emerald-700")">@Money(row.Profit ?? 0)</td>
+                        }
+                        <td class="text-right">@Money(row.Paid)</td>
+                        <td class="text-right">@Money(row.Total - row.Paid)</td>
+                    </tr>
+                    @if (Sales && row.Items.Count > 0)
+                    {
+                        <tr class="report-detail-row">
+                            <td colspan="@(CanViewCosts ? 8 : 6)">
+                                <details>
+                                    <summary class="cursor-pointer py-2 text-sm font-medium text-blue-700">View items · @row.Items.Count</summary>
+                                    <SalesLineTable Items="row.Items" CanViewCosts="CanViewCosts" />
+                                </details>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+            @if (Data is not null)
+            {
+                <tfoot>
+                    @foreach (var summary in Summaries)
+                    {
+                        <tr>
+                            <th colspan="3">@summary.Label</th>
+                            <td class="text-right">@Money(summary.Total)</td>
+                            @if (CanViewCosts && Sales)
+                            {
+                                <td class="text-right">@Money(summary.Cost)</td>
+                                <td class="text-right">@Money(summary.Total - summary.Cost)</td>
+                            }
+                            <td class="text-right">@Money(summary.Paid)</td>
+                            <td class="text-right">@Money(summary.Total - summary.Paid)</td>
+                        </tr>
+                    }
+                </tfoot>
+            }
+
+        </table>
+        @if (Data is not null && Data.Rows.Count == 0)
+        {
+            <p class="p-6 text-sm text-slate-500">No transactions in this date range.</p>
+        }
+    </div>
+    @if (Data is not null)
+    {
+        <div class="no-print mt-4 flex justify-between">
+            <span class="text-xs text-slate-500">Transactions</span>
+        </div>
+        <PageNavigation Info="@(new PageInfo(Data.Page, QueryPagination.Size(PageSize), Data.Count))" Label="transactions" />
+    }
+
+</section>
+
+@code {
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [Parameter]
+    public bool Sales { get; set; }
+
+    [Parameter]
+    public string Period { get; set; } = "today";
+
+    [Parameter]
+    public DateOnly? Start { get; set; }
+
+    [Parameter]
+    public DateOnly? End { get; set; }
+
+    [Parameter]
+    public int? LocationId { get; set; }
+
+    [Parameter]
+    public string? Search { get; set; }
+
+    [Parameter]
+    public string Sort { get; set; } = "id";
+
+    [Parameter]
+    public int Page { get; set; }
+
+    [Parameter]
+    public int PageSize { get; set; } = 30;
+
+    private bool CanViewCosts => Data?.CanViewCosts
+        ?? (HttpContext.User.IsInRole(AppRoles.Admin) || HttpContext.User.IsInRole(AppRoles.InventoryManager));
+    private int ColumnCount => CanViewCosts && Sales ? 8 : 6;
+    private ReportPage? Data;
+    private string? Error;
+    private string Title => Sales ? "Sales" : "Receiving";
+    private string Path => Sales ? "/reports/sales" : "/reports/receiving";
+    private TimeZoneInfo Zone => TimeZoneInfo.FindSystemTimeZoneById(Configuration["BusinessTimeZone"] ?? "Asia/Dhaka");
+    private IReadOnlyDictionary<string, string> SortOptions
+    {
+        get
+        {
+            var options = new Dictionary<string, string>
+            {
+                ["due"] = "Due · low to high",
+                ["due-desc"] = "Due · high to low",
+                ["date-desc"] = "Date · newest first",
+                ["date"] = "Date · oldest first",
+                ["id-desc"] = "ID · high to low",
+                ["id"] = "ID · low to high",
+                ["party"] = "Customer · A–Z",
+                ["party-desc"] = "Customer · Z–A",
+                ["total-desc"] = "Sales · high to low",
+                ["total"] = "Sales · low to high",
+                ["paid-desc"] = "Paid · high to low",
+                ["paid"] = "Paid · low to high"
+            };
+            if (Data?.CanViewCosts == true)
+            {
+                options["profit-desc"] = "Profit · high to low";
+                options["profit"] = "Profit · low to high";
+                options["cost-desc"] = "Cost · high to low";
+                options["cost"] = "Cost · low to high";
+            }
+            return options;
+        }
+    }
+
+    private (string Label, decimal Total, decimal Paid, decimal Cost)[] Summaries => Data is null ? [] :
+    [
+        ("This page", Data.Rows.Sum(row => row.Total), Data.Rows.Sum(row => row.Paid), Data.Rows.Sum(row => row.Cost ?? 0)),
+        ($"All matching transactions ({Data.Count})", Data.Total, Data.Paid, Data.Cost ?? 0)
+    ];
+
+    protected override async Task OnParametersSetAsync()
+    {
+        Sort = string.IsNullOrWhiteSpace(Sort) ? "id" : Sort;
+        Period = string.IsNullOrWhiteSpace(Period) ? "today" : Period;
+        Data = null;
+        Error = null;
+        try
+        {
+            Data = await Reports.ReadAsync(HttpContext.User, Sales, Period, Start, End, Page,
+                HttpContext.RequestAborted, Search, Sort, LocationId, QueryPagination.Size(PageSize));
+        }
+        catch (ValidationException exception)
+        {
+            Error = exception.Message;
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Report loading failed.");
+            Error = "Unable to load this report. Try again.";
+        }
+    }
+
+    private string Money(decimal amount) => $"{amount:N2} {Configuration["CurrencyCode"] ?? "BDT"}";
+}

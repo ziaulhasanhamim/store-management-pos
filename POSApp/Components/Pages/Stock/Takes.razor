@@ -1,0 +1,152 @@
+@page "/stock/takes"
+@attribute [Authorize(Policy = AppPolicies.ManageInventory)]
+@attribute [StreamRendering]
+@using System.ComponentModel.DataAnnotations
+@inject StockTakeService TakesService
+@inject StockTransferService LocationsService
+@inject NavigationManager Navigation
+@inject ILogger<Takes> Logger
+
+<PageTitle>Stock takes · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
+<div class="page-heading">
+    <div>
+        <p class="eyebrow">Inventory checks</p>
+        <h1>Stock takes</h1>
+    </div>
+    <a href="/items" class="btn-secondary">Items</a>
+</div>
+@if (Error is not null)
+{
+    <p class="error-panel" role="alert">@Error</p>
+}
+<section class="panel mb-6 p-5">
+    <h2 class="mb-2 font-semibold">Start a physical count</h2>
+    <p class="mb-4 text-sm text-slate-500">Count a store or warehouse, review shortages and extras, then adjust stock. Saved drafts do not change inventory.</p>
+    <form method="post" @formname="stock-take-start" @onsubmit="StartAsync" data-enhance data-submit-indication="true" class="flex flex-wrap items-end gap-3">
+        <AntiforgeryToken />
+        <input type="hidden" name="Input.RequestId" value="@Input!.RequestId" />
+        <div class="min-w-64">
+            <label class="field-label" for="take-location">Stock location</label>
+            <select id="take-location" name="Input.LocationId" class="field" required>
+                <option value="">Select location</option>
+                @foreach (var location in Locations)
+                {
+                    <option value="@location.Id" selected="@(Input.LocationId == location.Id)">@location.Name</option>
+                }
+            </select>
+        </div>
+        <button type="submit" class="btn-primary" data-pending-text="Preparing count…" disabled="@(Locations.Count == 0)">
+            <Icon Name="plus" />
+            Start stock take
+        </button>
+    </form>
+</section>
+    <section class="panel table-scroll">
+        <div class="panel-heading">
+            <h2>Recent stock takes</h2>
+            <span class="text-xs text-slate-500">Open a draft to continue counting</span>
+        </div>
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Reference</th>
+                    <th>Working date</th>
+                    <th>Location</th>
+                    <th>Status</th>
+                    <th class="text-right">Counted items</th>
+                    <th class="text-right">Value change</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Rows is null)
+                {
+                    <TableStatusRow Columns="6" Message="Loading stock takes…" Loading="true" />
+                }
+                else
+                {
+
+                @foreach (var take in Rows)
+                {
+                    <tr>
+                        <td>
+                            <a href="@($"/stock/takes/{take.Id}")" class="font-semibold text-blue-700">Stock take #@take.Id</a>
+                        </td>
+                        <td>@take.Date.ToString("dd MMM yyyy")</td>
+                        <td>@take.Location</td>
+                        <td>
+                            <span class="badge">@(take.CompletedAt is null ? "Draft" : "Applied")</span>
+                        </td>
+                        <td class="text-right">@take.Counted / @take.Items</td>
+                        <td class="text-right">@Money(take.VarianceValue)</td>
+                    </tr>
+                }
+                            }
+            </tbody>
+        </table>
+        @if (Pagination is not null)
+        {
+            <PageNavigation Info="Pagination" Label="stock takes" />
+        }
+        @if (Rows?.Count == 0)
+        {
+            <p class="p-5 text-sm text-slate-500">No stock takes yet.</p>
+        }
+    </section>
+
+@code {
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromForm(FormName = "stock-take-start")]
+    private StockTakeStartInput? Input { get; set; }
+
+    private IReadOnlyList<LocationRow> Locations = [];
+    [SupplyParameterFromQuery]
+    public int Page { get; set; } = 1;
+
+    [SupplyParameterFromQuery]
+    public int PageSize { get; set; } = 30;
+
+    private PageInfo? Pagination;
+
+    private IReadOnlyList<StockTakeRow>? Rows;
+    private string? Error;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        Input ??= new();
+        try
+        {
+            Locations = await LocationsService.LocationsAsync(HttpContext.User, HttpContext.RequestAborted);
+            var result = await TakesService.HistoryPageAsync(HttpContext.User, Page, PageSize, HttpContext.RequestAborted);
+            Rows = result.Items;
+            Pagination = result.Pagination;
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Stock take list failed.");
+            Rows = [];
+            Error = "Unable to load stock takes. Refresh to try again.";
+        }
+    }
+
+    private async Task StartAsync()
+    {
+        try
+        {
+            var id = await TakesService.StartAsync(HttpContext.User, Input!, HttpContext.RequestAborted);
+            Navigation.NavigateTo($"/stock/takes/{id}");
+        }
+        catch (ValidationException exception)
+        {
+            Error = exception.Message;
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Stock take creation failed.");
+            Error = "Unable to start the stock take. Retry this request safely.";
+        }
+    }
+
+    private string Money(decimal value) => $"{value:N2} {Configuration["CurrencyCode"] ?? "BDT"}";
+}

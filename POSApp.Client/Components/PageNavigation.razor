@@ -1,0 +1,71 @@
+@inject NavigationManager Navigation
+
+<nav class="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 p-4 text-sm" aria-label="@Label pagination">
+    <span class="text-slate-500">@Info.First–@Info.Last of @Info.Total @Label · Page @Info.Number of @Info.Pages</span>
+    <div class="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+        <span>Rows</span>
+        @foreach (var size in PageSizes)
+        {
+            <a href="@SizeLink(size)" aria-current="@(Info.Size == size ? "true" : null)"
+               class="rounded-md px-2 py-1 @(Info.Size == size ? "bg-indigo-50 font-semibold text-indigo-700" : "hover:bg-slate-100")">@size</a>
+        }
+        <span>per page</span>
+    </div>
+    @if (Busy)
+    {
+        <span role="status" class="text-slate-500">Loading…</span>
+    }
+    <div class="flex gap-2">
+        @if (PageChanged.HasDelegate)
+        {
+            <button type="button" class="btn-secondary" disabled="@(Busy || Info.Number <= 1)" @onclick="() => PageChanged.InvokeAsync(1)">First</button>
+            <button type="button" class="btn-secondary" disabled="@(Busy || Info.Number <= 1)" @onclick="() => PageChanged.InvokeAsync(Info.Number - 1)">Previous</button>
+            <button type="button" class="btn-secondary" disabled="@(Busy || Info.Number >= Info.Pages)" @onclick="() => PageChanged.InvokeAsync(Info.Number + 1)">Next</button>
+            <button type="button" class="btn-secondary" disabled="@(Busy || Info.Number >= Info.Pages)" @onclick="() => PageChanged.InvokeAsync(Info.Pages)">Last</button>
+        }
+        else
+        {
+            @if (Info.Number > 1)
+            {
+                <a href="@Link(1)" class="btn-secondary">First</a>
+                <a href="@Link(Info.Number - 1)" class="btn-secondary">Previous</a>
+            }
+            @if (Info.Number < Info.Pages)
+            {
+                <a href="@Link(Info.Number + 1)" class="btn-secondary">Next</a>
+                <a href="@Link(Info.Pages)" class="btn-secondary">Last</a>
+            }
+        }
+    </div>
+</nav>
+
+@code {
+    [Parameter, EditorRequired]
+    public PageInfo Info { get; set; } = new(1, 30, 0);
+
+    [Parameter]
+    public string Label { get; set; } = "records";
+
+    [Parameter]
+    public string QueryName { get; set; } = "page";
+
+    [Parameter]
+    public EventCallback<int> PageChanged { get; set; }
+
+    [Parameter]
+    public bool Busy { get; set; }
+
+    private static readonly int[] PageSizes = [10, 30, 50, 100, 250];
+
+    private string Link(int page) => Navigation.GetUriWithQueryParameters(new Dictionary<string, object?>
+    {
+        [QueryName] = page,
+        ["pageSize"] = Info.Size
+    });
+
+    private string SizeLink(int size) => Navigation.GetUriWithQueryParameters(new Dictionary<string, object?>
+    {
+        [QueryName] = 1,
+        ["pageSize"] = size
+    });
+}

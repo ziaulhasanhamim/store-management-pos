@@ -1,0 +1,25 @@
+@inject NavigationManager Navigation
+
+<div class="mb-5 max-w-xs">
+    <label class="field-label" for="receiving-mode">Operation</label>
+    <select id="receiving-mode" class="field" value="@Mode" @onchange="ChangeMode" disabled="@(!RendererInfo.IsInteractive || Disabled)">
+        <option value="purchase">Purchase</option>
+        <option value="transfer">Stock transfer</option>
+    </select>
+</div>
+
+@code {
+    [Parameter]
+    public string Mode { get; set; } = "purchase";
+
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    private void ChangeMode(ChangeEventArgs args)
+    {
+        if (args.Value?.ToString() != Mode)
+        {
+            Navigation.NavigateTo(args.Value?.ToString() == "transfer" ? "/receiving?mode=transfer" : "/receiving");
+        }
+    }
+}

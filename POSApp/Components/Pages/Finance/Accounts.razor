@@ -1,0 +1,210 @@
+@page "/accounts/{Kind}"
+@attribute [Authorize(Policy = AppPolicies.ManageUsers)]
+@using System.ComponentModel.DataAnnotations
+@inject PartyAccountService AccountsService
+@inject InventoryService Inventory
+@inject SalesService Sales
+@inject NavigationManager Navigation
+
+<PageTitle>@Title accounts · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
+<div class="page-heading">
+    <h1>@Title accounts</h1>
+    <a href="@($"/accounts/{Kind}/adjust?partyId={PartyId}")" class="btn-secondary">Adjust balance / opening</a>
+    <a href="@(Suppliers ? "/accounts/customers" : "/accounts/suppliers")" class="btn-secondary">@(Suppliers ? "Customers" : "Suppliers")</a>
+</div>
+@if (Error is not null)
+{
+    <p class="error-panel" role="alert">@Error</p>
+}
+@if (Data is null)
+{
+    <LoadingPanel Message="Loading accounts…" />
+}
+else
+{
+    <div class="mb-6 max-w-2xl">
+        <section class="panel p-6">
+            <h2 class="mb-4 font-semibold">Add @Title.ToLowerInvariant()</h2>
+            <form method="post" @formname="party" @onsubmit="CreateAsync" data-enhance data-submit-indication="true">
+                <AntiforgeryToken />
+                <label class="field-label" for="party-name">Name</label>
+                <input id="party-name" name="Create.Name" class="field" maxlength="200" required />
+                <label class="field-label mt-4" for="party-phone">Phone</label>
+                <input id="party-phone" name="Create.Phone" class="field" maxlength="64" />
+                <label class="field-label mt-4" for="party-opening">Opening due / credit</label>
+                <input id="party-opening" name="Create.OpeningBalance" class="field" inputmode="decimal" value="0" required />
+                <p class="mt-2 text-xs text-slate-500">Positive for due; negative for an advance or credit.</p>
+                <button class="btn-primary mt-4" data-pending-text="Creating…">Create account</button>
+            </form>
+        </section>
+
+    </div>
+    @if (!Suppliers)
+    {
+        <section class="panel mb-6 p-6">
+            <h2 class="mb-4 font-semibold">Receive customer payment</h2>
+            <form method="post" @formname="customer-collection" @onsubmit="CollectAsync" data-enhance data-submit-indication="true">
+                <AntiforgeryToken />
+                <input type="hidden" name="Collection.RequestId" value="@Collection!.RequestId" />
+                <div class="grid gap-4 sm:grid-cols-3">
+                    <div>
+                        <label class="field-label" for="collection-customer">Customer</label>
+                        <select id="collection-customer" name="Collection.CustomerId" class="field" required>
+                            <option value="">Select customer</option>
+                            @foreach (var party in Data!.Parties)
+                            {
+                                <option value="@party.Id" selected="@(PartyId == party.Id)">@party.Name · @Money(party.Balance)</option>
+                            }
+                        </select>
+                    </div>
+                    <div>
+                        <label class="field-label" for="collection-amount">Amount received</label>
+                        <input id="collection-amount" name="Collection.Amount" class="field" inputmode="decimal" required />
+                    </div>
+                    <div>
+                        <label class="field-label" for="collection-method">Method</label>
+                        <select id="collection-method" name="Collection.Method" class="field">
+                            @foreach (var method in Enum.GetValues<PaymentMethod>())
+                            {
+                                <option value="@method">@SplitPayments.MethodName(method)</option>
+                            }
+                        </select>
+                    </div>
+                </div>
+                <label class="field-label mt-4" for="collection-note">Reference / notes</label>
+                <input id="collection-note" name="Collection.Notes" class="field" maxlength="2000" required />
+                <button class="btn-primary mt-4" data-pending-text="Recording…">Receive payment</button>
+            </form>
+        </section>
+    }
+    <section class="panel mb-6 table-scroll">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Phone</th>
+                    <th class="text-right">Opening balance</th>
+                    <th class="text-right">Current due / credit</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var party in Data!.Parties)
+                {
+                    <tr>
+                        <td>@party.Name</td>
+                        <td>@party.Phone</td>
+                        <td class="text-right">@Money(party.Opening)</td>
+                        <td class="text-right">@Money(party.Balance)</td>
+                        <td>
+                            <a class="text-blue-700" href="@($"/accounts/{Kind}?page={PaginationNumber}&pageSize={PageSize}&partyId={party.Id}")">History</a>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+        @if (Data.Pagination is not null)
+        {
+            <PageNavigation Info="Data.Pagination" Label="accounts" />
+        }
+    </section>
+    @if (PartyId is not null)
+    {
+        <section class="panel table-scroll">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Entry</th>
+                        <th>Reason</th>
+                        <th class="text-right">Change</th>
+                        <th class="text-right">Balance after</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var entry in Data.History)
+                    {
+                        <tr>
+                            <td>@entry.At.ToBusinessTime(Configuration).ToString("dd MMM yyyy, HH:mm")</td>
+                            <td>@entry.Kind</td>
+                            <td>@entry.Notes</td>
+                            <td class="text-right">@Money(entry.Amount)</td>
+                            <td class="text-right">@Money(entry.BalanceAfter)</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            @if (Data.HistoryPagination is not null)
+            {
+                <PageNavigation Info="Data.HistoryPagination" QueryName="historyPage" Label="entries" />
+            }
+        </section>
+    }
+}
+
+@code {
+    [Parameter]
+    public string Kind { get; set; } = "suppliers";
+
+    [SupplyParameterFromQuery]
+    public int? PartyId { get; set; }
+
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromForm(FormName = "party")]
+    private PartyInput? Create { get; set; }
+
+    [SupplyParameterFromForm(FormName = "customer-collection")]
+    private CustomerPaymentInput? Collection { get; set; }
+
+    [SupplyParameterFromQuery]
+    public int Page { get; set; } = 1;
+
+    [SupplyParameterFromQuery]
+    public int PageSize { get; set; } = 30;
+
+    [SupplyParameterFromQuery]
+    public int HistoryPage { get; set; } = 1;
+
+    private PartyPage? Data;
+    private string? Error;
+    private int PaginationNumber => Data?.Pagination?.Number ?? 1;
+    private bool Suppliers => Kind != "customers";
+    private string Title => Suppliers ? "Supplier" : "Customer";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        Collection ??= new();
+        Create ??= new();
+        Data = await AccountsService.ReadAsync(HttpContext.User, Suppliers, PartyId, HttpContext.RequestAborted, Page, PageSize, HistoryPage);
+    }
+
+    private Task CreateAsync() => SubmitAsync(async () =>
+    {
+        var id = Suppliers
+            ? await Inventory.AddSupplierAsync(HttpContext.User, Create!.Name, Create.Phone, Create.OpeningBalance, HttpContext.RequestAborted)
+            : await Sales.AddCustomerAsync(HttpContext.User, new(Create!.Name, Create.Phone, Create.OpeningBalance), HttpContext.RequestAborted);
+        Navigation.NavigateTo($"/accounts/{Kind}?partyId={id}");
+    });
+
+    private Task CollectAsync() => SubmitAsync(async () =>
+    {
+        await AccountsService.ReceiveAsync(HttpContext.User, Collection!, HttpContext.RequestAborted);
+        Navigation.NavigateTo($"/accounts/customers?partyId={Collection!.CustomerId}");
+    });
+
+    private async Task SubmitAsync(Func<Task> action)
+    {
+        try
+        {
+            await action();
+        }
+        catch (ValidationException exception)
+        {
+            Error = exception.Message;
+        }
+    }
+
+    private string Money(decimal amount) => $"{Configuration["CurrencyCode"] ?? "BDT"} {amount:N2}";
+}

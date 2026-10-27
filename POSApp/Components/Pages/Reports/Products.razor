@@ -1,0 +1,204 @@
+@page "/reports/items"
+@attribute [Authorize(Policy = AppPolicies.ManageInventory)]
+@attribute [StreamRendering]
+@using System.ComponentModel.DataAnnotations
+@inject ReportService Reports
+@inject ILogger<Products> Logger
+
+<PageTitle>Item sales & returns · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
+<div class="page-heading no-print">
+    <div>
+        <p class="eyebrow">Product performance</p>
+        <h1>Item sales & returns</h1>
+    </div>
+    <div class="flex gap-3">
+        <a href="/reports" class="btn-secondary">Reports</a>
+        <button type="button" class="btn-secondary" data-print>Print</button>
+    </div>
+</div>
+<ReportFilters Path="/reports/items" Period="@Period" Range="Data?.Range" Start="Start" End="End" Search="@Search" Sort="@Sort"
+    SortOptions="SortOptions" SearchHint="Item name, barcode or ID" PageSize="PageSize"
+    ShowLocation="true" LocationId="LocationId" Locations="@(Data?.Locations ?? [])" />
+@if (Error is not null)
+{
+    <p class="error-panel" role="alert">@Error</p>
+}
+@if (Data is not null)
+{
+    <div class="mb-6 grid gap-4 sm:grid-cols-3">
+        <div class="metric">
+            <p>Net sales</p>
+            <strong class="text-2xl!">@Money(Data.Total)</strong>
+        </div>
+        <div class="metric">
+            <p>Cost of goods sold</p>
+            <strong class="text-2xl!">@Money(Data.Cost)</strong>
+        </div>
+        <div class="metric metric-profit">
+            <p>Gross profit</p>
+            <strong class="text-2xl!">@Money(Data.Profit)</strong>
+        </div>
+    </div>
+}
+
+<section class="panel table-scroll print-area">
+    @if (Data is not null)
+    {
+        <div class="panel-heading">
+            <h2>@Data.Range.Start.ToString("dd MMM yyyy") – @Data.Range.End.ToString("dd MMM yyyy")</h2>
+            <span class="text-xs text-slate-500">@Data.Count matching items</span>
+        </div>
+    }
+    <table id="products-table" class="data-table" aria-busy="@(Data is null && Error is null)">
+        <thead>
+            <tr>
+                    <SortHeader Column="id" Label="Item ID" Sort="@Sort" Numeric="true" />
+                    <SortHeader Column="name" Label="Item / barcode" Sort="@Sort" Numeric="false" />
+                <SortHeader Column="quantity" Label="Net quantity" Sort="@Sort" Numeric="true" />
+                <SortHeader Column="average-cost" Label="Avg. cost" Sort="@Sort" Numeric="true" />
+                <SortHeader Column="average-price" Label="Avg. selling price" Sort="@Sort" Numeric="true" />
+                <SortHeader Column="subtotal" Label="Subtotal" Sort="@Sort" Numeric="true" />
+                <SortHeader Column="discount" Label="Discount" Sort="@Sort" Numeric="true" />
+                <SortHeader Column="total" Label="Net sales" Sort="@Sort" Numeric="true" />
+                <SortHeader Column="cost" Label="Cost" Sort="@Sort" Numeric="true" />
+                <SortHeader Column="profit" Label="Profit" Sort="@Sort" Numeric="true" />
+            </tr>
+        </thead>
+        <tbody>
+            @if (Data is null)
+            {
+                <TableStatusRow Columns="10" Loading="@(Error is null)" Error="@(Error is not null)"
+                    Message="@(Error ?? "Calculating item performance…")" />
+            }
+            @foreach (var item in Data?.Rows ?? [])
+            {
+                <tr>
+                    <td>
+                        <a href="@($"/items/{item.ProductId}")" class="font-semibold text-blue-700">@item.ProductId</a>
+                    </td>
+                    <td>
+                        <a href="@($"/items/{item.ProductId}")" class="font-semibold text-blue-700">@item.Name</a>
+                        <span class="mt-1 block font-mono text-xs text-slate-500">@item.Barcode</span>
+                    </td>
+                    <td class="text-right">@item.Quantity.ToString("0.###") @item.Unit</td>
+                    <td class="text-right">@(item.AverageCost is { } cost ? Money(cost) : "—")</td>
+                    <td class="text-right">@(item.AveragePrice is { } price ? Money(price) : "—")</td>
+                    <td class="text-right">@Money(item.Subtotal)</td>
+                    <td class="text-right">@Money(item.Discount)</td>
+                    <td class="text-right">@Money(item.Total)</td>
+                    <td class="text-right">@Money(item.Cost)</td>
+                    <td class="text-right font-semibold @(item.Profit < 0 ? "text-rose-700" : "text-emerald-700")">@Money(item.Profit)</td>
+                </tr>
+            }
+        </tbody>
+        @if (Data is not null)
+        {
+            <tfoot>
+                <tr>
+                    <th colspan="5">This page</th>
+                    <td class="text-right">@Money(Data.Rows.Sum(item => item.Subtotal))</td>
+                    <td class="text-right">@Money(Data.Rows.Sum(item => item.Discount))</td>
+                    <td class="text-right">@Money(Data.Rows.Sum(item => item.Total))</td>
+                    <td class="text-right">@Money(Data.Rows.Sum(item => item.Cost))</td>
+                    <td class="text-right">@Money(Data.Rows.Sum(item => item.Profit))</td>
+                </tr>
+                <tr>
+                    <th colspan="5">All matching items</th>
+                    <td class="text-right">@Money(Data.Subtotal)</td>
+                    <td class="text-right">@Money(Data.Discount)</td>
+                    <td class="text-right">@Money(Data.Total)</td>
+                    <td class="text-right">@Money(Data.Cost)</td>
+                    <td class="text-right">@Money(Data.Profit)</td>
+                </tr>
+            </tfoot>
+        }
+    </table>
+    @if (Data is not null && Data.Count == 0)
+    {
+        <p class="empty-state">No sales or returns match these filters.</p>
+    }
+    <p class="p-4 text-xs text-slate-500">Returns subtract quantity, revenue and saved cost. Discounts are included. Averages use signed totals divided by net quantity; when quantity nets to zero, the average is undefined and shown as —. Profit remains visible.</p>
+</section>
+@if (Data is not null)
+{
+    <PageNavigation Info="@(new PageInfo(Data.Page, QueryPagination.Size(PageSize), Data.Count))" Label="items" />
+}
+
+@code {
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromQuery]
+    public string Period { get; set; } = "month";
+
+    [SupplyParameterFromQuery]
+    public DateOnly? Start { get; set; }
+
+    [SupplyParameterFromQuery]
+    public DateOnly? End { get; set; }
+
+    [SupplyParameterFromQuery]
+    public int? LocationId { get; set; }
+
+    [SupplyParameterFromQuery]
+    public string? Search { get; set; }
+
+    [SupplyParameterFromQuery]
+    public string Sort { get; set; } = "id";
+
+    [SupplyParameterFromQuery]
+    public int Page { get; set; } = 1;
+
+    [SupplyParameterFromQuery]
+    public int PageSize { get; set; } = 30;
+
+    private ProductSalesReport? Data;
+    private string? Error;
+    private static readonly Dictionary<string, string> SortOptions = new()
+    {
+        ["id"] = "Item ID · low to high",
+        ["id-desc"] = "Item ID · high to low",
+        ["profit-desc"] = "Profit · high to low",
+        ["profit"] = "Profit · low to high",
+        ["average-cost"] = "Average cost · low to high",
+        ["average-cost-desc"] = "Average cost · high to low",
+        ["average-price"] = "Average price · low to high",
+        ["average-price-desc"] = "Average price · high to low",
+        ["subtotal"] = "Subtotal · low to high",
+        ["subtotal-desc"] = "Subtotal · high to low",
+        ["discount"] = "Discount · low to high",
+        ["discount-desc"] = "Discount · high to low",
+        ["name"] = "Name · A–Z",
+        ["name-desc"] = "Name · Z–A",
+        ["quantity-desc"] = "Quantity · high to low",
+        ["quantity"] = "Quantity · low to high",
+        ["total-desc"] = "Sales · high to low",
+        ["total"] = "Sales · low to high",
+        ["cost-desc"] = "Cost · high to low",
+        ["cost"] = "Cost · low to high"
+    };
+
+    protected override async Task OnParametersSetAsync()
+    {
+        Sort = string.IsNullOrWhiteSpace(Sort) ? "id" : Sort;
+        Period = string.IsNullOrWhiteSpace(Period) ? "month" : Period;
+        Data = null;
+        Error = null;
+        try
+        {
+            Data = await Reports.ProductsAsync(HttpContext.User, Period, Start, End, Page,
+                HttpContext.RequestAborted, Search, Sort, LocationId, QueryPagination.Size(PageSize));
+        }
+        catch (ValidationException exception)
+        {
+            Error = exception.Message;
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Item sales report failed.");
+            Error = "Unable to load item sales. Please try again.";
+        }
+    }
+
+    private string Money(decimal value) => $"{value:N2} {Configuration["CurrencyCode"] ?? "BDT"}";
+}

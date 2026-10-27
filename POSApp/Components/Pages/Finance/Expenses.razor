@@ -1,0 +1,15 @@
+@page "/expenses"
+@attribute [Authorize(Policy = AppPolicies.MakeSales)]
+
+<MoneyEntriesPage Kind="expenses" Date="Date" Page="Page" PageSize="PageSize" />
+
+@code {
+    [SupplyParameterFromQuery]
+    public int Page { get; set; } = 1;
+
+    [SupplyParameterFromQuery]
+    public int PageSize { get; set; } = 30;
+
+    [SupplyParameterFromQuery]
+    public DateOnly? Date { get; set; }
+}

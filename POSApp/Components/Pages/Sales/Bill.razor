@@ -1,0 +1,136 @@
+@page "/sales/{Id:int}/bill"
+@attribute [Authorize(Policy = AppPolicies.MakeSales)]
+@attribute [StreamRendering]
+@inject SalesService Sales
+
+<PageTitle>Bill #@Id · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
+<div class="page-heading no-print">
+    <h1>Bill #@Id</h1>
+    <div class="flex gap-3">
+        <a href="/sales" class="btn-secondary">New sale</a>
+        <button type="button" class="btn-primary" data-print>Print bill</button>
+    </div>
+</div>
+<AuthorizeView Policy="@AppPolicies.ManageUsers">
+    <a href="@($"/admin/records/sale/{Id}/edit")" class="no-print btn-secondary mb-5">
+        <Icon Name="edit" />
+        Admin correction / delete
+    </a>
+</AuthorizeView>
+
+@if (Loading)
+{
+    <LoadingPanel Message="Loading bill…" />
+}
+else if (Data is null)
+{
+    <p>Bill not found or unavailable to your account.</p>
+}
+else
+{
+    <article class="bill print-area mx-auto max-w-lg rounded-xl bg-white p-6 shadow-sm">
+        <div class="border-b border-dashed border-slate-300 pb-5 text-center">
+            <h2 class="text-xl font-bold">@(Configuration["StoreName"] ?? "RetailPOS")</h2>
+            <p class="mt-1 text-sm">@Configuration["Store:Address"]</p>
+            <p class="mt-1 text-sm">@Configuration["Store:Phone"]</p>
+            <p class="mt-3 font-semibold">Bill #@Data.Id</p>
+            <p class="text-xs text-slate-500">@Data.At.ToBusinessTime(Configuration).ToString("dd MMM yyyy, HH:mm")</p>
+        </div>
+        <div class="my-4 text-sm">
+            <p>Customer: @(Data.Customer ?? "Walk-in")</p>
+            <p>Location: @Data.Location</p>
+            <p>Cashier: @Data.Cashier</p>
+        </div>
+        <table class="w-full text-sm">
+            <thead>
+                <tr class="border-b border-slate-200">
+                    <th class="py-2 text-left">Item</th>
+                    <th class="py-2 text-right">Qty</th>
+                    <th class="py-2 text-right">Price</th>
+                    <th class="py-2 text-right">Total</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var line in Data.Lines)
+                {
+                    <tr class="border-b border-slate-100">
+                        <td class="py-3 pr-2">
+                            @line.Name
+                            @if (!string.IsNullOrWhiteSpace(line.Barcode))
+                            {
+                                <small class="block text-slate-500">@line.Barcode</small>
+                            }
+                        </td>
+                        <td class="py-3 text-right">@line.Quantity.ToString("0.###")</td>
+                        <td class="py-3 text-right">@line.UnitPrice.ToString("N2")</td>
+                        <td class="py-3 text-right">@line.Total.ToString("N2")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+        <dl class="mt-5 space-y-2 text-sm">
+            <div class="flex justify-between">
+                <dt>Subtotal</dt>
+                <dd>@Money(Data.Subtotal)</dd>
+            </div>
+            <div class="flex justify-between">
+                <dt>Discount</dt>
+                <dd>@Money(Data.Discount)</dd>
+            </div>
+            <div class="flex justify-between text-lg font-bold">
+                <dt>Total</dt>
+                <dd>@Money(Data.Total)</dd>
+            </div>
+            <div class="flex justify-between">
+                <dt>@(Data.Total < 0 ? "Refunded" : "Paid")</dt>
+                <dd>@Money(Math.Abs(Data.Paid))</dd>
+            </div>
+            <div class="flex justify-between font-semibold">
+                <dt>@(Data.Total - Data.Paid < 0 ? "Customer credit" : "Due")</dt>
+                <dd>@Money(Math.Abs(Data.Total - Data.Paid))</dd>
+            </div>
+            @if (Data.Tendered > Data.Paid)
+            {
+                <div class="flex justify-between">
+                    <dt>Tendered</dt>
+                    <dd>@Money(Data.Tendered)</dd>
+                </div>
+                <div class="flex justify-between">
+                    <dt>Change</dt>
+                    <dd>@Money(Data.Tendered - Data.Paid)</dd>
+                </div>
+            }
+        </dl>
+        <div class="mt-4 space-y-1 border-t border-dashed border-slate-300 pt-3 text-xs">
+            @foreach (var payment in Data.Payments)
+            {
+                <div class="flex justify-between">
+                    <span>@(payment.Amount < 0 ? "Refund · " : "")@SplitPayments.MethodName(payment.Method)</span>
+                    <span>@Money(Math.Abs(payment.Amount))</span>
+                </div>
+            }
+        </div>
+        <p class="mt-5 text-sm">@Data.Notes</p>
+        <p class="mt-6 text-center text-xs text-slate-500">Thank you for shopping with us.</p>
+        <p class="mt-2 break-all text-center text-[9px] text-slate-400">@Data.Number</p>
+    </article>
+}
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    private SaleBill? Data;
+    private bool Loading = true;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        Data = await Sales.BillAsync(HttpContext.User, Id, HttpContext.RequestAborted);
+        Loading = false;
+    }
+
+    private string Money(decimal amount) => $"{amount:N2} {Configuration["CurrencyCode"] ?? "BDT"}";
+}

@@ -1,0 +1,17 @@
+[
+  {
+    "name": "Wireless Mouse",
+    "barcode": "DEMO-1001",
+    "unit": "piece",
+    "costPrice": 550,
+    "sellingPrice": 790,
+    "category": "electronics",
+    "supplier": "Aster Wholesale (Demo)",
+    "description": "Wireless optical mouse",
+    "allowFractionUnit": false,
+    "isNonStocked": false,
+    "attributes": {
+      "warranty": "6 Months"
+    }
+  }
+]

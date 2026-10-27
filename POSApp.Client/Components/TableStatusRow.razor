@@ -1,0 +1,48 @@
+@namespace POSApp.Client.Components
+
+@if (Loading)
+{
+    @for (var r = 0; r < 4; r++)
+    {
+        <tr class="animate-pulse" aria-hidden="true">
+            @for (var c = 0; c < Math.Max(Columns, 1); c++)
+            {
+                <td class="px-5 py-4 @(c == Columns - 1 ? "text-right" : "")">
+                    <div class="h-4 bg-slate-200/70 rounded @(c == 0 ? "w-12" : c == Columns - 1 ? "w-20 ml-auto" : (r % 2 == 0 ? "w-3/4" : "w-1/2"))"></div>
+                </td>
+            }
+        </tr>
+    }
+    <tr>
+        <td colspan="@Columns" class="py-4 text-center">
+            <div role="status" aria-live="polite" aria-busy="true" class="inline-flex items-center gap-2 text-xs font-medium text-slate-500">
+                <span aria-hidden="true" class="size-4 animate-spin rounded-full border-2 border-slate-200 border-t-indigo-600 motion-reduce:animate-none"></span>
+                <span>@Message</span>
+            </div>
+        </td>
+    </tr>
+}
+else
+{
+    <tr>
+        <td colspan="@Columns">
+            <p class="@(Error ? "error-panel" : "empty-state")" role="@(Error ? "alert" : "status")">
+                @Message
+            </p>
+        </td>
+    </tr>
+}
+
+@code {
+    [Parameter]
+    public int Columns { get; set; } = 1;
+
+    [Parameter]
+    public bool Loading { get; set; }
+
+    [Parameter]
+    public bool Error { get; set; }
+
+    [Parameter]
+    public string Message { get; set; } = "Loading…";
+}

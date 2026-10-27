@@ -1,0 +1,132 @@
+@page "/reports/statements/{Account}"
+@attribute [Authorize(Policy = AppPolicies.ManageUsers)]
+@attribute [StreamRendering]
+@inject StatementService Statements
+@inject ILogger<Statement> Logger
+
+<PageTitle>@Title · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
+<div class="page-heading no-print">
+    <div>
+        <p class="eyebrow">Account statement</p>
+        <h1>@Title</h1>
+    </div>
+    <div class="flex gap-2">
+        <a href="/reports" class="btn-secondary">Reports</a>
+        <button type="button" class="btn-secondary" data-print>Print</button>
+    </div>
+</div>
+<div class="no-print mb-4 flex flex-wrap gap-2">
+    @foreach (var preset in Presets)
+    {
+        <a href="@Preset(preset.Key)" class="@(Period == preset.Key ? "filter-chip active" : "filter-chip")">@preset.Value</a>
+    }
+</div>
+<form method="get" action="@($"/reports/statements/{Account}")" class="no-print mb-6 flex flex-wrap items-end gap-3" data-enhance>
+    <input type="hidden" name="period" value="@Period" />
+    <div class="w-full sm:w-72">
+        <label class="field-label">Date range</label>
+        <DateRangePicker Id="statement-date-range" Start="@(Data?.Range.Start ?? Start)" End="@(Data?.Range.End ?? End)" />
+    </div>
+    @if (Account == "cash")
+    {
+        <div>
+            <label for="statement-drawer" class="field-label">Cash drawer</label>
+            <select id="statement-drawer" name="drawerId" class="field">
+                @foreach (var drawer in Data?.Drawers ?? [])
+                {
+                    <option value="@drawer.Id" selected="@(Data?.DrawerId == drawer.Id)">@drawer.Name</option>
+                }
+            </select>
+        </div>
+    }
+    <button type="submit" class="btn-primary">Show statement</button>
+</form>
+@if (Data is not null)
+{
+    <div class="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        @foreach (var metric in new[] { ("Opening balance", Data.Opening), ("Money in", Data.MoneyIn), ("Money out", Data.MoneyOut), ("Closing balance", Data.Closing) })
+        {
+            <div class="metric">
+                <p>@metric.Item1</p>
+                <strong>@Money(metric.Item2)</strong>
+            </div>
+        }
+    </div>
+    <p class="text-sm text-slate-500">Owner contributions @Money(Data.OwnerContributions) · Owner withdrawals @Money(Data.OwnerWithdrawals). These change account balances and net assets; they are excluded from sales, expenses and profit.</p>
+}
+<StatementTable Data="Data" Error="@Error" />
+@if (Data is not null)
+{
+    <div class="no-print mt-4 flex items-center justify-between">
+        <span class="text-xs text-slate-500">Page @Data.Page · 50 movements per page</span>
+        <div class="flex gap-2">
+            @if (Data.Page > 1)
+            {
+                <a href="@PageLink(Data.Page - 1)" class="btn-secondary">Previous</a>
+            }
+            @if (Data.Page * 50 < Data.Count)
+            {
+                <a href="@PageLink(Data.Page + 1)" class="btn-secondary">Next</a>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public string Account { get; set; } = "cash";
+
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromQuery]
+    public string Period { get; set; } = "today";
+
+    [SupplyParameterFromQuery]
+    public DateOnly? Start { get; set; }
+
+    [SupplyParameterFromQuery]
+    public DateOnly? End { get; set; }
+
+    [SupplyParameterFromQuery]
+    public int? DrawerId { get; set; }
+
+    [SupplyParameterFromQuery]
+    public int Page { get; set; } = 1;
+
+    private BalanceStatement? Data;
+    private string? Error;
+    private string Title => Account == "bank" ? "Bank & digital statement" : "Cash drawer statement";
+    private static readonly Dictionary<string, string> Presets = new()
+    {
+        ["today"] = "Today",
+        ["yesterday"] = "Yesterday",
+        ["week"] = "Last 7 days",
+        ["month"] = "This month",
+        ["lastmonth"] = "Last month",
+        ["year"] = "This year"
+    };
+
+    protected override async Task OnParametersSetAsync()
+    {
+        Data = null;
+        Error = null;
+        try
+        {
+            Data = await Statements.ReadAsync(HttpContext.User, Account, Period, Start, End, DrawerId, Page, HttpContext.RequestAborted);
+        }
+        catch (System.ComponentModel.DataAnnotations.ValidationException exception)
+        {
+            Error = exception.Message;
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Statement failed to load.");
+            Error = "Unable to load this statement. Please try again.";
+        }
+    }
+
+    private string Preset(string period) => $"/reports/statements/{Account}?period={period}&drawerId={Data?.DrawerId ?? DrawerId}";
+    private string PageLink(int page) => $"/reports/statements/{Account}?period=custom&start={Data?.Range.Start:yyyy-MM-dd}&end={Data?.Range.End:yyyy-MM-dd}&drawerId={Data?.DrawerId}&page={page}";
+    private string Money(decimal amount) => $"{amount:N2} {Configuration["CurrencyCode"] ?? "BDT"}";
+}

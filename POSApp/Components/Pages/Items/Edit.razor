@@ -1,0 +1,101 @@
+@page "/items/new"
+@page "/items/{Id:int}/edit"
+@attribute [Authorize(Policy = AppPolicies.ManageInventory)]
+@using System.ComponentModel.DataAnnotations
+@inject InventoryService Inventory
+@inject NavigationManager Navigation
+@inject ILogger<Edit> Logger
+
+<PageTitle>@(Id is null ? "Add item" : "Edit item") · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
+
+<div class="page-heading">
+    <div>
+        <a href="@CancelUrl" class="mb-3 inline-flex items-center gap-2 text-xs text-slate-500">
+            <Icon Name="back" />
+            Back
+        </a>
+        <h1>@(Id is null ? "Add item" : "Edit item")</h1>
+    </div>
+</div>
+
+<div class="panel max-w-2xl p-6">
+    @if (Error is not null)
+    {
+        <p role="alert" class="error-panel">@Error</p>
+    }
+
+    @if (HttpMethods.IsGet(HttpContext.Request.Method))
+    {
+        <EditLoader Id="Id" Input="Input!" OnSave="Save" CancelUrl="@CancelUrl" />
+    }
+    else
+    {
+            <ProductEditor Input="Input!" OnSave="Save" Categories="Categories" Suppliers="SupplierOptions" Definitions="Definitions" CancelUrl="@CancelUrl" />
+    }
+</div>
+
+@code {
+    [Parameter]
+    public int? Id { get; set; }
+
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromForm(FormName = "item-editor")]
+    private ProductInput? Input { get; set; }
+
+    private string? Error;
+    private IReadOnlyList<Lookup> Categories = [];
+    private IReadOnlyList<Lookup> SupplierOptions = [];
+    private IReadOnlyList<ProductAttributeDefinitionOption> Definitions = [];
+    private string CancelUrl => Id is { } id ? $"/items/{id}" : "/items";
+
+    protected override async Task OnInitializedAsync()
+    {
+        Input ??= new();
+        Input.Attributes ??= [];
+
+        if (!HttpMethods.IsGet(HttpContext.Request.Method))
+        {
+            Categories = await Inventory.CategoriesAsync(HttpContext.User, HttpContext.RequestAborted);
+            SupplierOptions = (await Inventory.OptionsAsync(HttpContext.User, HttpContext.RequestAborted)).Suppliers
+                .Select(supplier => new Lookup(supplier.Id, supplier.Name)).ToArray();
+            Definitions = await Inventory.AttributeDefinitionsAsync(HttpContext.User, HttpContext.RequestAborted);
+        }
+    }
+
+    private async Task Save()
+    {
+        try
+        {
+            if (Input!.FormAction == "add-attribute")
+            {
+                if (Input.AttributeToAddId > 0 && Input.Attributes.All(attribute => attribute.DefinitionId != Input.AttributeToAddId))
+                {
+                    Input.Attributes.Add(new ProductAttributeInput { DefinitionId = Input.AttributeToAddId });
+                }
+                Input.AttributeToAddId = 0;
+                Input.FormAction = "save";
+                return;
+            }
+            if (Input.FormAction.StartsWith("remove-attribute:", StringComparison.Ordinal)
+                && int.TryParse(Input.FormAction.AsSpan("remove-attribute:".Length), out var definitionId))
+            {
+                Input.Attributes.RemoveAll(attribute => attribute.DefinitionId == definitionId);
+                Input.FormAction = "save";
+                return;
+            }
+            var id = await Inventory.SaveProductAsync(HttpContext.User, Id, Input!, HttpContext.RequestAborted);
+            Navigation.NavigateTo($"/items/{id}?saved=true");
+        }
+        catch (ValidationException exception)
+        {
+            Error = exception.Message;
+        }
+        catch (Exception exception)
+        {
+            Error = "Unable to save. Check the barcode and try again.";
+            Logger.LogError(exception, "Product save failed.");
+        }
+    }
+}

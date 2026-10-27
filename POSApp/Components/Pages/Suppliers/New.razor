@@ -1,0 +1,68 @@
+@page "/suppliers/new"
+@attribute [Authorize(Policy = AppPolicies.ManageInventory)]
+@using System.ComponentModel.DataAnnotations
+@inject InventoryService Inventory
+@inject NavigationManager Navigation
+
+<PageTitle>Add supplier · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
+
+<div class="page-heading">
+    <h1>Add supplier</h1>
+</div>
+<div class="panel max-w-lg p-6">
+    @if (Error is not null)
+    {
+        <p class="error-panel" role="alert">@Error</p>
+    }
+    <EditForm Model="Input!" method="post" FormName="supplier-new" Enhance OnValidSubmit="SaveAsync" data-submit-indication="true">
+        <DataAnnotationsValidator />
+        <ValidationSummary />
+        <div class="space-y-5">
+            <div>
+                <label class="field-label" for="supplier-name">Name</label>
+                <InputText id="supplier-name" class="field" @bind-Value="Input!.Name" />
+            </div>
+            <div>
+                <label class="field-label" for="supplier-phone">Phone</label>
+                <InputText id="supplier-phone" class="field" @bind-Value="Input!.Phone" />
+            </div>
+            <div>
+                <label class="field-label" for="supplier-opening">Opening balance</label>
+                <InputNumber id="supplier-opening" class="field" @bind-Value="Input!.OpeningBalance" step="0.01" />
+                <p class="mt-2 text-xs text-slate-500">Positive for due; negative for an advance.</p>
+            </div>
+            <div class="flex gap-3">
+                <button type="submit" class="btn-primary" data-pending-text="Saving…">Save supplier</button>
+                <a href="/suppliers" class="btn-secondary">Cancel</a>
+            </div>
+        </div>
+    </EditForm>
+</div>
+
+@code {
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromForm(FormName = "supplier-new")]
+    private SupplierCreateInput? Input { get; set; }
+
+    private string? Error;
+
+    protected override void OnInitialized()
+    {
+        Input ??= new();
+    }
+
+    private async Task SaveAsync()
+    {
+        try
+        {
+            var id = await Inventory.AddSupplierAsync(HttpContext.User, Input!.Name, Input.Phone, Input.OpeningBalance, HttpContext.RequestAborted);
+            Navigation.NavigateTo($"/suppliers/{id}");
+        }
+        catch (ValidationException exception)
+        {
+            Error = exception.Message;
+        }
+    }
+}

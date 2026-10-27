@@ -1,0 +1,246 @@
+@implements IAsyncDisposable
+
+@if (Ready)
+{
+    <EditorDraft TState="StockAdjustmentDraft" Kind="stock-adjustment" ResetLabel="New adjustment" State="ServerDraftState"
+                 Empty="@(Rows.Count == 0 && string.IsNullOrWhiteSpace(Notes))" Paused="Busy" Restore="RestoreServerDraft" Clear="ClearAsync" ReadyChanged="@(ready => ServerRecoveryReady = ready)" />
+}
+
+<div inert="@DialogOpen">
+    @if (Error is not null)
+    {
+        <p class="error-panel" role="alert">@Error</p>
+    }
+    @if (Completed is { } saved)
+    {
+        <div class="success-panel" role="status">
+            <Icon Name="check" />
+            <div>
+                <strong>Stock added · @saved.Result.ItemCount products</strong>
+                <p class="mt-1 text-xs">Adjustment #@saved.Result.Id · @Money(saved.Result.Value) · Supplier dues and payments unchanged</p>
+                <a href="@($"/stock/adjustments/{saved.Result.Id}")" class="mt-2 inline-flex text-xs font-semibold underline">View adjustment</a>
+            </div>
+        </div>
+    }
+    @if (StorageWarning is not null)
+    {
+        <p class="mb-4 text-sm text-amber-700" role="status">@StorageWarning</p>
+    }
+    @if (Restored)
+    {
+        <p class="mb-4 text-sm text-indigo-700" role="status">Your unfinished stock adjustment has been restored.</p>
+    }
+    <EditForm Model="this" OnValidSubmit="SubmitAsync" @ref="AdjustmentForm">
+        <ValidationSummary class="error-panel" />
+        <fieldset disabled="@(!Ready || !ServerRecoveryReady || Busy)" class="min-w-0">
+            <div class="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
+                <div class="min-w-0 space-y-6">
+                    <section class="panel">
+                        <div class="panel-heading">
+                            <h2>Items <span class="ml-2 text-xs text-slate-400">@Rows.Count</span></h2>
+                            <button type="button" class="btn-secondary" @onclick="OpenItem">
+                                <Icon Name="plus" />
+                                New item
+                            </button>
+                        </div>
+                        <div class="border-b border-slate-100 p-5">
+                            <div class="flex items-center gap-3">
+                                <Icon Name="search" />
+                                <input id="adjustment-search" type="search" class="field" placeholder="Search name, barcode or ID"
+                                       aria-label="Search products to adjust" value="@Search" @oninput="SearchChangedAsync"
+                                       disabled="@(LocationId is null)" autocomplete="off" maxlength="200" />
+                            </div>
+                            @if (Searching)
+                            {
+                                <p role="status" class="mt-3 flex items-center text-xs text-slate-500">
+                                    <span class="form-submit-spinner"></span>
+                                    Searching…
+                                </p>
+                            }
+                            else if (Matches.Count > 0)
+                            {
+                                <div class="mt-3 max-h-64 overflow-y-auto rounded-xl border border-slate-200">
+                                    @foreach (var product in Matches)
+                                    {
+                                        <button type="button" class="flex w-full items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 text-left text-sm hover:bg-blue-50"
+                                                @onclick="() => AddAsync(product)">
+                                            <span>
+                                                <strong class="font-medium text-slate-900">@product.Name</strong>
+                                                <span class="mt-1 block text-xs text-slate-400">#@product.Id · @(product.Barcode ?? "No barcode") · @product.Unit</span>
+                                                @foreach (var itemAttribute in product.Attributes.Where(itemAttribute => itemAttribute.ShowInStockAdjustment))
+                                                {
+                                                    <span class="mt-1 mr-2 inline-block text-xs text-slate-500">@itemAttribute.DisplayName: @itemAttribute.Value</span>
+                                                }
+                                            </span>
+                                            <Icon Name="plus" />
+                                        </button>
+                                    }
+                                </div>
+                            }
+                            else if (!string.IsNullOrWhiteSpace(Search))
+                            {
+                                <div class="mt-3 flex items-center justify-between text-sm text-slate-400">
+                                    <span>No matches</span>
+                                    <button type="button" class="btn-secondary" @onclick="OpenItem">Create item</button>
+                                </div>
+                            }
+                        </div>
+                        <div class="table-scroll">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Item / barcode</th>
+                                        <th class="text-right">Quantity to add</th>
+                                        <th class="text-right">Unit cost (@Currency)</th>
+                                        <th class="text-right">Total (@Currency)</th>
+                                        <th>
+                                            <span class="sr-only">Remove</span>
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @if (Rows.Count == 0)
+                                    {
+                                        <TableStatusRow Columns="5" Message="Search for an item to add stock." />
+                                    }
+                                    @foreach (var row in Rows.Skip((Page - 1) * 25).Take(25))
+                                    {
+                                        <tr @key="row.Product.Id">
+                                            <td>
+                                                <strong>@row.Product.Name</strong>
+                                                <span class="mt-1 block font-mono text-xs text-slate-500">#@row.Product.Id · @row.Product.Barcode</span>
+                                                @foreach (var itemAttribute in row.Product.Attributes.Where(itemAttribute => itemAttribute.ShowInStockAdjustment))
+                                                {
+                                                    <span class="mt-1 mr-2 inline-block text-xs text-slate-500">@itemAttribute.DisplayName: @itemAttribute.Value</span>
+                                                }
+                                            </td>
+                                            <td>
+                                                <InputNumber class="field text-right" @bind-Value="row.Quantity" @bind-Value:after="RememberAsync"
+                                                             min="@(row.Product.AllowFractionUnit ? "0.001" : "1")" step="@(row.Product.AllowFractionUnit ? "0.001" : "1")"
+                                                             aria-label="@($"Quantity for {row.Product.Name}")" />
+                                                <span class="text-xs text-slate-500">@row.Product.Unit</span>
+                                                <ValidationMessage For="@(() => row.Quantity)" />
+                                            </td>
+                                            <td>
+                                                <InputNumber class="field text-right" @bind-Value="row.UnitCost" @bind-Value:after="RememberAsync" min="0" step="0.01"
+                                                             aria-label="@($"Unit cost for {row.Product.Name}")" />
+                                                <ValidationMessage For="@(() => row.UnitCost)" />
+                                            </td>
+                                            <td class="text-right">@Money(Value(row))</td>
+                                            <td>
+                                                <button type="button" class="icon-button" aria-label="@($"Remove {row.Product.Name}")" @onclick="() => RemoveAsync(row)">
+                                                    <Icon Name="trash" />
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                                <tfoot>
+                                    <tr>
+                                        <th colspan="3">Total · @Rows.Count items</th>
+                                        <td class="text-right">@Money(Rows.Sum(Value))</td>
+                                        <td></td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                        @if (Rows.Count > 25)
+                        {
+                            <div class="flex items-center justify-between border-t border-slate-100 p-4">
+                                <span class="text-sm text-slate-500">Page @Page of @Pages</span>
+                                <div class="flex gap-2">
+                                    <button type="button" class="btn-secondary" disabled="@(Page <= 1)" @onclick="() => Page--">Previous</button>
+                                    <button type="button" class="btn-secondary" disabled="@(Page >= Pages)" @onclick="() => Page++">Next</button>
+                                </div>
+                            </div>
+                        }
+                    </section>
+                    <div>
+                        <JsonImport Kind="stock-adjustment" LocationId="LocationId" Date="Date" Notes="Notes" Disabled="@(Busy || !Ready || LocationId is null)" />
+                    </div>
+                </div>
+                <aside class="panel xl:sticky xl:top-6">
+                    <div class="panel-heading">
+                        <h2>Stock adjustment</h2>
+                        <Icon Name="receive" />
+                    </div>
+                    <div class="space-y-5 p-5">
+                        <div>
+                            <label for="adjustment-location" class="field-label">Stock location</label>
+                            <InputSelect id="adjustment-location" class="field" @bind-Value="LocationId" @bind-Value:after="LocationChangedAsync">
+                                <option value="">Select location</option>
+                                @foreach (var location in Options.Locations)
+                                {
+                                    <option value="@location.Id">@location.Name</option>
+                                }
+                            </InputSelect>
+                        </div>
+                        <div>
+                            <label for="adjustment-date" class="field-label">Date</label>
+                            <InputDate id="adjustment-date" class="field" @bind-Value="Date" @bind-Value:after="RememberAsync" />
+                            <ValidationMessage For="@(() => Date)" />
+                        </div>
+                        <div>
+                            <label for="adjustment-notes" class="field-label">Reason / notes</label>
+                            <InputText id="adjustment-notes" class="field" maxlength="2000" @bind-Value="Notes" @bind-Value:after="RememberAsync" placeholder="e.g. Existing stock from previous software" />
+                        </div>
+                        <div class="flex justify-between text-sm">
+                            <span class="text-slate-500">Items</span>
+                            <strong>@Rows.Count</strong>
+                        </div>
+                        <div class="flex justify-between border-t border-slate-100 pt-4">
+                            <span>Stock value added</span>
+                            <strong>@Money(Rows.Sum(Value))</strong>
+                        </div>
+                        <button type="submit" class="btn-primary w-full justify-center" disabled="@(Rows.Count == 0 || LocationId is null)">
+                            @if (Busy)
+                            {
+                                <span class="form-submit-spinner"></span>
+                            }
+                            <Icon Name="check" />
+                            @(Busy ? "Saving…" : "Add stock")
+                        </button>
+                        <p class="text-xs text-slate-500">No supplier invoice or payment. Quantities are added to current stock and average cost is updated.</p>
+                    </div>
+                </aside>
+            </div>
+        </fieldset>
+    </EditForm>
+    <StockAdjustmentHistoryTable Rows="History" Currency="@Currency" Loading="HistoryLoading" Pagination="HistoryPagination" PageChanged="ChangeHistoryPageAsync" />
+</div>
+
+@if (DialogOpen)
+{
+    <div class="modal-overlay" @onclick="CloseDialog">
+        <span tabindex="0" class="sr-only" @onfocus="FocusDialogLastAsync"></span>
+        <section role="dialog" aria-modal="true" aria-labelledby="adjustment-item-title" class="modal-panel" tabindex="-1"
+                 @ref="DialogElement" @onclick:stopPropagation @onkeydown="DialogKeyDown">
+            <div class="mb-6 flex items-center justify-between">
+                <h2 id="adjustment-item-title" class="text-lg font-semibold">New item</h2>
+                <button type="button" class="icon-button" aria-label="Close dialog" @onclick="CloseDialog" disabled="@DialogBusy" @ref="DialogCloseButton">
+                    <Icon Name="close" />
+                </button>
+            </div>
+            @if (DialogError is not null)
+            {
+                <p class="error-panel" role="alert">@DialogError</p>
+            }
+            <EditForm Model="NewItem" OnValidSubmit="SaveItemAsync" FormName="adjustment-new-item">
+                <DataAnnotationsValidator />
+                <ProductFields Input="NewItem" Suppliers="@Options.Suppliers.ToArray()" Categories="@Options.Categories.ToArray()" Definitions="@Options.Attributes"
+                               Currency="@Currency" Live="true" ShowStockType="false" />
+                <div class="mt-6 flex justify-end gap-3">
+                    <button type="button" class="btn-secondary" @onclick="CloseDialog" disabled="@DialogBusy">Cancel</button>
+                    <button type="submit" class="btn-primary" disabled="@DialogBusy" @ref="DialogSubmitButton">
+                        @if (DialogBusy)
+                        {
+                            <span class="form-submit-spinner"></span>
+                        }
+                        Add to adjustment
+                    </button>
+                </div>
+            </EditForm>
+        </section>
+        <span tabindex="0" class="sr-only" @onfocus="FocusDialogFirstAsync"></span>
+    </div>
+}

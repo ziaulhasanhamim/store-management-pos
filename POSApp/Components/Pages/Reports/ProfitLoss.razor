@@ -1,0 +1,214 @@
+@page "/reports/profit-loss"
+@attribute [Authorize(Policy = AppPolicies.ManageUsers)]
+@attribute [StreamRendering]
+@using System.ComponentModel.DataAnnotations
+@using POSApp.Components.Pages.Finance
+@inject FinanceService Finance
+@inject ILogger<ProfitLoss> Logger
+
+<PageTitle>Profit & loss · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
+<div class="page-heading no-print">
+    <h1>Profit & loss</h1>
+    <div class="flex gap-2">
+        <a href="/finance" class="btn-secondary">Finance</a>
+        <button type="button" class="btn-secondary" data-print>Print</button>
+    </div>
+</div>
+<RangePicker Path="/reports/profit-loss" Period="@Period" Range="Data?.Range" Group="@Group" Grouping="true" Sort="@Sort" />
+@if (Error is not null)
+{
+    <p class="error-panel" role="alert">@Error</p>
+}
+
+@if (Data is not null)
+{
+    <section class="print-area">
+        <p class="mb-5 text-sm text-slate-500">@Data.Range.Start.ToString("dd MMM yyyy") – @Data.Range.End.ToString("dd MMM yyyy")</p>
+        <div class="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <div class="metric">
+                <p>Net revenue</p>
+                <strong class="text-2xl!">@Money(Data.Revenue)</strong>
+            </div>
+            <div class="metric">
+                <p>Cost of goods sold</p>
+                <strong class="text-2xl!">@Money(Data.Cogs)</strong>
+            </div>
+            <div class="metric">
+                <p>Gross profit</p>
+                <strong class="text-2xl!">@Money(Data.Revenue - Data.Cogs)</strong>
+            </div>
+            <div class="metric">
+                <p>Net profit</p>
+                <strong class="text-2xl!">@Money(Data.Revenue - Data.Cogs - Data.Expenses - Data.Salaries + Data.StockVariance)</strong>
+            </div>
+        </div>
+        <div class="mb-6 grid gap-6 lg:grid-cols-2">
+            <section class="panel p-6">
+                <h2 class="mb-5 font-semibold">Income statement</h2>
+                <dl class="space-y-3 text-sm">
+                    <div class="flex justify-between gap-4">
+                        <dt>Gross sales</dt>
+                        <dd>@Money(Data.GrossSales)</dd>
+                    </div>
+                    <div class="flex justify-between gap-4">
+                        <dt>Returns</dt>
+                        <dd>− @Money(Data.Returns)</dd>
+                    </div>
+                    <div class="flex justify-between gap-4">
+                        <dt>Order discounts</dt>
+                        <dd>− @Money(Data.Discount)</dd>
+                    </div>
+                    <div class="flex justify-between gap-4 border-t border-slate-100 pt-3 font-semibold">
+                        <dt>Net revenue</dt>
+                        <dd>@Money(Data.Revenue)</dd>
+                    </div>
+                    <div class="flex justify-between gap-4">
+                        <dt>Cost of goods sold, net of returns</dt>
+                        <dd>− @Money(Data.Cogs)</dd>
+                    </div>
+                    <div class="flex justify-between gap-4 font-semibold">
+                        <dt>Gross profit</dt>
+                        <dd>@Money(Data.Revenue - Data.Cogs)</dd>
+                    </div>
+                    <div class="flex justify-between gap-4">
+                        <dt>Operational expenses</dt>
+                        <dd>− @Money(Data.Expenses)</dd>
+                    </div>
+                    <div class="flex justify-between gap-4">
+                        <dt>Salaries</dt>
+                        <dd>− @Money(Data.Salaries)</dd>
+                    </div>
+                    <div class="flex justify-between gap-4">
+                        <dt>Stock take gain / loss (noncash)</dt>
+                        <dd>@Money(Data.StockVariance)</dd>
+                    </div>
+                    <div class="flex justify-between gap-4 border-t border-slate-100 pt-3 text-lg font-bold">
+                        <dt>Net profit</dt>
+                        <dd>@Money(Data.Revenue - Data.Cogs - Data.Expenses - Data.Salaries + Data.StockVariance)</dd>
+                    </div>
+                </dl>
+            </section>
+            <section class="panel p-6 text-sm text-slate-500">
+                <h2 class="mb-4 font-semibold text-slate-900">How this report is calculated</h2>
+                <p>Revenue includes completed sales, including amounts still due. Returns reduce revenue and COGS. Drafts and deleted transactions are excluded.</p>
+                <p class="mt-3">COGS uses each sale line's saved cost at checkout, so a later purchase price change does not rewrite past profit.</p>
+                <p class="mt-3">Payroll expense uses actual salary, bonus and advance payouts on their working day. Creating a salary records the obligation; applying an earlier advance does not create another expense.</p>
+                <p class="mt-3">New staff advances paid: <strong class="text-slate-900">@Money(Data.AdvancesPaid)</strong>. These are included in this period’s payroll expense and carry against the next salary.</p>
+                <p class="mt-3">Opening float, cash transfers, supplier payments, and drawer differences do not count as operating expenses.</p>
+            </section>
+        </div>
+    </section>
+}
+<section class="panel table-scroll">
+    <table class="data-table" aria-busy="@(Data is null && Error is null)">
+        <thead>
+            <tr>
+                <th>Period start</th>
+                <th class="text-right">Revenue</th>
+                <th class="text-right">COGS</th>
+                <th class="text-right">Gross profit</th>
+                <th class="text-right">Expenses</th>
+                <th class="text-right">Salaries</th>
+                <th class="text-right">Stock gain / loss</th>
+                <th class="text-right">Net profit</th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (Data is null)
+            {
+                <TableStatusRow Columns="8" Loading="@(Error is null)" Error="@(Error is not null)" Message="@(Error ?? "Calculating profit & loss…")" />
+            }
+            @foreach (var row in OrderedPeriods)
+            {
+                <tr>
+                    <td>@row.Label</td>
+                    <td class="text-right">@Money(row.Revenue)</td>
+                    <td class="text-right">@Money(row.Cogs)</td>
+                    <td class="text-right">@Money(row.Revenue - row.Cogs)</td>
+                    <td class="text-right">@Money(row.Expenses)</td>
+                    <td class="text-right">@Money(row.Salaries)</td>
+                    <td class="text-right">@Money(row.StockVariance)</td>
+                    <td class="text-right font-semibold">@Money(row.Revenue - row.Cogs - row.Expenses - row.Salaries + row.StockVariance)</td>
+                </tr>
+            }
+        </tbody>
+        @if (Data is not null)
+        {
+            <tfoot>
+                <tr>
+                    <th>Period total</th>
+                    <td class="text-right">@Money(Data.Revenue)</td>
+                    <td class="text-right">@Money(Data.Cogs)</td>
+                    <td class="text-right">@Money(Data.Revenue - Data.Cogs)</td>
+                    <td class="text-right">@Money(Data.Expenses)</td>
+                    <td class="text-right">@Money(Data.Salaries)</td>
+                    <td class="text-right">@Money(Data.StockVariance)</td>
+                    <td class="text-right">@Money(Data.Revenue - Data.Cogs - Data.Expenses - Data.Salaries + Data.StockVariance)</td>
+                </tr>
+            </tfoot>
+        }
+    </table>
+    @if (Data is not null && Data.Periods.Count == 0)
+    {
+        <p class="p-6 text-sm text-slate-500">No activity in this period.</p>
+    }
+</section>
+
+@code {
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromQuery]
+    public string Period { get; set; } = "month";
+
+    [SupplyParameterFromQuery]
+    public DateOnly? Start { get; set; }
+
+    [SupplyParameterFromQuery]
+    public DateOnly? End { get; set; }
+
+    [SupplyParameterFromQuery]
+    public string Group { get; set; } = "day";
+
+    [SupplyParameterFromQuery]
+    public string Sort { get; set; } = "date";
+
+    private IEnumerable<ProfitPeriod> OrderedPeriods => Sort switch
+    {
+        "date-desc" => (Data?.Periods ?? []).Reverse(),
+        "revenue" => (Data?.Periods ?? []).OrderBy(row => row.Revenue),
+        "revenue-desc" => (Data?.Periods ?? []).OrderByDescending(row => row.Revenue),
+        "profit" => (Data?.Periods ?? []).OrderBy(row => row.Revenue - row.Cogs - row.Expenses - row.Salaries + row.StockVariance),
+        "profit-desc" => (Data?.Periods ?? []).OrderByDescending(row => row.Revenue - row.Cogs - row.Expenses - row.Salaries + row.StockVariance),
+        "expenses" => (Data?.Periods ?? []).OrderBy(row => row.Expenses),
+        "expenses-desc" => (Data?.Periods ?? []).OrderByDescending(row => row.Expenses),
+        _ => Data?.Periods ?? []
+    };
+
+    private ProfitReport? Data;
+    private string? Error;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        Sort = string.IsNullOrWhiteSpace(Sort) ? "date" : Sort;
+        Period = string.IsNullOrWhiteSpace(Period) ? "month" : Period;
+        Group = Group is "week" or "month" ? Group : "day";
+        Data = null;
+        Error = null;
+        try
+        {
+            Data = await Finance.ProfitAsync(HttpContext.User, Period, Start, End, Group, HttpContext.RequestAborted);
+        }
+        catch (ValidationException exception)
+        {
+            Error = exception.Message;
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Profit report failed.");
+            Error = "Unable to calculate profit & loss. Reload to try again.";
+        }
+    }
+
+    private string Money(decimal amount) => $"{Configuration["CurrencyCode"] ?? "BDT"} {amount:N2}";
+}

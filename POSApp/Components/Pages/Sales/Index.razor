@@ -1,0 +1,48 @@
+@page "/sales"
+@attribute [Authorize(Policy = AppPolicies.MakeSales)]
+@attribute [StreamRendering]
+@inject SalesService Sales
+@inject ILogger<Index> Logger
+
+<PageTitle>Sales · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
+
+<div class="page-heading">
+    <h1>Sales</h1>
+    <div class="flex gap-2">
+        <a href="/cash-drawer" class="btn-secondary">Cash drawer</a>
+        <a href="/reports/sales" class="btn-secondary">Sales report</a>
+    </div>
+</div>
+@if (Error is not null)
+{
+    <p class="error-panel" role="alert">@Error</p>
+}
+else if (Options is null)
+{
+    <LoadingPanel Message="Loading point of sale…" />
+}
+else
+{
+    <SalesEditor InitialOptions="Options" Currency="@(Configuration["CurrencyCode"] ?? "BDT")" @rendermode="InteractiveAuto" />
+}
+
+@code {
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    private SalesOptions? Options;
+    private string? Error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            Options = await Sales.OptionsAsync(HttpContext.User, HttpContext.RequestAborted);
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Sales screen failed to load.");
+            Error = "Unable to load sales. Reload to try again.";
+        }
+    }
+}

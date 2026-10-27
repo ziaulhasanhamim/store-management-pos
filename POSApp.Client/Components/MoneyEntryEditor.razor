@@ -1,0 +1,203 @@
+@inject IMoneyEntryClient Entries
+
+<EditorDraft TState="MoneyEditorState" Kind="@Data.Kind" ResetLabel="New batch" State="DraftState" Empty="@(Lines.All(line => line.Input.Id is null && line.Input.Amount == 0 && string.IsNullOrWhiteSpace(line.Input.Notes)))" Paused="Busy" Restore="RestoreDraft" Clear="ResetDraft" ReadyChanged="@(ready => DraftReady = ready)" @ref="Recovery" />
+
+<div class="mb-6 grid gap-4 sm:grid-cols-3">
+    <div class="metric">
+        <p>@Label · @Data.Date.ToString("dd MMM yyyy")</p>
+        <strong class="text-2xl!">@Money(Data.Total)</strong>
+    </div>
+    <div class="metric">
+        <p>Entries recorded</p>
+        <strong>@Data.Count</strong>
+    </div>
+    <div class="metric">
+        <p>Pending total</p>
+        <strong class="text-2xl!">@Money(Lines.Where(line => line.ValidAmount).Sum(line => line.Input.Amount))</strong>
+    </div>
+</div>
+@if (Error is not null)
+{
+    <p class="error-panel" role="alert">@Error</p>
+}
+@if (Notice is not null)
+{
+    <p class="success-panel" role="status">@Notice</p>
+}
+@if (Data.CanCreate)
+{
+    <section class="panel mb-6">
+        <div class="panel-heading">
+            <h2>Add @Label.ToLowerInvariant()</h2>
+            <span class="text-xs text-slate-500">Working day · @Data.WorkingDate.ToString("dd MMM yyyy")</span>
+        </div>
+        <fieldset class="min-w-0" disabled="@(!RendererInfo.IsInteractive || !DraftReady || Busy)">
+            <div class="table-scroll">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>@(IsExpense ? "Category" : IsSupplier ? "Supplier" : "Customer")</th>
+                            <th>Amount (@Currency)</th>
+                            <th>Method</th>
+                            <th>Notes (optional)</th>
+                            @if (IsExpense)
+                            {
+                                <th>Receipt (optional)</th>
+                            }
+                            <th>
+                                <span class="sr-only">Remove entry</span>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var line in Lines)
+                        {
+                            <tr @key="line.Input.RequestId">
+                                <td class="min-w-52">
+                                    @if (line.Input.Id is { } id)
+                                    {
+                                        <span class="mb-2 block text-xs font-semibold text-blue-700">Editing #@id</span>
+                                    }
+                                    @if (IsExpense)
+                                    {
+                                        <select class="field" @bind="line.Input.CategoryId" aria-label="Expense category">
+                                            <option value="0">Select category</option>
+                                            @foreach (var category in Data.Categories.Where(category => !category.IsArchived || category.Id == line.Input.CategoryId))
+                                            {
+                                                <option value="@category.Id">@category.Name</option>
+                                            }
+                                        </select>
+                                    }
+                                    else
+                                    {
+                                        <select class="field" @bind="line.Input.PartyId" disabled="@line.FixedParty" aria-label="@(IsSupplier ? "Supplier" : "Customer")">
+                                            <option value="0">Select @(IsSupplier ? "supplier" : "customer")</option>
+                                            @foreach (var party in Data.Parties)
+                                            {
+                                                <option value="@party.Id">@party.Name · @Money(party.Balance)</option>
+                                            }
+                                        </select>
+                                    }
+                                </td>
+                                <td>
+                                    <DecimalField class="field min-w-32" @bind-Value="line.Input.Amount"
+                                                  ValidityChanged="valid => line.ValidAmount = valid" aria-label="Entry amount" />
+                                </td>
+                                <td>
+                                    <select class="field min-w-36" @bind="line.Input.Method" aria-label="Payment method">
+                                        @foreach (var method in Enum.GetValues<PaymentMethod>())
+                                        {
+                                            <option value="@method">@SplitPayments.MethodName(method)</option>
+                                        }
+                                    </select>
+                                </td>
+                                <td>
+                                    <input class="field min-w-40" @bind="line.Input.Notes" @bind:event="oninput" maxlength="2000" aria-label="Entry notes" />
+                                </td>
+                                @if (IsExpense)
+                                {
+                                    <td>
+                                        <input class="field min-w-32" @bind="line.Input.Receipt" maxlength="200" aria-label="Receipt reference" />
+                                    </td>
+                                }
+                                <td>
+                                    <button type="button" class="icon-button" @onclick="() => Lines.Remove(line)" aria-label="Remove pending entry">
+                                        <Icon Name="trash" />
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <div class="flex flex-wrap items-center justify-between gap-4 p-5">
+                <button type="button" class="btn-secondary" @onclick="AddLine" disabled="@(Lines.Count >= 100)">
+                    <Icon Name="plus" />
+                    Add another @(IsExpense ? "expense" : "payment")
+                </button>
+                <button type="button" class="btn-primary" @onclick="Save" disabled="@SaveDisabled">
+                    @if (Busy)
+                    {
+                        <span class="form-submit-spinner"></span>
+                    }
+                    else
+                    {
+                        <Icon Name="check" />
+                    }
+                    @(Busy ? "Saving…" : $"Save {Lines.Count} entries")
+                </button>
+            </div>
+            @if (SaveDisabled && Lines.Count > 0)
+            {
+                <p class="px-5 pb-5 text-xs text-slate-500">Choose a @(IsExpense ? "category" : IsSupplier ? "supplier" : "customer") and enter a positive amount for every row. Remove any unused rows before saving.</p>
+            }
+            @if (IsExpense && Data.CanManageCategories)
+            {
+                <div class="border-t border-slate-100 p-5">
+                    <div class="flex flex-wrap items-center gap-3">
+                        <input class="field max-w-xs" @bind="NewCategory" @bind:event="oninput" maxlength="100" placeholder="New category name" aria-label="New expense category" />
+                        <button type="button" class="btn-secondary" @onclick="AddCategory" disabled="@(string.IsNullOrWhiteSpace(NewCategory))">
+                            <Icon Name="plus" />
+                            Add category
+                        </button>
+                        <a href="/expenses/categories" class="text-sm text-blue-700">Manage categories</a>
+                    </div>
+                </div>
+            }
+        </fieldset>
+    </section>
+}
+else
+{
+    <p class="mb-6 text-sm text-slate-500">
+        Viewing a historical or closed day. Entries can be added on the current open working day.
+        <a href="/accounting-date" class="font-semibold text-blue-700">Working day</a>
+    </p>
+}
+
+<section class="panel">
+    <div class="panel-heading">
+        <h2>Recorded @Label.ToLowerInvariant()</h2>
+        <button type="button" class="icon-button" @onclick="Refresh" disabled="@(!RendererInfo.IsInteractive || !DraftReady || Busy)" aria-label="Refresh entries">
+            <Icon Name="history" />
+        </button>
+    </div>
+    @if (IsExpense)
+    {
+        @foreach (var category in Data.ExpenseCategories)
+        {
+            <details class="border-b border-slate-100 last:border-b-0" @key="category.Id">
+                <summary class="flex cursor-pointer items-center justify-between gap-4 p-5">
+                    <span>
+                        <strong class="block">@category.Name</strong>
+                        <span class="text-xs text-slate-500">@category.Entries.Count entries · View / edit</span>
+                    </span>
+                    <strong class="whitespace-nowrap">@Money(category.Amount)</strong>
+                </summary>
+                <MoneyEntryTable Loading="LoadingRows" Rows="category.Entries" Currency="@Currency"
+                                 Disabled="@(!RendererInfo.IsInteractive || !DraftReady || Busy)"
+                                 PendingIds="PendingIds" OnEdit="Edit" />
+            </details>
+        }
+    }
+    else
+    {
+        <MoneyEntryTable Loading="LoadingRows" Rows="Data.Rows" Currency="@Currency" PartyLabel="@(IsSupplier ? "Supplier" : "Customer")"
+                         Disabled="@(!RendererInfo.IsInteractive || !DraftReady || Busy)"
+                         PendingIds="PendingIds" OnEdit="Edit" />
+    }
+    @if (Data.Rows.Count == 0)
+    {
+        <div class="empty-state">
+            <p>No entries for this day</p>
+        </div>
+    }
+    @if (Data.Pagination is not null)
+    {
+        <PageNavigation Info="Data.Pagination" PageChanged="ChangePageAsync" Busy="@(LoadingRows || Busy)" Label="@(IsExpense ? "categories" : "entries")" />
+    }
+    <p class="p-4 text-xs text-slate-500">
+        @(IsExpense ? "Repeated categories are combined for this day. Expand a category to edit individual entries." : "Totals include every entry for this day.")
+        Corrections retain the original posting history.
+    </p>
+</section>

@@ -1,0 +1,81 @@
+@page "/receiving/{Id:int}"
+@attribute [Authorize(Policy = AppPolicies.ManageInventory)]
+@attribute [StreamRendering]
+@inject ReportService Reports
+
+<PageTitle>Receiving receipt · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
+<div class="page-heading">
+    <h1>Receiving #@Id</h1>
+    <a href="/reports/receiving" class="btn-secondary">Receiving report</a>
+</div>
+<AuthorizeView Policy="@AppPolicies.ManageUsers">
+    <a href="@($"/admin/records/purchase/{Id}/edit")" class="no-print btn-secondary mb-5">
+        <Icon Name="edit" />
+        Admin correction / delete
+    </a>
+</AuthorizeView>
+
+@if (Loading)
+{
+    <LoadingPanel Message="Loading receipt…" />
+}
+else if (Data is null)
+{
+    <p>Receipt not found.</p>
+}
+else
+{
+    <section class="panel p-6">
+        <h2 class="text-lg font-semibold">@Data.Receipt.Party</h2>
+        <p class="mt-1 text-sm text-slate-500">@Data.Location · @Data.Receipt.At.ToBusinessTime(Configuration).ToString("dd MMM yyyy, HH:mm")</p>
+        <p class="mt-2 text-xs text-slate-400">Invoice: @(Data.Invoice ?? "—") · @Data.Receipt.Number</p>
+        <div class="table-scroll mt-5">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Item</th>
+                        <th class="text-right">Quantity</th>
+                        <th class="text-right">Unit cost</th>
+                        <th class="text-right">Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var line in Data.Lines)
+                    {
+                        <tr>
+                            <td>@line.Name</td>
+                            <td class="text-right">@line.Quantity.ToString("0.###") @line.Unit</td>
+                            <td class="text-right">@Money(line.Cost)</td>
+                            <td class="text-right">@Money(line.Total)</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <div class="mt-6 flex flex-wrap gap-6 text-sm">
+            <p>Net total <strong>@Money(Data.Receipt.Total)</strong></p>
+            <p>Paid <strong>@Money(Data.Receipt.Paid)</strong></p>
+            <p>Unpaid / credit <strong>@Money(Data.Receipt.Total - Data.Receipt.Paid)</strong></p>
+        </div>
+        <p class="mt-3 text-sm text-slate-500">@Data.Notes</p>
+    </section>
+}
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    private PurchaseDetail? Data;
+    private bool Loading = true;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        Data = await Reports.PurchaseAsync(HttpContext.User, Id, HttpContext.RequestAborted);
+        Loading = false;
+    }
+
+    private string Money(decimal amount) => $"{amount:N2} {Configuration["CurrencyCode"] ?? "BDT"}";
+}

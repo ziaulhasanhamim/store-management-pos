@@ -1,0 +1,37 @@
+@page "/reports"
+@attribute [Authorize]
+
+<PageTitle>Reports · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
+<div class="page-heading">
+    <div>
+        <p class="eyebrow">Business intelligence</p>
+        <h1>Reports</h1>
+    </div>
+</div>
+<section class="mb-8">
+    <h2 class="mb-4 text-sm font-semibold text-slate-500">Trading & inventory</h2>
+    <div class="grid gap-4 md:grid-cols-2">
+        <AuthorizeView Policy="@AppPolicies.MakeSales">
+            <HubCard Href="/reports/sales" Title="Sales" Hint="Bills, item breakdowns, receipts and gross profit" IconName="wallet" />
+        </AuthorizeView>
+        <AuthorizeView Policy="@AppPolicies.ManageInventory">
+            <HubCard Href="/reports/items" Title="Item sales & returns" Hint="Net quantities, saved costs, discounts and item profit" IconName="box" />
+            <HubCard Href="/reports/receiving" Title="Receiving & transfers" Hint="Purchases, supplier returns and movement by location" IconName="receive" />
+            <HubCard Href="/reports/inventory" Title="Inventory valuation" Hint="Current stock value and supplier comparisons" IconName="box" />
+        </AuthorizeView>
+    </div>
+</section>
+<AuthorizeView Policy="@AppPolicies.ManageUsers">
+    <section>
+        <h2 class="mb-4 text-sm font-semibold text-slate-500">Finance & reconciliation</h2>
+        <div class="grid gap-4 md:grid-cols-2">
+            <HubCard Href="/reports/statements/cash" Title="Cash drawer statements" Hint="Daily opening, every movement and running balances by location" IconName="wallet" />
+            <HubCard Href="/reports/statements/bank" Title="Bank & digital statements" Hint="Receipts, payouts and balances for any date range or year" IconName="history" />
+            <HubCard Href="/reports/profit-loss" Title="Profit & loss" Hint="Revenue, COGS, expenses and payroll" IconName="dashboard" />
+            <HubCard Href="/reports/profit-loss?period=year" Title="Year profit & loss" Hint="Annual revenue and expenses, excluding owner funding" IconName="dashboard" />
+            <HubCard Href="/finance/day" Title="Day finance" Hint="Payments, expected cash and location reconciliation" IconName="wallet" />
+            <HubCard Href="/finance/month" Title="Monthly business summary" Hint="Daily results, category spending, payroll and asset growth" IconName="history" />
+            <HubCard Href="/administration/audit" Title="Audit history" Hint="Corrections, counts, closings and reopenings" IconName="history" />
+        </div>
+    </section>
+</AuthorizeView>

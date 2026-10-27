@@ -1,0 +1,21 @@
+@page "/finance"
+@attribute [Authorize(Policy = AppPolicies.MakeSales)]
+
+<PageTitle>Finance · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
+<div class="page-heading">
+    <div>
+        <p class="eyebrow">Business operations</p>
+        <h1>Finance</h1>
+    </div>
+</div>
+<WorkdayBoard />
+<div class="grid gap-4 md:grid-cols-2">
+    <HubCard Href="/finance/payments" Title="Payments & collections" Hint="Expenses, supplier payments, customer dues and loans" IconName="wallet" />
+    <HubCard Href="/cash-drawer" Title="Location cash drawers" Hint="Open, count, reconcile and move cash" IconName="wallet" />
+    <HubCard Href="/finance/people" Title="People & payroll" Hint="Customers, employees and salary payments" IconName="users" />
+    <AuthorizeView Policy="@AppPolicies.ManageUsers">
+        <HubCard Href="/finance/day" Title="Day finance" Hint="Review trading, payments and cash before closing" IconName="dashboard" />
+        <HubCard Href="/finance/month" Title="Month finance" Hint="Close completed months after daily reconciliation" IconName="history" />
+        <HubCard Href="/finance/accounts" Title="Balances & accounts" Hint="Bank funds, loans and opening balances" IconName="wallet" />
+    </AuthorizeView>
+</div>

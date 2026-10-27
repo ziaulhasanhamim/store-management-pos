@@ -1,0 +1,183 @@
+@page "/cash-drawer"
+@attribute [Authorize(Policy = AppPolicies.MakeSales)]
+@using System.ComponentModel.DataAnnotations
+@inject CashDrawerService Drawers
+@inject FinanceService Finance
+@inject NavigationManager Navigation
+@inject ILogger<Drawer> Logger
+
+<PageTitle>Cash drawer · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
+<div class="page-heading">
+    <h1>Location cash drawers</h1>
+    <div class="flex gap-2">
+        <a href="/finance" class="btn-secondary">Finance</a>
+        <a href="/sales" class="btn-primary">Sales</a>
+    </div>
+</div>
+@if (Error is not null)
+{
+    <p class="error-panel" role="alert">@Error</p>
+}
+@if (Review && Close is not null)
+{
+    <section class="panel mb-6 max-w-2xl p-6">
+        <p class="eyebrow">Final review</p>
+        <h2 class="mb-4 text-xl font-semibold">Close this drawer?</h2>
+        <dl class="mb-5 grid gap-4 sm:grid-cols-3">
+            <div>
+                <dt class="text-sm text-slate-500">Expected</dt>
+                <dd class="font-semibold">@Close.ExpectedCash?.ToString("N2")</dd>
+            </div>
+            <div>
+                <dt class="text-sm text-slate-500">Counted</dt>
+                <dd class="font-semibold">@Close.ActualCash?.ToString("N2")</dd>
+            </div>
+            <div>
+                <dt class="text-sm text-slate-500">Over / short</dt>
+                <dd class="font-semibold">@((Close.ActualCash - Close.ExpectedCash)?.ToString("N2"))</dd>
+            </div>
+        </dl>
+        <p class="mb-4 text-sm text-slate-500">@Close.Notes</p>
+        <form method="post" @formname="cash-close" @onsubmit="CloseAsync" data-enhance data-submit-indication="true">
+            <AntiforgeryToken />
+            <input type="hidden" name="Close.SessionId" value="@Close.SessionId" />
+            <input type="hidden" name="Close.ActualCash" value="@Close.ActualCash" />
+            <input type="hidden" name="Close.ExpectedCash" value="@Close.ExpectedCash" />
+            <input type="hidden" name="Close.Notes" value="@Close.Notes" />
+            <label class="mb-5 flex items-start gap-3 text-sm">
+                <input type="checkbox" name="Close.Confirmed" value="true" required />
+                I counted the physical cash and want to close this drawer. Further cash entries will stop until an admin reopens it.
+            </label>
+            <div class="flex gap-3">
+                <a href="/cash-drawer" class="btn-secondary">Keep open</a>
+                <button class="btn-primary" data-pending-text="Closing…">Confirm close drawer</button>
+            </div>
+        </form>
+    </section>
+}
+else if (HttpMethods.IsGet(HttpContext.Request.Method))
+{
+    <FinanceLoad TData="CashDrawerPage" Load="LoadAsync" Message="Loading cash drawer…">
+        <ChildContent Context="loaded">
+            <DrawerView View="@View" Data="loaded" Open="Open!" Close="Close!" Adjustment="Adjustment!" Location="Location!" Transfer="Transfer!" Assignment="Assignment!" SelectLocationAsync="SelectLocationAsync" TransferAsync="TransferAsync" AssignAsync="AssignAsync" OpenAsync="OpenAsync" CloseAsync="CloseAsync" AdjustAsync="AdjustAsync" />
+        </ChildContent>
+    </FinanceLoad>
+}
+else if (Data is not null)
+{
+    <DrawerView View="@View" Data="Data" Open="Open!" Close="Close!" Adjustment="Adjustment!" Location="Location!" Transfer="Transfer!" Assignment="Assignment!" SelectLocationAsync="SelectLocationAsync" TransferAsync="TransferAsync" AssignAsync="AssignAsync" OpenAsync="OpenAsync" CloseAsync="CloseAsync" AdjustAsync="AdjustAsync" />
+}
+
+@code {
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromQuery]
+    public string View { get; set; } = "drawer";
+
+    [SupplyParameterFromQuery]
+    public int? SessionId { get; set; }
+
+    [SupplyParameterFromForm(FormName = "cash-open")]
+    private OpenCashInput? Open { get; set; }
+
+    [SupplyParameterFromForm(FormName = "cash-close")]
+    private CloseCashInput? Close { get; set; }
+
+    [SupplyParameterFromForm(FormName = "cash-adjust")]
+    private CashAdjustmentInput? Adjustment { get; set; }
+
+    [SupplyParameterFromForm(FormName = "cash-location")]
+    private CashLocationInput? Location { get; set; }
+
+    [SupplyParameterFromForm(FormName = "cash-transfer")]
+    private CashTransferInput? Transfer { get; set; }
+
+    [SupplyParameterFromForm(FormName = "cash-assign")]
+    private AssignCashDrawerInput? Assignment { get; set; }
+
+    private CashDrawerPage? Data;
+    private string? Error;
+    private bool Review;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        View = View is "drawer" or "locations" or "transfer" or "history" ? View : SessionId is not null ? "history" : "drawer";
+        Open ??= new();
+        Close ??= new();
+        Adjustment ??= new();
+        Location ??= new();
+        Transfer ??= new();
+        Assignment ??= new();
+        if (!HttpMethods.IsGet(HttpContext.Request.Method))
+        {
+            Data = await LoadAsync();
+        }
+    }
+
+    [SupplyParameterFromQuery]
+    public int MovementPage { get; set; } = 1;
+
+    [SupplyParameterFromQuery]
+    public int SessionPage { get; set; } = 1;
+
+    [SupplyParameterFromQuery]
+    public int PageSize { get; set; } = 30;
+
+    private Task<CashDrawerPage> LoadAsync() => Drawers.ReadAsync(HttpContext.User, SessionId, HttpContext.RequestAborted, MovementPage, SessionPage, PageSize);
+
+    private Task SelectLocationAsync() => SubmitAsync(() => Drawers.SelectLocationAsync(HttpContext.User, Location!.LocationId, HttpContext.RequestAborted), "/cash-drawer");
+    private Task TransferAsync() => SubmitAsync(() => Drawers.TransferAsync(HttpContext.User, Transfer!, HttpContext.RequestAborted), "/cash-drawer?view=transfer");
+    private Task AssignAsync() => SubmitAsync(() => Drawers.AssignAsync(HttpContext.User, Assignment!, HttpContext.RequestAborted), "/cash-drawer?view=locations");
+
+    private Task OpenAsync() => SubmitAsync(async () => await Drawers.OpenAsync(HttpContext.User, Open!, HttpContext.RequestAborted));
+    private async Task CloseAsync()
+    {
+        if (Close?.Confirmed == true)
+        {
+            await SubmitAsync(() => Drawers.CloseAsync(HttpContext.User, Close, HttpContext.RequestAborted), $"/cash-drawer?view=history&sessionId={Close.SessionId}");
+            return;
+        }
+        try
+        {
+            var counted = Close?.ActualCash ?? throw new ValidationException("Enter the physically counted cash.");
+            StoreAccess.Money(counted, "Counted cash");
+            var drawer = (await Drawers.ReadAsync(HttpContext.User, Close!.SessionId, HttpContext.RequestAborted)).Viewed
+                ?? throw new ValidationException("Drawer not found.");
+            if (drawer.ClosedAt is not null)
+            {
+                throw new ValidationException("This drawer is already closed.");
+            }
+            if (counted != drawer.Expected && string.IsNullOrWhiteSpace(Close.Notes))
+            {
+                throw new ValidationException("Explain the shortage or overage before closing.");
+            }
+            Close.ExpectedCash = drawer.Expected;
+            Review = true;
+        }
+        catch (ValidationException exception)
+        {
+            Error = exception.Message;
+        }
+    }
+    private Task AdjustAsync() => SubmitAsync(() => Drawers.AdjustAsync(HttpContext.User, Adjustment!, HttpContext.RequestAborted), "/cash-drawer?view=transfer");
+
+    private async Task SubmitAsync(Func<Task> action, string? target = null)
+    {
+        try
+        {
+            await action();
+            Navigation.NavigateTo(target ?? "/cash-drawer");
+        }
+        catch (ValidationException exception)
+        {
+            Error = exception.Message;
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Cash drawer operation failed.");
+            Error = "Unable to save. Reload and try again.";
+        }
+    }
+
+}

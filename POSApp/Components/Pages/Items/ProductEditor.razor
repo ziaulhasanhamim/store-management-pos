@@ -1,0 +1,60 @@
+<EditForm method="post" Model="Input" FormName="item-editor" OnSubmit="SubmitAsync" Enhance
+          data-submit-indication="true" data-spinner-selector=".item-spinner">
+    <DataAnnotationsValidator />
+    <ProductFields Input="Input" Categories="Categories" Suppliers="Suppliers" Definitions="Definitions" Currency="@(Configuration["CurrencyCode"] ?? "BDT")" />
+
+    <div class="mt-7 flex justify-end gap-3">
+        <a href="@CancelUrl" class="btn-secondary">Cancel</a>
+        <button type="submit" name="Input.FormAction" value="save" class="btn-primary" data-pending-text="Saving…">
+            <span class="item-spinner form-submit-spinner" hidden aria-hidden="true"></span>
+            <Icon Name="check" />
+            <span data-submit-label>Save item</span>
+        </button>
+    </div>
+</EditForm>
+
+@code {
+    [Parameter, EditorRequired]
+    public ProductInput Input { get; set; } = default!;
+
+    [Parameter]
+    public IReadOnlyList<Lookup> Categories { get; set; } = [];
+
+    [Parameter]
+    public IReadOnlyList<Lookup> Suppliers { get; set; } = [];
+
+    [Parameter]
+    public IReadOnlyList<ProductAttributeDefinitionOption> Definitions { get; set; } = [];
+
+
+    [Parameter]
+    public EventCallback OnSave { get; set; }
+
+    [Parameter]
+    public string CancelUrl { get; set; } = "/items";
+
+    private async Task SubmitAsync(EditContext context)
+    {
+        if (Input.FormAction == "add-attribute")
+        {
+            if (Input.AttributeToAddId > 0 && Input.Attributes.All(attribute => attribute.DefinitionId != Input.AttributeToAddId))
+            {
+                Input.Attributes.Add(new ProductAttributeInput { DefinitionId = Input.AttributeToAddId });
+            }
+            Input.AttributeToAddId = 0;
+            Input.FormAction = "save";
+            return;
+        }
+        if (Input.FormAction.StartsWith("remove-attribute:", StringComparison.Ordinal)
+            && int.TryParse(Input.FormAction.AsSpan("remove-attribute:".Length), out var definitionId))
+        {
+            Input.Attributes.RemoveAll(attribute => attribute.DefinitionId == definitionId);
+            Input.FormAction = "save";
+            return;
+        }
+        if (await context.ValidateAsync())
+        {
+            await OnSave.InvokeAsync();
+        }
+    }
+}

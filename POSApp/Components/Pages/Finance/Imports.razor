@@ -1,0 +1,14 @@
+@page "/imports"
+@attribute [Authorize(Policy = AppPolicies.ManageUsers)]
+
+<PageTitle>Imports · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
+
+<div class="page-heading">
+    <h1>Imports</h1>
+    <a href="/stock/adjustments" class="btn-secondary">Stock adjustments</a>
+</div>
+
+<div class="max-w-3xl">
+    <JsonImport Kind="suppliers" @rendermode="InteractiveAuto" />
+    <ImportHistory @rendermode="InteractiveAuto" />
+</div>

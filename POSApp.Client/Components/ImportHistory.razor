@@ -1,0 +1,44 @@
+@using POSApp.Client.Services
+@inject IImportClient Imports
+
+<section class="panel p-5">
+    <div class="mb-4 flex items-center justify-between gap-3">
+        <h2 class="font-semibold">Recent stock imports</h2>
+        <button type="button" class="btn-secondary" @onclick="RefreshAsync">Refresh</button>
+    </div>
+    @if (Error is not null)
+    {
+        <p class="error-panel">@Error</p>
+    }
+    @foreach (var job in Jobs)
+    {
+        <div class="border-b border-slate-100 py-3">
+            <p class="font-semibold">@job.Status · @job.FileName</p>
+            <p class="text-sm text-slate-500">@(job.Message ?? "Processing in the background. Refresh to check progress.")</p>
+        </div>
+    }
+    @if (Jobs.Count == 0 && Error is null)
+    {
+        <p class="text-sm text-slate-500">No stock imports yet.</p>
+    }
+</section>
+
+@code {
+    private IReadOnlyList<ImportStatus> Jobs = [];
+    private string? Error;
+
+    protected override Task OnInitializedAsync() => RefreshAsync();
+
+    private async Task RefreshAsync()
+    {
+        try
+        {
+            Jobs = await Imports.ReadAsync("stock-adjustment");
+            Error = null;
+        }
+        catch (Exception exception)
+        {
+            Error = exception.Message;
+        }
+    }
+}

@@ -1,0 +1,4 @@
+html { font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+h1:focus { outline: none; }
+.blazor-error-boundary { background: #b91c1c; padding: 1rem; color: white; }
+.blazor-error-boundary::after { content: "An unexpected error occurred."; }

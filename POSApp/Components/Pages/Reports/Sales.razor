@@ -1,0 +1,31 @@
+@page "/reports/sales"
+@attribute [Authorize(Policy = AppPolicies.MakeSales)]
+@attribute [StreamRendering]
+
+<TransactionReport Sales="true" Period="@Period" Start="Start" End="End" Page="Page" PageSize="PageSize" Search="@Search" Sort="@Sort" LocationId="LocationId" />
+
+@code {
+    [SupplyParameterFromQuery]
+    public string Period { get; set; } = "today";
+
+    [SupplyParameterFromQuery]
+    public DateOnly? Start { get; set; }
+
+    [SupplyParameterFromQuery]
+    public DateOnly? End { get; set; }
+
+    [SupplyParameterFromQuery]
+    public int? LocationId { get; set; }
+
+    [SupplyParameterFromQuery]
+    public string? Search { get; set; }
+
+    [SupplyParameterFromQuery]
+    public string Sort { get; set; } = "id";
+
+    [SupplyParameterFromQuery]
+    public int Page { get; set; } = 1;
+
+    [SupplyParameterFromQuery]
+    public int PageSize { get; set; } = 30;
+}

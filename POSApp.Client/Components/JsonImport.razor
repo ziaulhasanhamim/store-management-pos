@@ -1,0 +1,266 @@
+@implements IAsyncDisposable
+@using POSApp.Client.Services
+@inject IImportClient Imports
+@inject ImportActivity Activity
+
+<section class="panel mb-6 p-5">
+    <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <h2 class="font-semibold">@Title</h2>
+        <button type="button" class="btn-secondary" @onclick="RefreshAsync" disabled="@Uploading">Refresh status</button>
+    </div>
+    <p class="mb-3 text-sm text-slate-500">@Hint</p>
+    @if (Kind == "suppliers")
+    {
+        <pre class="mb-3 overflow-auto rounded-lg bg-slate-50 p-3 text-xs">[{"name": "Supplier name", "phone": "01700000000"}]</pre>
+        <p class="mb-3 text-xs text-slate-500">Only name is required. IDs are generated automatically; optional old IDs are kept as migration references. Balance defaults to zero. Positive balances are due; negative balances are credit. Existing imported IDs are rejected.</p>
+    }
+    else if (Kind == "products")
+    {
+        <pre class="mb-3 overflow-auto rounded-lg bg-slate-50 p-3 text-xs">[{"name":"Product name","category":"electronics","supplier":"Supplier name","unit":"piece","costPrice":100,"sellingPrice":150,"attributes":{"warranty":"6 Months"}}]</pre>
+        <p class="mb-3 text-xs text-slate-500">Category and supplier are matched by name without case sensitivity. New categories keep the casing used in the first matching row. Attribute keys must already be configured under Items → Attributes. Include an optional positive <code>id</code> to preserve that product ID; it must not already exist. Omit <code>id</code> to let the database generate one. This import adds product records only; use stock adjustment to enter quantities. No supplier balances or payments are changed.</p>
+    }
+    else
+    {
+        <pre class="mb-3 overflow-auto rounded-lg bg-slate-50 p-3 text-xs">[{"productId": 1, "quantity": 10, "unitCost": 100}]</pre>
+        <p class="mb-3 text-xs text-slate-500">Replace productId with an existing product ID from Items. This adds stock to existing products; it does not create new products. Omit products with zero stock to add.</p>
+    }
+    <a href="@(Kind switch { "suppliers" => "/templates/suppliers.json", "products" => "/templates/products.json", _ => "/templates/stock-adjustment.json" })"
+       class="mb-4 inline-block text-sm font-semibold text-indigo-700" download data-enhance-nav="false">Download JSON example</a>
+    <InputFile @key="FileVersion" OnChange="UploadAsync" accept=".json,application/json"
+               disabled="@(Uploading || !Loaded || Active || Disabled)" aria-label="@Title" />
+    @if (Error is not null)
+    {
+        <p class="error-panel mt-3" role="alert">@Error</p>
+    }
+    @if (Uploading)
+    {
+        <p class="mt-3 text-sm" role="status">Uploading file…</p>
+    }
+    @if (Latest is { } job)
+    {
+        <div class="mt-4 rounded-lg border border-indigo-100 bg-indigo-50 p-4" role="status" aria-live="polite">
+            <div class="flex items-start justify-between gap-3">
+                <p class="font-semibold">@job.Status · @job.FileName</p>
+                @if (!job.Active)
+                {
+                    <button type="button" class="text-sm text-indigo-700 hover:underline" @onclick="DismissLatest">Dismiss</button>
+                }
+            </div>
+            @if (job.Active)
+            {
+                <p class="mt-1 text-sm">Your import is in progress. You can leave this page and keep working. Another file can be uploaded after it finishes.</p>
+            }
+            else
+            {
+                <p class="mt-1 text-sm">@job.Message</p>
+            }
+        </div>
+    }
+</section>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Kind { get; set; } = "suppliers";
+
+    [Parameter]
+    public int? LocationId { get; set; }
+
+    [Parameter]
+    public DateOnly? Date { get; set; }
+
+    [Parameter]
+    public string Notes { get; set; } = "";
+
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    private readonly CancellationTokenSource Lifetime = new();
+    private CancellationTokenSource? DismissTimer;
+    private Task? Polling;
+    private ImportStatus? Latest;
+    private bool Loaded;
+    private bool Uploading;
+    private string? Error;
+    private int FileVersion;
+    private Guid RequestId = Guid.NewGuid();
+    private string? PendingFile;
+    private readonly HashSet<Guid> DismissedJobs = [];
+    private bool Active => Latest?.Active == true;
+    private string Title => Kind switch
+    {
+        "suppliers" => "Import suppliers",
+        "products" => "Import products",
+        _ => "Import stock adjustment JSON"
+    };
+    private string Hint => Kind switch
+    {
+        "suppliers" => "Upload up to 10,000 suppliers as a JSON array (10 MB maximum). Balances are imported as opening balances.",
+        "products" => "Upload up to 10,000 products as a JSON array (10 MB maximum). Products are validated and added in the background.",
+        _ => "Upload up to 10,000 product quantities (10 MB maximum). Stock is added to the selected location and date. Supplier dues and payments stay unchanged. The file is validated before any stock is added."
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await RefreshAsync();
+    }
+
+    private async Task RefreshAsync()
+    {
+        try
+        {
+            var jobs = await Imports.ReadAsync(Kind, Lifetime.Token);
+            Latest = jobs.FirstOrDefault(job => job.Active)
+                ?? jobs.FirstOrDefault(job => !DismissedJobs.Contains(job.Id));
+            if (Latest is { Active: false } completed)
+            {
+                ScheduleDismissal(completed.Id);
+            }
+            else
+            {
+                CancelDismissal();
+            }
+            if (Latest is { Status: "Failed" } failed && failed.Id == RequestId)
+            {
+                RequestId = Guid.NewGuid();
+                PendingFile = null;
+            }
+            Loaded = true;
+            Error = null;
+            if (Active && (Polling is null || Polling.IsCompleted))
+            {
+                Polling = PollAsync();
+            }
+        }
+        catch (OperationCanceledException) when (Lifetime.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            Error = exception.Message;
+        }
+    }
+
+    private void ScheduleDismissal(Guid jobId)
+    {
+        if (DismissTimer is not null)
+        {
+            return;
+        }
+        DismissTimer = CancellationTokenSource.CreateLinkedTokenSource(Lifetime.Token);
+        var token = DismissTimer.Token;
+        _ = DismissAfterDelayAsync(jobId, token);
+    }
+
+    private async Task DismissAfterDelayAsync(Guid jobId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(TimeSpan.FromSeconds(12), cancellationToken);
+            await InvokeAsync(() =>
+            {
+                if (Latest?.Id == jobId && !Latest.Active)
+                {
+                    DismissedJobs.Add(jobId);
+                    Latest = null;
+                    StateHasChanged();
+                }
+                CancelDismissal();
+            });
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+    }
+
+    private void DismissLatest()
+    {
+        if (Latest is { } job)
+        {
+            DismissedJobs.Add(job.Id);
+        }
+        Latest = null;
+        CancelDismissal();
+    }
+
+    private void CancelDismissal()
+    {
+        DismissTimer?.Cancel();
+        DismissTimer?.Dispose();
+        DismissTimer = null;
+    }
+
+    private async Task PollAsync()
+    {
+        try
+        {
+            using var timer = new PeriodicTimer(TimeSpan.FromSeconds(3));
+            while (Active && await timer.WaitForNextTickAsync(Lifetime.Token))
+            {
+                await InvokeAsync(async () =>
+                {
+                    await RefreshAsync();
+                    StateHasChanged();
+                });
+            }
+        }
+        catch (OperationCanceledException) when (Lifetime.IsCancellationRequested)
+        {
+        }
+    }
+
+    private async Task UploadAsync(InputFileChangeEventArgs args)
+    {
+        if (Uploading || Active || Disabled)
+        {
+            return;
+        }
+        Uploading = true;
+        Error = null;
+        try
+        {
+            using var reader = new StreamReader(args.File.OpenReadStream(10 * 1024 * 1024, Lifetime.Token));
+            var json = await reader.ReadToEndAsync(Lifetime.Token);
+            // Preserve the request ID when retrying the same file after an uncertain response.
+            var signature = $"{args.File.Name}\n{LocationId}\n{Date}\n{Notes}\n{json}";
+            if (PendingFile != signature)
+            {
+                RequestId = Guid.NewGuid();
+                PendingFile = signature;
+            }
+            Latest = await Imports.EnqueueAsync(Kind, new(RequestId, args.File.Name, json, LocationId, Date, Notes));
+            Activity.Notify();
+            await RefreshAsync();
+        }
+        catch (Exception exception)
+        {
+            Error = exception.Message;
+            // The request may have reached the server even if the response was lost.
+            try
+            {
+                var jobs = await Imports.ReadAsync(Kind, Lifetime.Token);
+                Latest = jobs.FirstOrDefault(job => job.Active) ?? jobs.FirstOrDefault();
+                if (Active && (Polling is null || Polling.IsCompleted))
+                {
+                    Polling = PollAsync();
+                }
+            }
+            catch
+            {
+                Loaded = false;
+            }
+        }
+        finally
+        {
+            Uploading = false;
+            FileVersion++;
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        CancelDismissal();
+        await Lifetime.CancelAsync();
+        // Avoid waiting on a renderer callback during renderer disposal.
+
+    }
+}

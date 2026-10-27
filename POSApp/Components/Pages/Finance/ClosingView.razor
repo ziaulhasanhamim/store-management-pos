@@ -1,0 +1,380 @@
+<div class="no-print mb-4 flex flex-wrap gap-2">
+    <a href="@($"/reports/statements/cash?period=custom&start={Data.Start:yyyy-MM-dd}&end={Data.End:yyyy-MM-dd}")" class="btn-secondary">Cash statement</a>
+    <a href="@($"/reports/statements/bank?period=custom&start={Data.Start:yyyy-MM-dd}&end={Data.End:yyyy-MM-dd}")" class="btn-secondary">Bank statement</a>
+</div>
+@if (Data.SelectedLocationName != null)
+{
+    <div class="mb-4 flex items-center justify-between rounded-xl border border-blue-200 bg-blue-50/70 p-3.5 text-blue-900">
+        <div class="flex items-center gap-2 text-sm font-medium">
+            <svg class="h-4 w-4 text-blue-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            <span>Filtered to: <strong>@Data.SelectedLocationName</strong> (Showing location sales, receiving & drawers)</span>
+        </div>
+        <a href="@(Kind == ClosingKind.Month ? $"/finance/month?month={Data.Start:yyyy-MM}" : $"/finance/day?date={Data.Start:yyyy-MM-dd}")" class="btn-secondary text-xs">View all locations</a>
+    </div>
+}
+@if (Kind == ClosingKind.Day)
+{
+    <div class="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <!-- Card 1: Present office cash -->
+        <div class="flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs transition hover:shadow-sm">
+            <div>
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">Present office cash</span>
+                    <span class="rounded-md bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-700">Funds</span>
+                </div>
+                <div class="mt-2 text-2xl font-bold tracking-tight text-slate-900 tabular-nums">
+                    @Money(TotalClosingFunds)
+                </div>
+                <p class="mt-0.5 text-[11px] text-slate-400">Total office cash & bank funds</p>
+            </div>
+            <div class="mt-4 border-t border-slate-100 pt-3 space-y-1.5 text-xs">
+                <div class="flex justify-between items-center text-slate-600">
+                    <span>Physical cash:</span>
+                    <span class="font-semibold text-slate-900 tabular-nums">@Money(Data.CountedCash ?? Data.ClosingCash)</span>
+                </div>
+                <div class="flex justify-between items-center text-slate-600">
+                    <span>Bank / digital:</span>
+                    <span class="font-semibold text-slate-900 tabular-nums">@Money(Data.ClosingBank)</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Card 2: Due & pay status -->
+        <div class="flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs transition hover:shadow-sm">
+            <div>
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">Due & pay status</span>
+                    <span class="rounded-md bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700">Suppliers</span>
+                </div>
+                <div class="mt-2 text-2xl font-bold tracking-tight text-slate-900 tabular-nums">
+                    @Money(Data.SupplierPaid)
+                </div>
+                <p class="mt-0.5 text-[11px] text-slate-400">Supplier payments made today</p>
+            </div>
+            <div class="mt-4 border-t border-slate-100 pt-3 space-y-1.5 text-xs">
+                <div class="flex justify-between items-center text-slate-600">
+                    <span>Suppliers due (payable):</span>
+                    <span class="font-semibold text-rose-600 tabular-nums">@Money(Data.SupplierDue)</span>
+                </div>
+                <div class="flex justify-between items-center text-slate-600">
+                    <span>Customer due (receivable):</span>
+                    <span class="font-semibold text-emerald-700 tabular-nums">@Money(Data.CustomerDue)</span>
+                </div>
+                <div class="flex justify-between items-center text-slate-600">
+                    <span>Stock received (tStok In):</span>
+                    <span class="font-semibold text-slate-900 tabular-nums">@Money(Data.PurchaseTotal)</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Card 3: Sales & margin -->
+        <div class="flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs transition hover:shadow-sm">
+            <div>
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">Sales & margin</span>
+                    <span class="rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">Trading</span>
+                </div>
+                <div class="mt-2 text-2xl font-bold tracking-tight text-slate-900 tabular-nums">
+                    @Money(Data.Revenue)
+                </div>
+                <p class="mt-0.5 text-[11px] text-slate-400">Net revenue today</p>
+            </div>
+            <div class="mt-4 border-t border-slate-100 pt-3 space-y-1.5 text-xs">
+                <div class="flex justify-between items-center text-slate-600">
+                    <span>Cost of goods:</span>
+                    <span class="font-semibold text-slate-900 tabular-nums">@Money(Data.Cogs)</span>
+                </div>
+                <div class="flex justify-between items-center text-slate-600">
+                    <span>Sales profit:</span>
+                    <span class="font-semibold text-emerald-700 tabular-nums">@Money(Data.Revenue - Data.Cogs)</span>
+                </div>
+                <div class="flex justify-between items-center text-slate-600">
+                    <span>Margin:</span>
+                    <span class="font-semibold text-slate-900 tabular-nums">@(Data.Revenue > 0 ? $"{(Data.Revenue - Data.Cogs) / Data.Revenue * 100:0.#}%" : "0%")</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Card 4: Spend & net profit -->
+        <div class="flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs transition hover:shadow-sm">
+            <div>
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">Spend & net profit</span>
+                    <span class="rounded-md bg-indigo-50 px-2 py-0.5 text-[11px] font-semibold text-indigo-700">Result</span>
+                </div>
+                <div class="mt-2 text-2xl font-bold tracking-tight tabular-nums @(DayNetProfit >= 0 ? "text-emerald-700" : "text-rose-600")">
+                    @Money(DayNetProfit)
+                </div>
+                <p class="mt-0.5 text-[11px] text-slate-400">Day's bottom line result</p>
+            </div>
+            <div class="mt-4 border-t border-slate-100 pt-3 space-y-1.5 text-xs">
+                <div class="flex justify-between items-center text-slate-600">
+                    <span>Operational expenses:</span>
+                    <span class="font-semibold text-slate-900 tabular-nums">@Money(Data.Expenses)</span>
+                </div>
+                <div class="flex justify-between items-center text-slate-600">
+                    <span>Payroll paid:</span>
+                    <span class="font-semibold text-slate-900 tabular-nums">@Money(Data.PayrollPaid)</span>
+                </div>
+                <div class="flex justify-between items-center text-slate-600">
+                    <span>Total spend:</span>
+                    <span class="font-semibold text-slate-900 tabular-nums">@Money(Data.Expenses + Data.PayrollPaid)</span>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+else
+{
+    <div class="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div class="flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs">
+            <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">Opening cash</span>
+            <div class="mt-2 text-2xl font-bold tracking-tight text-slate-900 tabular-nums">@Money(Data.OpeningCash)</div>
+        </div>
+        <div class="flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs">
+            <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">Expected cash</span>
+            <div class="mt-2 text-2xl font-bold tracking-tight text-slate-900 tabular-nums">@Money(Data.ClosingCash)</div>
+        </div>
+        <div class="flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs">
+            <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">Closing bank</span>
+            <div class="mt-2 text-2xl font-bold tracking-tight text-slate-900 tabular-nums">@Money(Data.ClosingBank)</div>
+        </div>
+        <div class="flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs">
+            <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">Total closing funds</span>
+            <div class="mt-2 text-2xl font-bold tracking-tight text-slate-900 tabular-nums">@Money(TotalClosingFunds)</div>
+        </div>
+    </div>
+}
+@if (Kind == ClosingKind.Day && Data.SelectedLocationName == null && Data.LocationBreakdown.Count > 0)
+{
+    <!-- Stock Locations Multi-Store Performance Section for Day -->
+    <section class="panel mb-6 table-scroll">
+        <div class="panel-heading">
+            <div>
+                <h3 class="font-semibold text-slate-900">Stock Locations · Today's Multi-Store Performance</h3>
+                <p class="mt-0.5 text-xs text-slate-500">Sales, margins, stock deliveries, and on-hand inventory values across all shop branches today.</p>
+            </div>
+        </div>
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Store Location</th>
+                    <th class="text-right">Net Sales</th>
+                    <th class="text-right">Cost of Goods</th>
+                    <th class="text-right">Sales Profit</th>
+                    <th class="text-right">Margin %</th>
+                    <th class="text-right">Stock Received (tStok In)</th>
+                    <th class="text-right">Stock Inventory Value</th>
+                    <th class="text-right no-print">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var loc in Data.LocationBreakdown)
+                {
+                    var margin = loc.Sales > 0 ? (loc.SalesProfit / loc.Sales * 100) : 0m;
+                    <tr>
+                        <td class="font-medium text-slate-900">@loc.LocationName</td>
+                        <td class="text-right tabular-nums">@Money(loc.Sales)</td>
+                        <td class="text-right tabular-nums">@Money(loc.Cogs)</td>
+                        <td class="text-right tabular-nums font-semibold text-emerald-700">@Money(loc.SalesProfit)</td>
+                        <td class="text-right tabular-nums">@margin.ToString("0.#")%</td>
+                        <td class="text-right tabular-nums">@Money(loc.StockReceived)</td>
+                        <td class="text-right tabular-nums font-medium text-slate-900">@Money(loc.StockValue)</td>
+                        <td class="text-right no-print">
+                            <a href="@($"/finance/day?date={Data.Start:yyyy-MM-dd}&locationId={loc.LocationId}")" class="text-xs font-semibold text-blue-700 hover:underline">Filter store</a>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+            <tfoot>
+                <tr>
+                    <th>Total (@Data.LocationBreakdown.Count @(Data.LocationBreakdown.Count == 1 ? "location" : "locations"))</th>
+                    <td class="text-right font-bold tabular-nums">@Money(Data.LocationBreakdown.Sum(l => l.Sales))</td>
+                    <td class="text-right font-bold tabular-nums">@Money(Data.LocationBreakdown.Sum(l => l.Cogs))</td>
+                    <td class="text-right font-bold tabular-nums text-emerald-700">@Money(Data.LocationBreakdown.Sum(l => l.SalesProfit))</td>
+                    <td class="text-right font-bold tabular-nums">
+                        @{
+                            var totalSales = Data.LocationBreakdown.Sum(l => l.Sales);
+                            var totalProfit = Data.LocationBreakdown.Sum(l => l.SalesProfit);
+                            var avgMargin = totalSales > 0 ? totalProfit / totalSales * 100 : 0m;
+                        }
+                        @avgMargin.ToString("0.#")%
+                    </td>
+                    <td class="text-right font-bold tabular-nums">@Money(Data.LocationBreakdown.Sum(l => l.StockReceived))</td>
+                    <td class="text-right font-bold tabular-nums">@Money(Data.LocationBreakdown.Sum(l => l.StockValue))</td>
+                    <td class="no-print"></td>
+                </tr>
+            </tfoot>
+        </table>
+    </section>
+}
+@if (Kind == ClosingKind.Day && Data.Locations.Count > 0)
+{
+    <section class="panel mb-6 table-scroll">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Cash location</th>
+                    <th>Status</th>
+                    <th class="text-right">Opening</th>
+                    <th class="text-right">Expected</th>
+                    <th class="text-right">Counted</th>
+                    <th class="text-right">Difference</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var location in Data.Locations)
+                {
+                    <tr>
+                        <td>
+                            <a href="@($"/cash-drawer?sessionId={location.SessionId}")" class="text-blue-700">@location.Location</a>
+                        </td>
+                        <td>@location.Status</td>
+                        <td class="text-right">@Money(location.Opening)</td>
+                        <td class="text-right">@Money(location.Expected)</td>
+                        <td class="text-right">@(location.Counted is { } counted ? Money(counted) : "—")</td>
+                        <td class="text-right">@(location.Difference is { } difference ? Money(difference) : "—")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </section>
+}
+
+<div class="grid items-start gap-6 lg:grid-cols-2">
+    <section class="panel p-6">
+        <h2 class="mb-5 font-semibold">@Data.Start.ToString("dd MMM yyyy") – @Data.End.ToString("dd MMM yyyy")</h2>
+        @foreach (var section in Sections)
+        {
+            <h3 class="mt-6 mb-3 text-xs font-semibold tracking-wide text-slate-400 uppercase">@section.Title</h3>
+            <dl class="space-y-3 text-sm">
+                @foreach (var row in section.Rows)
+                {
+                    <div class="flex justify-between gap-4">
+                        <dt>@row.Label</dt>
+                        <dd class="font-semibold">@Money(row.Value)</dd>
+                    </div>
+                }
+            </dl>
+        }
+        <p class="mt-5 text-xs text-slate-500">Opening cash + cash received − cash paid out = expected cash. Bank payments stay separate. Borrowing and debt repayments affect funds and debt, without changing profit. Payroll includes salary, bonus and advances when paid; applying an old advance does not count it again.</p>
+    </section>
+    <section class="panel p-6 no-print">
+        @if (Data.ClosedAt is not null)
+        {
+            <h2 class="font-semibold text-emerald-700">Period closed</h2>
+            <p class="mt-3 text-sm text-slate-500">Saved @Data.ClosedAt.Value.ToBusinessTime(Configuration).ToString("dd MMM yyyy, HH:mm"). New postings and corrections to this period are blocked.</p>
+            @if (Data.CountedCash is { } counted)
+            {
+                <p class="mt-3">Counted cash: <strong>@Money(counted)</strong></p>
+                <p class="mt-2">Shortage / overage: <strong>@Money(Data.Difference ?? 0)</strong></p>
+            }
+            <p class="mt-3 text-sm">@Data.Notes</p>
+            <a href="@($"/finance/reopen?kind={(Kind == ClosingKind.Month ? "month" : "day")}&date={Data.Start:yyyy-MM-dd}")" class="btn-secondary mt-4">Reopen @(Kind == ClosingKind.Month ? "month" : "day")</a>
+            @if (Kind == ClosingKind.Day)
+            {
+                <a class="btn-primary mt-4" href="@($"/accounting-date?date={Data.Start.AddDays(1):yyyy-MM-dd}")">Open next working day</a>
+            }
+        }
+        else if (Kind == ClosingKind.Day && !Data.IsWorkingDay)
+        {
+            <p class="text-sm text-slate-500">Viewing another day. Open the working day to record its opening and closing.</p>
+            <a class="btn-secondary mt-4" href="/finance/day">Current working day</a>
+        }
+        else if (HideActions)
+        {
+            <p class="text-sm text-slate-500">Confirm the reviewed closing above, or keep this period open.</p>
+        }
+        else
+        {
+            <h2 class="mb-4 font-semibold">Consolidated closing</h2>
+            <form method="post" @formname="period-closing" @onsubmit="OnSave" data-enhance data-submit-indication="true">
+                <AntiforgeryToken />
+                <input type="hidden" name="Input.Date" value="@Data.Start.ToString("yyyy-MM-dd")" />
+                <input type="hidden" name="Input.Kind" value="@Kind" />
+                <p class="text-sm text-slate-500">Opening cash is calculated from the location drawers. Count and close each location separately; this business closing totals those counts without counting cash again.</p>
+                <a href="/cash-drawer" class="btn-secondary mt-4">Review location drawers</a>
+                <label class="field-label mt-4" for="period-notes">Notes / shortage or overage explanation</label>
+                <textarea id="period-notes" name="Input.Notes" class="field" maxlength="2000">@Data.Notes</textarea>
+                <div class="mt-4 flex flex-wrap gap-3">
+                    <button name="Action" value="save" class="btn-secondary" data-pending-text="Saving…">Refresh summary</button>
+                    <button name="Action" value="review" class="btn-primary" data-pending-text="Reviewing…">Review & close @(Kind == ClosingKind.Day ? "day" : "month")</button>
+                </div>
+                <p class="mt-3 text-xs text-slate-500">Close every active location drawer first. Closing freezes the combined summary.</p>
+            </form>
+        }
+    </section>
+</div>
+
+@if (Data.Daily is { } daily)
+{
+    <DailyBreakdown Data="daily" Date="Data.Start" />
+}
+
+@if (Data.Monthly is { } monthly)
+{
+    <MonthlyBreakdown Data="monthly" MonthDate="Data.Start" />
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public ClosingTotals Data { get; set; } = default!;
+
+    [Parameter]
+    public bool HideActions { get; set; }
+
+    [Parameter]
+    public ClosingKind Kind { get; set; }
+
+    [Parameter]
+    public EventCallback OnSave { get; set; }
+
+    private (string Title, (string Label, decimal Value)[] Rows)[] Sections =>
+    [
+        ("Trading & profit", [
+            ("Net sales", Data.Revenue),
+            ("Cost of goods sold", Data.Cogs),
+            ("Sales profit", Data.Revenue - Data.Cogs),
+            ("Operational expenses", Data.Expenses),
+            ("Salary / bonus / advance expense", Data.Salaries),
+            ("Stock take gain / loss (noncash)", Data.StockVariance),
+            ("Net profit", Data.Revenue - Data.Cogs - Data.Expenses - Data.Salaries + Data.StockVariance)
+        ]),
+        ("Receipts & payments", [
+            ("Sales receipts / refunds", Data.SalesReceipts),
+            ("Customer due collections", Data.CustomerCollections),
+            ("Purchases / returns (including credit)", Data.PurchaseTotal),
+            ("Supplier payments", Data.SupplierPaid),
+            ("Salary / advance / bonus payouts", Data.PayrollPaid),
+            ("New employee advances", Data.AdvancesPaid),
+            ("Money borrowed", Data.DebtBorrowed),
+            ("Debt repayments", Data.DebtRepaid)
+        ]),
+        ("Owner funding · excluded from profit", [
+            ("Owner contributions", Data.OwnerContributions),
+            ("Owner withdrawals", Data.OwnerWithdrawals),
+            ("Net owner funding", Data.OwnerContributions - Data.OwnerWithdrawals)
+        ]),
+        ("Cash & bank movement", [
+            ("Cash received", Data.CashIn),
+            ("Cash paid out", Data.CashOut),
+            ("Cash count shortages / overages", Data.CashVariance),
+            ("Opening bank", Data.OpeningBank),
+            ("Bank received", Data.BankIn),
+            ("Bank paid out", Data.BankOut)
+        ]),
+        ("Closing stock & account balances", [
+            ("Supplier due / advance", Data.SupplierDue),
+            ("Customer due / credit", Data.CustomerDue),
+            ("Stock value", Data.StockValue),
+            ("Outstanding lender debt", Data.OutstandingDebt)
+        ])
+    ];
+
+    private decimal TotalClosingFunds => (Data.CountedCash ?? Data.ClosingCash) + Data.ClosingBank;
+    private decimal DayNetProfit => Data.Revenue - Data.Cogs - Data.Expenses - Data.Salaries + Data.StockVariance;
+    private string Money(decimal amount) => $"{Configuration["CurrencyCode"] ?? "BDT"} {amount:N2}";
+}

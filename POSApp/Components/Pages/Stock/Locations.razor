@@ -1,0 +1,135 @@
+@page "/stock/locations"
+@attribute [Authorize(Policy = AppPolicies.ManageInventory)]
+@using System.ComponentModel.DataAnnotations
+@inject InventoryService Inventory
+@inject StockTransferService Transfers
+@inject NavigationManager Navigation
+
+<PageTitle>Stock locations · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
+<div class="page-heading">
+    <h1>Stock locations</h1>
+    <a href="/receiving?mode=transfer" class="btn-secondary">Move stock</a>
+</div>
+@if (Error is not null)
+{
+    <p class="error-panel" role="alert">@Error</p>
+}
+<section class="panel mb-6 max-w-xl p-6">
+    <form method="post" @formname="location" @onsubmit="SaveAsync" data-enhance data-submit-indication="true">
+        <AntiforgeryToken />
+        <input type="hidden" name="Input.Id" value="@Input!.Id" />
+        @if (Input.Id == 0)
+        {
+            <label for="location-name" class="field-label">Location name</label>
+            <input id="location-name" name="Input.Name" class="field" maxlength="200" required />
+        }
+        <label class="my-4 flex items-center gap-3">
+            <input name="Input.CanSell" type="checkbox" value="true" checked="@Input.CanSell" />
+            Allow sales from this location
+        </label>
+        <p class="mb-4 text-sm text-slate-500">A warehouse stores and receives stock. Cash drawers are separate.</p>
+        <button class="btn-primary" data-pending-text="Saving…">@(Input.Id == 0 ? "Add location" : "Save location")</button>
+    </form>
+</section>
+<section class="panel table-scroll">
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Location</th>
+                <th>Type</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (Data.Count == 0)
+            {
+                <TableStatusRow Columns="3" Message="No locations found." />
+            }
+            else
+            {
+                @foreach (var location in Data)
+                {
+                    <tr>
+                        <td>@location.Name</td>
+                        <td>@(location.CanSell ? "Selling location" : "Warehouse / godown")</td>
+                        <td>
+                            <a class="text-blue-700" href="@($"/stock/locations?page={Page}&pageSize={PageSize}&id={location.Id}")">Edit</a>
+                        </td>
+                    </tr>
+                }
+            }
+        </tbody>
+    </table>
+    @if (Pagination is not null)
+    {
+        <PageNavigation Info="Pagination" Label="locations" />
+    }
+</section>
+
+@code {
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromQuery]
+    public int? Id { get; set; }
+
+    [SupplyParameterFromForm(FormName = "location")]
+    private LocationForm? Input { get; set; }
+
+    [SupplyParameterFromQuery]
+    public int Page { get; set; } = 1;
+
+    [SupplyParameterFromQuery]
+    public int PageSize { get; set; } = 30;
+
+    private PageInfo? Pagination;
+    private IReadOnlyList<LocationRow> Data = [];
+    private string? Error;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        Input ??= new();
+
+        var result = await Transfers.LocationsPageAsync(HttpContext.User, Page, PageSize, HttpContext.RequestAborted);
+        Data = result.Items;
+        Pagination = result.Pagination;
+
+        if (HttpMethods.IsGet(HttpContext.Request.Method) && Id is { } id)
+        {
+            var location = Data.SingleOrDefault(location => location.Id == id)
+                ?? await Transfers.LocationAsync(HttpContext.User, id, HttpContext.RequestAborted);
+            if (location is not null)
+            {
+                Input.Id = location.Id;
+                Input.CanSell = location.CanSell;
+            }
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        try
+        {
+            if (Input!.Id == 0)
+            {
+                await Inventory.AddLocationAsync(HttpContext.User, Input.Name, HttpContext.RequestAborted, Input.CanSell);
+            }
+            else
+            {
+                await Transfers.SetSellingAsync(HttpContext.User, Input.Id, Input.CanSell, HttpContext.RequestAborted);
+            }
+            Navigation.NavigateTo("/stock/locations");
+        }
+        catch (ValidationException exception)
+        {
+            Error = exception.Message;
+        }
+    }
+
+    public sealed class LocationForm
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = "";
+        public bool CanSell { get; set; }
+    }
+}

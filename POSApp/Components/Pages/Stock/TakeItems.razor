@@ -1,0 +1,13 @@
+@page "/stock/takes/{Id:int}/items"
+@attribute [Authorize(Policy = AppPolicies.ManageInventory)]
+@inject NavigationManager Navigation
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    protected override void OnParametersSet()
+    {
+        Navigation.NavigateTo($"/stock/takes/{Id}", replace: true);
+    }
+}

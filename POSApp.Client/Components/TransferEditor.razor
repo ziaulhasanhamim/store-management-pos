@@ -1,0 +1,198 @@
+@inject IReceivingClient Inventory
+@implements IDisposable
+
+<EditorDraft TState="TransferEditorState" Kind="transfer" ShowResetAction="false" ResetLabel="New transfer" State="DraftState" Empty="@(Completed is not null || (Lines.Count == 0 && string.IsNullOrWhiteSpace(Notes)))" Paused="Busy" Restore="RestoreDraft" Clear="Reset" ReadyChanged="@(ready => DraftReady = ready)" @ref="Recovery" />
+
+<ReceivingModePicker Mode="transfer" Disabled="Busy" />
+
+@if (Error is not null)
+{
+    <p class="error-panel" role="alert">@Error</p>
+}
+@if (Completed is not null)
+{
+    <div class="success-panel" role="status">
+        <Icon Name="check" />
+        <span>Transfer #@Completed.Id recorded · @Completed.ItemCount items</span>
+    </div>
+}
+
+<div class="mb-4 flex justify-end">
+    <button type="button" class="btn-secondary" @onclick="() => Recovery!.RequestResetAsync()" disabled="@(!RendererInfo.IsInteractive || !DraftReady || Busy)">
+        <Icon Name="plus" />
+        New transfer
+    </button>
+</div>
+
+<fieldset class="min-w-0" disabled="@(!RendererInfo.IsInteractive || !DraftReady || Busy || Completed is not null)">
+    <div class="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
+        <div class="min-w-0 space-y-6">
+            <section class="panel">
+                <div class="panel-heading">
+                    <h2>Transfer details</h2>
+                    <Icon Name="receive" />
+                </div>
+                <div class="grid gap-5 p-5 sm:grid-cols-2">
+                    <div>
+                        <label class="field-label" for="transfer-source">From</label>
+                        <select id="transfer-source" class="field" @bind="SourceId" @bind:after="SourceChanged">
+                            <option value="0">Source location</option>
+                            @foreach (var location in Locations)
+                            {
+                                <option value="@location.Id">@location.Name</option>
+                            }
+                        </select>
+                        <p class="mt-2 text-xs text-slate-400">Changing source clears the item list.</p>
+                    </div>
+                    <div>
+                        <label class="field-label" for="transfer-destination">To</label>
+                        <select id="transfer-destination" class="field" @bind="DestinationId">
+                            <option value="0">Destination location</option>
+                            @foreach (var location in Locations.Where(location => location.Id != SourceId))
+                            {
+                                <option value="@location.Id">@location.Name</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="sm:col-span-2">
+                        <label class="field-label" for="transfer-notes">Notes (optional)</label>
+                        <input id="transfer-notes" class="field" maxlength="2000" @bind="Notes" @bind:event="oninput" placeholder="e.g. Replenish the main store" />
+                    </div>
+                </div>
+            </section>
+
+            <section class="panel">
+                <div class="panel-heading">
+                    <h2>
+                        Items
+                        <span class="ml-2 text-xs text-slate-400">@Lines.Count</span>
+                    </h2>
+                </div>
+                <div class="border-b border-slate-100 p-5">
+                    <div class="flex items-center gap-3">
+                        <Icon Name="search" />
+                        <input class="field" @bind="Search" @bind:event="oninput" @bind:after="SearchChanged"
+                               disabled="@(SourceId == 0)" autocomplete="off" placeholder="Search name, barcode or ID"
+                               aria-label="Search products to transfer" />
+                    </div>
+                    @if (SourceId == 0)
+                    {
+                        <p class="mt-3 text-xs text-slate-500">Choose a source location to find its stock.</p>
+                    }
+                    @if (Searching)
+                    {
+                        <p class="mt-3 flex items-center text-xs text-slate-500" role="status">
+                            <span class="form-submit-spinner"></span>
+                            Searching…
+                        </p>
+                    }
+                    else if (!string.IsNullOrWhiteSpace(Search))
+                    {
+                        @if (Results.Count == 0)
+                        {
+                            <p class="mt-3 text-sm text-slate-400">No matching items</p>
+                        }
+                        <div class="mt-3 max-h-64 overflow-y-auto rounded-xl border border-slate-200">
+                            @foreach (var item in Results.Take(30))
+                            {
+                                <button type="button" disabled="@(item.Stock <= 0)" @onclick="() => Add(item)"
+                                        class="flex w-full items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 text-left text-sm hover:bg-blue-50 disabled:opacity-40">
+                                    <span>
+                                        <strong class="font-medium text-slate-900">@item.Name</strong>
+                                        <span class="mt-1 block text-xs text-slate-400">#@item.Id · @(item.Barcode ?? "No barcode") · @item.Stock.ToString("0.###") @item.Unit available</span>
+                                    </span>
+                                    <Icon Name="plus" />
+                                </button>
+                            }
+                        </div>
+                    }
+                </div>
+                @if (Lines.Count == 0)
+                {
+                    <div class="empty-state">
+                        <Icon Name="box" />
+                        <p>Search an item to begin</p>
+                    </div>
+                }
+                else
+                {
+                    <div class="table-scroll">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Item</th>
+                                    <th>Available</th>
+                                    <th>Transfer quantity</th>
+                                    <th>
+                                        <span class="sr-only">Remove</span>
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var line in Lines)
+                                {
+                                    <tr @key="line.Item.Id">
+                                        <td>
+                                            <a href="@($"/items/{line.Item.Id}")" target="_blank" rel="noopener" class="font-medium text-slate-900">@line.Item.Name</a>
+                                            <span class="mt-1 block text-xs text-slate-400">#@line.Item.Id · @line.Item.Unit</span>
+                                            @if (!string.IsNullOrWhiteSpace(line.Item.Barcode))
+                                            {
+                                                <span class="mt-1 block font-mono text-xs text-slate-500">@line.Item.Barcode</span>
+                                            }
+                                        </td>
+                                        <td>@line.Item.Stock.ToString("0.###") @line.Item.Unit</td>
+                                        <td>
+                                            <DecimalField class="field min-w-24" @bind-Value="line.Quantity"
+                                                          Maximum="line.Item.Stock" DecimalPlaces="@(line.Item.AllowFractionUnit ? 3 : 0)"
+                                                          ValidityChanged="valid => line.Valid = valid" aria-label="@($"Transfer quantity for {line.Item.Name}")" />
+                                            @if (!line.IsValid)
+                                            {
+                                                <p class="mt-2 text-xs text-red-600">Enter a positive quantity within available stock.</p>
+                                            }
+                                        </td>
+                                        <td>
+                                            <button type="button" class="icon-button" @onclick="() => Lines.Remove(line)" aria-label="@($"Remove {line.Item.Name}")">
+                                                <Icon Name="trash" />
+                                            </button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            </section>
+        </div>
+        <section class="panel xl:sticky xl:top-6">
+            <div class="panel-heading">
+                <h2>Transfer summary</h2>
+                <Icon Name="receive" />
+            </div>
+            <div class="space-y-5 p-5">
+                <div class="flex justify-between text-sm">
+                    <span class="text-slate-500">From</span>
+                    <strong>@LocationName(SourceId)</strong>
+                </div>
+                <div class="flex justify-between text-sm">
+                    <span class="text-slate-500">To</span>
+                    <strong>@LocationName(DestinationId)</strong>
+                </div>
+                <div class="flex justify-between text-sm">
+                    <span class="text-slate-500">Items</span>
+                    <strong>@Lines.Count</strong>
+                </div>
+                <button type="button" class="btn-primary w-full" @onclick="Save" disabled="@Disabled">
+                    @if (Busy)
+                    {
+                        <span class="form-submit-spinner"></span>
+                    }
+                    else
+                    {
+                        <Icon Name="check" />
+                    }
+                    @(Busy ? "Moving stock…" : "Transfer stock")
+                </button>
+            </div>
+        </section>
+    </div>
+</fieldset>

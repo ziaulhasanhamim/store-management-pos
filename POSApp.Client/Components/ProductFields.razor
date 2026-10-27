@@ -1,0 +1,327 @@
+<div class="space-y-5">
+    @if (Definitions.Count == 0)
+    {
+        <a href="/items/attributes" class="text-sm font-semibold text-indigo-700">Configure product attributes</a>
+    }
+    <div>
+        <label class="field-label" for="item-name">Name</label>
+        @if (Live)
+        {
+            <input id="item-name" class="field" @bind="Input.Name" @bind:event="oninput"
+                   @bind:after="() => Notify(nameof(Input.Name))" required maxlength="200" />
+        }
+        else
+        {
+            <InputText id="item-name" class="field" @bind-Value="Input.Name" />
+        }
+        <ValidationMessage For="() => Input.Name" />
+    </div>
+
+    <div class="grid gap-4 sm:grid-cols-2">
+        <div>
+            <label class="field-label" for="item-barcode">Barcode</label>
+            @if (Live)
+            {
+                <input id="item-barcode" class="field" @bind="Input.Barcode" @bind:event="oninput"
+                       @bind:after="() => Notify(nameof(Input.Barcode))" maxlength="64" />
+            }
+            else
+            {
+                <InputText id="item-barcode" class="field" @bind-Value="Input.Barcode" />
+            }
+            <ValidationMessage For="() => Input.Barcode" />
+            <label class="mt-2 flex items-center gap-2 text-xs text-slate-500">
+                <InputCheckbox @bind-Value="Input.GenerateBarcodeWhenEmpty" />
+                Generate from ID when empty
+            </label>
+        </div>
+
+        <div>
+            <label class="field-label" for="item-unit">Unit</label>
+            @if (Live)
+            {
+                <input id="item-unit" class="field" @bind="Input.Unit" @bind:event="oninput"
+                       @bind:after="() => Notify(nameof(Input.Unit))" required maxlength="32" />
+            }
+            else
+            {
+                <InputText id="item-unit" class="field" @bind-Value="Input.Unit" />
+            }
+            <ValidationMessage For="() => Input.Unit" />
+        </div>
+    </div>
+
+    @if (ShowStockType)
+    {
+        <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <label class="flex items-center gap-3 text-sm font-medium text-slate-700" for="item-non-stocked">
+                <InputCheckbox id="item-non-stocked" @bind-Value="Input.IsNonStocked" />
+                Non-stocked item
+            </label>
+            <p class="mt-2 text-xs text-slate-500">For digital products and services. Can be sold or refunded; stock stays at zero. Receiving and stock transfers are unavailable. Inventory cost is zero.</p>
+        </div>
+    }
+
+    <label class="flex items-center gap-3 text-sm text-slate-700" for="item-fraction-unit">
+        <InputCheckbox id="item-fraction-unit" @bind-Value="Input.AllowFractionUnit" />
+        Allow fractional quantities
+    </label>
+
+    <div class="grid gap-4 sm:grid-cols-2">
+        <div>
+            <label class="field-label" for="item-cost">Cost price (@Currency)</label>
+            @if (Live)
+            {
+                <DecimalField id="item-cost" class="field" @bind-Value="Input.CostPrice" disabled="@Input.IsNonStocked" />
+            }
+            else
+            {
+                <InputNumber id="item-cost" class="field" @bind-Value="Input.CostPrice" step="0.01" min="0" disabled="@Input.IsNonStocked" />
+            }
+            <ValidationMessage For="() => Input.CostPrice" />
+        </div>
+
+        <div>
+            <label class="field-label" for="item-price">Selling price (@Currency)</label>
+            @if (Live)
+            {
+                <DecimalField id="item-price" class="field" @bind-Value="Input.SellingPrice" />
+            }
+            else
+            {
+                <InputNumber id="item-price" class="field" @bind-Value="Input.SellingPrice" step="0.01" min="0" />
+            }
+            <ValidationMessage For="() => Input.SellingPrice" />
+        </div>
+    </div>
+
+    <div class="grid gap-4 sm:grid-cols-2">
+        <div>
+            <label class="field-label" for="item-category">Category</label>
+            <InputSelect id="item-category" class="field" @bind-Value="Input.CategoryId">
+                <option value="0">Select category</option>
+                @foreach (var category in Categories)
+                {
+                    <option value="@category.Id">@category.Name</option>
+                }
+            </InputSelect>
+        <ValidationMessage For="() => Input.CategoryId" />
+        </div>
+
+        <div>
+            <label class="field-label" for="item-supplier">Default supplier</label>
+            <InputSelect id="item-supplier" class="field" @bind-Value="Input.SupplierId">
+                <option value="0">Select supplier</option>
+                @foreach (var supplier in Suppliers)
+                {
+                    <option value="@supplier.Id">@supplier.Name</option>
+                }
+            </InputSelect>
+            <ValidationMessage For="() => Input.SupplierId" />
+        </div>
+    </div>
+
+    @if (Definitions.Count > 0)
+    {
+        <section class="space-y-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <div class="flex items-center justify-between gap-3">
+                <div>
+                    <h3 class="text-sm font-semibold text-slate-800">Additional attributes</h3>
+                    <p class="mt-1 text-xs text-slate-500">Add details such as warranty, color or model.</p>
+                </div>
+                <a href="/items/attributes" class="text-xs font-semibold text-indigo-700">Manage attributes</a>
+            </div>
+            <div class="flex items-end gap-3">
+                <div class="min-w-0 flex-1">
+                    <label class="field-label" for="attribute-to-add">Attribute</label>
+                    <InputSelect id="attribute-to-add" class="field" @bind-Value="Input.AttributeToAddId">
+                        <option value="0">Select an attribute</option>
+                        @foreach (var definition in Definitions.Where(definition => Input.Attributes.All(attribute => attribute.DefinitionId != definition.Id)))
+                        {
+                            <option value="@definition.Id">@definition.DisplayName</option>
+                        }
+                    </InputSelect>
+                </div>
+                @if (Live)
+                {
+                    <button type="button" class="btn-secondary" @onclick="AddAttribute" disabled="@(Input.AttributeToAddId == 0)">
+                        <Icon Name="plus" />
+                        Add
+                    </button>
+                }
+                else
+                {
+                    <button type="submit" name="Input.FormAction" value="add-attribute" class="btn-secondary">
+                        <Icon Name="plus" />
+                        Add
+                    </button>
+                }
+            </div>
+            @for (var index = 0; index < Input.Attributes.Count; index++)
+            {
+                var itemAttribute = Input.Attributes[index];
+                var definition = Definitions.FirstOrDefault(item => item.Id == itemAttribute.DefinitionId);
+                if (definition is null)
+                {
+                    continue;
+                }
+                <div @key="itemAttribute.DefinitionId" class="rounded-lg border border-slate-200 bg-white p-3">
+                    <input type="hidden" name="Input.Attributes[@index].DefinitionId" value="@itemAttribute.DefinitionId" />
+                    <div class="mb-2 flex items-center justify-between gap-3">
+                        <span class="field-label mb-0">@definition.DisplayName</span>
+                        @if (Live)
+                        {
+                            <button type="button" class="icon-button" @onclick="() => RemoveAttribute(itemAttribute.DefinitionId)" aria-label="@($"Remove {definition.DisplayName}")">
+                                <Icon Name="trash" />
+                            </button>
+                        }
+                        else
+                        {
+                            <button type="submit" name="Input.FormAction" value="remove-attribute:@definition.Id" class="icon-button" aria-label="@($"Remove {definition.DisplayName}")">
+                                <Icon Name="trash" />
+                            </button>
+                        }
+                    </div>
+                    @if (definition.Kind == "Checkbox")
+                    {
+                        <label class="flex items-center gap-2 text-sm text-slate-700">
+                            @if (Live)
+                            {
+                                <InputCheckbox @bind-Value="itemAttribute.BooleanValue" />
+                            }
+                            else
+                            {
+                                <input type="checkbox"
+                                       name="Input.Attributes[@index].BooleanValue"
+                                       value="true"
+                                       @bind="itemAttribute.BooleanValue" />
+                                <input type="hidden"
+                                       name="Input.Attributes[@index].BooleanValue"
+                                       value="false" />
+                            }
+                            Enabled
+                        </label>
+                    }
+                    else if (definition.Kind == "Select")
+                    {
+                        @if (Live)
+                        {
+                            <InputSelect class="field" @bind-Value="itemAttribute.TextValue">
+                                <option value="">Choose @definition.DisplayName</option>
+                                @foreach (var option in definition.Options)
+                                {
+                                    <option value="@option.Value">@option.DisplayName</option>
+                                }
+                            </InputSelect>
+                        }
+                        else
+                        {
+                            <select class="field"
+                                    name="Input.Attributes[@index].TextValue"
+                                    @bind="itemAttribute.TextValue">
+                                <option value="">Choose @definition.DisplayName</option>
+                                @foreach (var option in definition.Options)
+                                {
+                                    <option value="@option.Value">@option.DisplayName</option>
+                                }
+                            </select>
+                        }
+                    }
+                    else if (definition.Kind == "Number")
+                    {
+                        @if (Live)
+                        {
+                            <InputNumber class="field" @bind-Value="itemAttribute.NumberValue" step="@(definition.AllowFraction ? "any" : "1")" min="@(definition.NonNegative ? "0" : null)" />
+                        }
+                        else
+                        {
+                            <input type="number"
+                                   class="field"
+                                   name="Input.Attributes[@index].NumberValue"
+                                   step="@(definition.AllowFraction ? "any" : "1")"
+                                   min="@(definition.NonNegative ? "0" : null)"
+                                   @bind="itemAttribute.NumberValue" />
+                        }
+                    }
+                    else if (Live)
+                    {
+                        <InputText class="field" @bind-Value="itemAttribute.TextValue" maxlength="2000" />
+                    }
+                    else
+                    {
+                        <input type="text"
+                               class="field"
+                               name="Input.Attributes[@index].TextValue"
+                               maxlength="2000"
+                               @bind="itemAttribute.TextValue" />
+                    }
+                </div>
+            }
+        </section>
+    }
+
+    <div>
+        <label class="field-label" for="item-description">Description</label>
+        @if (Live)
+        {
+            <textarea id="item-description" class="field" @bind="Input.Description" @bind:event="oninput"
+                      @bind:after="() => Notify(nameof(Input.Description))" rows="3" maxlength="2000"></textarea>
+        }
+        else
+        {
+            <InputTextArea id="item-description" class="field" @bind-Value="Input.Description" rows="3" />
+        }
+        <ValidationMessage For="() => Input.Description" />
+    </div>
+</div>
+
+@code {
+    [CascadingParameter]
+    private EditContext? Context { get; set; }
+
+    [Parameter, EditorRequired]
+    public ProductInput Input { get; set; } = default!;
+
+    [Parameter]
+    public IReadOnlyList<Lookup> Categories { get; set; } = [];
+
+    [Parameter]
+    public IReadOnlyList<Lookup> Suppliers { get; set; } = [];
+
+    [Parameter]
+    public IReadOnlyList<ProductAttributeDefinitionOption> Definitions { get; set; } = [];
+
+    [Parameter]
+    public string Currency { get; set; } = "BDT";
+
+    [Parameter]
+    public bool ShowStockType { get; set; } = true;
+
+    [Parameter]
+    public bool Live { get; set; }
+
+    protected override void OnParametersSet()
+    {
+        Input.Attributes ??= [];
+    }
+
+    private void Notify(string property)
+    {
+        Context?.NotifyFieldChanged(new FieldIdentifier(Input, property));
+    }
+
+    private void AddAttribute()
+    {
+        if (Input.AttributeToAddId <= 0 || Input.Attributes.Any(attribute => attribute.DefinitionId == Input.AttributeToAddId))
+        {
+            return;
+        }
+        Input.Attributes.Add(new ProductAttributeInput { DefinitionId = Input.AttributeToAddId });
+        Input.AttributeToAddId = 0;
+    }
+
+    private void RemoveAttribute(int definitionId)
+    {
+        Input.Attributes.RemoveAll(attribute => attribute.DefinitionId == definitionId);
+    }
+}

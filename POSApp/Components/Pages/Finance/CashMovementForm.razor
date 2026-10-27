@@ -1,0 +1,38 @@
+<section class="panel p-6">
+    <h2 class="mb-4 font-semibold">Owner cash movements</h2>
+    <form method="post" @formname="cash-adjust" @onsubmit="AdjustAsync" data-enhance data-submit-indication="true">
+        <AntiforgeryToken />
+        <input type="hidden" name="Adjustment.RequestId" value="@Adjustment!.RequestId" />
+        <input type="hidden" name="Adjustment.SessionId" value="@SessionId" />
+        <div class="grid gap-3 sm:grid-cols-2">
+            <div>
+                <label class="field-label" for="cash-direction">Movement</label>
+                <select id="cash-direction" name="Adjustment.Payout" class="field">
+                    <option value="false">Owner contribution</option>
+                    <option value="true">Owner withdrawal</option>
+                </select>
+            </div>
+            <div>
+                <label class="field-label" for="cash-amount">Amount (@Currency)</label>
+                <input id="cash-amount" name="Adjustment.Amount" class="field" inputmode="decimal" required />
+            </div>
+        </div>
+        <label class="field-label mt-3" for="cash-note">Reason</label>
+        <input id="cash-note" name="Adjustment.Notes" class="field" maxlength="2000" required />
+        <p class="mt-2 text-xs text-slate-500">Owner movements affect cash, not sales, expenses or profit. Record business costs as expenses or payroll. Use the paired transfer form for location transfers, or Bank & digital for bank deposits.</p>
+        <button class="btn-secondary mt-4" data-pending-text="Recording…">Record movement</button>
+    </form>
+</section>
+
+@code {
+    [Parameter]
+    public int SessionId { get; set; }
+
+    [Parameter, EditorRequired]
+    public CashAdjustmentInput Adjustment { get; set; } = default!;
+
+    [Parameter]
+    public EventCallback AdjustAsync { get; set; }
+
+    private string Currency => Configuration["CurrencyCode"] ?? "BDT";
+}

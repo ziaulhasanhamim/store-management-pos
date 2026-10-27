@@ -1,0 +1,21 @@
+@page "/finance/payments"
+@attribute [Authorize(Policy = AppPolicies.MakeSales)]
+
+<PageTitle>Payments & collections · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
+<div class="page-heading">
+    <div>
+        <p class="eyebrow">Money in & out</p>
+        <h1>Payments & collections</h1>
+    </div>
+</div>
+<div class="grid gap-4 md:grid-cols-2">
+    <HubCard Href="/expenses" Title="Expenses" Hint="Add daily expenses in batches and edit entries" IconName="wallet" />
+    <HubCard Href="/customers/payments" Title="Customer collections" Hint="Collect previous dues and track customer credit" IconName="users" />
+    <AuthorizeView Policy="@AppPolicies.ManageInventory">
+        <HubCard Href="/suppliers/payments" Title="Supplier payments" Hint="Settle supplier balances" IconName="receive" />
+    </AuthorizeView>
+    <AuthorizeView Policy="@AppPolicies.ManageUsers">
+        <HubCard Href="/finance/debt" Title="Loans & debt" Hint="Borrow funds and make principal repayments" IconName="wallet" />
+        <HubCard Href="/payroll" Title="Pay salary / bonus" Hint="Installments and automatic advance tracking" IconName="users" />
+    </AuthorizeView>
+</div>

@@ -1,0 +1,105 @@
+@page "/items/categories"
+@attribute [Authorize(Policy = AppPolicies.ManageInventory)]
+@using System.ComponentModel.DataAnnotations
+@inject InventoryService Inventory
+
+<PageTitle>Categories · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
+
+<div class="page-heading">
+    <div>
+        <a href="/items" class="mb-3 inline-flex items-center gap-2 text-xs text-slate-500">
+            <Icon Name="back" />
+            Items
+        </a>
+        <h1>Categories</h1>
+    </div>
+</div>
+
+@if (Error is not null)
+{
+    <p class="error-panel mb-5" role="alert">@Error</p>
+}
+@if (Saved)
+{
+    <p class="success-panel mb-5" role="status">Category added.</p>
+}
+
+<div class="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
+    <section class="panel p-5">
+        <h2 class="mb-4 font-semibold">Add a category</h2>
+        <EditForm method="post" Model="Input" FormName="category" OnValidSubmit="SaveAsync" Enhance data-submit-indication="true">
+            <DataAnnotationsValidator />
+            <div>
+                <label class="field-label" for="category-name">Name</label>
+                <InputText id="category-name" class="field" @bind-Value="Input.Name" maxlength="120" />
+                <ValidationMessage For="() => Input.Name" />
+            </div>
+            <div class="mt-4">
+                <label class="field-label" for="category-description">Description (optional)</label>
+                <InputTextArea id="category-description" class="field" @bind-Value="Input.Description" rows="3" maxlength="500" />
+            </div>
+            <button type="submit" class="btn-primary mt-5" data-pending-text="Saving…">
+                <Icon Name="plus" />
+                Add category
+            </button>
+        </EditForm>
+    </section>
+
+    <section class="panel">
+        <div class="panel-heading">
+            <h2>Available categories</h2>
+            <span class="badge">@CategoryList.Count</span>
+        </div>
+        @if (CategoryList.Count == 0)
+        {
+            <p class="p-5 text-sm text-slate-500">No categories yet. Create one before adding products.</p>
+        }
+        else
+        {
+            <ul class="divide-y divide-slate-100">
+                @foreach (var category in CategoryList)
+                {
+                    <li class="flex items-center gap-3 px-5 py-3">
+                        <Icon Name="tag" />
+                        <span class="font-medium">@category.Name</span>
+                    </li>
+                }
+            </ul>
+        }
+    </section>
+</div>
+
+@code {
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromForm(FormName = "category")]
+    private CategoryInput? PostedInput { get; set; }
+
+    private CategoryInput Input => PostedInput ??= new();
+    private IReadOnlyList<Lookup> CategoryList = [];
+    private string? Error;
+    private bool Saved;
+
+    protected override async Task OnInitializedAsync()
+    {
+        CategoryList = await Inventory.CategoriesAsync(HttpContext.User, HttpContext.RequestAborted);
+    }
+
+    private async Task SaveAsync()
+    {
+        try
+        {
+            await Inventory.SaveCategoryAsync(HttpContext.User, Input, HttpContext.RequestAborted);
+            PostedInput = new();
+            CategoryList = await Inventory.CategoriesAsync(HttpContext.User, HttpContext.RequestAborted);
+            Saved = true;
+            Error = null;
+        }
+        catch (Exception exception) when (exception is ValidationException or UnauthorizedAccessException)
+        {
+            Error = exception.Message;
+            Saved = false;
+        }
+    }
+}

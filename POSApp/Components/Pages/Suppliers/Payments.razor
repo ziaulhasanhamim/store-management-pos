@@ -1,0 +1,18 @@
+@page "/suppliers/payments"
+@attribute [Authorize(Policy = AppPolicies.ManageInventory)]
+
+<POSApp.Components.Pages.Finance.MoneyEntriesPage Kind="supplier-payments" Date="Date" Page="Page" PageSize="PageSize" PartyId="SupplierId" />
+
+@code {
+    [SupplyParameterFromQuery]
+    public int Page { get; set; } = 1;
+
+    [SupplyParameterFromQuery]
+    public int PageSize { get; set; } = 30;
+
+    [SupplyParameterFromQuery]
+    public int? SupplierId { get; set; }
+
+    [SupplyParameterFromQuery]
+    public DateOnly? Date { get; set; }
+}

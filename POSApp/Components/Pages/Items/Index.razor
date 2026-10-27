@@ -1,0 +1,257 @@
+@page "/items"
+@attribute [Authorize]
+@attribute [StreamRendering]
+@using POSApp.Components.Pages.Reports
+@inject InventoryService Inventory
+@inject ILogger<Index> Logger
+
+<PageTitle>Items · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
+
+<div class="page-heading">
+    <div>
+        <p class="eyebrow">Inventory</p>
+        <h1>Items</h1>
+    </div>
+
+    <AuthorizeView Policy="@AppPolicies.ManageInventory">
+        <div class="flex flex-wrap items-center gap-2">
+            <a href="/items/categories" class="btn-secondary">Categories</a>
+            <a href="/items/attributes" class="btn-secondary">Attributes</a>
+            <a href="/items/import" class="btn-secondary">Import JSON</a>
+            <a href="/items/new" class="btn-primary">
+                <Icon Name="plus" />
+                Add item
+            </a>
+        </div>
+    </AuthorizeView>
+</div>
+
+<div class="mb-6 max-w-xs">
+    <ItemLocationSelector Locations="@Locations.ToArray()"
+                          SelectedLocationId="@LocationId"
+                          @rendermode="InteractiveAuto" />
+</div>
+
+<details class="mb-5 rounded-xl border border-slate-200 bg-white p-4">
+    <summary class="cursor-pointer font-semibold text-indigo-700">Export items · choose columns</summary>
+    <form method="get" action="/api/reports/export/products" class="mt-3" data-enhance="false">
+        <input type="hidden" name="search" value="@Search" />
+        <input type="hidden" name="locationId" value="@LocationId" />
+        <div class="mb-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            @foreach (var column in ExportColumns)
+            {
+                <label class="flex items-center gap-2 text-sm text-slate-700">
+                    <input type="checkbox" name="columns" value="@column" checked />
+                    @column
+                </label>
+            }
+        </div>
+        <button type="submit" class="btn-secondary">Download CSV</button>
+    </form>
+</details>
+
+<section class="panel">
+    <div class="panel-heading">
+        <form action="/items" method="get" class="flex w-full flex-wrap items-end gap-3" data-enhance data-auto-search="true">
+            <input type="hidden" name="sort" value="@Sort" />
+            <input type="hidden" name="locationId" value="@LocationId" />
+            <input type="hidden" name="pageSize" value="@PageSize" />
+            <div class="w-full max-w-lg">
+                <label for="items-search" class="field-label">Search items</label>
+                <div class="flex items-center gap-3">
+                    <Icon Name="search" />
+                    <input id="items-search" name="search" value="@Search" class="field" placeholder="Search name, barcode or ID" data-auto-search="true" autocomplete="off" data-permanent />
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <form method="post" action="/items/labels" data-enhance data-submit-indication="true">
+        <AntiforgeryToken />
+        <input type="hidden" name="_handler" value="labels" />
+        <div class="table-scroll">
+            <table id="items-table" class="data-table" aria-busy="@(Items is null && !Failed)">
+                <thead>
+                    <tr>
+                        <AuthorizeView Policy="@AppPolicies.ManageInventory">
+                            <th>
+                                <span class="sr-only">Select for labels</span>
+                            </th>
+                        </AuthorizeView>
+                        <SortHeader Column="id" Label="ID" Sort="@Sort" Numeric="true" />
+                        <SortHeader Column="name" Label="Item" Sort="@Sort" Numeric="false" />
+                        <SortHeader Column="barcode" Label="Barcode" Sort="@Sort" Numeric="false" />
+                        @foreach (var attributeColumn in AttributeColumns)
+                        {
+                            <th title="@attributeColumn.Key">@attributeColumn.DisplayName</th>
+                        }
+                        <SortHeader Column="supplier" Label="Default supplier" Sort="@Sort" Numeric="false" />
+                        <SortHeader Column="quantity" Label="Stock" Sort="@Sort" Numeric="true" />
+                        <SortHeader Column="price" Label="Selling price" Sort="@Sort" Numeric="true" />
+                        <AuthorizeView Policy="@AppPolicies.ViewCostPrice">
+                            <SortHeader Column="cost" Label="Avg. cost" Sort="@Sort" Numeric="true" />
+                            <SortHeader Column="value" Label="Stock value" Sort="@Sort" Numeric="true" />
+                        </AuthorizeView>
+                        <th>
+                            <span class="sr-only">Details</span>
+                        </th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Items is null && !Failed)
+                    {
+                        <TableStatusRow Columns="ColumnCount" Loading="true" Message="Loading items…" />
+                    }
+                    else if (Failed)
+                    {
+                        <TableStatusRow Columns="ColumnCount" Error="true" Message="Unable to load items. Please try again." />
+                    }
+                    else if (Items!.Count == 0)
+                    {
+                        <TableStatusRow Columns="ColumnCount" Message="@(string.IsNullOrWhiteSpace(Search) ? "No items yet" : "No matching items")" />
+                    }
+                    @foreach (var item in Items ?? [])
+                    {
+                        <tr>
+                            <AuthorizeView Policy="@AppPolicies.ManageInventory">
+                                <td>
+                                    <input type="checkbox" name="Input.ProductIds" value="@item.Id" aria-label="@($"Select {item.Name} for labels")" />
+                                </td>
+                            </AuthorizeView>
+                            <td>
+                                <a href="@($"/items/{item.Id}")" class="font-semibold text-blue-700">@item.Id</a>
+                            </td>
+                            <td>
+                                <a href="@($"/items/{item.Id}")" class="font-semibold text-slate-900 hover:text-blue-600">@item.Name</a>
+                                <span class="mt-1 block text-xs text-slate-400">@(item.Category ?? "Uncategorized")</span>
+                            </td>
+                            <td>
+                                @(item.Barcode ?? "—")
+                            </td>
+                            @foreach (var attributeColumn in AttributeColumns)
+                            {
+                                <td>@(item.Attributes.FirstOrDefault(attribute => attribute.Key == attributeColumn.Key)?.Value ?? "—")</td>
+                            }
+                            <td>@item.Supplier</td>
+                            <td class="text-right">
+                                @if (item.IsNonStocked)
+                                {
+                                    <span class="badge">Non-stocked</span>
+                                }
+                                else
+                                {
+                                    <span class="@(item.Stock <= 0 ? "text-amber-600" : "text-slate-900")">@item.Stock.ToString("0.###")</span>
+                                    <span class="text-xs">@item.Unit</span>
+                                }
+                            </td>
+                            <td class="text-right">@Money(item.Price)</td>
+                            <AuthorizeView Policy="@AppPolicies.ViewCostPrice">
+                                <td class="text-right">@Money(item.Cost ?? 0)</td>
+                                <td class="text-right">@Money(item.Stock * (item.Cost ?? 0))</td>
+                            </AuthorizeView>
+                            <td class="text-right">
+                                <a href="@($"/items/{item.Id}")" class="icon-button" aria-label="@($"View {item.Name}")">
+                                    <Icon Name="arrow" />
+                                </a>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+        <AuthorizeView Policy="@AppPolicies.ManageInventory">
+            <div class="flex items-center gap-3 border-t border-slate-100 p-4">
+                <button class="btn-secondary" type="submit" disabled="@(Items is null || Items.Count == 0)" data-pending-text="Generating…">Generate selected labels</button>
+                <span class="text-xs text-slate-400">Missing barcodes will be generated from product IDs.</span>
+            </div>
+        </AuthorizeView>
+    </form>
+
+
+    @if (Pagination is not null)
+    {
+        <PageNavigation Info="Pagination" Label="items" />
+    }
+</section>
+
+@code {
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromQuery]
+    public string? Search { get; set; }
+
+    [SupplyParameterFromQuery(Name = "page")]
+    public int Page { get; set; } = 1;
+
+    [SupplyParameterFromQuery]
+    public int PageSize { get; set; } = 30;
+
+    [SupplyParameterFromQuery]
+    public string Sort { get; set; } = "id";
+
+    [SupplyParameterFromQuery]
+    public int? LocationId { get; set; }
+
+    private IReadOnlyList<Lookup> Locations = [];
+    private IReadOnlyList<ItemAttributeColumn> AttributeColumns = [];
+    private static readonly string[] ExportColumns = ["Item ID", "Item", "Category", "Supplier", "Barcode", "Unit", "Stock", "Selling price", "Average cost", "Stock value"];
+
+    private int ColumnCount => 7
+        + (HttpContext.User.IsInRole(AppRoles.Admin) || HttpContext.User.IsInRole(AppRoles.InventoryManager) ? 3 : 0)
+        + AttributeColumns.Count;
+
+    private int CurrentPage => Math.Clamp(Page, 1, 100000);
+    private IReadOnlyList<ItemRow>? Items;
+    private PageInfo? Pagination;
+    private bool Failed;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        Sort = string.IsNullOrWhiteSpace(Sort) ? "id" : Sort;
+        Items = null;
+        Failed = false;
+
+        try
+        {
+            if (Locations.Count == 0)
+            {
+                var options = await Inventory.ItemLocationsAsync(HttpContext.User, HttpContext.RequestAborted);
+                Locations = options.Locations;
+                AttributeColumns = await Inventory.ItemAttributeColumnsAsync(HttpContext.User, HttpContext.RequestAborted);
+                if (!Locations.Any(location => location.Id == LocationId))
+                {
+                    LocationId = options.SelectedLocationId;
+                }
+            }
+            else if (!Locations.Any(location => location.Id == LocationId))
+            {
+                LocationId = Locations.FirstOrDefault()?.Id;
+            }
+
+            var count = await Inventory.CountAsync(HttpContext.User, Search, HttpContext.RequestAborted);
+            var size = QueryPagination.Size(PageSize);
+            Page = Math.Clamp(Page, 1, Math.Max(1, (int)Math.Ceiling(count / (double)size)));
+
+            Items = await Inventory.ListAsync(
+                HttpContext.User,
+                Search,
+                CurrentPage,
+                HttpContext.RequestAborted,
+                locationId: LocationId,
+                sort: Sort,
+                pageSize: size);
+            Pagination = new PageInfo(CurrentPage, size, count);
+        }
+        catch (OperationCanceledException) when (HttpContext.RequestAborted.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            Failed = true;
+            Logger.LogError(exception, "Item list failed.");
+        }
+    }
+
+    private string Money(decimal value) => $"{value:N2} {Configuration["CurrencyCode"] ?? "BDT"}";
+}

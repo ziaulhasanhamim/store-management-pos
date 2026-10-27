@@ -1,0 +1,110 @@
+@page "/finance/bank"
+@attribute [Authorize(Policy = AppPolicies.ManageUsers)]
+@attribute [StreamRendering]
+@using System.ComponentModel.DataAnnotations
+@inject BankService Banks
+@inject ClosingService Closings
+@inject NavigationManager Navigation
+
+<PageTitle>Bank & digital balance · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
+<div class="page-heading">
+    <h1>Bank & digital balance</h1>
+    <div class="flex gap-2">
+        <a href="/reports/statements/bank" class="btn-secondary">Bank statement</a>
+        <a href="/finance/day" class="btn-secondary">Day / month closing</a>
+    </div>
+</div>
+@if (Error is not null)
+{
+    <p class="error-panel" role="alert">@Error</p>
+}
+@if (Data is null)
+{
+    <LoadingPanel Message="Loading bank balance…" />
+}
+else
+{
+    <div class="mb-6 grid gap-4 sm:grid-cols-2">
+        <div class="metric">
+            <p>Current balance</p>
+            <strong class="text-2xl!">@Money(Data?.Balance ?? 0)</strong>
+            <span class="metric-note">Combined bank, card and mobile wallet funds</span>
+        </div>
+        <div class="metric">
+            <p>Opening balance</p>
+            <strong class="text-2xl!">@Money(Data?.Opening ?? 0)</strong>
+            <span class="metric-note">@(Data?.OpeningDate?.ToString("dd MMM yyyy") ?? "Not recorded yet")</span>
+        </div>
+    </div>
+    <section class="panel mb-6 max-w-2xl p-6">
+        <form method="post" @formname="bank" data-draft-instance="@Input!.RequestId" data-draft-key="bank" data-draft-success="@Saved" @onsubmit="SaveAsync" data-enhance data-submit-indication="true">
+            <AntiforgeryToken />
+            <input type="hidden" name="Input.RequestId" value="@Input!.RequestId" />
+            <div class="grid gap-4 sm:grid-cols-2">
+                <div>
+                    <label class="field-label" for="bank-action">Movement</label>
+                    <select id="bank-action" name="Input.Action" class="field">
+                        @if (Data?.OpeningDate is null)
+                        {
+                            <option value="opening">Opening balance</option>
+                        }
+                        <option value="contribution">Owner contribution</option>
+                        <option value="owner-withdrawal">Owner withdrawal</option>
+                        <option value="adjustment">Adjustment (signed amount)</option>
+                        <option value="deposit">Cash drawer → bank</option>
+                        <option value="withdraw">Bank → cash drawer</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="field-label" for="bank-amount">Amount</label>
+                    <input id="bank-amount" name="Input.Amount" class="field" inputmode="decimal" required />
+                </div>
+                <div>
+                    <label class="field-label" for="bank-date">Accounting date</label>
+                    <input name="Input.Date" type="hidden" value="@Input.Date.ToString("yyyy-MM-dd")" />
+                    <p id="bank-date" class="py-2 text-sm">@Input.Date.ToString("dd MMM yyyy") · working day</p>
+                </div>
+            </div>
+            <label class="field-label mt-4" for="bank-notes">Reason / reference</label>
+            <input id="bank-notes" name="Input.Notes" class="field" maxlength="2000" required />
+            <p class="mt-3 text-xs text-slate-500">Enter the opening from before recorded bank movements. Use a signed adjustment to reconcile a current balance. Owner contributions/withdrawals do not affect profit. Cash transfers require an open drawer.</p>
+            <button class="btn-primary mt-4" data-pending-text="Recording…">Record movement</button>
+        </form>
+    </section>
+    <AccountStatement Account="bank" Date="DateOnly.FromDateTime(Input!.Date)" />
+}
+
+@code {
+    [SupplyParameterFromQuery]
+    public bool Saved { get; set; }
+
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromForm(FormName = "bank")]
+    private BankInput? Input { get; set; }
+
+    private BankPage? Data;
+    private string? Error;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        Input ??= new() { Date = (await Closings.SelectedAsync(HttpContext.User, HttpContext.RequestAborted)).ToDateTime(TimeOnly.MinValue) };
+        Data = await Banks.ReadAsync(HttpContext.User, HttpContext.RequestAborted);
+    }
+
+    private async Task SaveAsync()
+    {
+        try
+        {
+            await Banks.SaveAsync(HttpContext.User, Input!, HttpContext.RequestAborted);
+            Navigation.NavigateTo($"/finance/bank?saved=true&savedRequest={Input!.RequestId}");
+        }
+        catch (ValidationException exception)
+        {
+            Error = exception.Message;
+        }
+    }
+
+    private string Money(decimal amount) => $"{Configuration["CurrencyCode"] ?? "BDT"} {amount:N2}";
+}

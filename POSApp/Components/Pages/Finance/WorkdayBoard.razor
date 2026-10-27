@@ -1,0 +1,88 @@
+@attribute [StreamRendering]
+@inject ClosureService Closures
+@inject ILogger<WorkdayBoard> Logger
+
+@if (Data is null && Error is null)
+{
+    <LoadingPanel Message="Loading working day…" />
+}
+else if (Error is not null)
+{
+    <p class="error-panel" role="alert">@Error</p>
+}
+else if (Data is { } day)
+{
+    <section class="workday-board mb-7">
+        <div class="flex flex-wrap items-start justify-between gap-5">
+            <div>
+                <p class="eyebrow text-blue-100!">Daily operations</p>
+                <h2 class="mt-2 text-2xl font-semibold">@day.Date.ToString("dddd, dd MMM yyyy")</h2>
+                <p class="mt-2 text-sm text-blue-100">@(day.Closed ? "Day closed · counted cash is ready for the next day" : day.Opened ? "Working day open" : "Open the working day to begin")</p>
+            </div>
+            <span class="status-pill">@day.OpenDrawers open · @day.ClosedDrawers counted · @day.UnopenedDrawers unused</span>
+        </div>
+        <ol class="mt-6 grid gap-3 sm:grid-cols-3 xl:grid-cols-5">
+            @foreach (var step in Steps)
+            {
+                <li class="workflow-step @(step.Done ? "complete" : "")">
+                    <span class="workflow-number">@(step.Done ? "✓" : step.Number)</span>
+                    <span>@step.Label</span>
+                </li>
+            }
+        </ol>
+        <div class="mt-6 flex flex-wrap gap-3">
+            @if (day.Closed || !day.Opened)
+            {
+                <AuthorizeView Policy="@AppPolicies.ManageUsers">
+                    <Authorized>
+                        <a href="@($"/accounting-date?date={(day.Closed ? day.Date.AddDays(1) : day.Date):yyyy-MM-dd}")" class="btn-primary">@(day.Closed ? "Open next working day" : "Open working day")</a>
+                    </Authorized>
+                    <NotAuthorized>
+                        <span class="text-sm">Ask an administrator to open the working day.</span>
+                    </NotAuthorized>
+                </AuthorizeView>
+            }
+            else if (day.OpenDrawers == 0 && day.ClosedDrawers == 0)
+            {
+                <a href="/cash-drawer" class="btn-primary">Open location drawer</a>
+            }
+            else if (day.OpenDrawers > 0)
+            {
+                <a href="/sales" class="btn-primary">Start / continue sales</a>
+                <a href="/cash-drawer" class="btn-secondary">Location drawers</a>
+            }
+            <AuthorizeView Policy="@AppPolicies.ManageUsers">
+                <a href="/finance/day" class="btn-secondary">@(day.Closed ? "View day finance" : "Review day finance")</a>
+            </AuthorizeView>
+        </div>
+    </section>
+}
+
+@code {
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    private OperatingDay? Data;
+    private string? Error;
+    private (string Number, string Label, bool Done)[] Steps => Data is null ? [] :
+    [
+        ("1", "Open day", Data.Opened),
+        ("2", "Open drawers", Data.OpenDrawers + Data.ClosedDrawers > 0),
+        ("3", "Trade & payments", Data.Closed || Data.ClosedDrawers > 0 && Data.OpenDrawers == 0),
+        ("4", "Count & close drawers", Data.ClosedDrawers > 0 && Data.OpenDrawers == 0),
+        ("5", "Review & close day", Data.Closed)
+    ];
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            Data = await Closures.OperatingDayAsync(HttpContext.User, HttpContext.RequestAborted);
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Working day workflow could not load.");
+            Error = "Unable to load the working day. Please reload.";
+        }
+    }
+}

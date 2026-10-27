@@ -1,0 +1,85 @@
+<section class="panel table-scroll mt-6">
+    <div class="panel-heading">
+        <h2>@(Data?.Account ?? "Statement")</h2>
+        @if (Data is not null)
+        {
+            <span class="text-xs text-slate-500">@Data.Range.Start.ToString("dd MMM yyyy") – @Data.Range.End.ToString("dd MMM yyyy") · @Data.Count movements</span>
+        }
+    </div>
+    <table class="data-table" aria-busy="@(Data is null && Error is null)">
+        <thead>
+            <tr>
+                <th>Business date / posted time</th>
+                <th>Movement / reference</th>
+                <th>Notes</th>
+                <th class="text-right">Money in</th>
+                <th class="text-right">Money out</th>
+                <th class="text-right">Balance</th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (Data is null)
+            {
+                <TableStatusRow Columns="6" Loading="@(Error is null)" Error="@(Error is not null)" Message="@(Error ?? "Loading statement…")" />
+            }
+            else
+            {
+                <tr class="bg-slate-50">
+                    <th colspan="5">@(Data.Page == 1 ? "Opening balance" : "Brought forward from previous page")</th>
+                    <td class="text-right font-semibold">@Money(Data.PageOpening)</td>
+                </tr>
+                @for (var index = 0; index < Data.Rows.Count; index++)
+                {
+                    var row = Data.Rows[index];
+                    @if (index == 0 || Data.Rows[index - 1].Date != row.Date)
+                    {
+                        <tr class="bg-slate-50">
+                            <th colspan="5">@row.Date.ToString("dd MMM yyyy") · @(index == 0 && Data.Page > 1 ? "continued" : "day opening")</th>
+                            <td class="text-right font-semibold">@Money(row.Balance - row.Amount)</td>
+                        </tr>
+                    }
+                    <tr>
+                        <td>
+                            @row.Date.ToString("dd MMM yyyy")
+                            <span class="mt-1 block text-xs text-slate-400">Posted @row.PostedAt.ToBusinessTime(Configuration).ToString("dd MMM, HH:mm:ss")</span>
+                        </td>
+                        <td>
+                            <strong>@row.Type</strong>
+                            <span class="mt-1 block text-xs text-slate-500">@row.Reference</span>
+                        </td>
+                        <td>@row.Notes</td>
+                        <td class="text-right text-emerald-700">@(row.Amount > 0 ? Money(row.Amount) : "—")</td>
+                        <td class="text-right text-rose-700">@(row.Amount < 0 ? Money(-row.Amount) : "—")</td>
+                        <td class="text-right font-semibold">@Money(row.Balance)</td>
+                    </tr>
+                }
+                @if (Data.Rows.Count == 0)
+                {
+                    <TableStatusRow Columns="6" Message="No movements in this period. Opening and closing balances are the same." />
+                }
+            }
+        </tbody>
+        @if (Data is not null)
+        {
+            <tfoot>
+                <tr>
+                    <th colspan="3">Entire selected period · closing balance</th>
+                    <td class="text-right">@Money(Data.MoneyIn)</td>
+                    <td class="text-right">@Money(Data.MoneyOut)</td>
+                    <td class="text-right">@Money(Data.Closing)</td>
+                </tr>
+            </tfoot>
+        }
+    </table>
+    <p class="p-4 text-xs text-slate-500">Opening + money in − money out = closing. Business dates determine the statement order; posted times show when entries were recorded. Corrections, reversals and cash-count differences stay visible. Totals include all pages.</p>
+</section>
+
+@code {
+    [Parameter]
+    public BalanceStatement? Data { get; set; }
+
+    [Parameter]
+    public string? Error { get; set; }
+
+    private string Money(decimal amount) => $"{amount:N2} {Configuration["CurrencyCode"] ?? "BDT"}";
+}

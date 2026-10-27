@@ -1,0 +1,59 @@
+<div class="modal-overlay" @onclick="CloseAsync">
+    <span tabindex="0" class="sr-only" @onfocus="FocusLastAsync"></span>
+    <section role="dialog" aria-modal="true" aria-labelledby="modal-title"
+             class="modal-panel" tabindex="-1" @ref="Panel" @onclick:stopPropagation @onkeydown="KeyDownAsync">
+        <div class="mb-5 flex items-center justify-between">
+            <h2 id="modal-title" class="text-lg font-semibold">@Title</h2>
+            <button type="button" class="icon-button" aria-label="Close dialog" disabled="@Busy" @onclick="CloseAsync" @ref="First">
+                <Icon Name="close" />
+            </button>
+        </div>
+        @ChildContent
+        <div class="mt-5 flex justify-end">
+            <button type="button" class="btn-secondary" disabled="@Busy" @onclick="CloseAsync" @ref="Last">Cancel</button>
+        </div>
+    </section>
+    <span tabindex="0" class="sr-only" @onfocus="FocusFirstAsync"></span>
+</div>
+
+@code {
+    [Parameter]
+    public string Title { get; set; } = "Dialog";
+
+    [Parameter]
+    public bool Busy { get; set; }
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    private ElementReference Panel;
+    private ElementReference First;
+    private ElementReference Last;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await FocusFirstAsync();
+        }
+    }
+
+    private Task FocusFirstAsync() => (Busy ? Panel : First).FocusAsync(preventScroll: true).AsTask();
+    private Task FocusLastAsync() => (Busy ? Panel : Last).FocusAsync(preventScroll: true).AsTask();
+
+    private async Task CloseAsync()
+    {
+        if (!Busy)
+        {
+            await OnClose.InvokeAsync();
+        }
+    }
+
+    private Task KeyDownAsync(KeyboardEventArgs args)
+    {
+        return args.Key == "Escape" ? CloseAsync() : Task.CompletedTask;
+    }
+}

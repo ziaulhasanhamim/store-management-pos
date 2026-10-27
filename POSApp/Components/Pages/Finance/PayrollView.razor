@@ -1,0 +1,142 @@
+@inject FinanceService Finance
+
+@if (Data is not null)
+{
+    @if (Saved)
+    {
+        <p class="success-panel" role="status">Entry recorded.</p>
+    }
+    <RangePicker Path="/payroll" Period="@Period" Range="Data.Range" />
+    <div class="mb-6 grid gap-4 sm:grid-cols-3">
+        @if (Data.Admin)
+        {
+            <div class="metric">
+                <p>Payroll expense (paid)</p>
+                <strong class="text-2xl!">@Money(Data.Salaries)</strong>
+                <span class="metric-note">Salary, bonus and advances when paid</span>
+            </div>
+            <div class="metric">
+                <p>Payroll paid out</p>
+                <strong class="text-2xl!">@Money(Data.PayrollOutflow)</strong>
+                <span class="metric-note">Including @Money(Data.AdvancesPaid) new advances</span>
+            </div>
+        }
+    </div>
+    <div class="mb-6 max-w-3xl">
+        @if (Data.Admin)
+        {
+            <section class="panel p-6">
+                <div class="mb-4 flex items-center justify-between gap-3">
+                    <h2 class="font-semibold">Pay employee</h2>
+                    <a href="/employees" class="text-sm text-blue-700">Employees & salaries</a>
+                </div>
+                <form method="post" @formname="payroll" data-draft-instance="@PayrollForm!.RequestId" data-draft-key="payroll" data-draft-success="@Saved" @onsubmit="AddPayrollAsync" data-enhance data-submit-indication="true">
+                    <AntiforgeryToken />
+                    <input type="hidden" name="PayrollForm.WorkingDate" value="@DateOnly.FromDateTime(PayrollForm!.Date).ToString("yyyy-MM-dd")" />
+                    <input type="hidden" name="PayrollForm.RequestId" value="@PayrollForm!.RequestId" />
+                    <PayrollFields
+                        Employees="Data.Staff"
+                        InitialEmployeeId="PayrollForm.EmployeeId"
+                        InitialKind="PayrollForm.Kind"
+                        InitialAmount="PayrollForm.Amount"
+                        Month="PayrollForm.Month"
+                        Currency="@Currency"
+                        @rendermode="InteractiveAuto" />
+                    <input type="hidden" name="PayrollForm.Month" value="@PayrollForm.Month.ToString("yyyy-MM-dd")" />
+                    <p class="mt-3 text-sm text-slate-500">Salary month: @PayrollForm.Month.ToString("MMMM yyyy")</p>
+                    <div class="mt-4 grid gap-4 sm:grid-cols-2">
+                        <div>
+                            <label class="field-label" for="payroll-method">Paid with</label>
+                            <select id="payroll-method" name="PayrollForm.Method" class="field">
+                                @foreach (var method in Enum.GetValues<PaymentMethod>())
+                                {
+                                    <option value="@method" selected="@(PayrollForm.Method == method)">@SplitPayments.MethodName(method)</option>
+                                }
+                            </select>
+                        </div>
+                        <div>
+                            <label class="field-label" for="payroll-date">Date</label>
+                            <input type="hidden" name="PayrollForm.Date" value="@PayrollForm.Date.ToString("yyyy-MM-dd")" />
+                            <p id="payroll-date" class="py-2 text-sm">@PayrollForm.Date.ToString("dd MMM yyyy") · working day</p>
+                        </div>
+                    </div>
+                    <label class="field-label mt-4" for="payroll-note">Notes</label>
+                    <input id="payroll-note" name="PayrollForm.Notes" class="field" value="@PayrollForm.Notes" maxlength="2000" required />
+                    <p class="mt-3 text-xs text-slate-500">Create the monthly salary first. Salary payments can be split over the month; salary overpayments become an advance for the next month. Choose Bonus for money that is not recoverable.</p>
+                    <button class="btn-primary mt-4" data-pending-text="Recording…">Record payroll</button>
+                </form>
+            </section>
+        }
+    </div>
+    @if (Data.Admin)
+    {
+        <section class="panel table-scroll">
+            <div class="panel-heading">
+                <h2>Payroll history</h2>
+            </div>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Employee</th>
+                        <th>Type / month</th>
+                        <th class="text-right">Amount</th>
+                        <th class="text-right">Advance applied automatically</th>
+                        <th class="text-right">New advance</th>
+                        <th class="text-right">Paid out</th>
+                        <th>Method / notes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var entry in Data.Payroll)
+                    {
+                        <tr>
+                            <td>@Date(entry.At)</td>
+                            <td>@entry.Employee</td>
+                            <td>@entry.Kind · @entry.Month.ToString("MMM yyyy")</td>
+                            <td class="text-right">@Money(entry.Amount)</td>
+                            <td class="text-right">@Money(entry.AdvanceApplied)</td>
+                            <td class="text-right">@Money(entry.AdvanceCreated)</td>
+                            <td class="text-right">@Money(entry.Paid)</td>
+                            <td>@SplitPayments.MethodName(entry.Method) · @entry.Notes</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            @if (Data.PayrollPagination is not null)
+            {
+                <PageNavigation Info="Data.PayrollPagination" Label="salary payments" />
+            }
+            <p class="p-4 text-xs text-slate-500">Totals include every entry in the period.</p>
+        </section>
+    }
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public FinancePage Data { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public PayrollInput PayrollForm { get; set; } = default!;
+
+    [Parameter]
+    public EventCallback AddPayrollAsync { get; set; }
+
+    [Parameter]
+    public string Period { get; set; } = "month";
+
+    [Parameter]
+    public DateOnly? Start { get; set; }
+
+    [Parameter]
+    public DateOnly? End { get; set; }
+
+    [Parameter]
+    public bool Saved { get; set; }
+
+    private string Currency => Configuration["CurrencyCode"] ?? "BDT";
+
+    private string Date(DateTimeOffset at) => at.ToBusinessTime(Configuration).ToString("dd MMM yyyy");
+    private string Money(decimal amount) => $"{Currency} {amount:N2}";
+    private string PageLink(int page) => $"/payroll?period={Uri.EscapeDataString(Period)}&start={Start:yyyy-MM-dd}&end={End:yyyy-MM-dd}&page={page}";
+}

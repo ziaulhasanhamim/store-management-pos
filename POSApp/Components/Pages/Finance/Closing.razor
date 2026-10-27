@@ -1,0 +1,204 @@
+@page "/finance/closing"
+@page "/finance/day"
+@page "/finance/month"
+@attribute [Authorize(Policy = AppPolicies.ManageUsers)]
+@using System.ComponentModel.DataAnnotations
+@inject ClosingService Closings
+@inject NavigationManager Navigation
+
+<PageTitle>@(Kind == ClosingKind.Month ? "Month finance" : "Day finance") · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
+<div class="page-heading no-print">
+    <h1>@(Kind == ClosingKind.Month ? "Month finance" : "Day finance")</h1>
+    <div class="flex flex-wrap gap-2">
+        <a class="btn-primary" href="@($"/api/finance/closing.xlsx?date={Selected:yyyy-MM-dd}&period={Period}{(LocationId.HasValue ? $"&locationId={LocationId.Value}" : "")}")" data-enhance-nav="false">Export Excel (.xlsx)</a>
+        <button type="button" class="btn-secondary" data-print>Print / PDF</button>
+    </div>
+</div>
+<form method="get" action="@(Kind == ClosingKind.Month ? "/finance/month" : "/finance/day")" class="no-print mb-6 flex flex-wrap items-end gap-4" data-enhance data-submit-indication="true">
+    <div>
+        <label class="field-label" for="closing-date">@(Kind == ClosingKind.Month ? "Month" : "Day")</label>
+        @if (Kind == ClosingKind.Month)
+        {
+            <input id="closing-date" type="month" name="month" class="field" value="@Selected.ToString("yyyy-MM")" required />
+        }
+        else
+        {
+            <input id="closing-date" type="date" name="date" class="field" value="@Selected.ToString("yyyy-MM-dd")" required />
+        }
+    </div>
+    <div>
+        <label class="field-label" for="location-filter">Stock location</label>
+        <select id="location-filter" name="locationId" class="field">
+            <option value="">All locations (Consolidated)</option>
+            @foreach (var loc in Locations)
+            {
+                <option value="@loc.Id" selected="@(LocationId == loc.Id)">@loc.Name</option>
+            }
+        </select>
+    </div>
+    <button class="btn-secondary">View calculation</button>
+    <a href="@(Kind == ClosingKind.Month ? $"/finance/day{(LocationId.HasValue ? $"?locationId={LocationId.Value}" : "")}" : $"/finance/month{(LocationId.HasValue ? $"?locationId={LocationId.Value}" : "")}")" class="btn-secondary">@(Kind == ClosingKind.Month ? "Day finance" : "Month finance")</a>
+    <a href="/finance" class="btn-secondary">Finance</a>
+</form>
+@if (Error is not null)
+{
+    <p class="error-panel" role="alert">@Error</p>
+}
+@if (Review && Data is not null && Input is not null)
+{
+    <section class="panel mb-6 max-w-2xl p-6 no-print">
+        <p class="eyebrow">Final review</p>
+        <h2 class="mb-4 text-xl font-semibold">Close this @(Kind == ClosingKind.Month ? "month" : "day")?</h2>
+        <p class="mb-3 text-sm">@Data.Start.ToString("dd MMM yyyy") – @Data.End.ToString("dd MMM yyyy")</p>
+        <p class="mb-3 text-sm text-slate-500">Closing saves the reviewed financial summary. An admin must reopen the period before further changes. All location drawers must be counted first.</p>
+        <dl class="mb-5 grid gap-4 sm:grid-cols-2">
+            <div>
+                <dt class="text-sm text-slate-500">Closing cash</dt>
+                <dd class="font-semibold">@Data.ClosingCash.ToString("N2")</dd>
+            </div>
+            <div>
+                <dt class="text-sm text-slate-500">Closing bank</dt>
+                <dd class="font-semibold">@Data.ClosingBank.ToString("N2")</dd>
+            </div>
+        </dl>
+        <form method="post" @formname="period-closing" @onsubmit="SaveAsync" data-enhance data-submit-indication="true">
+            <AntiforgeryToken />
+            <input type="hidden" name="Input.Date" value="@Input.Date.ToString("yyyy-MM-dd")" />
+            <input type="hidden" name="Input.Kind" value="@Input.Kind" />
+            <input type="hidden" name="Input.Notes" value="@Input.Notes" />
+            <input type="hidden" name="Input.ExpectedRevision" value="@Input.ExpectedRevision" />
+            <label class="mb-5 flex items-start gap-3 text-sm">
+                <input type="checkbox" name="Input.Confirmed" value="true" required />
+                I reviewed the figures and want to close this @(Kind == ClosingKind.Month ? "month" : "day").
+            </label>
+            <div class="flex gap-3">
+                <a href="@(Kind == ClosingKind.Month ? $"/finance/month?month={Selected:yyyy-MM}" : $"/finance/day?date={Selected:yyyy-MM-dd}")" class="btn-secondary">Keep open</a>
+                <button name="Action" value="close" class="btn-primary" data-pending-text="Closing…">Confirm close @(Kind == ClosingKind.Month ? "month" : "day")</button>
+            </div>
+        </form>
+    </section>
+}
+@if (!Initialized)
+{
+    <LoadingPanel Message="Loading accounting date…" />
+}
+else if (HttpMethods.IsGet(HttpContext.Request.Method))
+{
+    <FinanceLoad TData="ClosingTotals" Load="LoadAsync" Message="Calculating closing summary…">
+        <ChildContent Context="loaded">
+            <ClosingView Data="loaded" Kind="Kind" OnSave="SaveAsync" HideActions="Review" />
+        </ChildContent>
+    </FinanceLoad>
+}
+else if (Data is not null)
+{
+    <ClosingView Data="Data" Kind="Kind" OnSave="SaveAsync" HideActions="Review" />
+}
+
+@code {
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromQuery]
+    public DateOnly? Date { get; set; }
+
+    [SupplyParameterFromQuery]
+    public string? Period { get; set; }
+
+    [SupplyParameterFromForm(FormName = "period-closing")]
+    private ClosingInput? Input { get; set; }
+
+    [SupplyParameterFromForm(FormName = "period-closing")]
+    private string? Action { get; set; }
+
+    [SupplyParameterFromForm(FormName = "opening-assets")]
+    private OpeningAssetsInput? OpeningInput { get; set; }
+
+    [SupplyParameterFromQuery]
+    public string? Month { get; set; }
+
+    [SupplyParameterFromQuery(Name = "locationId")]
+    public int? LocationId { get; set; }
+
+    private IReadOnlyList<StockLocationOption> Locations = [];
+    private DateOnly Selected;
+    private ClosingTotals? Data;
+    private string? Error;
+    private bool Initialized;
+    private bool Review;
+    private ClosingKind Kind => Period == "month" ? ClosingKind.Month : ClosingKind.Day;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var path = new Uri(Navigation.Uri).AbsolutePath;
+        Period = path == "/finance/month" || path == "/finance/closing" && Period == "month" ? "month" : "day";
+        Locations = await Closings.LocationsAsync(HttpContext.User, HttpContext.RequestAborted);
+        Selected = Date ?? await Closings.SelectedAsync(HttpContext.User, HttpContext.RequestAborted);
+        if (Kind == ClosingKind.Month)
+        {
+            if (DateOnly.TryParseExact($"{Month}-01", "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.None, out var month))
+            {
+                Selected = month;
+            }
+            Selected = new(Selected.Year, Selected.Month, 1);
+        }
+        Input ??= new() { Date = Selected.ToDateTime(TimeOnly.MinValue), Kind = Kind };
+        Initialized = true;
+        if (!HttpMethods.IsGet(HttpContext.Request.Method))
+        {
+            if (OpeningInput is not null)
+            {
+                try
+                {
+                    await Closings.SaveOpeningAssetsAsync(HttpContext.User, OpeningInput, HttpContext.RequestAborted);
+                    Navigation.NavigateTo($"/finance/month?month={OpeningInput.Month:yyyy-MM}");
+                    return;
+                }
+                catch (ValidationException ex)
+                {
+                    Error = ex.Message;
+                }
+            }
+            Data = await LoadAsync();
+        }
+    }
+
+    private Task<ClosingTotals> LoadAsync() => Closings.ReadAsync(HttpContext.User, Selected, Kind, HttpContext.RequestAborted, LocationId);
+
+    private async Task SaveAsync()
+    {
+        try
+        {
+            if (Action == "review")
+            {
+                Data = await LoadAsync();
+                if (Data.ClosedAt is not null)
+                {
+                    throw new ValidationException("This period is already closed.");
+                }
+                if (Kind == ClosingKind.Day && Data.Locations.Any(location => location.SessionId != null && location.Counted == null))
+                {
+                    throw new ValidationException("Count and close every open location drawer before reviewing the day closing.");
+                }
+                if (Kind == ClosingKind.Month && Data.End > AccountingCalendar.Today(Configuration))
+                {
+                    throw new ValidationException("Close the month after its last day is complete.");
+                }
+                Input!.ExpectedRevision = ClosureService.Revision(Data);
+                Review = true;
+                return;
+            }
+            if (Action == "close" && Input?.Confirmed != true)
+            {
+                throw new ValidationException("Review the summary and confirm that you want to close this period.");
+            }
+            await Closings.SaveAsync(HttpContext.User, Input!, Action == "close", HttpContext.RequestAborted);
+            Navigation.NavigateTo(Input!.Kind == ClosingKind.Month ? $"/finance/month?month={Input.Date:yyyy-MM}" : $"/finance/day?date={Input.Date:yyyy-MM-dd}");
+        }
+        catch (ValidationException exception)
+        {
+            Error = exception.Message;
+        }
+    }
+}

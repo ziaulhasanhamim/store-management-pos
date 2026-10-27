@@ -1,0 +1,104 @@
+@page "/users/new"
+@page "/users/{Id:int}/edit"
+@attribute [Authorize(Policy = AppPolicies.ManageUsers)]
+@using Microsoft.AspNetCore.Identity
+@using POSApp.Persistence.Entities
+@using POSApp.Services
+@inject UserAdministration Administration
+@inject UserManager<User> UserManager
+@inject SignInManager<User> SignInManager
+@inject NavigationManager Navigation
+
+<PageTitle>@(IsNew ? "Add user" : "Edit user") · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
+
+<a href="/users" class="text-sm font-medium text-slate-500 hover:text-indigo-700">← Back to team</a>
+
+<div class="mt-6 max-w-xl">
+    <h1 class="text-3xl font-semibold tracking-tight text-slate-900">
+        @(IsNew ? "Add a team member" : "Edit team member")
+    </h1>
+    <p class="mt-2 mb-6 text-sm text-slate-500">
+        @(IsNew ? "Create a username account and assign a role." : "Update the username, role, or password for this account.")
+    </p>
+
+    <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+        @if (Errors.Length > 0)
+        {
+            <div role="alert" class="mb-6 rounded-lg bg-red-50 p-4 text-sm text-red-700">
+                <ul class="list-inside list-disc">
+                    @foreach (var error in Errors)
+                    {
+                        <li>@error</li>
+                    }
+                </ul>
+            </div>
+        }
+
+        @if (IsGet && Id is { } id)
+        {
+            <UserEditLoader UserId="id">
+                <Found Context="user">
+                    <UserEditorForm Input="@InputFor(user)" IsNew="false" OnValidSubmit="SaveAsync" OnInvalidSubmit="ClearPassword" />
+                </Found>
+            </UserEditLoader>
+        }
+        else
+        {
+            <UserEditorForm Input="Input!" IsNew="IsNew" OnValidSubmit="SaveAsync" OnInvalidSubmit="ClearPassword" />
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public int? Id { get; set; }
+
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromForm(FormName = "user-editor")]
+    private UserEditorInput? Input { get; set; }
+
+    private bool IsNew => Id is null;
+    private bool IsGet => HttpMethods.IsGet(HttpContext.Request.Method);
+    private string[] Errors = [];
+
+    protected override void OnInitialized()
+    {
+        Input ??= new();
+    }
+
+    private UserEditorInput InputFor(UserListItem user) => Input = new()
+    {
+        Username = user.Username,
+        Role = user.Roles.FirstOrDefault() ?? AppRoles.SalesAssociate
+    };
+
+    private async Task SaveAsync()
+    {
+        var result = await Administration.SaveAsync(HttpContext.User, Id, Input!.Username, Input.Password, Input.Role);
+        Input.Password = string.Empty;
+
+        if (!result.Succeeded)
+        {
+            Errors = result.Errors.Select(error => error.Description).ToArray();
+            return;
+        }
+
+        if (Id?.ToString() == UserManager.GetUserId(HttpContext.User))
+        {
+            var currentUser = await UserManager.GetUserAsync(HttpContext.User);
+            if (currentUser is not null)
+            {
+                await SignInManager.RefreshSignInAsync(currentUser);
+            }
+        }
+
+        Navigation.NavigateTo("/users?saved=true");
+    }
+
+    private void ClearPassword(EditContext _)
+    {
+        Input!.Password = string.Empty;
+    }
+}

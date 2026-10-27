@@ -1,0 +1,288 @@
+@page "/items/{Id:int}"
+@attribute [Authorize]
+@attribute [StreamRendering]
+@inject InventoryService Inventory
+@inject ILogger<Details> Logger
+
+<PageTitle>@(Detail?.Item.Name ?? "Item") · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
+
+<div class="page-heading">
+    <div>
+        <a href="/items" class="mb-3 inline-flex items-center gap-2 text-xs text-slate-500">
+            <Icon Name="back" />
+            Items
+        </a>
+        <h1>@(Detail?.Item.Name ?? "Item details")</h1>
+    </div>
+
+    <AuthorizeView Policy="@AppPolicies.ManageInventory">
+        <a href="@($"/items/{Id}/edit")" class="btn-secondary">
+            <Icon Name="edit" />
+            Edit item
+        </a>
+    </AuthorizeView>
+    <AuthorizeView Policy="@AppPolicies.ManageUsers" Context="admin">
+        <a href="@($"/admin/records/product/{Id}/edit")" class="btn-danger">Archive product</a>
+    </AuthorizeView>
+</div>
+
+@if (Loading)
+{
+    <LoadingPanel Message="Loading item…" />
+}
+else if (Failed)
+{
+    <p role="alert" class="error-panel">
+        Unable to load item.
+        <a href="@($"/items/{Id}?locationId={LocationId}")" class="underline">Retry</a>
+    </p>
+}
+else if (Detail is null)
+{
+    <div class="empty-state">Item not found.</div>
+}
+else
+{
+    var item = Detail.Item;
+
+    @if (Saved)
+    {
+        <div class="success-panel" role="status">
+            <Icon Name="check" />
+            Item saved.
+        </div>
+    }
+
+    <div class="grid gap-4 sm:grid-cols-3">
+        <div class="metric">
+            <p>@(item.IsNonStocked ? "Non-stocked item" : "Stock across all locations")</p>
+            <strong>@item.Stock.ToString("0.###")</strong>
+            <span class="metric-note">@(item.IsNonStocked ? "Digital product / service · inventory stays at zero" : item.Unit)</span>
+        </div>
+        <div class="metric">
+            <p>Selling price</p>
+            <strong class="text-2xl!">@Money(item.Price)</strong>
+            <span class="metric-note">Per @item.Unit</span>
+        </div>
+        @if (item.Cost is { } cost)
+        {
+            <div class="metric">
+                <p>Average cost</p>
+                <strong class="text-2xl!">@Money(cost)</strong>
+                <span class="metric-note">Weighted by stock</span>
+            </div>
+        }
+    </div>
+
+    <section class="panel mt-6">
+        <div class="panel-heading">
+            <h2>Item information</h2>
+            <span class="badge">#@item.Id</span>
+        </div>
+        <dl class="grid gap-5 p-5 text-sm sm:grid-cols-3">
+            <div>
+                <dt class="text-xs text-slate-400">Barcode</dt>
+                <dd class="mt-1 font-medium text-slate-700">@(item.Barcode ?? "—")</dd>
+            </div>
+            <div>
+                <dt class="text-xs text-slate-400">Default supplier</dt>
+                <dd class="mt-1 font-medium text-slate-700">@item.Supplier</dd>
+            </div>
+            <div>
+                <dt class="text-xs text-slate-400">Category</dt>
+                <dd class="mt-1 font-medium text-slate-700">@(item.Category ?? "Uncategorized")</dd>
+            </div>
+            <div>
+                <dt class="text-xs text-slate-400">Description</dt>
+                <dd class="mt-1 text-slate-700">@(Detail.Description ?? "—")</dd>
+            </div>
+            @foreach (var itemAttribute in Detail.Attributes.Where(itemAttribute => itemAttribute.ShowInItems))
+            {
+                <div>
+                    <dt class="text-xs text-slate-400">@itemAttribute.DisplayName</dt>
+                    <dd class="mt-1 font-medium text-slate-700">@itemAttribute.Value</dd>
+                </div>
+            }
+        </dl>
+    </section>
+
+    <section id="stock-history" class="panel mt-6">
+        <div class="panel-heading flex-wrap gap-4">
+            <h2 class="flex items-center gap-2">
+                <Icon Name="history" />
+                Stock history
+            </h2>
+            @if (Detail.Locations.Count > 0)
+            {
+                <StockLocationSelector ProductId="Id"
+                                       Locations="Detail.Locations.ToArray()"
+                                       SelectedLocationId="Detail.SelectedHistoryLocationId"
+                                       @rendermode="InteractiveAuto" />
+            }
+        </div>
+
+        @if (Detail.Locations.FirstOrDefault(location => location.Id == Detail.SelectedHistoryLocationId) is { } selectedLocation)
+        {
+            <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
+                <div>
+                    <p class="text-sm font-semibold text-slate-900">@selectedLocation.Name</p>
+                    <p class="mt-1 text-xs text-slate-500">Latest 100 changes at this location</p>
+                </div>
+                <p class="text-sm text-slate-600">
+                    Stock on hand:
+                    <strong>@selectedLocation.Quantity.ToString("0.###") @item.Unit</strong>
+                </p>
+            </div>
+        }
+
+        @if (Detail.History.Count == 0)
+        {
+            <div class="empty-state">
+                <Icon Name="history" />
+                <p>@(Detail.Locations.Count == 0 ? "No stock locations available" : "No stock changes at this location yet")</p>
+            </div>
+        }
+        else
+        {
+            <div class="table-scroll">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Activity</th>
+                            <th class="text-right">Quantity</th>
+                            @if (item.Cost is not null)
+                            {
+                                <th class="text-right">Unit cost</th>
+                            }
+                            <th>Reference</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var change in Detail.History)
+                        {
+                            <tr>
+                                <td>@change.At.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</td>
+                                <td>
+                                    <span class="badge">@change.Type</span>
+                                </td>
+                                <td class="text-right font-medium">
+                                    @(change.Quantity > 0 ? "+" : "")@change.Quantity.ToString("0.###")
+                                </td>
+                                @if (item.Cost is not null)
+                                {
+                                    <td class="text-right">@Money(change.Cost ?? 0)</td>
+                                }
+                                <td>
+                                    <span class="block max-w-40 truncate text-xs" title="@change.Receipt">@(change.Receipt ?? "—")</span>
+                                    <span class="text-xs text-slate-400">@change.Notes</span>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+                @if (Detail.HistoryPagination is not null)
+                {
+                    <PageNavigation Info="Detail.HistoryPagination" Label="movements" />
+                }
+            </div>
+        }
+    </section>
+
+    @if (item.Cost is not null)
+    {
+        <section id="cost-history" class="panel mt-6">
+            <div class="panel-heading">
+                <h2 class="flex items-center gap-2">
+                    <Icon Name="history" />
+                    Cost price history
+                </h2>
+            </div>
+
+            @if (Detail.CostHistory.Count == 0)
+            {
+                <div class="empty-state">
+                    <Icon Name="history" />
+                    <p>No cost price changes recorded yet.</p>
+                </div>
+            }
+            else
+            {
+                <div class="table-scroll">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th class="text-right">Previous cost</th>
+                                <th class="text-right">New cost</th>
+                                <th>Reason / Activity</th>
+                                <th>User</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var entry in Detail.CostHistory)
+                            {
+                                <tr>
+                                    <td>@entry.At.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</td>
+                                    <td class="text-right">@Money(entry.OldCost)</td>
+                                    <td class="text-right font-medium">@Money(entry.NewCost)</td>
+                                    <td>@entry.Reason</td>
+                                    <td>@(entry.User ?? "—")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </section>
+    }
+}
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    [SupplyParameterFromQuery]
+    public bool Saved { get; set; }
+
+    [SupplyParameterFromQuery]
+    public int? LocationId { get; set; }
+
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromQuery]
+    public int Page { get; set; } = 1;
+
+    [SupplyParameterFromQuery]
+    public int PageSize { get; set; } = 30;
+
+    private ItemDetail? Detail;
+    private bool Loading = true;
+    private bool Failed;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        Loading = true;
+        Failed = false;
+
+        try
+        {
+            Detail = await Inventory.FindForLocationAsync(HttpContext.User, Id, LocationId, HttpContext.RequestAborted, Page, PageSize);
+        }
+        catch (OperationCanceledException) when (HttpContext.RequestAborted.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            Failed = true;
+            Logger.LogError(exception, "Item details failed.");
+        }
+        finally
+        {
+            Loading = false;
+        }
+    }
+
+    private string Money(decimal value) => $"{value:N2} {Configuration["CurrencyCode"] ?? "BDT"}";
+}

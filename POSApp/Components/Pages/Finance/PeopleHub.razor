@@ -1,0 +1,17 @@
+@page "/finance/people"
+@attribute [Authorize(Policy = AppPolicies.MakeSales)]
+
+<PageTitle>People & payroll · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
+<div class="page-heading">
+    <h1>People & payroll</h1>
+</div>
+<div class="grid gap-4 md:grid-cols-2">
+    <HubCard Href="/customers" Title="Customers" Hint="Contact details, balances and statements" IconName="users" />
+    <AuthorizeView Policy="@AppPolicies.ManageInventory">
+        <HubCard Href="/suppliers" Title="Suppliers" Hint="Supplier accounts and assigned stock" IconName="users" />
+    </AuthorizeView>
+    <AuthorizeView Policy="@AppPolicies.ManageUsers">
+        <HubCard Href="/employees" Title="Employees & monthly salaries" Hint="Salary setup, paid amounts and remaining balances" IconName="users" />
+        <HubCard Href="/payroll" Title="Salary payments" Hint="Record salary installments, bonuses and advances" IconName="wallet" />
+    </AuthorizeView>
+</div>

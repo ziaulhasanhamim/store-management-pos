@@ -1,0 +1,18 @@
+@page "/customers/payments"
+@attribute [Authorize(Policy = AppPolicies.MakeSales)]
+
+<POSApp.Components.Pages.Finance.MoneyEntriesPage Kind="customer-payments" Date="Date" Page="Page" PageSize="PageSize" PartyId="CustomerId" />
+
+@code {
+    [SupplyParameterFromQuery]
+    public int Page { get; set; } = 1;
+
+    [SupplyParameterFromQuery]
+    public int PageSize { get; set; } = 30;
+
+    [SupplyParameterFromQuery]
+    public int? CustomerId { get; set; }
+
+    [SupplyParameterFromQuery]
+    public DateOnly? Date { get; set; }
+}

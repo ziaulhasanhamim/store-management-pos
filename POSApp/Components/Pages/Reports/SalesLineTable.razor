@@ -1,0 +1,71 @@
+<div class="table-scroll">
+    <table class="data-table report-lines">
+        <thead>
+            <tr>
+                <th>Item / barcode</th>
+                <th class="text-right">Quantity</th>
+                @if (CanViewCosts)
+                {
+                    <th class="text-right">Unit cost</th>
+                }
+                <th class="text-right">Selling price</th>
+                <th class="text-right">Subtotal</th>
+                <th class="text-right">Discount</th>
+                <th class="text-right">Net sales</th>
+                @if (CanViewCosts)
+                {
+                    <th class="text-right">Cost</th>
+                    <th class="text-right">Profit</th>
+                }
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var item in Items)
+            {
+                <tr>
+                    <td>
+                        <strong>@item.Name</strong>
+                        <span class="block font-mono text-xs text-slate-500">@item.Barcode</span>
+                    </td>
+                    <td class="text-right">@item.Quantity.ToString("0.###") @item.Unit</td>
+                    @if (CanViewCosts)
+                    {
+                        <td class="text-right">@Money(item.UnitCost ?? 0)</td>
+                    }
+                    <td class="text-right">@Money(item.UnitPrice)</td>
+                    <td class="text-right">@Money(item.Subtotal)</td>
+                    <td class="text-right">@Money(item.Subtotal - item.Total)</td>
+                    <td class="text-right">@Money(item.Total)</td>
+                    @if (CanViewCosts)
+                    {
+                        <td class="text-right">@Money(item.Cost ?? 0)</td>
+                        <td class="text-right font-semibold">@Money(item.Profit ?? 0)</td>
+                    }
+                </tr>
+            }
+        </tbody>
+        <tfoot>
+            <tr>
+                <th colspan="@(CanViewCosts ? 4 : 3)">Sale totals</th>
+                <td class="text-right">@Money(Items.Sum(item => item.Subtotal))</td>
+                <td class="text-right">@Money(Items.Sum(item => item.Subtotal - item.Total))</td>
+                <td class="text-right">@Money(Items.Sum(item => item.Total))</td>
+                @if (CanViewCosts)
+                {
+                    <td class="text-right">@Money(Items.Sum(item => item.Cost ?? 0))</td>
+                    <td class="text-right">@Money(Items.Sum(item => item.Profit ?? 0))</td>
+                }
+            </tr>
+        </tfoot>
+    </table>
+</div>
+
+@code {
+    [Parameter]
+    public IReadOnlyList<SalesReportLine> Items { get; set; } = [];
+
+    [Parameter]
+    public bool CanViewCosts { get; set; }
+
+    private string Money(decimal value) => $"{value:N2} {Configuration["CurrencyCode"] ?? "BDT"}";
+}

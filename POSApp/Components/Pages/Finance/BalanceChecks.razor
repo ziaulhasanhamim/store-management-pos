@@ -1,0 +1,71 @@
+@page "/finance/balance-checks"
+@attribute [Authorize(Policy = AppPolicies.ManageUsers)]
+@attribute [StreamRendering]
+@inject BalanceIntegrityService Integrity
+
+<PageTitle>Balance checks · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
+<div class="page-heading">
+    <h1>Balance checks</h1>
+    <a href="/finance" class="btn-secondary">Working day</a>
+</div>
+<p class="mb-5 text-sm text-slate-500">An on-demand comparison of stored balances and transaction history. No balances are changed. Imported stock without movement history may need an opening record.</p>
+@if (Error is not null)
+{
+    <p class="error-panel" role="alert">@Error</p>
+}
+else if (Issues is null)
+{
+    <LoadingPanel Message="Checking balance history…" />
+}
+else if (Issues.Count == 0)
+{
+    <p class="success-panel" role="status">No differences found in the balances checked.</p>
+}
+else
+{
+    <section class="panel table-scroll">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Account</th>
+                    <th>Reference</th>
+                    <th class="text-right">Stored</th>
+                    <th class="text-right">From history</th>
+                    <th class="text-right">Difference</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var issue in Issues)
+                {
+                    <tr>
+                        <td>@issue.Account</td>
+                        <td>@issue.Reference</td>
+                        <td class="text-right">@issue.Stored.ToString("0.###")</td>
+                        <td class="text-right">@issue.Expected.ToString("0.###")</td>
+                        <td class="text-right">@((issue.Stored - issue.Expected).ToString("0.###"))</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </section>
+}
+
+@code {
+    [CascadingParameter]
+    private HttpContext Context { get; set; } = default!;
+
+    private IReadOnlyList<BalanceIssue>? Issues;
+    private string? Error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            Issues = await Integrity.ReadAsync(Context.User, Context.RequestAborted);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            Error = "Unable to complete balance checks. Please retry.";
+        }
+    }
+}

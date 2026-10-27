@@ -1,0 +1,18 @@
+@page "/items/attributes"
+@attribute [Authorize(Policy = AppPolicies.ManageInventory)]
+
+<PageTitle>Product attributes · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
+
+<div class="page-heading">
+    <div>
+        <a href="/items" class="mb-3 inline-flex items-center gap-2 text-xs text-slate-500">
+            <Icon Name="back" />
+            Items
+        </a>
+        <h1>Product attributes</h1>
+    </div>
+</div>
+
+<p class="mb-6 max-w-3xl text-sm text-slate-500">Create optional product details such as warranty, color, model or size. Choose which workflows should show each value. The attribute key is used in product imports.</p>
+
+<ProductAttributeEditor @rendermode="InteractiveAuto" />

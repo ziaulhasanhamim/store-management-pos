@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <defs>
+    <linearGradient id="retailpos-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1e3a8a" />
+      <stop offset="50%" stop-color="#2563eb" />
+      <stop offset="100%" stop-color="#3b82f6" />
+    </linearGradient>
+  </defs>
+  <!-- Background Badge -->
+  <rect width="100" height="100" rx="24" fill="url(#retailpos-grad)" />
+  
+  <!-- Stylized Shopping Cart / Register -->
+  <g fill="none" stroke="#ffffff" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Cart Basket -->
+    <path d="M 24 28 L 33 28 L 44 60 L 76 60 L 84 36 L 36 36" />
+    
+    <!-- Shelf Lines / Register Scanner Accent -->
+    <line x1="48" y1="44" x2="72" y2="44" stroke-width="4" stroke="#93c5fd" opacity="0.9" />
+    <line x1="51" y1="52" x2="69" y2="52" stroke-width="4" stroke="#93c5fd" opacity="0.9" />
+    
+    <!-- Cart Wheels -->
+    <circle cx="46" cy="74" r="5" fill="#ffffff" stroke="none" />
+    <circle cx="74" cy="74" r="5" fill="#ffffff" stroke="none" />
+  </g>
+</svg>

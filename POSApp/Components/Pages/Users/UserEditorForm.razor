@@ -1,0 +1,74 @@
+@using Microsoft.AspNetCore.Components.Forms
+
+<EditForm Model="Input"
+          method="post"
+          FormName="user-editor"
+          Enhance
+          data-submit-indication="@SubmitIndication.ToString().ToLowerInvariant()"
+          data-pending-cursor="@UseWaitCursor.ToString().ToLowerInvariant()"
+          data-spinner-selector="@SpinnerSelector"
+          OnValidSubmit="OnValidSubmit"
+          OnInvalidSubmit="OnInvalidSubmit">
+    <DataAnnotationsValidator />
+
+    <div class="space-y-6">
+        <div>
+            <label for="username" class="field-label">Username</label>
+            <InputText id="username" @bind-Value="Input.Username" class="field" autocomplete="off" required maxlength="256" />
+            <ValidationMessage For="() => Input.Username" />
+        </div>
+
+        <div>
+            <label for="role" class="field-label">Role</label>
+            <InputSelect id="role" @bind-Value="Input.Role" class="field" required>
+                @foreach (var role in AppRoles.All)
+                {
+                    <option value="@role">@AppRoles.DisplayName(role)</option>
+                }
+            </InputSelect>
+            <ValidationMessage For="() => Input.Role" />
+            <p class="mt-2 text-xs text-slate-500">
+                Admin manages the team. Inventory Manager receives stock and sees costs. Sales Associate makes sales only.
+            </p>
+        </div>
+
+        <div>
+            <label for="password" class="field-label">@(IsNew ? "Password" : "New password (optional)")</label>
+            <InputText id="password" @bind-Value="Input.Password" type="password" class="field" autocomplete="new-password" required="@IsNew" minlength="8" />
+            <p class="mt-2 text-xs text-slate-500">
+                At least 8 characters, including a number.@(IsNew ? "" : " Leave blank to keep the current password.")
+            </p>
+        </div>
+
+        <div class="flex items-center gap-3 border-t border-slate-100 pt-6">
+            <button type="submit" class="btn-primary" data-pending-text="Saving…">
+                <span class="user-submit-spinner form-submit-spinner" hidden aria-hidden="true"></span>
+                <span data-submit-label>@(IsNew ? "Create user" : "Save changes")</span>
+            </button>
+            <a href="/users" class="btn-secondary">Cancel</a>
+        </div>
+    </div>
+</EditForm>
+
+@code {
+    [Parameter, EditorRequired]
+    public UserEditorInput Input { get; set; } = default!;
+
+    [Parameter]
+    public bool IsNew { get; set; }
+
+    [Parameter]
+    public bool UseWaitCursor { get; set; } = true;
+
+    [Parameter]
+    public bool SubmitIndication { get; set; } = true;
+
+    [Parameter]
+    public string? SpinnerSelector { get; set; } = ".user-submit-spinner";
+
+    [Parameter]
+    public EventCallback<EditContext> OnValidSubmit { get; set; }
+
+    [Parameter]
+    public EventCallback<EditContext> OnInvalidSubmit { get; set; }
+}

@@ -1,0 +1,90 @@
+@using POSApp.Client.DTOs
+
+<div class="table-scroll">
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Entry</th>
+                <th>@PartyLabel</th>
+                <th>Method</th>
+                <th>Notes</th>
+                <th class="text-right">Amount</th>
+                <th>
+                    <span class="sr-only">Edit</span>
+                </th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (Loading)
+            {
+                <tr>
+                    <td colspan="6" class="p-6 text-center" role="status">
+                        <span class="form-submit-spinner"></span>
+                        Loading entries…
+                    </td>
+                </tr>
+            }
+            else
+            {
+            @foreach (var row in Rows)
+            {
+                <tr @key="row.Id">
+                    <td>
+                        <span>#@row.Id</span>
+                        @if (row.PurchaseId is { } purchaseId)
+                        {
+                            <a href="@($"/receiving/{purchaseId}")" class="mt-1 block text-xs text-blue-700">Receipt #@purchaseId</a>
+                        }
+                    </td>
+                    <td>@(PartyLabel == "Category" ? row.Category : row.Party)</td>
+                    <td>@SplitPayments.MethodName(row.Method)</td>
+                    <td>
+                        <span>@row.Notes</span>
+                        @if (!string.IsNullOrWhiteSpace(row.Receipt))
+                        {
+                            <span class="mt-1 block text-xs text-slate-400">@row.Receipt</span>
+                        }
+                    </td>
+                    <td class="text-right whitespace-nowrap">@row.Amount.ToString("N2") @Currency</td>
+                    <td>
+                        @if (row.CanEdit)
+                        {
+                            <button type="button" class="btn-secondary" @onclick="() => OnEdit.InvokeAsync(row)"
+                                    disabled="@(Disabled || PendingIds.Contains(row.Id))">
+                                Edit
+                            </button>
+                        }
+                        else
+                        {
+                            <span class="text-xs text-slate-400">@row.LockedReason</span>
+                        }
+                    </td>
+                </tr>
+            }
+            }
+        </tbody>
+    </table>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public IReadOnlyList<MoneyEntryRow> Rows { get; set; } = [];
+
+    [Parameter]
+    public string PartyLabel { get; set; } = "Category";
+
+    [Parameter]
+    public string Currency { get; set; } = "BDT";
+
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    [Parameter]
+    public bool Loading { get; set; }
+
+    [Parameter]
+    public IReadOnlySet<int> PendingIds { get; set; } = new HashSet<int>();
+
+    [Parameter]
+    public EventCallback<MoneyEntryRow> OnEdit { get; set; }
+}

@@ -1,0 +1,148 @@
+@if (View == "locations")
+{
+    <section class="panel mb-6 p-6">
+        <form method="post" @formname="cash-location" @onsubmit="SelectLocationAsync" data-enhance data-submit-indication="true">
+            <AntiforgeryToken />
+            <label for="cash-location" class="field-label">Cash location for purchases, supplier payments, expenses, payroll and bank transfers</label>
+            <div class="flex flex-wrap items-end gap-3">
+                <select id="cash-location" name="Location.LocationId" class="field max-w-md" required>
+                    <option value="">Select selling location</option>
+                    @foreach (var location in Data.Locations)
+                    {
+                        <option value="@location.Id" selected="@(Data.SelectedLocationId == location.Id)">@location.Name</option>
+                    }
+                </select>
+                <button class="btn-primary" data-pending-text="Selecting…">Use cash location</button>
+            </div>
+            <p class="mt-3 text-xs text-slate-500">Cash sales always use the sale's location. Cash payments for warehouse purchases use the selected paying location. Digital payments use the bank balance.</p>
+        </form>
+    </section>
+    <section class="panel mb-6 table-scroll">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Selling location</th>
+                    <th>Status</th>
+                    <th class="text-right">Cash held</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var location in Data.Locations)
+                {
+                    <tr>
+                        <td>@location.Name</td>
+                        <td>@(location.SessionId != null ? "Open" : location.ClosedToday ? "Counted and closed" : "Not opened")</td>
+                        <td class="text-right">@Money(location.Balance)</td>
+                    </tr>
+                }
+            </tbody>
+            <tfoot>
+                <tr>
+                    <th colspan="2">Total cash held</th>
+                    <td class="text-right">@Money(Data.Locations.Sum(location => location.Balance))</td>
+                </tr>
+            </tfoot>
+        </table>
+    </section>
+
+}
+@if (Data.Admin)
+{
+    @if (View == "transfer")
+    {
+        <section class="panel mb-6 p-6">
+            <h2 class="mb-4 font-semibold">Transfer cash between locations</h2>
+            <form method="post" @formname="cash-transfer" @onsubmit="TransferAsync" data-enhance data-submit-indication="true">
+                <AntiforgeryToken />
+                <input type="hidden" name="Transfer.RequestId" value="@Transfer.RequestId" />
+                <div class="grid gap-4 sm:grid-cols-3">
+                    <div>
+                        <label for="cash-source" class="field-label">From</label>
+                        <select id="cash-source" name="Transfer.SourceLocationId" class="field" required>
+                            <option value="">Source location</option>
+                            @foreach (var location in Data.Locations.Where(location => location.SessionId != null))
+                            {
+                                <option value="@location.Id" selected="@(Data.SelectedLocationId == location.Id)">@location.Name</option>
+                            }
+                        </select>
+                    </div>
+                    <div>
+                        <label for="cash-destination" class="field-label">To</label>
+                        <select id="cash-destination" name="Transfer.DestinationLocationId" class="field" required>
+                            <option value="">Destination location</option>
+                            @foreach (var location in Data.Locations.Where(location => location.SessionId != null))
+                            {
+                                <option value="@location.Id">@location.Name</option>
+                            }
+                        </select>
+                    </div>
+                    <div>
+                        <label for="transfer-cash-amount" class="field-label">Amount</label>
+                        <input id="transfer-cash-amount" name="Transfer.Amount" class="field" inputmode="decimal" required />
+                    </div>
+                </div>
+                <label for="cash-transfer-note" class="field-label mt-4">Reference / reason</label>
+                <input id="cash-transfer-note" name="Transfer.Notes" class="field" maxlength="2000" required />
+                <p class="mt-3 text-xs text-slate-500">Both drawers must be open. The transfer records matching cash-out and cash-in entries, with no change to total business funds or profit.</p>
+                <button class="btn-secondary mt-4" data-pending-text="Transferring…">Transfer cash</button>
+            </form>
+        </section>
+    }
+    @if (View == "locations" && Data.Unassigned.Count > 0)
+    {
+        <section class="panel mb-6 p-6">
+            <h2 class="mb-4 font-semibold">Assign legacy drawers to their locations</h2>
+            @foreach (var drawer in Data.Unassigned.Where(drawer => drawer.SessionId != null))
+            {
+                <a href="@($"/cash-drawer?sessionId={drawer.SessionId}&view=drawer")" class="btn-secondary mb-4">Count legacy drawer #@drawer.Id</a>
+            }
+            <form method="post" @formname="cash-assign" @onsubmit="AssignAsync" data-enhance data-submit-indication="true">
+                <AntiforgeryToken />
+                <label for="legacy-drawer" class="field-label">Existing drawer</label>
+                <select id="legacy-drawer" name="Assignment.DrawerId" class="field" required>
+                    @foreach (var drawer in Data.Unassigned)
+                    {
+                        <option value="@drawer.Id">Drawer #@drawer.Id · @Money(drawer.Balance)</option>
+                    }
+                </select>
+                <label for="legacy-location" class="field-label mt-4">Actual selling location</label>
+                <select id="legacy-location" name="Assignment.LocationId" class="field" required>
+                    @foreach (var location in Data.Locations)
+                    {
+                        <option value="@location.Id">@location.Name</option>
+                    }
+                </select>
+                <p class="mt-3 text-xs text-slate-500">Old cashier drawers had no reliable location. Assign to an unused location, or count and close the legacy drawer and move all its cash into an existing open location. Both transfer entries and the old history are retained.</p>
+                <button class="btn-secondary mt-4" data-pending-text="Assigning…">Assign / consolidate cash</button>
+            </form>
+        </section>
+    }
+}
+
+@code {
+    [Parameter]
+    public string View { get; set; } = "locations";
+
+    [Parameter, EditorRequired]
+    public CashDrawerPage Data { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public CashLocationInput Location { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public CashTransferInput Transfer { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public AssignCashDrawerInput Assignment { get; set; } = default!;
+
+    [Parameter]
+    public EventCallback SelectLocationAsync { get; set; }
+
+    [Parameter]
+    public EventCallback TransferAsync { get; set; }
+
+    [Parameter]
+    public EventCallback AssignAsync { get; set; }
+
+    private string Money(decimal amount) => $"{Configuration["CurrencyCode"] ?? "BDT"} {amount:N2}";
+}

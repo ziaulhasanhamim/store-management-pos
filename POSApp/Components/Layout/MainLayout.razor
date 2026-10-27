@@ -1,0 +1,171 @@
+@inherits LayoutComponentBase
+@inject NavigationManager Navigation
+
+<div class="min-h-screen bg-slate-50 lg:pl-64">
+    <!-- Mobile Drawer Peer Toggle -->
+    <input type="checkbox" id="mobile-nav-toggle" class="peer hidden" aria-hidden="true" />
+
+    <!-- Backdrop Overlay for Mobile Drawer -->
+    <label for="mobile-nav-toggle" class="fixed inset-0 z-40 bg-slate-950/60 backdrop-blur-xs transition-opacity duration-200 opacity-0 pointer-events-none peer-checked:opacity-100 peer-checked:pointer-events-auto lg:hidden" aria-hidden="true"></label>
+
+    <aside class="sidebar fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] -translate-x-full peer-checked:translate-x-0 transition-transform duration-200 ease-in-out overflow-y-auto lg:translate-x-0 lg:fixed lg:inset-y-0 lg:left-0 lg:z-20 lg:w-64 lg:border-r lg:border-b-0 lg:overflow-y-auto">
+        <div class="flex items-center justify-between px-6 py-6">
+            <a href="/" class="flex items-center gap-3">
+                <img src="/images/logo.svg" alt="@(Configuration["StoreName"] ?? "RetailPOS") logo" class="size-11 rounded-xl" />
+                <span class="text-base font-bold tracking-tight text-white">
+                    @(Configuration["StoreName"] ?? "RetailPOS")
+                    <span class="mt-0.5 block text-[10px] font-medium tracking-[0.18em] text-slate-400 uppercase">@(Configuration["StoreSubtitle"] ?? "Store management")</span>
+                </span>
+            </a>
+            <label for="mobile-nav-toggle" class="lg:hidden text-slate-400 hover:text-white p-2 cursor-pointer text-lg" aria-label="Close navigation">✕</label>
+        </div>
+
+        <AuthorizeView>
+            <nav aria-label="Main navigation" class="flex flex-col gap-1 px-3 pb-6">
+                <NavLink href="/" Match="NavLinkMatch.All" class="nav-link">
+                    <Icon Name="dashboard" />
+                    Dashboard
+                </NavLink>
+                <AuthorizeView Policy="@AppPolicies.MakeSales" Context="sales">
+                    <NavLink href="/sales" class="nav-link">
+                        <Icon Name="wallet" />
+                        Point of sale
+                    </NavLink>
+                </AuthorizeView>
+                <NavLink href="/cash-drawer?view=locations" class="nav-link">
+                    <Icon Name="wallet" />
+                    Cash drawer balances
+                </NavLink>
+                <SidebarGroup Title="Items" IconName="box" Prefix="/items" AlternatePrefix="/stock">
+                    <NavLink href="/items" Match="NavLinkMatch.All">All items</NavLink>
+                    <AuthorizeView Policy="@AppPolicies.ManageInventory" Context="itemAuth">
+                        <NavLink href="/items/new">Add item</NavLink>
+                        <NavLink href="/reports/inventory">Inventory valuation</NavLink>
+                        <NavLink href="/stock/locations">Stock locations</NavLink>
+                        <NavLink href="/stock/takes">Stock takes</NavLink>
+                    </AuthorizeView>
+                    <AuthorizeView Policy="@AppPolicies.ManageStockAdjustment" Context="openingAuth">
+                        <NavLink href="/stock/adjustments">Stock adjustments</NavLink>
+                    </AuthorizeView>
+                </SidebarGroup>
+                <AuthorizeView Policy="@AppPolicies.ManageInventory" Context="inventoryAuth">
+                    <SidebarGroup Title="Purchases & transfers" IconName="receive" Prefix="/receiving">
+                        <NavLink href="/receiving" Match="NavLinkMatch.All">Receive / transfer stock</NavLink>
+                        <NavLink href="/reports/receiving">Receiving report</NavLink>
+                    </SidebarGroup>
+                    <SidebarGroup Title="Suppliers" IconName="users" Prefix="/suppliers">
+                        <NavLink href="/suppliers" Match="NavLinkMatch.All">Supplier accounts</NavLink>
+                        <NavLink href="/suppliers/payments">Supplier payments</NavLink>
+                    </SidebarGroup>
+                </AuthorizeView>
+                <SidebarGroup Title="Customers" IconName="users" Prefix="/customers">
+                    <NavLink href="/customers" Match="NavLinkMatch.All">Customer accounts</NavLink>
+                    <NavLink href="/customers/payments">Collect customer dues</NavLink>
+                </SidebarGroup>
+                <AuthorizeView Policy="@AppPolicies.ManageUsers" Context="lenderAuth">
+                    <SidebarGroup Title="Lenders & debt" IconName="wallet" Prefix="/finance/debt">
+                        <NavLink href="/finance/debt" Match="NavLinkMatch.All">Lender accounts</NavLink>
+                        <NavLink href="/finance/debt/payments">Borrow / repay</NavLink>
+                    </SidebarGroup>
+                </AuthorizeView>
+                <SidebarGroup Title="Expenses" IconName="wallet" Prefix="/expenses">
+                    <NavLink href="/expenses" Match="NavLinkMatch.All">Daily expenses</NavLink>
+                    <AuthorizeView Policy="@AppPolicies.ManageUsers" Context="categoryAuth">
+                        <NavLink href="/expenses/categories">Expense categories</NavLink>
+                    </AuthorizeView>
+                </SidebarGroup>
+                <AuthorizeView Policy="@AppPolicies.ManageUsers" Context="salaryAuth">
+                    <SidebarGroup Title="Employees & salary" IconName="users" Prefix="/payroll" AlternatePrefix="/employees">
+                        <NavLink href="/employees">Employees & balances</NavLink>
+                        <NavLink href="/payroll">Salary & bonus payments</NavLink>
+                    </SidebarGroup>
+                </AuthorizeView>
+                <SidebarGroup Title="Finance" IconName="history" Prefix="/finance">
+                    <NavLink href="/finance" Match="NavLinkMatch.All">Working day overview</NavLink>
+                    <NavLink href="/cash-drawer" Match="NavLinkMatch.All">Open / count drawer</NavLink>
+                    <AuthorizeView Policy="@AppPolicies.ManageUsers" Context="financeAuth">
+                        <NavLink href="/finance/day">Day summary & closing</NavLink>
+                        <NavLink href="/finance/month">Month summary & closing</NavLink>
+                        <NavLink href="/finance/bank">Bank / digital balance</NavLink>
+                        <NavLink href="/finance/balance-checks">Balance checks</NavLink>
+                        <NavLink href="/cash-drawer?view=transfer">Move cash</NavLink>
+                    </AuthorizeView>
+                </SidebarGroup>
+                <NavLink href="/reports" class="nav-link">
+                    <Icon Name="dashboard" />
+                    Reports
+                </NavLink>
+                <AuthorizeView Policy="@AppPolicies.ManageUsers" Context="admin">
+                    <NavLink href="/administration" class="@AreaClass("administration")">
+                        <Icon Name="settings" />
+                        Administration
+                    </NavLink>
+                </AuthorizeView>
+            </nav>
+        </AuthorizeView>
+
+        <div class="hidden px-6 pb-6 text-xs text-slate-400 lg:block">
+            @(Configuration["StoreName"] ?? "RetailPOS") © @DateTime.Today.Year
+        </div>
+    </aside>
+
+    <header class="flex h-16 sm:h-18 items-center justify-between border-b border-slate-200 bg-white px-4 sm:px-8">
+        <div class="flex items-center gap-3">
+            <label for="mobile-nav-toggle" class="icon-button lg:hidden cursor-pointer" aria-label="Open menu" title="Open menu">
+                <svg class="size-6 text-slate-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+            </label>
+            <a href="/" class="flex items-center gap-2 lg:hidden">
+                <img src="/images/logo.svg" alt="@(Configuration["StoreName"] ?? "RetailPOS") logo" class="size-7 rounded-lg" />
+                <span class="text-sm font-bold text-slate-900">@(Configuration["StoreName"] ?? "RetailPOS")</span>
+            </a>
+            <AuthorizeView>
+                <Authorized>
+                    <POSApp.Components.Pages.Finance.WorkingDateBadge />
+                </Authorized>
+                <NotAuthorized>
+                    <span class="text-xs font-medium tracking-wide text-slate-400 uppercase hidden sm:inline">Workspace</span>
+                </NotAuthorized>
+            </AuthorizeView>
+        </div>
+
+        <AuthorizeView>
+            <Authorized Context="auth">
+                <div class="flex items-center gap-4">
+                    <AuthorizeView Policy="@AppPolicies.ManageUsers" Context="importsAuth">
+                        <ImportIndicator @rendermode="InteractiveAuto" />
+                    </AuthorizeView>
+                    <span class="flex size-8 items-center justify-center rounded-full bg-blue-50 text-xs font-bold text-blue-700">
+                        @auth.User.Identity?.Name?.FirstOrDefault().ToString().ToUpperInvariant()
+                    </span>
+                    <span class="max-w-40 truncate text-sm font-medium text-slate-700" title="@auth.User.Identity?.Name">
+                        @auth.User.Identity?.Name
+                    </span>
+                    <a href="/account/logout" class="icon-button" aria-label="Sign out" title="Sign out">
+                        <Icon Name="logout" />
+                    </a>
+                </div>
+            </Authorized>
+            <NotAuthorized>
+                <a href="/account/login" class="btn-primary">Sign in</a>
+            </NotAuthorized>
+        </AuthorizeView>
+    </header>
+
+    <main class="mx-auto max-w-7xl px-5 py-8 sm:px-8">
+        <WorkspaceNav />
+        @Body
+    </main>
+</div>
+
+<div id="blazor-error-ui" data-nosnippet>
+    An unexpected error occurred.
+    <a href="." class="reload underline">Reload</a>
+    <span class="dismiss">×</span>
+</div>
+
+@code {
+    private string AreaClass(string area) => WorkspaceNavigation.Area(new Uri(Navigation.Uri).AbsolutePath) == area
+        ? "nav-link active" : "nav-link";
+}

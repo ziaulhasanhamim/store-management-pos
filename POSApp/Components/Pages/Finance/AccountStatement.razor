@@ -1,0 +1,40 @@
+@attribute [StreamRendering]
+@inject StatementService Statements
+@inject ILogger<AccountStatement> Logger
+@using POSApp.Components.Pages.Reports
+
+<div class="mt-6 flex flex-wrap items-center justify-between gap-3">
+    <h2 class="font-semibold">Step-by-step @(Account == "bank" ? "bank" : "cash") movements · @Date.ToString("dd MMM yyyy")</h2>
+    <a href="@($"/reports/statements/{Account}?period=custom&start={Date:yyyy-MM-dd}&end={Date:yyyy-MM-dd}&drawerId={DrawerId}")" class="btn-secondary">Full statement / other dates</a>
+</div>
+<StatementTable Data="Data" Error="@Error" />
+
+@code {
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [Parameter]
+    public string Account { get; set; } = "cash";
+
+    [Parameter]
+    public int DrawerId { get; set; }
+
+    [Parameter]
+    public DateOnly Date { get; set; }
+
+    private BalanceStatement? Data;
+    private string? Error;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        try
+        {
+            Data = await Statements.ReadAsync(HttpContext.User, Account, "custom", Date, Date, DrawerId, ct: HttpContext.RequestAborted);
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Drawer statement failed.");
+            Error = "Unable to load cash movements. Open the full statement to retry.";
+        }
+    }
+}

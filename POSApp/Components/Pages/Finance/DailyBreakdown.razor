@@ -1,0 +1,129 @@
+<section class="panel mt-6">
+    <div class="panel-heading">
+        <div>
+            <h2>Day activity · @Date.ToString("dd MMM yyyy")</h2>
+            <p class="mt-1 text-xs text-slate-500">Active payments only. Corrections replace the original posting; internal cash transfers are excluded.</p>
+        </div>
+    </div>
+    <div class="grid gap-6 p-5 lg:grid-cols-2">
+        <div>
+            <h3 class="mb-3 font-semibold">Expenses by category</h3>
+            <div class="table-scroll">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Category</th>
+                            <th class="text-right">Spent</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var category in Data.Categories)
+                        {
+                            <tr>
+                                <td>@(category.Name ?? category.Category.ToString())</td>
+                                <td class="text-right">@Money(category.Amount)</td>
+                            </tr>
+                        }
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <th>Total expenses</th>
+                            <td class="text-right">@Money(Data.Categories.Sum(category => category.Amount))</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+        <div>
+            <h3 class="mb-3 font-semibold">Payments at a glance</h3>
+            <div class="table-scroll">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Activity</th>
+                            <th class="text-right">In</th>
+                            <th class="text-right">Out</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var group in Groups)
+                        {
+                            <tr>
+                                <td>@group.Key</td>
+                                <td class="text-right">@Money(group.Where(row => row.Amount > 0).Sum(row => row.Amount))</td>
+                                <td class="text-right">@Money(-group.Where(row => row.Amount < 0).Sum(row => row.Amount))</td>
+                            </tr>
+                        }
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <th>Total cash & bank</th>
+                            <td class="text-right">@Money(Data.Payments.Where(row => row.Amount > 0).Sum(row => row.Amount))</td>
+                            <td class="text-right">@Money(-Data.Payments.Where(row => row.Amount < 0).Sum(row => row.Amount))</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+    </div>
+    @foreach (var group in Groups)
+    {
+        <details class="day-payment-group" open="@(group.Key == "Supplier payments")">
+            <summary>
+                <span>@group.Key <small>· @group.Count() payments</small></span>
+                <strong>@Money(group.Sum(row => row.Amount))</strong>
+            </summary>
+            <div class="table-scroll">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Recorded at</th>
+                            <th>Account / person</th>
+                            <th>Cash location / bank</th>
+                            <th>Method</th>
+                            <th>Notes</th>
+                            <th class="text-right">Received</th>
+                            <th class="text-right">Paid out</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var payment in group)
+                        {
+                            <tr>
+                                <td>@payment.At.ToBusinessTime(Configuration).ToString("dd MMM, HH:mm")</td>
+                                <td>@(string.IsNullOrEmpty(payment.Party) ? "—" : payment.Party)</td>
+                                <td>@payment.Account</td>
+                                <td>@SplitPayments.MethodName(payment.Method)</td>
+                                <td>@payment.Notes</td>
+                                <td class="text-right text-emerald-700">@(payment.Amount > 0 ? Money(payment.Amount) : "—")</td>
+                                <td class="text-right">@(payment.Amount < 0 ? Money(-payment.Amount) : "—")</td>
+                            </tr>
+                        }
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <th colspan="5">@group.Key total</th>
+                            <td class="text-right">@Money(group.Where(row => row.Amount > 0).Sum(row => row.Amount))</td>
+                            <td class="text-right">@Money(-group.Where(row => row.Amount < 0).Sum(row => row.Amount))</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </details>
+    }
+    @if (Data.Payments.Count == 0)
+    {
+        <p class="p-5 text-sm text-slate-500">No payments recorded for this day.</p>
+    }
+</section>
+
+@code {
+    [Parameter, EditorRequired]
+    public DailyFinanceDetails Data { get; set; } = default!;
+
+    [Parameter]
+    public DateOnly Date { get; set; }
+
+    private IEnumerable<IGrouping<string, DayPayment>> Groups => Data.Payments.GroupBy(payment => payment.Type).OrderBy(group => group.Key);
+    private string Money(decimal amount) => $"{Configuration["CurrencyCode"] ?? "BDT"} {amount:N2}";
+}

@@ -1,0 +1,100 @@
+@page "/finance/reopen"
+@attribute [Authorize(Policy = AppPolicies.ManageUsers)]
+@attribute [StreamRendering]
+@using System.ComponentModel.DataAnnotations
+@inject ClosureService Closures
+@inject NavigationManager Navigation
+
+<PageTitle>Reopen closing · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
+<div class="page-heading">
+    <h1>Reopen closing</h1>
+    <a href="/finance" class="btn-secondary">Finance</a>
+</div>
+@if (Error is not null)
+{
+    <p class="error-panel" role="alert">@Error</p>
+}
+@if (Target is null && Error is null)
+{
+    <LoadingPanel Message="Loading closing record…" />
+}
+else if (Target is not null)
+{
+    <section class="panel max-w-2xl p-6">
+        <p class="eyebrow">Administrator action</p>
+        <h2 class="mb-3 text-xl font-semibold">@Target.Title · @Target.Date.ToString("dd MMM yyyy")</h2>
+        <p class="mb-5 text-sm text-slate-500">The previous closing and cash count remain in the audit history. Reopen in order: month, day, then drawer. Drawers and days can only be reopened before a later working day begins.</p>
+        <form method="post" @formname="reopen" @onsubmit="SaveAsync" data-enhance data-submit-indication="true">
+            <AntiforgeryToken />
+            <input type="hidden" name="Input.RequestId" value="@Input!.RequestId" />
+            <input type="hidden" name="Input.Kind" value="@Input.Kind" />
+            <input type="hidden" name="Input.Id" value="@Input.Id" />
+            <input type="hidden" name="Input.Date" value="@Input.Date.ToString("yyyy-MM-dd")" />
+            <input type="hidden" name="Input.Revision" value="@Input.Revision" />
+            <label for="reopen-reason" class="field-label">Reason for reopening</label>
+            <textarea id="reopen-reason" name="Input.Reason" class="field" maxlength="2000" required>@Input.Reason</textarea>
+            <label class="my-5 flex items-start gap-3 text-sm">
+                <input type="checkbox" name="Input.Confirmed" value="true" required />
+                Reopen this record for corrections. A reopened drawer must be counted and closed again.
+            </label>
+            <div class="flex gap-3">
+                <a href="@BackLink" class="btn-secondary">Keep closed</a>
+                <button class="btn-primary" data-pending-text="Reopening…">Confirm reopen @Target.Kind</button>
+            </div>
+        </form>
+    </section>
+}
+
+@code {
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromQuery]
+    public string Kind { get; set; } = "day";
+
+    [SupplyParameterFromQuery]
+    public int Id { get; set; }
+
+    [SupplyParameterFromQuery]
+    public DateOnly Date { get; set; }
+
+    [SupplyParameterFromForm(FormName = "reopen")]
+    private ReopenInput? Input { get; set; }
+
+    private ReopenTarget? Target;
+    private string? Error;
+    private string BackLink => Kind == "drawer" ? $"/cash-drawer?sessionId={Id}"
+        : Kind == "month" ? $"/finance/month?month={Date:yyyy-MM}" : $"/finance/day?date={Date:yyyy-MM-dd}";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        try
+        {
+            Target = await Closures.ReadAsync(HttpContext.User, Kind, Id, Date, HttpContext.RequestAborted);
+            Input ??= new()
+            {
+                Kind = Target.Kind,
+                Id = Target.Id,
+                Date = Target.Date,
+                Revision = Target.Revision
+            };
+        }
+        catch (ValidationException exception)
+        {
+            Error = exception.Message;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        try
+        {
+            await Closures.ReopenAsync(HttpContext.User, Input!, HttpContext.RequestAborted);
+            Navigation.NavigateTo(BackLink);
+        }
+        catch (ValidationException exception)
+        {
+            Error = exception.Message;
+        }
+    }
+}

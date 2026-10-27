@@ -1,0 +1,49 @@
+@inject NavigationManager Navigation
+
+@if (Links.Count > 0)
+{
+    <nav class="workspace-nav no-print" aria-label="Section navigation">
+        @foreach (var link in Links)
+        {
+            <AuthorizeView Policy="@link.Policy" Context="sectionAuth">
+                <NavLink href="@link.Href" Match="NavLinkMatch.All" class="@(WorkspaceNavigation.Tab(Path) == link.Href ? "filter-chip active" : "filter-chip")">@link.Label</NavLink>
+            </AuthorizeView>
+        }
+    </nav>
+}
+
+@code {
+    private string Path => new Uri(Navigation.Uri).AbsolutePath;
+    private IReadOnlyList<(string Href, string Label, string? Policy)> Links => WorkspaceNavigation.Area(Path) switch
+    {
+        "reports" =>
+        [
+            ("/reports", "Reports", null),
+            ("/reports/sales", "Sales", AppPolicies.MakeSales),
+            ("/reports/receiving", "Receiving", AppPolicies.ManageInventory),
+            ("/reports/items", "Item performance", AppPolicies.ManageInventory)
+        ],
+        "administration" =>
+        [
+            ("/administration", "Setup", AppPolicies.ManageUsers),
+            ("/users", "Users & roles", AppPolicies.ManageUsers),
+            ("/administration/audit", "Audit history", AppPolicies.ManageUsers)
+        ],
+        "finance" =>
+        [
+            ("/finance", "Working day", AppPolicies.MakeSales),
+            ("/finance/payments", "Payments", AppPolicies.MakeSales),
+            ("/finance/people", "People & payroll", AppPolicies.MakeSales),
+            ("/finance/accounts", "Balances & accounts", AppPolicies.ManageUsers)
+        ],
+        "inventory" =>
+        [
+            ("/inventory", "Overview", null),
+            ("/items", "Items", null),
+            ("/stock/takes", "Stock takes", AppPolicies.ManageInventory),
+            ("/receiving", "Receiving & transfers", AppPolicies.ManageInventory),
+            ("/suppliers", "Suppliers", AppPolicies.ManageInventory)
+        ],
+        _ => []
+    };
+}

@@ -1,0 +1,42 @@
+@using Microsoft.AspNetCore.WebUtilities
+@inject NavigationManager Navigation
+
+<th class="@(Numeric ? "text-right" : null)" aria-sort="@Direction">
+    <a href="@SortUrl" class="table-sort" title="@($"Sort {Label} {NextDescendingText}")">
+        <span>@Label</span>
+        <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true" class="sort-icon">
+            <path d="M8 2 12 6H4Z" opacity="@(Sort == Column ? "1" : ".3")" />
+            <path d="m8 14 4-4H4Z" opacity="@(Sort == Column + "-desc" ? "1" : ".3")" />
+        </svg>
+    </a>
+</th>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Column { get; set; } = "";
+
+    [Parameter, EditorRequired]
+    public string Label { get; set; } = "";
+
+    [Parameter]
+    public string Sort { get; set; } = "";
+
+    [Parameter]
+    public bool Numeric { get; set; }
+
+    private string Direction => Sort == Column ? "ascending" : Sort == Column + "-desc" ? "descending" : "none";
+    private string NextDescendingText => Sort == Column ? "descending" : "ascending";
+
+    private string SortUrl
+    {
+        get
+        {
+            var uri = new Uri(Navigation.Uri);
+            var query = QueryHelpers.ParseQuery(uri.Query)
+                .ToDictionary(pair => pair.Key, pair => (string?)pair.Value.ToString());
+            query["sort"] = Sort == Column ? Column + "-desc" : Column;
+            query["page"] = "1";
+            return QueryHelpers.AddQueryString(uri.AbsolutePath, query);
+        }
+    }
+}

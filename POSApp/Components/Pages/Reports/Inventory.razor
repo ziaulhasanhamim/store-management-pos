@@ -1,0 +1,201 @@
+@page "/reports/inventory"
+@attribute [Authorize(Policy = AppPolicies.ManageInventory)]
+@attribute [StreamRendering]
+@inject InventoryValuation Valuation
+@inject ILogger<Inventory> Logger
+
+<PageTitle>Inventory valuation · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
+<div class="page-heading no-print">
+    <h1>Inventory valuation</h1>
+    <div class="flex gap-3">
+        <a href="/reports" class="btn-secondary">Reports</a>
+        <button type="button" class="btn-secondary" data-print>Print</button>
+    </div>
+</div>
+@if (Error is not null)
+{
+    <p role="alert" class="error-panel">@Error</p>
+}
+<form method="get" action="/reports/inventory" class="no-print mb-6 flex flex-wrap items-end gap-3" data-enhance data-auto-search="true">
+    <div>
+        <label for="value-supplier" class="field-label">Default supplier</label>
+        <select id="value-supplier" class="field" name="supplierId">
+            <option value="">All suppliers</option>
+            @foreach (var supplier in Data?.Suppliers ?? [])
+            {
+                <option value="@supplier.Id" selected="@(SupplierId == supplier.Id)">@supplier.Name</option>
+            }
+        </select>
+    </div>
+    <div>
+        <label for="value-location" class="field-label">Stock location</label>
+        <select id="value-location" class="field" name="locationId">
+            <option value="">All locations</option>
+            @foreach (var location in Data?.Locations ?? [])
+            {
+                <option value="@location.Id" selected="@(LocationId == location.Id)">@location.Name</option>
+            }
+        </select>
+    </div>
+    <div>
+        <label for="value-search" class="field-label">Search</label>
+        <input id="value-search" class="field" name="search" value="@Search" placeholder="Name or barcode" data-auto-search="true" autocomplete="off" data-permanent />
+    </div>
+    <input type="hidden" name="sort" value="@Sort" />
+    <input type="hidden" name="pageSize" value="@PageSize" />
+    <button class="btn-primary">Search</button>
+</form>
+@if (Data is not null)
+{
+    <details class="no-print mb-6 rounded-xl border border-slate-200 bg-white p-4">
+        <summary class="cursor-pointer font-semibold text-indigo-700">Export inventory · choose columns</summary>
+        <form method="get" action="/api/reports/export/inventory" class="mt-3" data-enhance="false">
+            <input type="hidden" name="supplierId" value="@SupplierId" />
+            <input type="hidden" name="locationId" value="@LocationId" />
+            <input type="hidden" name="search" value="@Search" />
+            <input type="hidden" name="sort" value="@Sort" />
+            <div class="mb-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                @foreach (var column in ExportColumns)
+                {
+                    <label class="flex items-center gap-2 text-sm text-slate-700">
+                        <input type="checkbox" name="columns" value="@column" checked />
+                        @column
+                    </label>
+                }
+            </div>
+            <button type="submit" class="btn-secondary">Download CSV</button>
+        </form>
+    </details>
+    <div class="mb-6 grid gap-4 sm:grid-cols-3">
+        <div class="metric">
+            <p>Inventory value at average cost</p>
+            <strong class="text-2xl!">@Money(Data.TotalValue)</strong>
+            <span class="metric-note">@Data.Count items · includes archived stock</span>
+        </div>
+        @if (Data.SupplierDue is { } due)
+        {
+            <div class="metric">
+                <p>Supplier balance</p>
+                <strong class="text-2xl!">@Money(due)</strong>
+            </div>
+            <div class="metric">
+                <p>Inventory value less supplier balance</p>
+                <strong class="text-2xl!">@Money(Data.TotalValue - due)</strong>
+            </div>
+        }
+    </div>
+}
+
+<section class="panel table-scroll">
+    <table id="inventory-table" class="data-table" aria-busy="@(Data is null && Error is null)">
+        <thead>
+            <tr>
+                <SortHeader Column="id" Label="ID" Sort="@Sort" Numeric="true" />
+                <SortHeader Column="name" Label="Item" Sort="@Sort" Numeric="false" />
+                <SortHeader Column="supplier" Label="Default supplier" Sort="@Sort" Numeric="false" />
+                <SortHeader Column="quantity" Label="Quantity" Sort="@Sort" Numeric="true" />
+                <SortHeader Column="cost" Label="Average cost" Sort="@Sort" Numeric="true" />
+                <SortHeader Column="value" Label="Stock value" Sort="@Sort" Numeric="true" />
+            </tr>
+        </thead>
+        <tbody>
+            @if (Data is null)
+            {
+                <TableStatusRow Columns="6" Loading="@(Error is null)" Error="@(Error is not null)"
+                    Message="@(Error ?? "Loading inventory valuation…")" />
+            }
+            @foreach (var row in Data?.Rows ?? [])
+            {
+                <tr>
+                    <td>@row.Id</td>
+                    <td>
+                        <strong>@row.Name</strong>
+                        <span class="mt-1 block text-xs text-slate-400">@row.Barcode @(row.Archived ? "· Archived" : "")</span>
+                    </td>
+                    <td>@row.Supplier</td>
+                    <td class="text-right">@row.Quantity.ToString("0.###") @row.Unit</td>
+                    <td class="text-right">@Money(row.UnitCost)</td>
+                    <td class="text-right">@Money(row.Value)</td>
+                </tr>
+            }
+        </tbody>
+        @if (Data is not null)
+        {
+            <tfoot>
+                <tr>
+                    <th colspan="5">This page · inventory value</th>
+                    <td class="text-right">@Money(Data.Rows.Sum(row => row.Value))</td>
+                </tr>
+                <tr>
+                    <th colspan="5">All matching items (@Data.Count)</th>
+                    <td class="text-right">@Money(Data.TotalValue)</td>
+                </tr>
+            </tfoot>
+        }
+    </table>
+</section>
+@if (Data is not null)
+{
+    <p class="no-print mt-4 text-xs text-slate-500">Supplier association uses the product’s default supplier.</p>
+    <PageNavigation Info="@(new PageInfo(Data.Page, QueryPagination.Size(PageSize), Data.Count))" Label="items" />
+}
+
+@code {
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromQuery]
+    public int? SupplierId { get; set; }
+
+    [SupplyParameterFromQuery]
+    public int? LocationId { get; set; }
+
+    [SupplyParameterFromQuery]
+    public string? Search { get; set; }
+
+    [SupplyParameterFromQuery(Name = "page")]
+    public int Page { get; set; } = 1;
+
+    [SupplyParameterFromQuery]
+    public int PageSize { get; set; } = 30;
+
+    [SupplyParameterFromQuery]
+    public string Sort { get; set; } = "id";
+
+    private static readonly Dictionary<string, string> SortOptions = new()
+    {
+        ["id"] = "ID · low to high",
+        ["id-desc"] = "ID · high to low",
+        ["supplier"] = "Supplier · A–Z",
+        ["supplier-desc"] = "Supplier · Z–A",
+        ["name"] = "Name · A–Z",
+        ["name-desc"] = "Name · Z–A",
+        ["quantity-desc"] = "Quantity · high to low",
+        ["quantity"] = "Quantity · low to high",
+        ["cost-desc"] = "Cost · high to low",
+        ["cost"] = "Cost · low to high",
+        ["value-desc"] = "Value · high to low",
+        ["value"] = "Value · low to high"
+    };
+
+    private InventoryValueReport? Data;
+    private string? Error;
+    private static readonly string[] ExportColumns = ["Item ID", "Item", "Barcode", "Default supplier", "Quantity", "Average cost", "Stock value"];
+
+    protected override async Task OnParametersSetAsync()
+    {
+        Sort = string.IsNullOrWhiteSpace(Sort) ? "id" : Sort;
+        try
+        {
+            Data = await Valuation.ReadAsync(HttpContext.User, SupplierId, LocationId, Search, Page,
+                HttpContext.RequestAborted, Sort, PageSize);
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Inventory valuation failed.");
+            Error = "Unable to load inventory valuation.";
+        }
+    }
+
+    private string Money(decimal amount) => $"{Configuration["CurrencyCode"] ?? "BDT"} {amount:N2}";
+}

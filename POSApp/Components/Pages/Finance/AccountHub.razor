@@ -1,0 +1,13 @@
+@page "/finance/accounts"
+@attribute [Authorize(Policy = AppPolicies.ManageUsers)]
+
+<PageTitle>Balances & accounts · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
+<div class="page-heading">
+    <h1>Balances & accounts</h1>
+</div>
+<div class="grid gap-4 md:grid-cols-2">
+    <HubCard Href="/finance/bank" Title="Bank & digital funds" Hint="Balance, cash deposits and withdrawals" IconName="wallet" />
+    <HubCard Href="/finance/debt" Title="Loans & debt" Hint="Lender balances and borrowing history" IconName="wallet" />
+    <HubCard Href="/accounts/suppliers/adjust" Title="Supplier opening balances & adjustments" Hint="Migration balances and agreed debt reductions" IconName="receive" />
+    <HubCard Href="/accounts/customers/adjust" Title="Customer opening balances & adjustments" Hint="Opening dues, credits and account corrections" IconName="users" />
+</div>

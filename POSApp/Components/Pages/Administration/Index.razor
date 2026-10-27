@@ -1,0 +1,18 @@
+@page "/administration"
+@attribute [Authorize(Policy = AppPolicies.ManageUsers)]
+
+<PageTitle>Administration · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
+<div class="page-heading">
+    <div>
+        <p class="eyebrow">Business setup</p>
+        <h1>Administration</h1>
+    </div>
+</div>
+<div class="grid gap-4 md:grid-cols-2">
+    <HubCard Href="/users" Title="Users & roles" Hint="Account access and permissions" IconName="users" />
+    <HubCard Href="/employees" Title="Employees" Hint="Staff records and salary setup" IconName="users" />
+    <HubCard Href="/stock/locations" Title="Locations" Hint="Stores, warehouses and selling permissions" IconName="box" />
+    <HubCard Href="/expenses/categories" Title="Expense categories" Hint="Organize business spending" IconName="wallet" />
+    <HubCard Href="/finance/accounts" Title="Opening balances" Hint="Migrate existing cash, bank and party balances" IconName="wallet" />
+    <HubCard Href="/administration/audit" Title="Audit history" Hint="Review corrections, closings and reopenings" IconName="history" />
+</div>

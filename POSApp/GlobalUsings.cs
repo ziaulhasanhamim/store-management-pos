@@ -1,0 +1,10 @@
+global using Microsoft.AspNetCore.Components;
+global using Microsoft.AspNetCore.Components.Forms;
+global using Microsoft.AspNetCore.Components.Authorization;
+global using Microsoft.JSInterop;
+global using POSApp.Client.DTOs;
+global using POSApp.Persistence.Entities;
+global using POSApp.Security;
+global using POSApp.Services;
+global using POSApp.Client.Enums;
+global using POSApp.Client.Security;

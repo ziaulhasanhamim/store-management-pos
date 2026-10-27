@@ -1,0 +1,179 @@
+@page "/customers"
+@attribute [Authorize(Policy = AppPolicies.MakeSales)]
+@attribute [StreamRendering]
+@using System.ComponentModel.DataAnnotations
+@inject CustomerService Customers
+@inject SalesService Sales
+@inject NavigationManager Navigation
+@inject ILogger<Index> Logger
+
+<PageTitle>Customers · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
+<div class="page-heading">
+    <h1>Customers</h1>
+    <div class="flex gap-3">
+        <a href="/customers/payments" class="btn-primary">Collect payment</a>
+        <AuthorizeView Policy="@AppPolicies.ManageUsers">
+            <a href="/accounts/customers/adjust" class="btn-secondary">Opening balances & adjustments</a>
+        </AuthorizeView>
+    </div>
+</div>
+@if (Error is not null)
+{
+    <p class="error-panel" role="alert">@Error</p>
+}
+    <div class="mb-6 grid gap-4 sm:grid-cols-3">
+        <div class="metric">
+            <p>Customers shown</p>
+            <strong>@(Pagination?.Total.ToString() ?? "…")</strong>
+        </div>
+        <div class="metric">
+            <p>Outstanding due</p>
+            <strong class="text-2xl!">@Money(TotalDue)</strong>
+        </div>
+        <div class="metric">
+            <p>Customer credit</p>
+            <strong class="text-2xl!">@Money(TotalCredit)</strong>
+        </div>
+    </div>
+    <details class="panel mb-6 p-5" open="@(Input is not null && Error is not null)">
+        <summary class="cursor-pointer font-semibold">Add customer</summary>
+        <form method="post" @formname="customer-create" @onsubmit="CreateAsync" data-enhance data-submit-indication="true" class="mt-5 grid gap-4 md:grid-cols-3">
+            <AntiforgeryToken />
+            <div>
+                <label class="field-label" for="customer-name">Name</label>
+                <input id="customer-name" name="Input.Name" class="field" value="@Input!.Name" maxlength="200" required />
+            </div>
+            <div>
+                <label class="field-label" for="customer-phone">Phone</label>
+                <input id="customer-phone" name="Input.Phone" class="field" value="@Input.Phone" maxlength="64" />
+            </div>
+            <div>
+                <label class="field-label" for="customer-opening">Opening due / credit</label>
+                <input id="customer-opening" name="Input.OpeningBalance" class="field" inputmode="decimal" value="@Input.OpeningBalance" data-select-on-focus="true" />
+            </div>
+            <div class="flex items-center justify-between md:col-span-3">
+                <p class="text-xs text-slate-500">Positive for due; negative for customer credit.</p>
+                <button class="btn-primary" data-pending-text="Creating…">Create customer</button>
+            </div>
+        </form>
+    </details>
+    <form method="get" action="/customers" class="mb-5 flex gap-3" data-enhance data-auto-search="true">
+        <input type="hidden" name="pageSize" value="@PageSize" />
+        <input id="customers-search" name="search" class="field max-w-md" value="@Search" placeholder="Search name or phone" aria-label="Search customers" data-auto-search="true" autocomplete="off" data-permanent />
+        <button class="btn-secondary">Search</button>
+    </form>
+
+}
+    <section class="panel table-scroll">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Customer</th>
+                    <th>Phone</th>
+                    <th class="text-right">Opening balance</th>
+                    <th class="text-right">Current balance</th>
+                    <th>
+                        <span class="sr-only">Collect payment</span>
+                    </th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Rows is null)
+                {
+                    <TableStatusRow Columns="6" Loading="true" Message="Loading customers…" />
+                }
+                else if (Rows.Count == 0)
+                {
+                    <TableStatusRow Columns="6" Message="No customers found." />
+                }
+                else
+                {
+                    @foreach (var row in Rows)
+                    {
+                        <tr>
+                            <td>@row.Id</td>
+                            <td>
+                                <a href="@($"/customers/{row.Id}")" class="font-semibold text-blue-700">@row.Name</a>
+                            </td>
+                            <td>@(row.Phone ?? "—")</td>
+                            <td class="text-right">@Money(row.OpeningBalance)</td>
+                            <td class="text-right">@(row.Balance < 0 ? $"Credit {Money(-row.Balance)}" : Money(row.Balance))</td>
+                            <td>
+                                <a href="@($"/customers/payments?customerId={row.Id}")" class="icon-button" aria-label="@($"Collect from {row.Name}")">
+                                    <Icon Name="wallet" />
+                                </a>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+        @if (Pagination is not null)
+        {
+            <PageNavigation Info="Pagination" Label="customers" />
+        }
+    </section>
+@code {
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromQuery]
+    public string? Search { get; set; }
+
+    [SupplyParameterFromForm(FormName = "customer-create")]
+    private CustomerCreateInput? Input { get; set; }
+
+    [SupplyParameterFromQuery]
+    public int Page { get; set; } = 1;
+
+    [SupplyParameterFromQuery]
+    public int PageSize { get; set; } = 30;
+
+    private PageInfo? Pagination;
+
+    private decimal TotalDue;
+    private decimal TotalCredit;
+    private IReadOnlyList<CustomerRow>? Rows;
+    private string? Error;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        Input ??= new();
+        try
+        {
+            Rows = null;
+            var result = await Customers.PageAsync(HttpContext.User, Search, Page, PageSize, HttpContext.RequestAborted);
+            Rows = result.Listing.Items;
+            Pagination = result.Listing.Pagination;
+            TotalDue = result.Due;
+            TotalCredit = result.Credit;
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Customer listing failed.");
+            Rows = [];
+            Error = "Unable to load customers. Refresh to try again.";
+        }
+    }
+
+    private async Task CreateAsync()
+    {
+        try
+        {
+            var id = await Sales.AddCustomerAsync(HttpContext.User, new(Input!.Name, Input.Phone, Input.OpeningBalance), HttpContext.RequestAborted);
+            Navigation.NavigateTo($"/customers/{id}");
+        }
+        catch (ValidationException exception)
+        {
+            Error = exception.Message;
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Customer creation failed.");
+            Error = "Unable to create the customer. Check the customer list before trying again.";
+        }
+    }
+
+    private string Money(decimal amount) => $"{amount:N2} {Configuration["CurrencyCode"] ?? "BDT"}";
+}

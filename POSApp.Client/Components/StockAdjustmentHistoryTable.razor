@@ -1,0 +1,61 @@
+<section class="panel table-scroll mt-6">
+    <div class="panel-heading">
+        <h2>Recent stock adjustments</h2>
+        <button type="button" class="btn-secondary" disabled="Loading" @onclick="() => PageChanged.InvokeAsync(Pagination?.Number ?? 1)">Refresh</button>
+
+    </div>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Reference</th>
+                <th>Date</th>
+                <th>Location</th>
+                <th class="text-right">Products</th>
+                <th class="text-right">Stock value added</th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (Loading)
+            {
+                <TableStatusRow Columns="5" Message="Loading adjustments…" Loading="true" />
+            }
+            else if (Rows.Count == 0)
+            {
+                <TableStatusRow Columns="5" Message="No stock adjustments yet." />
+            }
+            @foreach (var row in (Loading ? Array.Empty<StockAdjustmentHistory>() : Rows))
+            {
+                <tr>
+                    <td>
+                        <a href="@($"/stock/adjustments/{row.Id}")" class="font-semibold text-indigo-700">Adjustment #@row.Id</a>
+                    </td>
+                    <td>@row.Date.ToString("dd MMM yyyy")</td>
+                    <td>@row.Location</td>
+                    <td class="text-right">@row.ItemCount</td>
+                    <td class="text-right">@row.Value.ToString("N2") @Currency</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+    @if (Pagination is not null)
+    {
+        <PageNavigation Info="Pagination" PageChanged="PageChanged" Busy="Loading" Label="adjustments" />
+    }
+</section>
+
+@code {
+    [Parameter]
+    public PageInfo? Pagination { get; set; }
+
+    [Parameter]
+    public bool Loading { get; set; }
+
+    [Parameter]
+    public EventCallback<int> PageChanged { get; set; }
+
+    [Parameter]
+    public IReadOnlyList<StockAdjustmentHistory> Rows { get; set; } = [];
+
+    [Parameter]
+    public string Currency { get; set; } = "BDT";
+}

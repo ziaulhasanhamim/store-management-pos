@@ -1,0 +1,188 @@
+@page "/admin/records/{Kind}/{Id:int}/edit"
+@attribute [Authorize(Policy = AppPolicies.ManageUsers)]
+@using System.ComponentModel.DataAnnotations
+@inject RecordAdministration Records
+@inject NavigationManager Navigation
+@inject ILogger<RecordEdit> Logger
+
+<PageTitle>Record correction · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
+
+<div class="page-heading">
+    <h1>@(Data?.Name ?? "Record correction")</h1>
+    <a href="@BackUrl" class="btn-secondary">Back</a>
+</div>
+@if (Error is not null)
+{
+    <p class="error-panel" role="alert">@Error</p>
+}
+@if (Data is null)
+{
+    <p>Record not found.</p>
+}
+else if (Data.Deleted)
+{
+    <p class="success-panel">This record is soft-deleted. Its history is retained.</p>
+}
+else
+{
+    <div class="grid items-start gap-6 lg:grid-cols-2">
+        @if (Kind != "product")
+        {
+            <section class="panel p-6">
+                <h2 class="mb-5 font-semibold">Correct transaction</h2>
+                <form method="post" @formname="record-edit" @onsubmit="SaveAsync" data-enhance data-submit-indication="true">
+                    <AntiforgeryToken />
+                    <input type="hidden" name="Input.ExpectedRevision" value="@Data.Revision" />
+                    <div class="space-y-4">
+                        <div>
+                            <label class="field-label" for="record-time">Date and time (@Zone.Id)</label>
+                            <input id="record-time" class="field" type="datetime-local" name="Input.EffectiveAt" value="@Input!.EffectiveAt.ToString("yyyy-MM-ddTHH:mm")" required />
+                        </div>
+                        <div>
+                            <label class="field-label" for="record-party">@(Kind == "sale" ? "Customer" : "Supplier")</label>
+                            <select id="record-party" class="field" name="Input.PartyId">
+                                @if (Kind == "sale")
+                                {
+                                    <option value="" selected="@(Input!.PartyId is null)">Walk-in customer</option>
+                                }
+                                @foreach (var party in Data.Parties)
+                                {
+                                    <option value="@party.Id" selected="@(Input!.PartyId == party.Id)">@party.Name</option>
+                                }
+                            </select>
+                        </div>
+                        <div>
+                            <label class="field-label" for="edit-reason">Reason</label>
+                            <textarea id="edit-reason" class="field" name="Input.Reason" maxlength="2000" required>@Input!.Reason</textarea>
+                        </div>
+                        <button type="submit" class="btn-primary" data-pending-text="Saving…">Save correction</button>
+                    </div>
+                </form>
+            </section>
+        }
+        <section class="panel p-6">
+            <h2 class="mb-3 font-semibold">@(Kind == "product" ? "Archive product" : "Void transaction")</h2>
+            <p class="mb-5 text-sm text-slate-500">
+                @(Kind == "product" ? "Hide this product from the catalog. Existing stock remains in the valuation report and history is retained." : "Reverse this transaction’s stock and account balances. The original record, payments and audit history are retained.")
+            </p>
+            @if (Data.Total is { } transactionTotal)
+            {
+                <dl class="mb-4 grid grid-cols-2 gap-2 text-sm">
+                    <dt>Transaction value</dt>
+                    <dd>@transactionTotal.ToString("N2")</dd>
+                    <dt>Payments to reverse</dt>
+                    <dd>@Data.Paid?.ToString("N2")</dd>
+                </dl>
+                <details class="mb-4 text-sm">
+                    <summary class="cursor-pointer text-blue-700">Stock changes if voided · @Data.StockEffects.Count items</summary>
+                    <ul class="mt-3 space-y-2">
+                        @foreach (var effect in Data.StockEffects)
+                        {
+                            <li>@effect.Product · @(effect.Quantity >= 0 ? "+" : "")@effect.Quantity.ToString("0.###") @effect.Unit</li>
+                        }
+                    </ul>
+                </details>
+            }
+            <form method="post" @formname="record-delete" @onsubmit="DeleteAsync" data-enhance data-submit-indication="true">
+                <AntiforgeryToken />
+                <input type="hidden" name="Input.ExpectedRevision" value="@Data.Revision" />
+                <label class="field-label" for="delete-reason">Reason</label>
+                <textarea id="delete-reason" class="field mb-4" name="Input.Reason" maxlength="2000" required></textarea>
+                <label class="mb-4 flex items-start gap-3 text-sm">
+                    <input type="checkbox" name="ConfirmRemoval" value="true" required />
+                    <span>I reviewed this record and its stock, payment and account effects.</span>
+                </label>
+                <button type="submit" class="btn-danger" data-pending-text="Voiding…">
+                    <Icon Name="trash" />
+                    @(Kind == "product" ? "Archive product" : "Void transaction")
+                </button>
+            </form>
+        </section>
+    </div>
+}
+@if (Data?.History.Count > 0)
+{
+    <section class="panel mt-6">
+        <div class="panel-heading">
+            <h2>Admin history</h2>
+        </div>
+        @foreach (var change in Data.History)
+        {
+            <div class="border-t border-slate-100 p-5 text-sm">
+                <strong>@change.Action · @change.Actor</strong>
+                <span class="ml-3 text-slate-500">@change.At.ToBusinessTime(Configuration).ToString("dd MMM yyyy, HH:mm")</span>
+                <p class="mt-1">@change.Reason</p>
+            </div>
+        }
+    </section>
+}
+
+@code {
+    [Parameter]
+    public string Kind { get; set; } = "";
+
+    [Parameter]
+    public int Id { get; set; }
+
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromForm]
+    private RecordCorrectionInput? Input { get; set; }
+
+    private EditableRecord? Data;
+    private string? Error;
+    private TimeZoneInfo Zone => TimeZoneInfo.FindSystemTimeZoneById(Configuration["BusinessTimeZone"] ?? "Asia/Dhaka");
+    private string BackUrl => Kind switch
+    {
+        "product" => "/items",
+        "purchase" => "/reports/receiving",
+        _ => "/reports/sales"
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        Data = await Records.FindAsync(HttpContext.User, Kind, Id, HttpContext.RequestAborted);
+        Input ??= new()
+        {
+            EffectiveAt = Data is null ? default : TimeZoneInfo.ConvertTime(Data.At, Zone).DateTime,
+            PartyId = Data?.PartyId,
+            ExpectedRevision = Data?.Revision ?? ""
+        };
+    }
+
+    private Task SaveAsync() => ChangeAsync(false);
+    private Task DeleteAsync() => ChangeAsync(true);
+
+    private async Task ChangeAsync(bool delete)
+    {
+        try
+        {
+            if (delete)
+            {
+                var form = await HttpContext.Request.ReadFormAsync(HttpContext.RequestAborted);
+                if (form["ConfirmRemoval"] != "true")
+                {
+                    throw new ValidationException("Review and confirm the transaction reversal first.");
+                }
+            }
+            var local = DateTime.SpecifyKind(Input!.EffectiveAt, DateTimeKind.Unspecified);
+            if (!delete && Zone.IsInvalidTime(local))
+            {
+                throw new ValidationException("That local time is invalid in the store timezone.");
+            }
+            var effective = delete ? DateTimeOffset.UtcNow : new DateTimeOffset(TimeZoneInfo.ConvertTimeToUtc(local, Zone), TimeSpan.Zero);
+            await Records.ChangeAsync(HttpContext.User, Kind, Id, Input, delete, effective, HttpContext.RequestAborted);
+            Navigation.NavigateTo($"/admin/records/{Kind}/{Id}/edit");
+        }
+        catch (ValidationException exception)
+        {
+            Error = exception.Message;
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Admin record correction failed.");
+            Error = "Could not save this correction. Reload and try again.";
+        }
+    }
+}

@@ -1,0 +1,161 @@
+@page "/receiving"
+@attribute [Authorize(Policy = AppPolicies.ManageInventory)]
+@attribute [StreamRendering]
+@inject InventoryService Inventory
+@inject StockTransferService Transfers
+@inject ClosingService Closings
+@inject ILogger<Index> Logger
+
+<PageTitle>Purchases & transfers · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
+
+<div class="page-heading">
+    <div>
+        <p class="eyebrow">Inventory</p>
+        <h1>Purchases & transfers</h1>
+    </div>
+    <a href="/reports/receiving" class="btn-secondary">
+        <Icon Name="history" />
+        Receiving report
+    </a>
+</div>
+
+@if (Loading)
+{
+    <LoadingPanel Message="Loading receiving…" />
+}
+else if (Failed)
+{
+    <p role="alert" class="error-panel">
+        Unable to load receiving.
+        <a href="/receiving" class="underline">Retry</a>
+    </p>
+}
+else
+{
+    @if (IsTransfer)
+    {
+        <TransferEditor Locations="TransferLocations" WorkingDate="WorkingDate" @rendermode="InteractiveAuto" />
+        <TransferHistory Rows="History" Pagination="HistoryPagination" />
+    }
+    else
+    {
+        <ReceivingEditor InitialOptions="Options!"
+                         InitialCategories="Categories"
+                         Currency="@(Configuration["CurrencyCode"] ?? "BDT")"
+                         @rendermode="InteractiveAuto" />
+
+        <section id="receiving-history" class="panel mt-6">
+            <div class="panel-heading">
+                <h2>Recent receipts</h2>
+                <a href="/receiving#receiving-history" class="icon-button" aria-label="Refresh receipts">
+                    <Icon Name="history" />
+                </a>
+            </div>
+
+            @if (Receipts.Count == 0)
+            {
+                <div class="empty-state">
+                    <p>No receipts yet</p>
+                </div>
+            }
+            else
+            {
+                <div class="table-scroll">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Reference</th>
+                                <th>Supplier</th>
+                                <th>Received</th>
+                                <th class="text-right">Total</th>
+                                <th class="text-right">Paid</th>
+                                <th class="text-right">Unpaid</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var receipt in Receipts)
+                            {
+                                <tr>
+                                    <td>
+                                        <a href="@($"/receiving/{receipt.Id}")" class="font-semibold text-blue-700" title="@receipt.Number">
+                                            #@receipt.Id
+                                        </a>
+                                    </td>
+                                    <td>@receipt.Supplier</td>
+                                    <td class="whitespace-nowrap">@receipt.At.ToBusinessTime(Configuration).ToString("dd MMM yyyy, HH:mm")</td>
+                                    <td class="text-right whitespace-nowrap">@Money(receipt.Total)</td>
+                                    <td class="text-right whitespace-nowrap">@Money(receipt.Paid)</td>
+                                    <td class="text-right whitespace-nowrap">@Money(receipt.Total - receipt.Paid)</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </section>
+    }
+}
+
+@code {
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromQuery]
+    public string? Mode { get; set; }
+
+    private DateOnly? WorkingDate;
+    private bool IsTransfer => Mode == "transfer";
+    private Lookup[] TransferLocations = [];
+    [SupplyParameterFromQuery]
+    public int HistoryPage { get; set; } = 1;
+
+    [SupplyParameterFromQuery]
+    public int PageSize { get; set; } = 30;
+
+    private PageInfo? HistoryPagination;
+    private IReadOnlyList<TransferRow> History = [];
+    private ReceivingOptions? Options;
+    private Lookup[] Categories = [];
+    private IReadOnlyList<ReceiptRow> Receipts = [];
+    private bool Loading = true;
+    private bool Failed;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        try
+        {
+            Loading = true;
+            Failed = false;
+            WorkingDate = await Closings.SelectedAsync(HttpContext.User, HttpContext.RequestAborted);
+            if (IsTransfer)
+            {
+                TransferLocations = (await Transfers.LocationsAsync(HttpContext.User, HttpContext.RequestAborted))
+                    .Select(location => new Lookup(location.Id, location.Name)).ToArray();
+                var history = await Transfers.HistoryPageAsync(HttpContext.User, HistoryPage, PageSize, HttpContext.RequestAborted);
+                History = history.Items;
+                HistoryPagination = history.Pagination;
+                return;
+            }
+            Options = await Inventory.OptionsAsync(HttpContext.User, HttpContext.RequestAborted);
+            Categories = (await Inventory.CategoriesAsync(HttpContext.User, HttpContext.RequestAborted)).ToArray();
+            Receipts = await Inventory.ReceiptsAsync(HttpContext.User, HttpContext.RequestAborted);
+        }
+        catch (OperationCanceledException) when (HttpContext.RequestAborted.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            Failed = true;
+            Logger.LogError(exception, "Receiving page failed to load.");
+        }
+        finally
+        {
+            Loading = false;
+        }
+    }
+
+    private string Money(decimal value)
+    {
+        return $"{value:N2} {Configuration["CurrencyCode"] ?? "BDT"}";
+    }
+}

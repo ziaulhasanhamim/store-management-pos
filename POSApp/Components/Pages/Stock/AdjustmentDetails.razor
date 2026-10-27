@@ -1,0 +1,100 @@
+@page "/stock/adjustments/{Id:int}"
+@page "/stock/opening/{Id:int}"
+@attribute [Authorize(Policy = AppPolicies.ManageStockAdjustment)]
+@attribute [StreamRendering]
+@inject StockAdjustmentService AdjustmentsService
+@inject ILogger<AdjustmentDetails> Logger
+
+<PageTitle>Stock adjustment #@Id · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
+<div class="page-heading">
+    <div>
+        <p class="eyebrow">Inventory</p>
+        <h1>Stock adjustment #@Id</h1>
+    </div>
+    <a href="/stock/adjustments" class="btn-secondary">Stock adjustments</a>
+</div>
+@if (Error is not null)
+{
+    <p class="error-panel" role="alert">@Error</p>
+}
+else if (Data is null)
+{
+    <LoadingPanel Message="Loading stock adjustment…" />
+}
+else
+{
+    <section class="panel mb-6 p-5">
+        <div class="mb-4 flex flex-wrap items-center gap-3">
+            <span class="badge">Posted</span>
+            <strong>@Data.Location</strong>
+            <span class="text-sm text-slate-500">Date · @Data.Date.ToString("dd MMM yyyy")</span>
+        </div>
+        @if (!string.IsNullOrWhiteSpace(Data.Notes))
+        {
+            <p class="mb-3 text-sm">@Data.Notes</p>
+        }
+        <p class="text-xs text-slate-500">Recorded by @Data.CreatedBy on @Data.CreatedAt.ToBusinessTime(Configuration).ToString("dd MMM yyyy, HH:mm"). No supplier dues, payments or trading profit were created.</p>
+    </section>
+    <section class="panel table-scroll">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Product / barcode</th>
+                    <th class="text-right">Quantity added</th>
+                    <th class="text-right">Unit cost</th>
+                    <th class="text-right">Value added</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var item in Data.Items)
+                {
+                    <tr>
+                        <td>
+                            <a href="@($"/items/{item.Product.Id}")" class="font-semibold text-indigo-700">@item.Product.Name</a>
+                            <span class="mt-1 block font-mono text-xs text-slate-500">#@item.Product.Id · @item.Product.Barcode</span>
+                        </td>
+                        <td class="text-right">@item.Quantity.ToString("0.###") @item.Product.Unit</td>
+                        <td class="text-right">@Money(item.UnitCost)</td>
+                        <td class="text-right">@Money(item.Quantity * item.UnitCost)</td>
+                    </tr>
+                }
+            </tbody>
+            <tfoot>
+                <tr>
+                    <th colspan="3">Total stock value added · @Data.Items.Count items</th>
+                    <td class="text-right">@Money(Data.Items.Sum(item => item.Quantity * item.UnitCost))</td>
+                </tr>
+            </tfoot>
+        </table>
+    </section>
+}
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    private StockAdjustmentDetail? Data;
+    private string? Error;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        try
+        {
+            Data = await AdjustmentsService.ReadAsync(HttpContext.User, Id, HttpContext.RequestAborted);
+        }
+        catch (System.ComponentModel.DataAnnotations.ValidationException exception)
+        {
+            Error = exception.Message;
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Stock adjustments detail failed.");
+            Error = "Unable to load this adjustment. Refresh to try again.";
+        }
+    }
+
+    private string Money(decimal value) => $"{value:N2} {Configuration["CurrencyCode"] ?? "BDT"}";
+}

@@ -1,0 +1,278 @@
+<nav class="mb-6 flex flex-wrap gap-2 no-print" aria-label="Cash drawer pages">
+    <a href="/cash-drawer" class="@(View == "drawer" ? "filter-chip active" : "filter-chip")">Operate / count</a>
+    <a href="/cash-drawer?view=locations" class="@(View == "locations" ? "filter-chip active" : "filter-chip")">Locations</a>
+    @if (Data.Admin)
+    {
+        <a href="/cash-drawer?view=transfer" class="@(View == "transfer" ? "filter-chip active" : "filter-chip")">Cash movements</a>
+    }
+    @if (Data.Admin)
+    {
+        <a href="/reports/statements/cash" class="filter-chip">Cash statement</a>
+    }
+    <a href="/cash-drawer?view=history" class="@(View == "history" ? "filter-chip active" : "filter-chip")">History & reconciliation</a>
+</nav>
+<DrawerControls Data="Data" View="@View" Location="Location" Transfer="Transfer" Assignment="Assignment" SelectLocationAsync="SelectLocationAsync" TransferAsync="TransferAsync" AssignAsync="AssignAsync" />
+
+
+@if (View == "drawer")
+{
+    @if ((Data?.Admin == true && Data.Viewed is { LocationId: null, ClosedAt: null } ? Data.Viewed : Data?.Current) is { ClosedAt: null } current)
+    {
+        <h2 class="mb-4 font-semibold">@current.Location · @current.BusinessDate.ToString("dd MMM yyyy")</h2>
+        <div class="mb-6 grid gap-4 sm:grid-cols-3">
+            <div class="metric">
+                <p>Opening float</p>
+                <strong class="text-2xl!">@Money(current.Opening)</strong>
+            </div>
+            <div class="metric">
+                <p>Net cash movements</p>
+                <strong class="text-2xl!">@Money(current.Expected - current.Opening)</strong>
+            </div>
+            <div class="metric">
+                <p>Expected cash</p>
+                <strong class="text-2xl!">@Money(current.Expected)</strong>
+            </div>
+        </div>
+        <div class="mb-6 max-w-2xl">
+            <section class="panel p-6">
+                <h2 class="mb-4 font-semibold">Count and close shift #@current.Id</h2>
+                <form method="post" @formname="cash-close" @onsubmit="CloseAsync" data-enhance data-submit-indication="true">
+                    <AntiforgeryToken />
+                    <input type="hidden" name="Close.SessionId" value="@current.Id" />
+                    <CashCount Value="Close.ActualCash" Expected="current.Expected" Currency="@Currency" @rendermode="InteractiveAuto" />
+                    <label class="field-label mt-4" for="close-notes">Reconciliation notes</label>
+                    <textarea id="close-notes" name="Close.Notes" class="field" maxlength="2000">@Close?.Notes</textarea>
+                    <p class="mt-2 text-xs text-slate-500">A shortage or overage requires a note. Closing saves the final count.</p>
+                    <button class="btn-primary mt-4" data-pending-text="Reviewing…">Review & close drawer</button>
+                </form>
+            </section>
+        </div>
+    }
+    else if (Data is not null && Data.SelectedLocationId is not null && !Data.Locations.Any(location => location.Id == Data.SelectedLocationId && location.ClosedToday))
+    {
+        <section class="panel mb-6 max-w-xl p-6">
+            <h2 class="mb-4 font-semibold">Open location drawer</h2>
+            <form method="post" @formname="cash-open" @onsubmit="OpenAsync" data-enhance data-submit-indication="true">
+                <AntiforgeryToken />
+                <input type="hidden" name="Open.RequestId" value="@Open!.RequestId" />
+                <input type="hidden" name="Open.StockLocationId" value="@Data.SelectedLocationId" />
+                @if (Data.Locations.SingleOrDefault(location => location.Id == Data.SelectedLocationId) is { Initialized: false })
+                {
+                    <label class="field-label mt-4" for="opening-cash">Initial cash already held here (@Currency)</label>
+                    <input id="opening-cash" name="Open.OpeningCash" class="field" inputmode="decimal" value="0" required />
+                    <p class="mt-2 text-xs text-slate-500">One-time setup only. After the first business day, fund a new location by transfer or cash-in.</p>
+                }
+                else
+                {
+                    <p class="mb-4 text-sm">Opening cash is carried automatically from this location's previous count. Use a transfer or cash-in/out to change it.</p>
+                }
+                <button class="btn-primary mt-4" data-pending-text="Opening…">Open drawer</button>
+            </form>
+        </section>
+    }
+
+    @if (Data is { SelectedLocationId: null })
+    {
+        <section class="panel max-w-2xl p-6">
+            <h2 class="mb-3 font-semibold">Choose a cash location</h2>
+            <p class="mb-4 text-sm text-slate-500">Select the selling location whose drawer you want to open or count.</p>
+            <a href="/cash-drawer?view=locations" class="btn-primary">Select location</a>
+        </section>
+    }
+}
+@if (View == "drawer" && Data is { Admin: true, Current: { } statementSession })
+{
+    <AccountStatement DrawerId="statementSession.DrawerId" Date="statementSession.BusinessDate" />
+}
+@if (View == "transfer" && Data is { Admin: true, Current: { ClosedAt: null } currentSession })
+{
+    <CashMovementForm SessionId="currentSession.Id" Adjustment="Adjustment" AdjustAsync="AdjustAsync" />
+}
+@if (View == "history")
+{
+    @if (Data?.Viewed is { } viewed)
+    {
+        <section class="panel mb-6">
+            <div class="panel-heading">
+                <div>
+                    <h2>@viewed.Location · session #@viewed.Id · opened by @viewed.Cashier</h2>
+                    <p class="mt-1 text-xs text-slate-500">@Time(viewed.OpenedAt) · @(viewed.ClosedAt is null ? "Open" : $"Closed {Time(viewed.ClosedAt.Value)}")</p>
+                </div>
+            </div>
+            <dl class="grid gap-3 border-t border-slate-100 p-5 text-sm sm:grid-cols-3">
+                <div>
+                    <dt class="text-slate-500">Opening float</dt>
+                    <dd class="mt-1 font-semibold">@Money(viewed.Opening)</dd>
+                </div>
+                @foreach (var summary in Data.Breakdown)
+                {
+                    <div>
+                        <dt class="text-slate-500">@MovementName(summary.Kind)</dt>
+                        <dd class="mt-1 font-semibold">@Money(summary.Amount)</dd>
+                    </div>
+                }
+            </dl>
+            @if (viewed.ClosedAt is not null)
+            {
+                <div class="border-t border-slate-100 p-5">
+                    <p>Expected @Money(viewed.Expected) · Counted @Money(viewed.Actual ?? 0)</p>
+                    <p class="mt-1 font-semibold @((viewed.Difference ?? 0) == 0 ? "text-emerald-700" : "text-amber-700")">
+                        @((viewed.Difference ?? 0) == 0 ? "Balanced" : viewed.Difference < 0 ? "Shortage" : "Overage") · @Money(Math.Abs(viewed.Difference ?? 0))
+                    </p>
+                    <p class="mt-1 text-sm text-slate-500">@viewed.Notes</p>
+                    @if (Data.Admin)
+                    {
+                        <a href="@($"/finance/reopen?kind=drawer&id={viewed.Id}")" class="btn-secondary mt-4">Reopen drawer</a>
+                    }
+                </div>
+            }
+            <div class="table-scroll">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Time</th>
+                            <th>Movement</th>
+                            <th>Reference / notes</th>
+                            <th class="text-right">Cash change</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var move in Data.Movements)
+                        {
+                            <tr>
+                                <td>@Time(move.At)</td>
+                                <td>@MovementName(move.Kind)</td>
+                                <td>@move.Notes</td>
+                                <td class="text-right">@Money(move.Amount)</td>
+                            </tr>
+                        }
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <th colspan="3">Displayed movements</th>
+                            <td class="text-right">@Money(Data.Movements.Sum(move => move.Amount))</td>
+                        </tr>
+                        <tr>
+                            <th colspan="3">All session movements</th>
+                            <td class="text-right">@Money(Data.Breakdown.Sum(summary => summary.Amount))</td>
+                        </tr>
+                    </tfoot>
+                </table>
+                @if (Data.MovementPagination is not null)
+                {
+                    <PageNavigation Info="Data.MovementPagination" QueryName="movementPage" Label="movements" />
+                }
+                <p class="p-4 text-xs text-slate-500">Expected cash includes every movement.</p>
+            </div>
+        </section>
+    }
+    @if (Data is not null)
+    {
+        <section class="panel table-scroll">
+            <div class="panel-heading">
+                <h2>@(Data.Admin ? "Recent location closings" : "Location sessions")</h2>
+            </div>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Shift</th>
+                        <th>Location / opened by</th>
+                        <th>Opened</th>
+                        <th>Status</th>
+                        <th class="text-right">Expected</th>
+                        <th class="text-right">Counted</th>
+                        <th class="text-right">Over / short</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var shift in Data.Recent)
+                    {
+                        <tr>
+                            <td>
+                                <a class="text-blue-700" href="@($"/cash-drawer?sessionId={shift.Id}")">#@shift.Id</a>
+                            </td>
+                            <td>@shift.Location · @shift.Cashier</td>
+                            <td>@Time(shift.OpenedAt)</td>
+                            <td>@(shift.ClosedAt is null ? "Open" : "Closed")</td>
+                            <td class="text-right">@Money(shift.Expected)</td>
+                            <td class="text-right">@(shift.Actual is { } actual ? Money(actual) : "—")</td>
+                            <td class="text-right">@(shift.Difference is { } difference ? Money(difference) : "—")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            @if (Data.SessionPagination is not null)
+            {
+                <PageNavigation Info="Data.SessionPagination" QueryName="sessionPage" Label="sessions" />
+            }
+        </section>
+    }
+
+}
+
+@code {
+    [Parameter]
+    public string View { get; set; } = "drawer";
+
+    [Parameter, EditorRequired]
+    public CashDrawerPage Data { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public OpenCashInput Open { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public CloseCashInput Close { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public CashAdjustmentInput Adjustment { get; set; } = default!;
+
+    [Parameter]
+    public EventCallback OpenAsync { get; set; }
+
+    [Parameter]
+    public EventCallback CloseAsync { get; set; }
+
+    [Parameter]
+    public EventCallback AdjustAsync { get; set; }
+
+    [Parameter, EditorRequired]
+    public CashLocationInput Location { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public CashTransferInput Transfer { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public AssignCashDrawerInput Assignment { get; set; } = default!;
+
+    [Parameter]
+    public EventCallback SelectLocationAsync { get; set; }
+
+    [Parameter]
+    public EventCallback TransferAsync { get; set; }
+
+    [Parameter]
+    public EventCallback AssignAsync { get; set; }
+
+    private string Currency => Configuration["CurrencyCode"] ?? "BDT";
+
+    private static string MovementName(CashMovementKind kind) => kind switch
+    {
+        CashMovementKind.Sale => "Cash sales less refunds",
+        CashMovementKind.SupplierPayment => "Supplier payments",
+        CashMovementKind.Expense => "Cash expenses",
+        CashMovementKind.Payroll => "Salary / advance payouts",
+        CashMovementKind.OwnerContribution => "Owner contribution",
+        CashMovementKind.OwnerWithdrawal => "Owner withdrawal",
+        CashMovementKind.CashIn => "Cash added (legacy)",
+        CashMovementKind.Payout => "Other payouts",
+        CashMovementKind.Transfer => "Cash transfer",
+        CashMovementKind.DebtBorrowing => "Money borrowed",
+        CashMovementKind.DebtRepayment => "Debt repayments",
+        CashMovementKind.OpeningBalance => "Opening balance",
+        CashMovementKind.Reversal => "Transaction reversals",
+        _ => "Other movement"
+    };
+
+    private string Money(decimal amount) => $"{Currency} {amount:N2}";
+    private string Time(DateTimeOffset at) => at.ToBusinessTime(Configuration).ToString("dd MMM, HH:mm");
+}

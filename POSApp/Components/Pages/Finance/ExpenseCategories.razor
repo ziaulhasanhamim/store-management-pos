@@ -1,0 +1,131 @@
+@page "/expenses/categories"
+@attribute [Authorize(Policy = AppPolicies.ManageUsers)]
+@attribute [StreamRendering]
+@using System.ComponentModel.DataAnnotations
+@inject MoneyEntryService Entries
+@inject NavigationManager Navigation
+@inject ILogger<ExpenseCategories> Logger
+
+<PageTitle>Expense categories · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
+<div class="page-heading">
+    <h1>Expense categories</h1>
+    <a href="/expenses" class="btn-secondary">Expenses</a>
+</div>
+@if (Error is not null)
+{
+    <p class="error-panel" role="alert">@Error</p>
+}
+@if (Data is null && Error is null)
+{
+    <LoadingPanel Message="Loading expense categories…" />
+}
+else if (Data is not null)
+{
+    <section class="panel mb-6 max-w-2xl p-6">
+        <h2 class="mb-4 font-semibold">@(Input!.Id is null ? "Add category" : "Edit category")</h2>
+        <form method="post" @formname="expense-category" @onsubmit="SaveAsync" data-enhance data-submit-indication="true">
+            <AntiforgeryToken />
+            <input type="hidden" name="Input.Id" value="@Input.Id" />
+            <label class="field-label" for="category-name">Name</label>
+            <input id="category-name" name="Input.Name" class="field" value="@Input.Name" maxlength="100" required />
+            @if (Input.Id is not null)
+            {
+                <label class="mt-4 flex items-center gap-2 text-sm">
+                    <input type="checkbox" name="Input.IsArchived" value="true" checked="@Input.IsArchived" />
+                    Archive category
+                </label>
+                <p class="mt-2 text-xs text-slate-500">Archived categories remain in historical entries and reports.</p>
+            }
+            <div class="mt-5 flex gap-3">
+                <button class="btn-primary" data-pending-text="Saving…">Save category</button>
+                <a href="/expenses/categories" class="btn-secondary">Cancel</a>
+            </div>
+        </form>
+    </section>
+    <section class="panel table-scroll">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Category</th>
+                    <th>Status</th>
+                    <th>
+                        <span class="sr-only">Edit</span>
+                    </th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Data.Items.Count == 0)
+                {
+                    <TableStatusRow Columns="3" Message="No expense categories found." />
+                }
+                else
+                {
+                    @foreach (var category in Data.Items)
+                    {
+                        <tr>
+                            <td>@category.Name</td>
+                            <td>@(category.IsArchived ? "Archived" : "Active")</td>
+                            <td>
+                                <a href="@($"/expenses/categories?page={Page}&pageSize={PageSize}&id={category.Id}")" class="btn-secondary">Edit</a>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+        <PageNavigation Info="Data.Pagination" Label="categories" />
+    </section>
+}
+
+@code {
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromQuery]
+    public int? Id { get; set; }
+
+    [SupplyParameterFromForm(FormName = "expense-category")]
+    private ExpenseCategoryEditInput? Input { get; set; }
+
+    [SupplyParameterFromQuery]
+    public int Page { get; set; } = 1;
+
+    [SupplyParameterFromQuery]
+    public int PageSize { get; set; } = 30;
+
+    private PagedResult<ExpenseCategoryOption>? Data;
+    private string? Error;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        try
+        {
+            Data = await Entries.CategoriesPageAsync(HttpContext.User, Page, PageSize, HttpContext.RequestAborted);
+            var category = Id is { } id ? await Entries.CategoryAsync(HttpContext.User, id, HttpContext.RequestAborted) : null;
+            Input ??= new() { Id = category?.Id, Name = category?.Name ?? "", IsArchived = category?.IsArchived ?? false };
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Expense categories failed to load.");
+            Error = "Unable to load categories. Refresh to try again.";
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        try
+        {
+            await Entries.SaveCategoryAsync(HttpContext.User, new(Input!.Id, Input.Name, Input.IsArchived), HttpContext.RequestAborted);
+            Navigation.NavigateTo("/expenses/categories");
+        }
+        catch (ValidationException exception)
+        {
+            Error = exception.Message;
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Category save failed.");
+            Error = "Unable to save this category. Refresh and check the list before trying again.";
+        }
+    }
+}

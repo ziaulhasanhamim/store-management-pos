@@ -1,0 +1,63 @@
+@page "/stock/takes/{Id:int}"
+@attribute [Authorize(Policy = AppPolicies.ManageInventory)]
+@attribute [StreamRendering]
+@inject StockTakeService TakesService
+@inject ILogger<Take> Logger
+
+<PageTitle>Stock take #@Id · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
+<div class="page-heading">
+    <div>
+        <p class="eyebrow">@Data?.Location · @Data?.Date.ToString("dd MMM yyyy")</p>
+        <h1>Stock take #@Id</h1>
+    </div>
+    <div class="flex gap-3">
+        <a href="/stock/takes" class="btn-secondary">Stock takes</a>
+    </div>
+</div>
+@if (Error is not null)
+{
+    <p class="error-panel" role="alert">@Error</p>
+}
+else if (Data is null)
+{
+    <LoadingPanel Message="Loading count sheet…" />
+}
+else
+{
+    <StockTakeEditor @key="Data.Id" InitialData="Data" InitialList="List" DraftOwner="@HttpContext.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value" Currency="@(Configuration["CurrencyCode"] ?? "BDT")" @rendermode="InteractiveAuto" />
+}
+
+@code {
+    [Parameter]
+    public int Id { get; set; }
+
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    private StockTakePage? Data;
+    private StockTakeList? List;
+    private string? Error;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        Data = null;
+        Error = null;
+        try
+        {
+            var listTask = TakesService.BrowseAsync(HttpContext.User, Id, ct: HttpContext.RequestAborted);
+            var countTask = TakesService.ReadAsync(HttpContext.User, Id, HttpContext.RequestAborted);
+            await Task.WhenAll(listTask, countTask);
+            List = await listTask;
+            Data = await countTask;
+        }
+        catch (System.ComponentModel.DataAnnotations.ValidationException exception)
+        {
+            Error = exception.Message;
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Stock take loading failed.");
+            Error = "Unable to load this stock take. Refresh to try again.";
+        }
+    }
+}

@@ -1,0 +1,56 @@
+<section class="panel mt-6">
+    <div class="panel-heading">
+        <h2>Recent transfers</h2>
+        <a href="/receiving?mode=transfer" class="icon-button" aria-label="Refresh transfers">
+            <Icon Name="history" />
+        </a>
+    </div>
+    @if (Rows.Count == 0)
+    {
+        <div class="empty-state">
+            <p>No transfers yet</p>
+        </div>
+    }
+    else
+    {
+        <div class="table-scroll">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Transfer</th>
+                        <th>Item</th>
+                        <th>From</th>
+                        <th>To</th>
+                        <th>Quantity</th>
+                        <th>Notes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var (row, index) in Rows.Select((row, index) => (row, index)))
+                    {
+                        <tr id="@(index == 0 || Rows[index - 1].Id != row.Id ? $"transfer-{row.Id}" : null)">
+                            <td>#@row.Id · @row.At.ToBusinessTime(Configuration).ToString("dd MMM yyyy")</td>
+                            <td>@row.Product</td>
+                            <td>@row.Source</td>
+                            <td>@row.Destination</td>
+                            <td>@row.Quantity.ToString("0.###")</td>
+                            <td>@row.Notes</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+    @if (Pagination is not null)
+    {
+        <PageNavigation Info="Pagination" QueryName="historyPage" Label="transfer items" />
+    }
+</section>
+
+@code {
+    [Parameter]
+    public PageInfo? Pagination { get; set; }
+
+    [Parameter]
+    public IReadOnlyList<TransferRow> Rows { get; set; } = [];
+}

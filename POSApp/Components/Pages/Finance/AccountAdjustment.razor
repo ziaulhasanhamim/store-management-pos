@@ -1,0 +1,100 @@
+@page "/accounts/{Kind}/adjust"
+@attribute [Authorize(Policy = AppPolicies.ManageUsers)]
+@attribute [StreamRendering]
+@using System.ComponentModel.DataAnnotations
+@inject PartyAccountService AccountsService
+@inject NavigationManager Navigation
+
+<PageTitle>@Title balance adjustment · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
+
+<div class="page-heading">
+    <div>
+        <h1>@Title balance adjustment</h1>
+        <p class="mt-2 text-sm text-slate-500">Correct an existing account balance or its opening due.</p>
+    </div>
+    <a href="@BackLink" class="btn-secondary">Back to account</a>
+</div>
+
+@if (Error is not null)
+{
+    <p class="error-panel" role="alert">@Error</p>
+}
+
+@if (Data is null)
+{
+    <LoadingPanel Message="Loading accounts…" />
+}
+else
+{
+    <div class="max-w-2xl">
+        <section class="panel p-6">
+            <h2 class="mb-4 font-semibold">Adjust balance / set opening</h2>
+            <form method="post" @formname="party-adjustment" @onsubmit="AdjustAsync" data-enhance data-submit-indication="true">
+                <AntiforgeryToken />
+                <input type="hidden" name="Adjustment.RequestId" value="@Adjustment!.RequestId" />
+                <label class="field-label" for="account-party">Account</label>
+                <select id="account-party" name="Adjustment.PartyId" class="field" required>
+                    <option value="">Select account</option>
+                    @foreach (var party in Data!.Parties)
+                    {
+                        <option value="@party.Id" selected="@(Adjustment.PartyId == party.Id)">@party.Name · @Money(party.Balance)</option>
+                    }
+                </select>
+                <label class="field-label mt-4" for="account-action">Action</label>
+                <select id="account-action" name="Adjustment.Opening" class="field">
+                    <option value="false" selected="@(!Adjustment.Opening)">Adjust current due by amount</option>
+                    <option value="true" selected="@(Adjustment.Opening)">Set opening balance to amount</option>
+                </select>
+                <label class="field-label mt-4" for="account-amount">Signed amount</label>
+                <input id="account-amount" name="Adjustment.Amount" value="@Adjustment.Amount" class="field" inputmode="decimal" required />
+                <label class="field-label mt-4" for="account-reason">Reason</label>
+                <input id="account-reason" name="Adjustment.Reason" value="@Adjustment.Reason" class="field" maxlength="1900" required />
+                <p class="mt-2 text-xs text-slate-500">Negative amounts reduce due; positive amounts increase due. A reason is kept in history. Opening corrections preserve later invoices and payments. No cash moves.</p>
+                <button class="btn-primary mt-4" data-pending-text="Saving…">Save balance change</button>
+            </form>
+        </section>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public string Kind { get; set; } = "suppliers";
+
+    [SupplyParameterFromQuery]
+    public int? PartyId { get; set; }
+
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromForm(FormName = "party-adjustment")]
+    private BalanceAdjustmentInput? Adjustment { get; set; }
+
+    private PartyPage? Data;
+    private string? Error;
+    private bool Suppliers => Kind != "customers";
+    private string Title => Suppliers ? "Supplier" : "Customer";
+    private string BackLink => PartyId is > 0
+        ? $"/{(Suppliers ? "suppliers" : "customers")}/{PartyId}"
+        : $"/{(Suppliers ? "suppliers" : "customers")}/payments";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        Adjustment ??= new() { PartyId = PartyId ?? 0 };
+        Data = await AccountsService.ReadAsync(HttpContext.User, Suppliers, null, HttpContext.RequestAborted);
+    }
+
+    private async Task AdjustAsync()
+    {
+        try
+        {
+            await AccountsService.ChangeAsync(HttpContext.User, Suppliers, Adjustment!, HttpContext.RequestAborted);
+            Navigation.NavigateTo($"/{(Suppliers ? "suppliers" : "customers")}/{Adjustment!.PartyId}");
+        }
+        catch (ValidationException exception)
+        {
+            Error = exception.Message;
+        }
+    }
+
+    private string Money(decimal amount) => $"{Configuration["CurrencyCode"] ?? "BDT"} {amount:N2}";
+}

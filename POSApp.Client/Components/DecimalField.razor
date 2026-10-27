@@ -1,0 +1,118 @@
+@using System.Globalization
+@using System.Linq.Expressions
+@implements IDisposable
+
+<input @attributes="AdditionalAttributes"
+       @ref="InputElement"
+       type="text"
+       inputmode="decimal"
+       data-select-on-focus="true"
+       value="@Text"
+       aria-invalid="@((!Valid).ToString().ToLowerInvariant())"
+       @oninput="ChangeAsync" />
+
+@code {
+    private ElementReference InputElement;
+
+    public ValueTask FocusAsync() => InputElement.FocusAsync(preventScroll: true);
+
+    [CascadingParameter]
+    private EditContext? Context { get; set; }
+
+    [Parameter]
+    public decimal Value { get; set; }
+
+    [Parameter]
+    public EventCallback<decimal> ValueChanged { get; set; }
+
+    [Parameter]
+    public Expression<Func<decimal>>? ValueExpression { get; set; }
+
+    [Parameter]
+    public EventCallback<bool> ValidityChanged { get; set; }
+
+    [Parameter]
+    public decimal Minimum { get; set; }
+
+    [Parameter]
+    public decimal Maximum { get; set; } = 9999999999999999.99m;
+
+    [Parameter]
+    public int DecimalPlaces { get; set; } = 2;
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public Dictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private string? Text;
+    private decimal LastValue;
+    private (decimal Minimum, decimal Maximum, int Places)? LastLimits;
+    private bool Valid = true;
+    private ValidationMessageStore? Messages;
+    private FieldIdentifier? Field;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Context is not null && ValueExpression is not null && Field is null)
+        {
+            Field = FieldIdentifier.Create(ValueExpression);
+            Messages = new ValidationMessageStore(Context);
+        }
+
+        var limits = (Minimum, Maximum, DecimalPlaces);
+        var limitsChanged = LastLimits is not null && LastLimits != limits;
+        LastLimits = limits;
+
+        if (Text is null || Value != LastValue)
+        {
+            Text = Value.ToString(CultureInfo.InvariantCulture);
+            LastValue = Value;
+            Valid = Value >= Minimum && Value <= Maximum && decimal.Round(Value, DecimalPlaces) == Value;
+            Messages?.Clear();
+            await ValidityChanged.InvokeAsync(Valid);
+        }
+        else if (limitsChanged)
+        {
+            await ChangeAsync(new ChangeEventArgs { Value = Text });
+        }
+    }
+
+    private async Task ChangeAsync(ChangeEventArgs args)
+    {
+        Text = args.Value?.ToString() ?? "";
+        Valid = decimal.TryParse(
+            Text,
+            NumberStyles.AllowLeadingSign | NumberStyles.AllowDecimalPoint,
+            CultureInfo.InvariantCulture,
+            out var value)
+            && value >= Minimum
+            && value <= Maximum
+            && decimal.Round(value, DecimalPlaces) == value;
+
+        if (Field is { } field)
+        {
+            Messages?.Clear(field);
+            if (!Valid)
+            {
+                Messages?.Add(field, $"Enter a number from {Minimum} to {Maximum} with up to {DecimalPlaces} decimal places.");
+            }
+        }
+
+        if (Valid)
+        {
+            LastValue = value;
+            await ValueChanged.InvokeAsync(value);
+        }
+
+        await ValidityChanged.InvokeAsync(Valid);
+        if (Field is { } changedField)
+        {
+            Context?.NotifyFieldChanged(changedField);
+            Context?.NotifyValidationStateChanged();
+        }
+    }
+
+    public void Dispose()
+    {
+        Messages?.Clear();
+    }
+}

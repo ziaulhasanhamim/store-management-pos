@@ -1,0 +1,66 @@
+@implements IAsyncDisposable
+@using POSApp.Client.Services
+@inject IImportClient Imports
+@inject ImportActivity Activity
+
+@if (Count > 0)
+{
+    <a href="/imports" class="rounded-full bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700" role="status">
+        @Count @(Count == 1 ? "import" : "imports") in progress
+    </a>
+}
+
+@code {
+    private readonly CancellationTokenSource Lifetime = new();
+    private Task? Polling;
+    private int Count;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Activity.Changed += Changed;
+        await RefreshAsync();
+    }
+
+    private void Changed() => _ = InvokeAsync(RefreshAsync);
+
+    private async Task RefreshAsync()
+    {
+        try
+        {
+            Count = (await Imports.ReadAsync("active", Lifetime.Token)).Count;
+            if (Count > 0 && (Polling is null || Polling.IsCompleted))
+            {
+                Polling = PollAsync();
+            }
+            StateHasChanged();
+        }
+        catch (OperationCanceledException) when (Lifetime.IsCancellationRequested)
+        {
+        }
+        catch
+        {
+            // Import pages provide detailed error feedback; navigation stays usable.
+        }
+    }
+
+    private async Task PollAsync()
+    {
+        try
+        {
+            using var timer = new PeriodicTimer(TimeSpan.FromSeconds(5));
+            while (Count > 0 && await timer.WaitForNextTickAsync(Lifetime.Token))
+            {
+                await InvokeAsync(RefreshAsync);
+            }
+        }
+        catch (OperationCanceledException) when (Lifetime.IsCancellationRequested)
+        {
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        Activity.Changed -= Changed;
+        await Lifetime.CancelAsync();
+    }
+}

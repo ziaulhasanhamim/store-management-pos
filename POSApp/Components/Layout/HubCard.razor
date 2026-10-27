@@ -1,0 +1,24 @@
+<a href="@Href" class="hub-card">
+    <span class="hub-icon">
+        <Icon Name="@IconName" />
+    </span>
+    <div class="min-w-0 flex-1">
+        <h2 class="font-semibold text-slate-900">@Title</h2>
+        <p class="mt-1 text-sm text-slate-500">@Hint</p>
+    </div>
+    <Icon Name="arrow" Class="text-slate-400" />
+</a>
+
+@code {
+    [Parameter]
+    public string Href { get; set; } = "/";
+
+    [Parameter]
+    public string Title { get; set; } = "";
+
+    [Parameter]
+    public string Hint { get; set; } = "";
+
+    [Parameter]
+    public string IconName { get; set; } = "box";
+}

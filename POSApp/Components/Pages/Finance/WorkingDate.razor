@@ -1,0 +1,67 @@
+@page "/accounting-date"
+@attribute [Authorize(Policy = AppPolicies.ManageUsers)]
+@using System.ComponentModel.DataAnnotations
+@inject ClosingService Closings
+@inject NavigationManager Navigation
+
+<PageTitle>Working date · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
+<div class="page-heading">
+    <h1>Open working day</h1>
+</div>
+@if (Input is null)
+{
+    <LoadingPanel Message="Loading working date…" />
+}
+else
+{
+    <section class="panel max-w-xl p-6">
+        @if (Error is not null)
+        {
+            <p class="error-panel" role="alert">@Error</p>
+        }
+        <p class="mb-4 text-sm text-slate-500">New sales, receiving payments and stock transfers use the shared working day. All users work on the same day. Close it before opening the next day; counted closing cash becomes its opening balance. Actual entry timestamps remain recorded.</p>
+        <form method="post" @formname="working-date" @onsubmit="SaveAsync" data-enhance data-submit-indication="true">
+            <AntiforgeryToken />
+            <label class="field-label" for="working-date">Working date</label>
+            <input id="working-date" name="Input.Date" type="date" class="field" value="@Input!.Date.ToString("yyyy-MM-dd")" required />
+            <p class="mt-3 text-xs text-slate-500">Each selling location carries its own previous counted cash. Set initial cash once on the Cash drawers page; this page only advances the shared business date.</p>
+            <button class="btn-primary mt-4" data-pending-text="Selecting…">Open working day</button>
+        </form>
+    </section>
+}
+
+@code {
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromQuery]
+    public DateOnly? Date { get; set; }
+
+    [SupplyParameterFromForm(FormName = "working-date")]
+    private DateInput? Input { get; set; }
+
+    private string? Error;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        Input ??= new() { Date = Date ?? await Closings.SelectedAsync(HttpContext.User, HttpContext.RequestAborted) };
+    }
+
+    private async Task SaveAsync()
+    {
+        try
+        {
+            await Closings.SelectAsync(HttpContext.User, Input!.Date, HttpContext.RequestAborted);
+            Navigation.NavigateTo("/cash-drawer");
+        }
+        catch (ValidationException exception)
+        {
+            Error = exception.Message;
+        }
+    }
+
+    public sealed class DateInput
+    {
+        public DateOnly Date { get; set; }
+    }
+}
