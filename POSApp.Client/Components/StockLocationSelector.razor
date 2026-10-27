@@ -1,0 +1,35 @@
+@inject NavigationManager Navigation
+
+<div class="flex min-w-48 flex-col gap-2">
+    <label class="text-xs text-slate-500" for="history-location">Stock location</label>
+    <select id="history-location" class="field" value="@SelectedLocationId"
+            disabled="@(!RendererInfo.IsInteractive)" @onchange="ChangeLocation">
+        @foreach (var location in Locations)
+        {
+            <option value="@location.Id" selected="@(location.Id == SelectedLocationId)">
+                @location.Name@(location.IsDeleted ? " (Archived)" : "")
+            </option>
+        }
+    </select>
+</div>
+
+@code {
+    [Parameter]
+    public int ProductId { get; set; }
+
+    [Parameter]
+    public ProductStockLocation[] Locations { get; set; } = [];
+
+    [Parameter]
+    public int? SelectedLocationId { get; set; }
+
+    private void ChangeLocation(ChangeEventArgs args)
+    {
+        if (int.TryParse(args.Value?.ToString(), out var locationId) &&
+            locationId != SelectedLocationId &&
+            Locations.Any(location => location.Id == locationId))
+        {
+            Navigation.NavigateTo($"/items/{ProductId}?locationId={locationId}#stock-history");
+        }
+    }
+}

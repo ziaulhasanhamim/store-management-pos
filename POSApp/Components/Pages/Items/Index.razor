@@ -26,21 +26,11 @@
     </AuthorizeView>
 </div>
 
-<form method="get" action="/items" data-enhance class="mb-6 max-w-xs">
-    @if (!string.IsNullOrWhiteSpace(Search))
-    {
-        <input type="hidden" name="search" value="@Search" />
-    }
-    <label for="items-location" class="field-label">Stock location</label>
-    <select id="items-location" name="locationId" class="field" onchange="this.form.requestSubmit()">
-        @foreach (var location in Locations)
-        {
-            <option value="@location.Id" selected="@(location.Id == LocationId)">
-                @location.Name
-            </option>
-        }
-    </select>
-</form>
+<div class="mb-6 max-w-xs">
+    <ItemLocationSelector Locations="@Locations.ToArray()"
+                          SelectedLocationId="@LocationId"
+                          @rendermode="InteractiveAuto" />
+</div>
 
 <details class="mb-5 rounded-xl border border-slate-200 bg-white p-4">
     <summary class="cursor-pointer font-semibold text-indigo-700">Export items · choose columns</summary>

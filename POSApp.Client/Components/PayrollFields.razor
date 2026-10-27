@@ -1,76 +1,65 @@
 @using System.Globalization
 
-@{
-    var selected = Selected;
-    var initialAmountStr = InitialAmount == 0 ? "" : InitialAmount.ToString(CultureInfo.InvariantCulture);
+<div data-form-draft-ready="@RendererInfo.IsInteractive">
+<label class="field-label" for="payroll-employee">Employee</label>
+<select id="payroll-employee" name="PayrollForm.EmployeeId" class="field" @bind="SelectedId" required>
+    <option value="">Select employee</option>
+    @foreach (var employee in Employees)
+    {
+        <option value="@employee.Id">@employee.Name</option>
+    }
+</select>
+@if (Selected is { } selected)
+{
+    <dl class="mt-4 grid gap-3 rounded-xl bg-slate-50 p-4 text-sm sm:grid-cols-2">
+        <div>
+            <dt class="text-slate-500">Salary · @Month.ToString("MMM yyyy")</dt>
+            <dd class="font-semibold">@Money(selected.Salary ?? selected.DefaultSalary) @(selected.Salary is null ? "(not created)" : "")</dd>
+        </div>
+        <div>
+            <dt class="text-slate-500">Unpaid salary brought forward</dt>
+            <dd class="font-semibold">@Money(selected.BroughtForward)</dd>
+        </div>
+        <div>
+            <dt class="text-slate-500">Previous month advance</dt>
+            <dd class="font-semibold">@Money(selected.PriorAdvance)</dd>
+        </div>
+        <div>
+            <dt class="text-slate-500">Paid during this month (including bonus)</dt>
+            <dd class="font-semibold">@Money(selected.Paid)</dd>
+        </div>
+        <div>
+            <dt class="text-slate-500">@(selected.Remaining < 0 ? "Advance carried forward" : "Salary left to pay")</dt>
+            <dd class="font-semibold">@Money(Math.Abs(selected.Remaining))</dd>
+        </div>
+    </dl>
+    @if (selected.Salary is null)
+    {
+        <p class="mt-3 text-sm text-amber-700">Create the monthly salary on the employees page before paying salary. Bonuses can be paid separately.</p>
+    }
 }
-
-<div data-payroll-container data-currency="@Currency" data-month="@Month.ToString("MMM yyyy")">
-    <label class="field-label" for="payroll-employee">Employee</label>
-    <select id="payroll-employee" name="PayrollForm.EmployeeId" class="field" data-payroll-employee required>
-        <option value="">Select employee</option>
-        @foreach (var employee in Employees)
-        {
-            var isSel = employee.Id == InitialEmployeeId;
-            var sal = employee.Salary ?? employee.DefaultSalary;
-            <option value="@employee.Id" selected="@isSel"
-                    data-salary="@sal.ToString("0.00", CultureInfo.InvariantCulture)"
-                    data-has-salary="@(employee.Salary.HasValue ? "true" : "false")"
-                    data-brought-forward="@employee.BroughtForward.ToString("0.00", CultureInfo.InvariantCulture)"
-                    data-advance="@employee.PriorAdvance.ToString("0.00", CultureInfo.InvariantCulture)"
-                    data-paid="@employee.Paid.ToString("0.00", CultureInfo.InvariantCulture)"
-                    data-remaining="@employee.Remaining.ToString("0.00", CultureInfo.InvariantCulture)">
-                @employee.Name
-            </option>
-        }
-    </select>
-
-    <div data-payroll-summary class="@(selected is null ? "hidden" : "")">
-        <dl class="mt-4 grid gap-3 rounded-xl bg-slate-50 p-4 text-sm sm:grid-cols-2">
-            <div>
-                <dt class="text-slate-500">Salary · @Month.ToString("MMM yyyy")</dt>
-                <dd class="font-semibold" data-summary-salary>@Money(selected?.Salary ?? selected?.DefaultSalary ?? 0) @(selected?.Salary is null ? "(not created)" : "")</dd>
-            </div>
-            <div>
-                <dt class="text-slate-500">Unpaid salary brought forward</dt>
-                <dd class="font-semibold" data-summary-brought-forward>@Money(selected?.BroughtForward ?? 0)</dd>
-            </div>
-            <div>
-                <dt class="text-slate-500">Previous month advance</dt>
-                <dd class="font-semibold" data-summary-advance>@Money(selected?.PriorAdvance ?? 0)</dd>
-            </div>
-            <div>
-                <dt class="text-slate-500">Paid during this month (including bonus)</dt>
-                <dd class="font-semibold" data-summary-paid>@Money(selected?.Paid ?? 0)</dd>
-            </div>
-            <div>
-                <dt class="text-slate-500" data-summary-remaining-label>@((selected?.Remaining ?? 0) < 0 ? "Advance carried forward" : "Salary left to pay")</dt>
-                <dd class="font-semibold" data-summary-remaining>@Money(Math.Abs(selected?.Remaining ?? 0))</dd>
-            </div>
-        </dl>
-        <p class="mt-3 text-sm text-amber-700 @(selected?.Salary is null && selected is not null ? "" : "hidden")" data-summary-warning>
-            Create the monthly salary on the employees page before paying salary. Bonuses can be paid separately.
-        </p>
+<div class="mt-4 grid gap-4 sm:grid-cols-2">
+    <div>
+        <label class="field-label" for="payroll-kind">Payment</label>
+        <select id="payroll-kind" name="PayrollForm.Kind" class="field" @bind="Kind">
+            <option value="Salary">Salary payment</option>
+            <option value="Bonus">Bonus</option>
+        </select>
     </div>
-
-    <div class="mt-4 grid gap-4 sm:grid-cols-2">
-        <div>
-            <label class="field-label" for="payroll-kind">Payment</label>
-            <select id="payroll-kind" name="PayrollForm.Kind" class="field" data-payroll-kind>
-                <option value="Salary" selected="@(InitialKind != PayrollKind.Bonus)">Salary payment</option>
-                <option value="Bonus" selected="@(InitialKind == PayrollKind.Bonus)">Bonus</option>
-            </select>
-        </div>
-        <div>
-            <label class="field-label" for="payroll-amount">Amount to pay now (@Currency)</label>
-            <input id="payroll-amount" name="PayrollForm.Amount" class="field" inputmode="decimal"
-                   data-select-on-focus="true" value="@initialAmountStr" data-payroll-amount required />
-        </div>
+    <div>
+        <label class="field-label" for="payroll-amount">Amount to pay now (@Currency)</label>
+        <input id="payroll-amount" name="PayrollForm.Amount" class="field" inputmode="decimal" data-select-on-focus="true" @bind="Amount" @bind:event="oninput" required />
     </div>
+</div>
+@if (Selected is { Salary: not null } previewEmployee && decimal.TryParse(Amount, NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out var amount) && amount > 0)
+{
+    var remaining = Kind == PayrollKind.Bonus ? previewEmployee.Remaining : previewEmployee.Remaining - amount;
+    <p class="mt-3 text-sm font-semibold" role="status">
+        After this payment: @(remaining < 0 ? "Advance " + Money(-remaining) : "Salary left " + Money(remaining))
+    </p>
+}
+<p class="mt-3 text-xs text-slate-500">Unpaid salary carries forward automatically. Previous advances are applied automatically. Salary, bonus and new advances count as expense when paid.</p>
 
-    <p class="mt-3 text-sm font-semibold hidden" data-payroll-preview role="status"></p>
-
-    <p class="mt-3 text-xs text-slate-500">Unpaid salary carries forward automatically. Previous advances are applied automatically. Salary, bonus and new advances count as expense when paid.</p>
 </div>
 
 @code {
@@ -92,7 +81,17 @@
     [Parameter]
     public string Currency { get; set; } = "BDT";
 
-    private StaffRow? Selected => Employees.SingleOrDefault(employee => employee.Id == InitialEmployeeId);
+    private int? SelectedId;
+    private PayrollKind Kind;
+    private string Amount = "";
+    private StaffRow? Selected => Employees.SingleOrDefault(employee => employee.Id == SelectedId);
+
+    protected override void OnInitialized()
+    {
+        SelectedId = InitialEmployeeId > 0 ? InitialEmployeeId : null;
+        Kind = InitialKind == PayrollKind.Bonus ? PayrollKind.Bonus : PayrollKind.Salary;
+        Amount = InitialAmount == 0 ? "" : InitialAmount.ToString(CultureInfo.InvariantCulture);
+    }
 
     private string Money(decimal amount) => $"{Currency} {amount:N2}";
 }
