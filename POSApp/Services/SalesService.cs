@@ -429,7 +429,7 @@ public sealed class SalesService(IServiceScopeFactory scopes, IConfiguration? co
             role.Id == membership.RoleId && (role.Name == AppRoles.Admin || role.Name == AppRoles.InventoryManager)), ct);
         var sale = await db.Sales.AsNoTracking().Include(item => item.Items).Include(item => item.Payments)
             .Include(item => item.Customer).Include(item => item.StockLocation).Include(item => item.Cashier)
-            .SingleOrDefaultAsync(item => !item.IsDeleted && item.Id == id && item.Status == SaleStatus.Completed && (canViewOthers || item.CashierId == actorId), ct);
+            .SingleOrDefaultAsync(item => item.Id == id && (item.Status == SaleStatus.Completed || item.Status == SaleStatus.Voided || item.IsDeleted) && (canViewOthers || item.CashierId == actorId), ct);
         return sale is null ? null : new(sale.Id, sale.ReceiptNumber, sale.SoldAt, sale.Customer?.Name,
             sale.StockLocation!.Name, sale.Cashier!.UserName!, sale.Items.Select(item => new BillLine(item.ProductName, item.ProductSku,
                 item.Unit, item.Quantity, item.UnitPrice,
@@ -437,7 +437,9 @@ public sealed class SalesService(IServiceScopeFactory scopes, IConfiguration? co
             sale.TotalAmount, sale.Payments.Sum(payment => payment.Amount), sale.TenderedAmount, sale.Notes)
         {
             Payments = sale.Payments.OrderBy(payment => payment.Id).Select(payment =>
-                new PaymentDetail(payment.Method, payment.Amount, payment.TenderedAmount == 0 ? payment.Amount : payment.TenderedAmount)).ToArray()
+                new PaymentDetail(payment.Method, payment.Amount, payment.TenderedAmount == 0 ? payment.Amount : payment.TenderedAmount)).ToArray(),
+            IsVoided = sale.Status == SaleStatus.Voided || sale.IsDeleted,
+            VoidedAt = sale.DeletedAt
         };
     }
 }

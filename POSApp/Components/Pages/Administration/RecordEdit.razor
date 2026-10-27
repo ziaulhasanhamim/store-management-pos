@@ -35,8 +35,12 @@ else
                     <input type="hidden" name="Input.ExpectedRevision" value="@Data.Revision" />
                     <div class="space-y-4">
                         <div>
-                            <label class="field-label" for="record-time">Date and time (@Zone.Id)</label>
-                            <input id="record-time" class="field" type="datetime-local" name="Input.EffectiveAt" value="@Input!.EffectiveAt.ToString("yyyy-MM-ddTHH:mm")" required />
+                            <label class="field-label">Transaction Date & Time (@Zone.Id)</label>
+                            <div class="field bg-slate-50 text-slate-700 flex items-center justify-between">
+                                <span class="font-medium">@Data.At.ToBusinessTime(Configuration).ToString("dd MMM yyyy, HH:mm")</span>
+                                <span class="text-xs text-slate-600 font-semibold bg-slate-200 px-2 py-0.5 rounded">Immutable</span>
+                            </div>
+                            <p class="mt-1 text-xs text-slate-500">Transaction dates and times cannot be edited. If this transaction was recorded on the wrong date, void it and re-enter it on the open working day.</p>
                         </div>
                         <div>
                             <label class="field-label" for="record-party">@(Kind == "sale" ? "Customer" : "Supplier")</label>
@@ -145,7 +149,6 @@ else
         Data = await Records.FindAsync(HttpContext.User, Kind, Id, HttpContext.RequestAborted);
         Input ??= new()
         {
-            EffectiveAt = Data is null ? default : TimeZoneInfo.ConvertTime(Data.At, Zone).DateTime,
             PartyId = Data?.PartyId,
             ExpectedRevision = Data?.Revision ?? ""
         };
@@ -166,13 +169,7 @@ else
                     throw new ValidationException("Review and confirm the transaction reversal first.");
                 }
             }
-            var local = DateTime.SpecifyKind(Input!.EffectiveAt, DateTimeKind.Unspecified);
-            if (!delete && Zone.IsInvalidTime(local))
-            {
-                throw new ValidationException("That local time is invalid in the store timezone.");
-            }
-            var effective = delete ? DateTimeOffset.UtcNow : new DateTimeOffset(TimeZoneInfo.ConvertTimeToUtc(local, Zone), TimeSpan.Zero);
-            await Records.ChangeAsync(HttpContext.User, Kind, Id, Input, delete, effective, HttpContext.RequestAborted);
+            await Records.ChangeAsync(HttpContext.User, Kind, Id, Input!, delete, HttpContext.RequestAborted);
             Navigation.NavigateTo($"/admin/records/{Kind}/{Id}/edit");
         }
         catch (ValidationException exception)

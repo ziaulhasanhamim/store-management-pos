@@ -2,7 +2,6 @@ namespace POSApp.Client.DTOs;
 
 public sealed class RecordCorrectionInput
 {
-    public DateTime EffectiveAt { get; set; }
     public int? PartyId { get; set; }
     public string Reason { get; set; } = "";
     public string ExpectedRevision { get; set; } = "";

@@ -500,7 +500,7 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
         movement.CashSession = session;
         db.CashMovements.Add(movement);
     }
-    internal static async Task ReverseAsync(AppDbContext db, string kind, int id, int actorId, string reason, CancellationToken ct)
+    internal static async Task ReverseAsync(AppDbContext db, string kind, int id, int actorId, string reason, DateOnly activeDate, int? locationId, CancellationToken ct)
     {
         var original = await db.CashMovements.Include(move => move.CashSession).ThenInclude(session => session!.CashDrawer)
             .Where(move => kind == "sale" ? move.Payment!.SaleId == id : move.SupplierPayment!.PurchaseId == id)
@@ -509,18 +509,30 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
             .ToListAsync(ct);
         foreach (var movement in original)
         {
-            if (movement.CashSession!.ClosedAt is not null)
+            CashSession sessionToUse;
+            DateOnly businessDateToUse;
+
+            if (movement.CashSession!.ClosedAt is null && movement.BusinessDate == activeDate)
             {
-                throw new ValidationException("This transaction belongs to a reconciled cash drawer. Record a return or a current-shift correction instead of deleting it.");
+                // Original session is still open today: reverse in place
+                sessionToUse = movement.CashSession;
+                businessDateToUse = movement.BusinessDate;
             }
-            await AccountingCalendar.EnsureOpenAsync(db, movement.BusinessDate, ct);
-            Append(db, movement.CashSession, new CashMovement
+            else
+            {
+                // Original session is closed or from a prior day: post refund into the actor's active open drawer on activeDate
+                sessionToUse = await RequireOpenAsync(db, actorId, ct, locationId ?? movement.CashSession.StockLocationId);
+                businessDateToUse = activeDate;
+            }
+
+            await AccountingCalendar.EnsureOpenAsync(db, businessDateToUse, ct);
+            Append(db, sessionToUse, new CashMovement
             {
                 RequestId = Guid.NewGuid(),
                 Kind = CashMovementKind.Reversal,
                 Amount = -movement.Amount,
                 Notes = reason,
-                BusinessDate = movement.BusinessDate,
+                BusinessDate = businessDateToUse,
                 ReversesMovementId = movement.Id,
                 CreatedByUserId = actorId
             });

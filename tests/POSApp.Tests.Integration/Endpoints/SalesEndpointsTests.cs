@@ -1,7 +1,11 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Security.Claims;
+using Microsoft.Extensions.DependencyInjection;
 using POSApp.Client.DTOs;
 using POSApp.Client.Enums;
+using POSApp.Client.Security;
+using POSApp.Services;
 using POSApp.Tests.Integration.Infrastructure;
 
 namespace POSApp.Tests.Integration.Endpoints;
@@ -127,5 +131,88 @@ public class SalesEndpointsTests : PosIntegrationTestBase
         await items.Should().NotBeNull();
         var updatedItem = items!.First(i => i.Id == item.Id);
         await updatedItem.Stock.Should().BeEqualTo(8);
+    }
+
+    [Test]
+    public async Task VoidSale_ReversesStockAndMarksBillAsVoided()
+    {
+        // 1. Create a product first via InventoryClient
+        var productInput = new ProductInput
+        {
+            Name = "Bluetooth Mouse",
+            Unit = "piece",
+            CostPrice = 100m,
+            SellingPrice = 200m,
+            SupplierId = 1,
+            CategoryId = 1
+        };
+
+        var itemResponse = await InventoryClient.PostAsJsonAsync("/api/inventory/items", productInput);
+        await itemResponse.StatusCode.Should().BeEqualTo(HttpStatusCode.OK);
+        var item = await itemResponse.Content.ReadFromJsonAsync<ItemRow>();
+
+        // 2. Receive 5 units
+        var receiveCommand = new ReceiveCommand(
+            RequestId: Guid.NewGuid(),
+            SupplierId: 1,
+            LocationId: 1,
+            Lines: [new ReceiveLine(item!.Id, Quantity: 5, UnitCost: 100m)],
+            Payment: 500m,
+            Method: PaymentMethod.Cash,
+            Invoice: "INV-MOUSE-001",
+            Notes: "Mouse delivery");
+
+        var receiveResponse = await InventoryClient.PostAsJsonAsync("/api/inventory/receipts", receiveCommand);
+        await receiveResponse.StatusCode.Should().BeEqualTo(HttpStatusCode.OK);
+
+        // 3. Complete sale of 2 units
+        var saleCommand = new SalesCommand(
+            RequestId: Guid.NewGuid(),
+            LocationId: 1,
+            CustomerId: 1,
+            Lines: [new SalesLine(item.Id, Quantity: 2, UnitPrice: 200m)],
+            Discount: 0m,
+            Payment: 400m,
+            Method: PaymentMethod.Cash,
+            Notes: "Sale to be voided");
+
+        var saleResponse = await SalesClient.PostAsJsonAsync("/api/sales/complete", saleCommand);
+        await saleResponse.StatusCode.Should().BeEqualTo(HttpStatusCode.OK);
+        var saleResult = await saleResponse.Content.ReadFromJsonAsync<SalesResult>();
+        await saleResult.Should().NotBeNull();
+
+        // 4. Void the sale via RecordAdministration
+        using var scope = Services.CreateScope();
+        var records = scope.ServiceProvider.GetRequiredService<RecordAdministration>();
+        var salesService = scope.ServiceProvider.GetRequiredService<SalesService>();
+        var adminUser = new ClaimsPrincipal(new ClaimsIdentity([
+            new Claim(ClaimTypes.NameIdentifier, "1"),
+            new Claim(ClaimTypes.Name, "Admin"),
+            new Claim(ClaimTypes.Role, AppRoles.Admin)
+        ], "TestAuth"));
+
+        var recordData = await records.FindAsync(adminUser, "sale", saleResult!.Id);
+        await recordData.Should().NotBeNull();
+
+        var voidInput = new RecordCorrectionInput
+        {
+            PartyId = recordData!.PartyId,
+            Reason = "Customer returned item immediately, sale voided",
+            ExpectedRevision = recordData.Revision
+        };
+
+        await records.ChangeAsync(adminUser, "sale", saleResult.Id, voidInput, delete: true);
+
+        // 5. Verify stock was restored to 5 units
+        var itemsResponse = await InventoryClient.GetAsync($"/api/inventory/items?locationId=1&search={item.Id}");
+        await itemsResponse.StatusCode.Should().BeEqualTo(HttpStatusCode.OK);
+        var items = await itemsResponse.Content.ReadFromJsonAsync<ItemRow[]>();
+        var updatedItem = items!.First(i => i.Id == item.Id);
+        await updatedItem.Stock.Should().BeEqualTo(5);
+
+        // 6. Verify Bill reflects IsVoided
+        var bill = await salesService.BillAsync(adminUser, saleResult.Id);
+        await bill.Should().NotBeNull();
+        await bill!.IsVoided.Should().BeEqualTo(true);
     }
 }

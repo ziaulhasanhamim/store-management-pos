@@ -8,6 +8,7 @@ public abstract class PosIntegrationTestBase
     protected HttpClient SalesClient => _factory.CreateSalesClient();
     protected HttpClient InventoryClient => _factory.CreateInventoryClient();
     protected HttpClient AnonymousClient => _factory.CreateAnonymousClient();
+    protected IServiceProvider Services => _factory.Services;
 
     [Before(Test)]
     public async Task SetupDatabaseAsync()

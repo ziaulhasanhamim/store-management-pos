@@ -74,7 +74,7 @@ public static class FinancialPosting
         db.BankMovements.Add(movement);
     }
 
-    public static async Task ReverseBankAsync(AppDbContext db, string kind, int id, int actorId, string reason, CancellationToken ct)
+    public static async Task ReverseBankAsync(AppDbContext db, string kind, int id, int actorId, string reason, DateOnly activeDate, CancellationToken ct)
     {
         var originals = await db.BankMovements.Where(move => kind == "sale" ? move.Payment!.SaleId == id : move.SupplierPayment!.PurchaseId == id)
             .Where(move => move.ReversesMovementId == null
@@ -82,11 +82,12 @@ public static class FinancialPosting
             .ToListAsync(ct);
         foreach (var movement in originals)
         {
-            await AccountingCalendar.EnsureOpenAsync(db, movement.BusinessDate, ct);
+            var businessDateToUse = movement.BusinessDate == activeDate ? movement.BusinessDate : activeDate;
+            await AccountingCalendar.EnsureOpenAsync(db, businessDateToUse, ct);
             await BankAsync(db, new BankMovement
             {
                 RequestId = Guid.NewGuid(),
-                BusinessDate = movement.BusinessDate,
+                BusinessDate = businessDateToUse,
                 Kind = CashMovementKind.Reversal,
                 Method = movement.Method,
                 Amount = -movement.Amount,

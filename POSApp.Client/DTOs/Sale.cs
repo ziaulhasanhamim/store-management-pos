@@ -114,4 +114,6 @@ public sealed record SaleBill(
     string? Notes)
 {
     public PaymentDetail[] Payments { get; init; } = [];
+    public bool IsVoided { get; init; }
+    public DateTimeOffset? VoidedAt { get; init; }
 }

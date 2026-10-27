@@ -6,6 +6,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using POSApp.Persistence;
 using POSApp.Persistence.Entities;
+using POSApp.Services.Calculations;
 
 namespace POSApp.Services;
 
@@ -90,7 +91,7 @@ public sealed class RecordAdministration(IServiceScopeFactory scopes, IConfigura
     }
 
     public async Task ChangeAsync(ClaimsPrincipal actor, string kind, int id, RecordCorrectionInput input,
-        bool delete, DateTimeOffset effectiveAt, CancellationToken ct = default)
+        bool delete, CancellationToken ct = default)
     {
         await StoreOperation.RunAsync(async () =>
         {
@@ -98,13 +99,14 @@ public sealed class RecordAdministration(IServiceScopeFactory scopes, IConfigura
             {
                 throw new ValidationException("Enter a reason of up to 2,000 characters.");
             }
-            if (!delete && (effectiveAt == default || kind == "product"))
+            if (!delete && kind == "product")
             {
-                throw new ValidationException("Choose a valid transaction date.");
+                throw new ValidationException("Products cannot be edited here.");
             }
             await using var scope = scopes.CreateAsyncScope();
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             var actorId = await StoreAccess.RequireAsync(db, actor, AppRoles.Admin, ct);
+            var activeDate = await AccountingCalendar.SelectedAsync(db, actorId, configuration, ct);
             await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
             var now = DateTimeOffset.UtcNow;
             SoftDeletableEntity entity;
@@ -114,24 +116,28 @@ public sealed class RecordAdministration(IServiceScopeFactory scopes, IConfigura
             string? costReason = null;
             string? costReferenceType = null;
             int? costReferenceId = null;
-            var action = delete ? "Delete" : "Edit";
+            var action = delete ? "Void" : "Edit";
             switch (kind)
             {
                 case "sale":
                     var sale = await db.Sales.Include(item => item.Items).Include(item => item.Payments)
                         .SingleOrDefaultAsync(item => item.Id == id, ct) ?? throw new ValidationException("Sale not found.");
                     entity = sale;
-                    if (delete && sale.IsDeleted)
+                    if (delete && (sale.IsDeleted || sale.Status == SaleStatus.Voided))
                     {
                         return;
                     }
                     ValidateRevision(entity, input);
-                    await AccountingCalendar.EnsureOpenAsync(db, DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(sale.SoldAt, AccountingCalendar.Zone(configuration)).DateTime), ct);
+                    var saleDate = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(sale.SoldAt, AccountingCalendar.Zone(configuration)).DateTime);
                     if (!delete)
                     {
-                        await AccountingCalendar.EnsureOpenAsync(db, DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(effectiveAt, AccountingCalendar.Zone(configuration)).DateTime), ct);
+                        await AccountingCalendar.EnsureOpenAsync(db, saleDate, ct);
                     }
-                    before = new { sale.CustomerId, sale.SoldAt, sale.IsDeleted };
+                    else
+                    {
+                        await AccountingCalendar.EnsureOpenAsync(db, activeDate, ct);
+                    }
+                    before = new { sale.CustomerId, sale.SoldAt, sale.Status, sale.IsDeleted };
                     var targetCustomer = delete ? null : input.PartyId;
                     if (targetCustomer is { } customerId && !await db.Customers.AnyAsync(customer => customer.Id == customerId && !customer.IsDeleted, ct))
                     {
@@ -142,13 +148,13 @@ public sealed class RecordAdministration(IServiceScopeFactory scopes, IConfigura
                     {
                         throw new ValidationException("An unpaid sale or customer credit must belong to a customer.");
                     }
-                    var note = $"Sale {(delete ? "delete" : "customer change")} #{id}: {input.Reason.Trim()}";
+                    var note = $"Sale {(delete ? "void" : "customer change")} #{id}: {input.Reason.Trim()}";
                     if (sale.Status == SaleStatus.Completed && (delete || sale.CustomerId != targetCustomer))
                     {
-                        await CustomerAdjustmentAsync(db, sale.CustomerId, -(sale.TotalAmount - paid), note, actorId, delete ? sale.SoldAt : effectiveAt, ct);
+                        await CustomerAdjustmentAsync(db, sale.CustomerId, -(sale.TotalAmount - paid), note, actorId, now, ct);
                         if (!delete)
                         {
-                            var targetBalance = await CustomerAdjustmentAsync(db, targetCustomer, sale.TotalAmount - paid, note, actorId, delete ? sale.SoldAt : effectiveAt, ct);
+                            var targetBalance = await CustomerAdjustmentAsync(db, targetCustomer, sale.TotalAmount - paid, note, actorId, now, ct);
                             foreach (var payment in sale.Payments)
                             {
                                 payment.CustomerBalance = targetBalance;
@@ -158,8 +164,9 @@ public sealed class RecordAdministration(IServiceScopeFactory scopes, IConfigura
                     }
                     if (delete && sale.Status == SaleStatus.Completed)
                     {
-                        await CashDrawerService.ReverseAsync(db, "sale", id, actorId, note, ct);
-                        await FinancialPosting.ReverseBankAsync(db, "sale", id, actorId, note, ct);
+                        sale.Status = SaleStatus.Voided;
+                        await CashDrawerService.ReverseAsync(db, "sale", id, actorId, note, activeDate, sale.StockLocationId, ct);
+                        await FinancialPosting.ReverseBankAsync(db, "sale", id, actorId, note, activeDate, ct);
                         affectedProducts = sale.Items.Select(item => item.ProductId).Distinct().ToArray();
                         costReason = $"Reversal of sale #{id}";
                         costReferenceType = "SaleReversal";
@@ -169,49 +176,47 @@ public sealed class RecordAdministration(IServiceScopeFactory scopes, IConfigura
                         foreach (var item in sale.Items.Where(item => !nonStockedIds.Contains(item.ProductId)).OrderBy(item => item.Quantity < 0))
                         {
                             await ReverseStockAsync(db, item.ProductId, sale.StockLocationId, item.Quantity,
-                                item.UnitCost, note, actorId, delete ? sale.SoldAt : effectiveAt, ct);
+                                item.UnitCost, note, actorId, now, ct);
                         }
                     }
                     if (!delete)
                     {
                         sale.CustomerId = targetCustomer;
-                        sale.SoldAt = effectiveAt;
-                        var itemIds = sale.Items.Select(item => item.Id).ToArray();
-                        await db.InventoryMovements.Where(move => move.SaleItemId != null && itemIds.Contains(move.SaleItemId.Value))
-                            .ExecuteUpdateAsync(setters => setters.SetProperty(move => move.OccurredAt, effectiveAt), ct);
-                        await db.CustomerBalanceEntries.Where(entry => entry.SaleId == id)
-                            .ExecuteUpdateAsync(setters => setters.SetProperty(entry => entry.OccurredAt, effectiveAt), ct);
                     }
-                    after = new { CustomerId = sale.CustomerId, SoldAt = sale.SoldAt, IsDeleted = delete };
+                    after = new { CustomerId = sale.CustomerId, SoldAt = sale.SoldAt, Status = sale.Status, IsDeleted = delete };
                     break;
                 case "purchase":
                     var purchase = await db.Purchases.Include(item => item.Items).Include(item => item.Payments)
                         .SingleOrDefaultAsync(item => item.Id == id, ct) ?? throw new ValidationException("Receiving not found.");
                     entity = purchase;
-                    if (delete && purchase.IsDeleted)
+                    if (delete && (purchase.IsDeleted || purchase.Status == PurchaseStatus.Cancelled))
                     {
                         return;
                     }
                     ValidateRevision(entity, input);
-                    await AccountingCalendar.EnsureOpenAsync(db, DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(purchase.ReceivedAt ?? purchase.OrderedAt, AccountingCalendar.Zone(configuration)).DateTime), ct);
+                    var purchaseDate = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(purchase.ReceivedAt ?? purchase.OrderedAt, AccountingCalendar.Zone(configuration)).DateTime);
                     if (!delete)
                     {
-                        await AccountingCalendar.EnsureOpenAsync(db, DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(effectiveAt, AccountingCalendar.Zone(configuration)).DateTime), ct);
+                        await AccountingCalendar.EnsureOpenAsync(db, purchaseDate, ct);
                     }
-                    before = new { purchase.SupplierId, purchase.ReceivedAt, purchase.OrderedAt, purchase.IsDeleted };
+                    else
+                    {
+                        await AccountingCalendar.EnsureOpenAsync(db, activeDate, ct);
+                    }
+                    before = new { purchase.SupplierId, purchase.ReceivedAt, purchase.OrderedAt, purchase.Status, purchase.IsDeleted };
                     var targetSupplier = delete ? purchase.SupplierId : input.PartyId ?? 0;
                     if (!delete && !await db.Suppliers.AnyAsync(supplier => supplier.Id == targetSupplier && !supplier.IsDeleted, ct))
                     {
                         throw new ValidationException("Choose an active supplier.");
                     }
-                    var supplierNote = $"Purchase {(delete ? "delete" : "supplier change")} #{id}: {input.Reason.Trim()}";
+                    var supplierNote = $"Purchase {(delete ? "void" : "supplier change")} #{id}: {input.Reason.Trim()}";
                     var supplierPaid = purchase.Payments.Sum(payment => payment.Amount);
                     if (purchase.Status == PurchaseStatus.Received && (delete || purchase.SupplierId != targetSupplier))
                     {
-                        await SupplierAdjustmentAsync(db, purchase.SupplierId, -(purchase.TotalAmount - supplierPaid), supplierNote, actorId, delete ? purchase.ReceivedAt ?? purchase.OrderedAt : effectiveAt, ct);
+                        await SupplierAdjustmentAsync(db, purchase.SupplierId, -(purchase.TotalAmount - supplierPaid), supplierNote, actorId, now, ct);
                         if (!delete)
                         {
-                            var balance = await SupplierAdjustmentAsync(db, targetSupplier, purchase.TotalAmount - supplierPaid, supplierNote, actorId, delete ? purchase.ReceivedAt ?? purchase.OrderedAt : effectiveAt, ct);
+                            var balance = await SupplierAdjustmentAsync(db, targetSupplier, purchase.TotalAmount - supplierPaid, supplierNote, actorId, now, ct);
                             foreach (var payment in purchase.Payments)
                             {
                                 payment.SupplierBalance = balance;
@@ -221,8 +226,9 @@ public sealed class RecordAdministration(IServiceScopeFactory scopes, IConfigura
                     }
                     if (delete && purchase.Status == PurchaseStatus.Received)
                     {
-                        await CashDrawerService.ReverseAsync(db, "purchase", id, actorId, supplierNote, ct);
-                        await FinancialPosting.ReverseBankAsync(db, "purchase", id, actorId, supplierNote, ct);
+                        purchase.Status = PurchaseStatus.Cancelled;
+                        await CashDrawerService.ReverseAsync(db, "purchase", id, actorId, supplierNote, activeDate, purchase.StockLocationId, ct);
+                        await FinancialPosting.ReverseBankAsync(db, "purchase", id, actorId, supplierNote, activeDate, ct);
                         affectedProducts = purchase.Items.Select(item => item.ProductId).Distinct().ToArray();
                         var purchaseRef = !string.IsNullOrWhiteSpace(purchase.PurchaseNumber) && !(purchase.PurchaseNumber.StartsWith("REC-", StringComparison.OrdinalIgnoreCase) && purchase.PurchaseNumber.Length > 20)
                             ? purchase.PurchaseNumber
@@ -234,24 +240,14 @@ public sealed class RecordAdministration(IServiceScopeFactory scopes, IConfigura
                         foreach (var item in purchase.Items.OrderBy(item => item.Quantity > 0))
                         {
                             await ReverseStockAsync(db, item.ProductId, purchase.StockLocationId, -item.Quantity,
-                                item.UnitCost, supplierNote, actorId, delete ? purchase.ReceivedAt ?? purchase.OrderedAt : effectiveAt, ct);
+                                item.UnitCost, supplierNote, actorId, now, ct);
                         }
                     }
                     if (!delete)
                     {
                         purchase.SupplierId = targetSupplier;
-                        purchase.OrderedAt = effectiveAt;
-                        if (purchase.Status == PurchaseStatus.Received)
-                        {
-                            purchase.ReceivedAt = effectiveAt;
-                        }
-                        var itemIds = purchase.Items.Select(item => item.Id).ToArray();
-                        await db.InventoryMovements.Where(move => move.PurchaseItemId != null && itemIds.Contains(move.PurchaseItemId.Value))
-                            .ExecuteUpdateAsync(setters => setters.SetProperty(move => move.OccurredAt, effectiveAt), ct);
-                        await db.SupplierBalanceEntries.Where(entry => entry.PurchaseId == id)
-                            .ExecuteUpdateAsync(setters => setters.SetProperty(entry => entry.OccurredAt, effectiveAt), ct);
                     }
-                    after = new { purchase.SupplierId, purchase.ReceivedAt, purchase.OrderedAt, IsDeleted = delete };
+                    after = new { purchase.SupplierId, purchase.ReceivedAt, purchase.OrderedAt, Status = purchase.Status, IsDeleted = delete };
                     break;
                 case "product" when delete:
                     var product = await db.Products.SingleOrDefaultAsync(item => item.Id == id, ct)
@@ -312,9 +308,9 @@ public sealed class RecordAdministration(IServiceScopeFactory scopes, IConfigura
             db.InventoryBalances.Add(stock);
         }
         var resultingQuantity = stock.QuantityOnHand + quantity;
-        if (resultingQuantity < 0 || resultingQuantity > 999999999999999.999m)
+        if (resultingQuantity < -999999999999999.999m || resultingQuantity > 999999999999999.999m)
         {
-            throw new ValidationException("Deletion would make stock invalid. Correct dependent transactions first.");
+            throw new ValidationException("Deletion would exceed supported inventory limits.");
         }
         stock.QuantityOnHand = resultingQuantity;
         stock.UpdatedAt = DateTimeOffset.UtcNow;
@@ -346,9 +342,7 @@ public sealed class RecordAdministration(IServiceScopeFactory scopes, IConfigura
         {
             if (move.Quantity > 0 && move.Type is InventoryMovementType.Purchase or InventoryMovementType.Opening or InventoryMovementType.Adjustment)
             {
-                cost = quantity <= 0
-                    ? move.UnitCost
-                    : decimal.Round(cost + (move.UnitCost - cost) * (move.Quantity / (quantity + move.Quantity)), 2, MidpointRounding.AwayFromZero);
+                cost = InventoryValuationCalculator.CalculateMovingAverageCost(quantity, cost, move.Quantity, move.UnitCost);
             }
             quantity += move.Quantity;
         }
