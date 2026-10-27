@@ -109,21 +109,25 @@ else if (ConfirmRefresh)
 
 @if (!ReadOnly)
 {
-    <section class="panel mb-6">
-        <div class="panel-heading">
-            <h2>Add found items</h2>
-            <span class="text-xs text-slate-500">@Data.Location</span>
+    <section class="panel mb-6 p-5">
+        <div class="flex flex-wrap items-center justify-between gap-4">
+            <div>
+                <h2 class="font-semibold">Quick Product Finder / Barcode Scan</h2>
+                <p class="text-xs text-slate-500">Scan barcode or type name to quickly add counted quantities or jump to row.</p>
+            </div>
+            <div class="flex items-center gap-2">
+                <button type="button" class="btn-secondary text-xs!" @onclick="MarkAllUncountedAsExpectedAsync"
+                        disabled="@(!RendererInfo.IsInteractive || !RecoveryReady || !ServerRecoveryReady || Recovery is not null || Busy || HasInvalid)">
+                    <Icon Name="check" />
+                    Fill uncounted as Expected
+                </button>
+            </div>
         </div>
-        <fieldset class="min-w-0 p-5" disabled="@(!RendererInfo.IsInteractive || !RecoveryReady || !ServerRecoveryReady || Recovery is not null || Busy)">
+        <fieldset class="mt-4 min-w-0" disabled="@(!RendererInfo.IsInteractive || !RecoveryReady || !ServerRecoveryReady || Recovery is not null || Busy)">
             <div id="@($"take-product-entry-{Data.Id}")" data-permanent>
-                <label class="mb-4 flex items-center gap-2 text-sm font-semibold">
-                    <input type="checkbox" @bind="BatchMode" @bind:after="BatchChangedAsync" disabled="@(BatchRows.Count > 0)" />
-                    Batch entry
-                </label>
-                <label class="field-label" for="take-product-search">Search or scan a product</label>
                 <div class="relative">
                     <Icon Name="search" Class="absolute top-3 left-3 text-slate-400" />
-                    <input id="take-product-search" class="field pl-10!" placeholder="Name, barcode or ID"
+                    <input id="take-product-search" class="field pl-10!" placeholder="Scan barcode or type name to search and update count…"
                            @ref="ProductSearchField" @bind="ProductSearch" @bind:event="oninput"
                            @bind:after="ProductSearchChanged" @onkeydown="SearchKeyDown" autocomplete="off" maxlength="200" data-select-on-focus="true" />
                 </div>
@@ -145,7 +149,7 @@ else if (ConfirmRefresh)
                             </span>
                             <span class="text-right text-xs text-slate-500">
                                 Expected @row.Item.Expected.ToString("0.###")
-                                <span class="mt-1 block font-semibold text-blue-700">@(QueuedCount(row.Item.ProductId) is { } queued ? $"Queued total {queued:0.###}" : row.Count is { } count ? $"Counted {count:0.###}" : "Not counted")</span>
+                                <span class="mt-1 block font-semibold text-blue-700">@(row.Count is { } count ? $"Counted {count:0.###}" : "Not counted")</span>
                             </span>
                         </button>
                     }
@@ -180,7 +184,7 @@ else if (ConfirmRefresh)
                         </div>
                         <button type="button" class="btn-primary" @onclick="AddSelected" disabled="@(!CanAdd)">
                             <Icon Name="plus" />
-                            @(BatchMode ? "Queue item" : "Add to counted list")
+                            Add to counted list
                         </button>
                         <button type="button" class="btn-secondary" @onclick="MarkNoneFound">Set counted total to 0</button>
                     </div>
@@ -190,41 +194,7 @@ else if (ConfirmRefresh)
                     }
                 </div>
             }
-            @if (BatchRows.Count > 0)
-            {
-                <div class="mt-5 rounded-xl border border-blue-200 bg-blue-50/40 p-4">
-                    <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
-                        <h3 class="font-semibold">Batch · @BatchRows.Count items</h3>
-                        <span class="text-xs text-slate-500">Queued on this browser · not added to the count yet</span>
-                    </div>
-                    @foreach (var row in BatchRows)
-                    {
-                        <div class="mb-3 flex flex-wrap items-center gap-3" @key="row.Item.ProductId">
-                            <div class="min-w-48 flex-1">
-                                <strong class="block text-sm">@row.Item.Name</strong>
-                                <span class="text-xs text-slate-500">@row.Item.Barcode · @row.Item.Unit</span>
-                            </div>
-                            <div>
-                                <label class="field-label" for="@($"batch-total-{row.Item.ProductId}")">Counted total</label>
-                                <input id="@($"batch-total-{row.Item.ProductId}")" class="field w-32! text-right" type="text" inputmode="decimal"
-                                       value="@row.Text" @oninput="args => SetBatchCountAsync(row, args)" data-select-on-focus="true"
-                                       aria-label="@($"Batch counted total for {row.Item.Name}")" aria-invalid="@(!row.Valid)" />
-                                @if (!row.Valid)
-                                {
-                                    <span class="mt-1 block text-xs text-red-700">@(row.Item.AllowFractionUnit ? "Use a nonnegative quantity, up to 3 decimals." : "Use a nonnegative whole number.")</span>
-                                }
-                            </div>
-                            <button type="button" class="icon-button" @onclick="() => RemoveBatchRowAsync(row.Item.ProductId)" aria-label="@($"Remove {row.Item.Name} from batch")">
-                                <Icon Name="trash" />
-                            </button>
-                        </div>
-                    }
-                    <button type="button" class="btn-primary mt-2" @onclick="AddBatchAsync" disabled="@(Busy || BatchInvalid || HasInvalid)">
-                        @(Busy ? "Adding batch…" : $"Add batch · {BatchRows.Count} items")
-                    </button>
-                </div>
-            }
-            <p class="mt-3 text-xs text-slate-500">Adding an item again adds to its counted total. Found 4, then found 1 more: the total becomes 5. Edit the total below to correct a mistake.</p>
+            <p class="mt-3 text-xs text-slate-500">Adding an item again adds to its counted total. Found 4, then found 1 more: the total becomes 5. Edit the total directly in the table below to correct a mistake.</p>
         </fieldset>
     </section>
 }

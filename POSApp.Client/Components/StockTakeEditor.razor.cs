@@ -242,6 +242,21 @@ public partial class StockTakeEditor : IAsyncDisposable
         await ChangedAsync(immediate: true);
     }
 
+    private async Task MarkAllUncountedAsExpectedAsync()
+    {
+        if (ReadOnly || Busy) return;
+        var uncounted = Rows.Where(r => !r.Count.HasValue).ToList();
+        if (uncounted.Count == 0) return;
+
+        foreach (var row in uncounted)
+        {
+            SetTotal(row, row.Item.Expected);
+            row.Valid = true;
+        }
+        Notice = $"{uncounted.Count} items marked with their expected quantities.";
+        await ChangedAsync(immediate: true);
+    }
+
     private async Task MarkNoneFound()
     {
         if (ReadOnly || Busy || Selected is not { } row)

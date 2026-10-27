@@ -45,7 +45,8 @@
                         <NavLink href="/stock/takes">Stock takes</NavLink>
                     </AuthorizeView>
                     <AuthorizeView Policy="@AppPolicies.ManageStockAdjustment" Context="openingAuth">
-                        <NavLink href="/stock/adjustments">Stock adjustments</NavLink>
+                        <NavLink href="/stock/adjustments">Stock additions</NavLink>
+                        <NavLink href="/stock/waste">Damage & waste</NavLink>
                     </AuthorizeView>
                 </SidebarGroup>
                 <AuthorizeView Policy="@AppPolicies.ManageInventory" Context="inventoryAuth">

@@ -35,4 +35,16 @@ public class ReportEndpointsTests : PosIntegrationTestBase
         await csv.Should().NotBeNull();
         await csv.Contains("Receipt").Should().BeEqualTo(true);
     }
+
+    [Test]
+    public async Task ExportStockLossReport_WhenAdmin_ReturnsCsvReport()
+    {
+        var response = await AdminClient.GetAsync("/api/reports/export/stock-loss?period=month");
+
+        await response.StatusCode.Should().BeEqualTo(HttpStatusCode.OK);
+        var csv = await response.Content.ReadAsStringAsync();
+        await csv.Should().NotBeNull();
+        await csv.Contains("Reason").Should().BeEqualTo(true);
+        await csv.Contains("Total Financial Loss").Should().BeEqualTo(true);
+    }
 }

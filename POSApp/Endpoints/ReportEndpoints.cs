@@ -109,6 +109,20 @@ public static class ReportEndpoints
             }
             rows.Add(["TOTAL", "", "", "", "", "", "", "", "", Number(data.NetValue)]);
         }
+        else if (kind == "stock-loss")
+        {
+            var data = await reports.StockLossReportAsync(context.User, period, start, end,
+                locationId, search: search, page: 1, pageSize: limit, ct: context.RequestAborted);
+            range = data.Range;
+            count = data.Rows.Count;
+            rows.Add(["Date (UTC)", "Location", "Item ID", "Item", "Barcode", "Unit", "Reason", "Quantity Lost", "Unit Cost", "Total Financial Loss", "Notes"]);
+            rows.AddRange(data.Rows.Select(row => new[] {
+                row.OccurredAt.ToString("O"), row.LocationName, Number(row.ProductId), row.ProductName,
+                row.Barcode ?? "", row.Unit, row.Reason, Number(row.Quantity), Number(row.UnitCost),
+                Number(row.TotalLoss), row.Notes ?? ""
+            }));
+            rows.Add(["TOTAL", "", "", "", "", "", "", Number(data.TotalQuantity), "", Number(data.TotalFinancialLoss), ""]);
+        }
         else
         {
             return Results.NotFound();

@@ -134,6 +134,19 @@ public sealed partial class StockAdjustmentService(IServiceScopeFactory scopes, 
                 balance.QuantityOnHand = resultingLocationQuantity;
                 balance.UpdatedAt = product.UpdatedAt;
                 balance.UpdatedByUserId = actorId;
+
+                var effectiveUnitCost = entry.Quantity < 0 && entry.UnitCost <= 0 ? product.CostPrice : entry.UnitCost;
+                var reason = entry.Reason != StockAdjustmentReason.OpeningOrFound ? entry.Reason : input.Reason;
+                var reasonLabel = reason switch
+                {
+                    StockAdjustmentReason.Damaged => "Damaged / Broken",
+                    StockAdjustmentReason.Expired => "Expired",
+                    StockAdjustmentReason.PromotionalGift => "Promotional Gift / Sample",
+                    StockAdjustmentReason.StoreUse => "Internal Store Use",
+                    StockAdjustmentReason.LossShrinkage => "Loss / Shrinkage",
+                    _ => "Stock adjustment"
+                };
+
                 var item = new StockAdjustmentItem
                 {
                     ProductId = product.Id,
@@ -141,7 +154,7 @@ public sealed partial class StockAdjustmentService(IServiceScopeFactory scopes, 
                     Barcode = product.Barcode,
                     Unit = product.Unit,
                     Quantity = entry.Quantity,
-                    UnitCost = entry.UnitCost
+                    UnitCost = effectiveUnitCost
                 };
                 adjustment.Items.Add(item);
                 db.InventoryMovements.Add(new InventoryMovement
@@ -151,9 +164,9 @@ public sealed partial class StockAdjustmentService(IServiceScopeFactory scopes, 
                     StockAdjustmentItem = item,
                     Type = InventoryMovementType.Adjustment,
                     Quantity = entry.Quantity,
-                    UnitCost = entry.UnitCost,
+                    UnitCost = effectiveUnitCost,
                     OccurredAt = occurredAt,
-                    Notes = "Stock adjustment" + (adjustment.Notes.Length > 0 ? $" · {adjustment.Notes}" : ""),
+                    Notes = reasonLabel + (adjustment.Notes.Length > 0 ? $" · {adjustment.Notes}" : ""),
                     CreatedByUserId = actorId
                 });
             }

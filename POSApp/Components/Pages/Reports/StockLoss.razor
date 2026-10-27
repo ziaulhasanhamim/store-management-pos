@@ -1,0 +1,241 @@
+@page "/reports/stock-loss"
+@page "/reports/waste"
+@attribute [Authorize(Policy = AppPolicies.ManageInventory)]
+@attribute [StreamRendering]
+@inject ReportService Reports
+@inject ILogger<StockLoss> Logger
+
+<PageTitle>Stock Loss & Waste Report · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
+
+<div class="page-heading">
+    <div>
+        <p class="eyebrow">Loss Prevention & Auditing</p>
+        <h1>Stock Loss & Waste Report</h1>
+    </div>
+    <div class="flex gap-2 no-print">
+        <a href="@ExportLink" class="btn-secondary" download>
+            <Icon Name="download" />
+            Export CSV
+        </a>
+        <a href="/stock/waste" class="btn-primary bg-rose-700! hover:bg-rose-800! border-rose-700!">
+            <Icon Name="plus" />
+            Record Damage & Waste
+        </a>
+        <a href="/reports" class="btn-secondary">Reports</a>
+    </div>
+</div>
+
+<p class="mb-6 text-sm text-slate-500">Track all inventory lost to damage, expired products, promotional gift samples, internal store use, and stock-take shortages over any time period.</p>
+
+<ReportFilters Path="/reports/stock-loss" Range="Data?.Range" Locations="Data?.Locations"
+               Period="@Period" EffectiveStart="@EffectiveStart" EffectiveEnd="@EffectiveEnd"
+               LocationId="@LocationId" Search="@Search" PageSize="@PageSize" ShowLocation="true" />
+
+@if (Loading)
+{
+    <LoadingPanel Message="Loading stock loss data…" />
+}
+else if (Error is not null)
+{
+    <p class="error-panel" role="alert">@Error</p>
+}
+else if (Data is not null)
+{
+    <!-- Hero Summary Cards -->
+    <div class="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div class="metric bg-rose-50/50 border-rose-200">
+            <p class="text-rose-700 font-medium">Total Financial Loss (Cost)</p>
+            <strong class="text-2xl! text-rose-700!">@Money(Data.TotalFinancialLoss)</strong>
+            <span class="metric-note">Deducted from Net Operating Profit</span>
+        </div>
+        <div class="metric">
+            <p>Total Units Lost / Written Off</p>
+            <strong class="text-2xl!">@Data.TotalQuantity.ToString("0.###")</strong>
+            <span class="metric-note">Across selected locations</span>
+        </div>
+        <div class="metric">
+            <p>Incidents Recorded</p>
+            <strong class="text-2xl!">@(Data.Pagination?.Total ?? Data.Rows.Count)</strong>
+            <span class="metric-note">From @Data.Range.Start.ToString("dd MMM yyyy") to @Data.Range.End.ToString("dd MMM yyyy")</span>
+        </div>
+        <div class="metric">
+            <p>Top Loss Category</p>
+            <strong class="text-xl! text-slate-800">@(Data.Reasons.FirstOrDefault()?.Reason ?? "None")</strong>
+            <span class="metric-note">@(Data.Reasons.FirstOrDefault() is { } top ? Money(top.Amount) : "৳0.00")</span>
+        </div>
+    </div>
+
+    <!-- Reason Breakdown Pills -->
+    @if (Data.Reasons.Count > 0)
+    {
+        <div class="mb-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <h2 class="mb-3 text-sm font-semibold text-slate-700">Loss by Category / Reason</h2>
+            <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                @foreach (var r in Data.Reasons)
+                {
+                    <div class="rounded-lg bg-slate-50 p-3 border border-slate-100">
+                        <span class="block text-xs text-slate-500">@r.Reason</span>
+                        <strong class="mt-1 block text-base font-bold text-rose-700">@Money(r.Amount)</strong>
+                        <span class="text-[11px] text-slate-400">@r.Quantity.ToString("0.###") units</span>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+
+    <!-- Itemized Loss Table -->
+    <section class="panel table-scroll">
+        <div class="panel-heading">
+            <h2>Itemized losses & write-offs</h2>
+            <span class="text-xs text-slate-500">Page @Data.Page</span>
+        </div>
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Date & Time</th>
+                    <th>Location</th>
+                    <th>Product</th>
+                    <th>Reason</th>
+                    <th class="text-right">Qty Lost</th>
+                    <th class="text-right">Unit Cost</th>
+                    <th class="text-right">Total Loss</th>
+                    <th>Notes</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Data.Rows.Count == 0)
+                {
+                    <TableStatusRow Columns="8" Message="No stock loss or waste recorded for this period." />
+                }
+                @foreach (var row in Data.Rows)
+                {
+                    <tr>
+                        <td class="text-xs text-slate-500 whitespace-nowrap">@row.OccurredAt.ToBusinessTime(Configuration).ToString("dd MMM yyyy, HH:mm")</td>
+                        <td class="text-xs">@row.LocationName</td>
+                        <td>
+                            <strong class="block text-sm">@row.ProductName</strong>
+                            <span class="font-mono text-[11px] text-slate-400">@(row.Barcode ?? $"Item #{row.ProductId}")</span>
+                        </td>
+                        <td>
+                            <span class="inline-flex items-center rounded px-2 py-0.5 text-xs font-semibold @BadgeClass(row.Reason)">
+                                @row.Reason
+                            </span>
+                        </td>
+                        <td class="text-right font-medium">@row.Quantity.ToString("0.###") <small class="text-slate-400">@row.Unit</small></td>
+                        <td class="text-right text-xs">@Money(row.UnitCost)</td>
+                        <td class="text-right font-bold text-rose-700">@Money(row.TotalLoss)</td>
+                        <td class="text-xs text-slate-500 max-w-xs truncate" title="@row.Notes">@(row.Notes ?? "—")</td>
+                    </tr>
+                }
+            </tbody>
+            @if (Data.Rows.Count > 0)
+            {
+                <tfoot>
+                    <tr>
+                        <th colspan="4">Total</th>
+                        <th class="text-right">@Data.TotalQuantity.ToString("0.###")</th>
+                        <th></th>
+                        <th class="text-right text-rose-700 text-base">@Money(Data.TotalFinancialLoss)</th>
+                        <th></th>
+                    </tr>
+                </tfoot>
+            }
+        </table>
+        @if (Data.Pagination is { Pages: > 1 } p)
+        {
+            <div class="p-4 border-t border-slate-100 flex justify-between items-center text-sm">
+                <span>Showing @Data.Rows.Count of @p.Total records</span>
+                <div class="flex gap-2">
+                    @if (p.Number > 1)
+                    {
+                        <a href="@PageLink(p.Number - 1)" class="btn-secondary">Previous</a>
+                    }
+                    <span class="px-3 py-1 font-semibold">Page @p.Number of @p.Pages</span>
+                    @if (p.Number < p.Pages)
+                    {
+                        <a href="@PageLink(p.Number + 1)" class="btn-secondary">Next</a>
+                    }
+                </div>
+            </div>
+        }
+    </section>
+}
+
+@code {
+    [SupplyParameterFromQuery]
+    public string? Period { get; set; } = "month";
+
+    [SupplyParameterFromQuery]
+    public DateOnly? Start { get; set; }
+
+    [SupplyParameterFromQuery]
+    public DateOnly? End { get; set; }
+
+    [SupplyParameterFromQuery]
+    public int? LocationId { get; set; }
+
+    [SupplyParameterFromQuery]
+    public string? Search { get; set; }
+
+    [SupplyParameterFromQuery]
+    public int Page { get; set; } = 1;
+
+    [SupplyParameterFromQuery]
+    public int PageSize { get; set; } = 50;
+
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    private StockLossReportPage? Data;
+    private bool Loading = true;
+    private string? Error;
+
+    private DateOnly? EffectiveStart => Period == "custom" ? Start : null;
+    private DateOnly? EffectiveEnd => Period == "custom" ? End : null;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        Loading = true;
+        Error = null;
+        try
+        {
+            Data = await Reports.StockLossReportAsync(
+                HttpContext.User,
+                Period,
+                Start,
+                End,
+                LocationId,
+                Search,
+                Page,
+                PageSize,
+                HttpContext.RequestAborted);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load stock loss report.");
+            Error = ex.Message;
+        }
+        finally
+        {
+            Loading = false;
+        }
+    }
+
+    private string Money(decimal amount) => $"{Configuration["CurrencyCode"] ?? "BDT"} {amount:N2}";
+
+    private static string BadgeClass(string reason) => reason switch
+    {
+        "Damaged / Broken" => "bg-amber-100 text-amber-800",
+        "Expired" => "bg-rose-100 text-rose-800",
+        "Promotional Gift / Sample" => "bg-purple-100 text-purple-800",
+        "Internal Store Use" => "bg-blue-100 text-blue-800",
+        "Stock Take Shortage" => "bg-red-100 text-red-800",
+        _ => "bg-slate-100 text-slate-800"
+    };
+
+    private string PageLink(int page) =>
+        $"/reports/stock-loss?period={Period}&start={Start:yyyy-MM-dd}&end={End:yyyy-MM-dd}&locationId={LocationId}&search={Uri.EscapeDataString(Search ?? "")}&page={page}&pageSize={PageSize}";
+
+    private string ExportLink =>
+        $"/api/reports/export/stock-loss?period={Period}&start={Start:yyyy-MM-dd}&end={End:yyyy-MM-dd}&locationId={LocationId}&search={Uri.EscapeDataString(Search ?? "")}";
+}

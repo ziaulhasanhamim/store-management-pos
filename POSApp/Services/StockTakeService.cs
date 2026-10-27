@@ -73,6 +73,29 @@ public sealed partial class StockTakeService(IServiceScopeFactory scopes, IConfi
                 CreatedByUserId = actorId
             };
             db.StockTakes.Add(take);
+
+            var productIds = await db.Products.AsNoTracking()
+                .Where(p => !p.IsNonStocked && (!p.IsDeleted || p.InventoryBalances.Any(b => b.StockLocationId == input.LocationId && b.QuantityOnHand != 0)))
+                .Select(p => p.Id)
+                .ToArrayAsync(ct);
+
+            var snapshots = await SnapshotsAsync(db, input.LocationId, productIds, ct);
+            foreach (var stock in snapshots.OrderBy(s => s.Name))
+            {
+                take.Items.Add(new StockTakeItem
+                {
+                    ProductId = stock.Id,
+                    ProductName = stock.Name,
+                    Barcode = stock.Barcode,
+                    Unit = stock.Unit,
+                    AllowFractionUnit = stock.AllowFraction,
+                    ExpectedQuantity = stock.Quantity,
+                    UnitCost = stock.Cost,
+                    LastMovementId = stock.MovementId,
+                    CountedQuantity = null,
+                    IsIncluded = true
+                });
+            }
             await db.SaveChangesAsync(ct);
             await transaction.CommitAsync(ct);
             return take.Id;
@@ -282,13 +305,17 @@ public sealed partial class StockTakeService(IServiceScopeFactory scopes, IConfi
             foreach (var item in counted)
             {
                 if (!snapshots.TryGetValue(item.ProductId, out var stock)
-                    || stock.Quantity != item.ExpectedQuantity || stock.MovementId != item.LastMovementId
-                    || stock.Cost != item.UnitCost || stock.AllowFraction != item.AllowFractionUnit
                     || !ValidCount(item, item.CountedQuantity!.Value))
                 {
-                    throw new ValidationException($"Stock or cost changed for {item.ProductName}. Save your draft, refresh expected stock, then recount changed items and review again.");
+                    throw new ValidationException($"Invalid count for {item.ProductName}. Review the count before confirming.");
                 }
             }
+
+            var activeDate = await AccountingCalendar.SelectedAsync(db, actorId, configuration, ct);
+            await AccountingCalendar.EnsureOpenAsync(db, activeDate, ct);
+            take.BusinessDate = activeDate;
+            var occurredAt = AccountingCalendar.At(activeDate, configuration);
+
             var countedIds = counted.Select(item => item.ProductId).ToArray();
             var balances = await db.InventoryBalances.Where(balance => balance.StockLocationId == take.StockLocationId
                     && countedIds.Contains(balance.ProductId))
@@ -308,7 +335,7 @@ public sealed partial class StockTakeService(IServiceScopeFactory scopes, IConfi
                     };
                     db.InventoryBalances.Add(balance);
                 }
-                balance.QuantityOnHand = item.CountedQuantity.Value;
+                balance.QuantityOnHand += difference;
                 balance.UpdatedAt = now;
                 balance.UpdatedByUserId = actorId;
                 db.InventoryMovements.Add(new InventoryMovement
@@ -318,8 +345,8 @@ public sealed partial class StockTakeService(IServiceScopeFactory scopes, IConfi
                     StockLocationId = take.StockLocationId,
                     Type = InventoryMovementType.Adjustment,
                     Quantity = difference,
-                    UnitCost = item.UnitCost,
-                    OccurredAt = AccountingCalendar.At(take.BusinessDate, configuration),
+                    UnitCost = item.UnitCost > 0 ? item.UnitCost : (snapshots.TryGetValue(item.ProductId, out var s) ? s.Cost : 0),
+                    OccurredAt = occurredAt,
                     Notes = $"Stock take #{take.Id} · {(difference < 0 ? "Shortage" : "Extra stock")} · {take.Reason}",
                     CreatedByUserId = actorId
                 });
@@ -344,21 +371,17 @@ public sealed partial class StockTakeService(IServiceScopeFactory scopes, IConfi
         }, ct);
     }
 
-    private async Task EnsureEditableAsync(AppDbContext db, StockTake take, int actorId, CancellationToken ct)
+    private static Task EnsureEditableAsync(AppDbContext db, StockTake take, int actorId, CancellationToken ct)
     {
         if (take.CompletedAt is not null)
         {
             throw new ValidationException("This stock take is completed. Start a new stock take to record another count.");
         }
-        if (take.BusinessDate != await AccountingCalendar.SelectedAsync(db, actorId, configuration, ct))
-        {
-            throw new ValidationException("This stock take belongs to another working day. Start a new take for the current day.");
-        }
-        await AccountingCalendar.EnsureOpenAsync(db, take.BusinessDate, ct);
         if (take.StockLocation!.IsDeleted)
         {
             throw new ValidationException("This stock location is archived.");
         }
+        return Task.CompletedTask;
     }
 
     private static void CheckRevision(StockTake take, long revision)
@@ -401,10 +424,6 @@ public sealed partial class StockTakeService(IServiceScopeFactory scopes, IConfi
                 }).ToArray())
         {
             CanEdit = take.CompletedAt is null && !take.StockLocation.IsDeleted
-                && take.BusinessDate == await AccountingCalendar.SelectedAsync(db, 0, configuration, ct)
-                && !await db.FinanceClosings.AnyAsync(closing => closing.ClosedAt != null
-                    && (closing.Kind == ClosingKind.Day && closing.Date == take.BusinessDate
-                        || closing.Kind == ClosingKind.Month && closing.Date == new DateOnly(take.BusinessDate.Year, take.BusinessDate.Month, 1)), ct)
         };
 
     private static Task<StockSnapshot[]> SnapshotsAsync(AppDbContext db, int locationId, int[] productIds, CancellationToken ct) =>

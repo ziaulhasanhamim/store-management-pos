@@ -1,0 +1,308 @@
+@using POSApp.Client.DTOs
+@using POSApp.Client.Enums
+@using POSApp.Client.Services
+@inject IStockAdjustmentClient AdjustmentClient
+@inject NavigationManager Navigation
+
+<div class="space-y-6">
+    @if (Error is not null)
+    {
+        <p class="error-panel" role="alert">@Error</p>
+    }
+    @if (SuccessNotice is not null)
+    {
+        <div class="success-panel" role="status">
+            <Icon Name="check" />
+            <div>
+                <strong>Stock write-off completed</strong>
+                <p class="mt-1 text-xs">@SuccessNotice</p>
+            </div>
+        </div>
+    }
+
+    <div class="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <div class="space-y-6">
+            <!-- Location and Item Selection -->
+            <section class="panel p-5">
+                <div class="grid gap-4 sm:grid-cols-2">
+                    <div>
+                        <label class="field-label" for="waste-location">Stock location</label>
+                        <select id="waste-location" class="field" @bind="LocationId" @bind:after="LocationChangedAsync" disabled="@(Rows.Count > 0)">
+                            @foreach (var loc in Options.Locations)
+                            {
+                                <option value="@loc.Id">@loc.Name</option>
+                            }
+                        </select>
+                    </div>
+                    <div>
+                        <label class="field-label" for="waste-date">Write-off date</label>
+                        <input id="waste-date" type="date" class="field" @bind="Date" />
+                    </div>
+                </div>
+
+                <div class="mt-4">
+                    <label class="field-label" for="waste-search">Search product or scan barcode to write off</label>
+                    <div class="relative">
+                        <Icon Name="search" Class="absolute top-3 left-3 text-slate-400" />
+                        <input id="waste-search" class="field pl-10!" placeholder="Type product name or scan barcode…"
+                               @bind="SearchText" @bind:event="oninput" @bind:after="SearchChangedAsync" autocomplete="off" />
+                    </div>
+                    @if (Searching)
+                    {
+                        <p class="mt-2 text-xs text-slate-500">Searching products…</p>
+                    }
+                    @if (SearchResults.Count > 0)
+                    {
+                        <div class="mt-2 max-h-60 overflow-y-auto rounded-xl border border-slate-200 bg-white shadow-lg">
+                            @foreach (var prod in SearchResults)
+                            {
+                                <button type="button" class="flex w-full items-center justify-between border-b border-slate-100 p-3 text-left last:border-b-0 hover:bg-rose-50"
+                                        @onclick="() => AddProduct(prod)">
+                                    <div>
+                                        <strong class="block text-sm">@prod.Name</strong>
+                                        <span class="text-xs text-slate-500">@(prod.Barcode ?? "No barcode") · Cost: @Money(prod.Cost)</span>
+                                    </div>
+                                    <span class="rounded bg-rose-100 px-2 py-1 text-xs font-semibold text-rose-700">Write off</span>
+                                </button>
+                            }
+                        </div>
+                    }
+                </div>
+            </section>
+
+            <!-- Table of Items to Write Off -->
+            <section class="panel">
+                <div class="panel-heading">
+                    <h2>Items to write off <span class="ml-2 text-xs text-slate-400">@Rows.Count</span></h2>
+                </div>
+                <div class="table-scroll">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Product</th>
+                                <th>Reason</th>
+                                <th class="text-right">Qty to write off</th>
+                                <th class="text-right">Unit cost</th>
+                                <th class="text-right">Total loss</th>
+                                <th><span class="sr-only">Remove</span></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (Rows.Count == 0)
+                            {
+                                <TableStatusRow Columns="6" Message="Search or scan a product above to record damage, expiry, or promotional sample." />
+                            }
+                            @foreach (var row in Rows)
+                            {
+                                <tr @key="row.Product.Id">
+                                    <td>
+                                        <strong>@row.Product.Name</strong>
+                                        <span class="mt-0.5 block font-mono text-xs text-slate-500">@row.Product.Barcode</span>
+                                    </td>
+                                    <td>
+                                        <select class="field py-1! text-xs!" @bind="row.Reason">
+                                            <option value="@StockAdjustmentReason.Damaged">🔨 Damaged / Broken</option>
+                                            <option value="@StockAdjustmentReason.Expired">🥀 Expired</option>
+                                            <option value="@StockAdjustmentReason.PromotionalGift">🎁 Promotional Gift / Sample</option>
+                                            <option value="@StockAdjustmentReason.StoreUse">🏢 Internal Store Use</option>
+                                            <option value="@StockAdjustmentReason.LossShrinkage">❓ Loss / Shrinkage</option>
+                                        </select>
+                                    </td>
+                                    <td class="text-right">
+                                        <InputNumber class="field text-right w-24! py-1! text-xs!" @bind-Value="row.Quantity" min="0.001" step="@(row.Product.AllowFractionUnit ? "0.001" : "1")" />
+                                        <span class="ml-1 text-xs text-slate-500">@row.Product.Unit</span>
+                                    </td>
+                                    <td class="text-right text-xs">@Money(row.UnitCost)</td>
+                                    <td class="text-right font-semibold text-rose-700">@Money(row.Quantity * row.UnitCost)</td>
+                                    <td>
+                                        <button type="button" class="icon-button text-slate-400 hover:text-rose-600" aria-label="Remove item" @onclick="() => Rows.Remove(row)">
+                                            <Icon Name="trash" />
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                        @if (Rows.Count > 0)
+                        {
+                            <tfoot>
+                                <tr>
+                                    <th colspan="4" class="text-right">Total Financial Loss (Deducted from Profit):</th>
+                                    <th class="text-right text-rose-700 text-base">@Money(TotalLoss)</th>
+                                    <th></th>
+                                </tr>
+                            </tfoot>
+                        }
+                    </table>
+                </div>
+            </section>
+        </div>
+
+        <!-- Sidebar Summary & Confirmation -->
+        <aside class="space-y-6">
+            <section class="panel p-5">
+                <h3 class="font-semibold mb-3">Write-off summary</h3>
+                <dl class="space-y-2 text-sm">
+                    <div class="flex justify-between">
+                        <dt class="text-slate-500">Products</dt>
+                        <dd class="font-semibold">@Rows.Count items</dd>
+                    </div>
+                    <div class="flex justify-between">
+                        <dt class="text-slate-500">Total units to remove</dt>
+                        <dd class="font-semibold">@Rows.Sum(r => r.Quantity).ToString("0.###")</dd>
+                    </div>
+                    <div class="flex justify-between border-t border-slate-100 pt-3">
+                        <dt class="font-bold">Total stock value loss</dt>
+                        <dd class="font-bold text-rose-700">@Money(TotalLoss)</dd>
+                    </div>
+                </dl>
+
+                <div class="mt-4">
+                    <label class="field-label" for="waste-notes">Notes / Explanation</label>
+                    <textarea id="waste-notes" class="field text-xs" rows="3" placeholder="e.g. Broken in storage, batch 442 expired, gift to VIP client" @bind="Notes"></textarea>
+                </div>
+
+                <div class="mt-4 rounded-lg bg-rose-50 p-3 text-xs text-rose-800">
+                    <p><strong>Accounting Impact:</strong> These items will be removed from inventory. The <strong>@Money(TotalLoss)</strong> will be deducted from your Net Profit under Stock Loss / Variance on your Daily & Monthly Closing reports.</p>
+                </div>
+
+                <button type="button" class="btn-primary w-full mt-4 bg-rose-700! hover:bg-rose-800! border-rose-700!"
+                        disabled="@(Rows.Count == 0 || Rows.Any(r => r.Quantity <= 0) || Busy)" @onclick="SubmitAsync">
+                    @if (Busy)
+                    {
+                        <span class="form-submit-spinner"></span>
+                    }
+                    Confirm & write off stock
+                </button>
+            </section>
+        </aside>
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public StockAdjustmentOptions Options { get; set; } = default!;
+
+    [Parameter]
+    public string Currency { get; set; } = "BDT";
+
+    private int LocationId;
+    private DateOnly Date;
+    private string SearchText = "";
+    private string Notes = "";
+    private bool Searching;
+    private bool Busy;
+    private string? Error;
+    private string? SuccessNotice;
+
+    private readonly List<WasteLine> Rows = [];
+    private IReadOnlyList<StockAdjustmentProduct> SearchResults = [];
+
+    private decimal TotalLoss => Rows.Sum(r => r.Quantity * r.UnitCost);
+
+    protected override void OnInitialized()
+    {
+        LocationId = Options.LocationId ?? Options.Locations.FirstOrDefault()?.Id ?? 0;
+        Date = Options.Date;
+    }
+
+    private string Money(decimal amount) => $"{Currency} {amount:N2}";
+
+    private async Task LocationChangedAsync()
+    {
+        SearchResults = [];
+        SearchText = "";
+        await Task.CompletedTask;
+    }
+
+    private async Task SearchChangedAsync()
+    {
+        var query = SearchText.Trim();
+        if (query.Length < 1)
+        {
+            SearchResults = [];
+            return;
+        }
+        Searching = true;
+        try
+        {
+            SearchResults = await AdjustmentClient.SearchAsync(LocationId, query);
+        }
+        catch (Exception ex)
+        {
+            Error = ex.Message;
+        }
+        finally
+        {
+            Searching = false;
+        }
+    }
+
+    private void AddProduct(StockAdjustmentProduct product)
+    {
+        var existing = Rows.FirstOrDefault(r => r.Product.Id == product.Id);
+        if (existing is not null)
+        {
+            existing.Quantity += 1;
+        }
+        else
+        {
+            Rows.Add(new WasteLine
+            {
+                Product = product,
+                Reason = StockAdjustmentReason.Damaged,
+                Quantity = 1,
+                UnitCost = product.Cost
+            });
+        }
+        SearchText = "";
+        SearchResults = [];
+    }
+
+    private async Task SubmitAsync()
+    {
+        if (Rows.Count == 0 || Rows.Any(r => r.Quantity <= 0)) return;
+
+        Busy = true;
+        Error = null;
+        SuccessNotice = null;
+
+        try
+        {
+            // Submit as negative quantities so inventory decreases and stock loss is recorded!
+            var command = new StockAdjustmentCommand(
+                Guid.NewGuid(),
+                LocationId,
+                Date,
+                Notes,
+                Rows.Select(r => new StockAdjustmentEntry(r.Product.Id, -Math.Abs(r.Quantity), r.UnitCost)
+                {
+                    Reason = r.Reason
+                }).ToArray()
+            )
+            {
+                Reason = Rows.FirstOrDefault()?.Reason ?? StockAdjustmentReason.Damaged
+            };
+
+            var result = await AdjustmentClient.CreateAsync(command);
+            SuccessNotice = $"{Rows.Count} products ({Money(TotalLoss)}) written off successfully. Inventory and P&L updated.";
+            Rows.Clear();
+            Notes = "";
+        }
+        catch (Exception ex)
+        {
+            Error = ex.Message;
+        }
+        finally
+        {
+            Busy = false;
+        }
+    }
+
+    private sealed class WasteLine
+    {
+        public required StockAdjustmentProduct Product { get; init; }
+        public StockAdjustmentReason Reason { get; set; } = StockAdjustmentReason.Damaged;
+        public decimal Quantity { get; set; }
+        public decimal UnitCost { get; set; }
+    }
+}

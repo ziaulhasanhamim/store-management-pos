@@ -1,0 +1,65 @@
+@page "/stock/waste"
+@page "/stock/damage"
+@attribute [Authorize(Policy = AppPolicies.ManageStockAdjustment)]
+@attribute [StreamRendering]
+@inject StockAdjustmentService AdjustmentsService
+@inject ILogger<Waste> Logger
+
+<PageTitle>Damage & Waste Write-Offs · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
+
+<div class="page-heading">
+    <div>
+        <p class="eyebrow">Inventory Control</p>
+        <h1>Damage & Waste Write-Offs</h1>
+    </div>
+    <div class="flex gap-2">
+        <a href="/reports/stock-loss" class="btn-secondary">
+            <Icon Name="report" />
+            Stock Loss Report
+        </a>
+        <a href="/stock/adjustments" class="btn-secondary">Stock additions</a>
+    </div>
+</div>
+
+<p class="mb-6 text-sm text-slate-500">Record damaged items, expired products, promotional gifts/samples, or store-use goods. Quantities are removed from inventory and the cost is deducted as a stock loss from Net Profit on your Daily & Monthly closings.</p>
+
+@if (Error is not null)
+{
+    <p class="error-panel" role="alert">@Error</p>
+}
+else if (Options is null)
+{
+    <LoadingPanel Message="Loading write-off options…" />
+}
+else if (Options.Locations.Count == 0)
+{
+    <section class="panel p-6">
+        <p class="mb-4 text-sm text-slate-500">Create a store or warehouse location before recording waste.</p>
+        <a href="/stock/locations" class="btn-primary">Stock locations</a>
+    </section>
+}
+else
+{
+    <StockWasteEditor Options="Options" Currency="@(Configuration["CurrencyCode"] ?? "BDT")" @rendermode="InteractiveAuto" />
+}
+
+@code {
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    private StockAdjustmentOptions? Options;
+    private string? Error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            Options = await AdjustmentsService.OptionsAsync(HttpContext.User, HttpContext.RequestAborted);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load waste write-off page.");
+            Error = ex.Message;
+        }
+    }
+}

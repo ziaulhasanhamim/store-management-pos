@@ -69,3 +69,30 @@ public sealed record ProductSalesReport(IReadOnlyList<ProductSalesRow> Rows, Rep
     public IReadOnlyList<Lookup> Locations { get; init; } = [];
     public decimal Profit => Total - Cost;
 }
+
+public sealed record StockLossReasonTotal(string Reason, decimal Quantity, decimal Amount);
+
+public sealed record StockLossReportRow(
+    DateTimeOffset OccurredAt,
+    string LocationName,
+    int ProductId,
+    string ProductName,
+    string? Barcode,
+    string Unit,
+    string Reason,
+    decimal Quantity,
+    decimal UnitCost,
+    decimal TotalLoss,
+    string? Notes);
+
+public sealed record StockLossReportPage(
+    IReadOnlyList<StockLossReportRow> Rows,
+    ReportRange Range,
+    decimal TotalQuantity,
+    decimal TotalFinancialLoss,
+    IReadOnlyList<StockLossReasonTotal> Reasons,
+    int Page)
+{
+    public IReadOnlyList<Lookup> Locations { get; init; } = [];
+    public PageInfo? Pagination { get; init; }
+}

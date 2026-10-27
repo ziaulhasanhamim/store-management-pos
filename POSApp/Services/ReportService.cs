@@ -176,6 +176,106 @@ public sealed partial class ReportService(IServiceScopeFactory scopes, IConfigur
             purchase.StockLocation!.Name, purchase.SupplierInvoiceNumber, purchase.Notes,
             purchase.Items.Select(item => new PurchaseDetailLine(item.ProductName, item.ProductSku, item.Unit, item.Quantity, item.UnitCost, item.TotalAmount)).ToArray());
     }
+
+    public async Task<StockLossReportPage> StockLossReportAsync(
+        ClaimsPrincipal actor, string? period, DateOnly? start, DateOnly? end,
+        int? locationId = null, string? search = null, int page = 1, int pageSize = 50, CancellationToken ct = default)
+    {
+        return await StoreOperation.RunAsync<StockLossReportPage>(async () =>
+        {
+            var range = ResolveRange(period, start, end, AccountingCalendar.Zone(configuration), DateTimeOffset.UtcNow);
+            await using var scope = scopes.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            await StoreAccess.RequireAsync(db, actor, AppRoles.InventoryManager, ct);
+            var locations = await LocationsAsync(db, locationId, ct);
+
+            var term = (search ?? "").Trim().ToLowerInvariant();
+
+            var movementsQuery = db.InventoryMovements.AsNoTracking()
+                .Where(m => m.Quantity < 0
+                    && (m.StockTakeItemId != null || m.StockAdjustmentItemId != null || m.Type == InventoryMovementType.Adjustment)
+                    && m.OccurredAt >= range.FromUtc && m.OccurredAt < range.ToUtc
+                    && (locationId == null || m.StockLocationId == locationId.Value));
+
+            if (!string.IsNullOrWhiteSpace(term))
+            {
+                movementsQuery = movementsQuery.Where(m =>
+                    m.Product!.Name.ToLower().Contains(term)
+                    || (m.Product.Barcode != null && m.Product.Barcode.Contains(term))
+                    || (m.Notes != null && m.Notes.ToLower().Contains(term)));
+            }
+
+            var totalQuantity = await movementsQuery.SumAsync(m => (decimal?)-m.Quantity, ct) ?? 0m;
+            var totalFinancialLoss = await movementsQuery.SumAsync(m => (decimal?)(-m.Quantity * m.UnitCost), ct) ?? 0m;
+
+            var rawRows = await movementsQuery
+                .OrderByDescending(m => m.OccurredAt)
+                .Select(m => new
+                {
+                    m.OccurredAt,
+                    LocationName = m.StockLocation!.Name,
+                    m.ProductId,
+                    ProductName = m.Product!.Name,
+                    m.Product.Barcode,
+                    m.Product.Unit,
+                    m.Quantity,
+                    m.UnitCost,
+                    m.Notes,
+                    IsStockTake = m.StockTakeItemId != null
+                })
+                .ToListAsync(ct);
+
+            var reasons = rawRows.GroupBy(r => DetermineReason(r.IsStockTake, r.Notes))
+                .Select(g => new StockLossReasonTotal(
+                    g.Key,
+                    g.Sum(x => -x.Quantity),
+                    g.Sum(x => decimal.Round(-x.Quantity * x.UnitCost, 2, MidpointRounding.AwayFromZero))))
+                .OrderByDescending(g => g.Amount)
+                .ToList();
+
+            var limit = Math.Clamp(pageSize, 1, 500);
+            var totalCount = rawRows.Count;
+            var current = Math.Clamp(page, 1, Math.Max(1, (int)Math.Ceiling(totalCount / (double)limit)));
+            var pagedRows = rawRows.Skip((current - 1) * limit).Take(limit)
+                .Select(r => new StockLossReportRow(
+                    r.OccurredAt,
+                    r.LocationName,
+                    r.ProductId,
+                    r.ProductName,
+                    r.Barcode,
+                    r.Unit,
+                    DetermineReason(r.IsStockTake, r.Notes),
+                    -r.Quantity,
+                    r.UnitCost,
+                    decimal.Round(-r.Quantity * r.UnitCost, 2, MidpointRounding.AwayFromZero),
+                    r.Notes))
+                .ToList();
+
+            return new StockLossReportPage(
+                pagedRows,
+                range,
+                totalQuantity,
+                totalFinancialLoss,
+                reasons,
+                current)
+            {
+                Locations = locations,
+                Pagination = new PageInfo(current, limit, totalCount)
+            };
+        }, ct);
+    }
+
+    private static string DetermineReason(bool isStockTake, string? notes)
+    {
+        if (isStockTake) return "Stock Take Shortage";
+        if (string.IsNullOrWhiteSpace(notes)) return "Damage / Waste";
+        if (notes.StartsWith("Damaged", StringComparison.OrdinalIgnoreCase)) return "Damaged / Broken";
+        if (notes.StartsWith("Expired", StringComparison.OrdinalIgnoreCase)) return "Expired";
+        if (notes.StartsWith("Promotional Gift", StringComparison.OrdinalIgnoreCase) || notes.StartsWith("Gift", StringComparison.OrdinalIgnoreCase)) return "Promotional Gift / Sample";
+        if (notes.StartsWith("Internal Store Use", StringComparison.OrdinalIgnoreCase) || notes.StartsWith("Store Use", StringComparison.OrdinalIgnoreCase)) return "Internal Store Use";
+        if (notes.StartsWith("Loss", StringComparison.OrdinalIgnoreCase) || notes.StartsWith("Shrinkage", StringComparison.OrdinalIgnoreCase)) return "Loss / Shrinkage";
+        return "Manual Write-Off";
+    }
     private static async Task<IReadOnlyList<Lookup>> LocationsAsync(AppDbContext db, int? locationId, CancellationToken ct)
     {
         var locations = await db.StockLocations.AsNoTracking().TagWith("Reports.Locations").OrderBy(location => location.Name)

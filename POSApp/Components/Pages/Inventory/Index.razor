@@ -11,7 +11,8 @@
 <div class="grid gap-4 md:grid-cols-2">
     <HubCard Href="/items" Title="Items" Hint="Catalog, availability and barcode labels" IconName="box" />
     <AuthorizeView Policy="@AppPolicies.ManageStockAdjustment">
-        <HubCard Href="/stock/adjustments" Title="Stock adjustments" Hint="Add stock without purchases or import a JSON file" IconName="box" />
+        <HubCard Href="/stock/adjustments" Title="Stock additions" Hint="Add stock without purchases or import opening data" IconName="box" />
+        <HubCard Href="/stock/waste" Title="Damage & waste" Hint="Record broken items, expired goods and gift samples" IconName="trash" />
     </AuthorizeView>
     <AuthorizeView Policy="@AppPolicies.ManageInventory">
         <HubCard Href="/receiving" Title="Purchases & transfers" Hint="Receive purchases, return goods and move stock" IconName="receive" />
