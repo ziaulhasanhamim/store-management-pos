@@ -66,7 +66,7 @@ public static class PostgreSqlTestDatabase
                 });
             }
 
-            await ResetAsync();
+            await ResetCoreAsync();
             _initialized = true;
         }
         finally
@@ -77,11 +77,26 @@ public static class PostgreSqlTestDatabase
 
     public static async Task ResetAsync()
     {
-        if (_respawner is null)
+        if (!_initialized)
         {
             await InitializeAsync();
             return;
         }
+
+        await Lock.WaitAsync();
+        try
+        {
+            await ResetCoreAsync();
+        }
+        finally
+        {
+            Lock.Release();
+        }
+    }
+
+    private static async Task ResetCoreAsync()
+    {
+        if (_respawner is null) return;
 
         await using (var connection = new NpgsqlConnection(ConnectionString))
         {
