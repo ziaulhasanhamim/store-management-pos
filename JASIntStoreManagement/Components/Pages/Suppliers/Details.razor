@@ -3,7 +3,7 @@
 @attribute [StreamRendering]
 @inject SupplierService Suppliers
 
-<PageTitle>Supplier account · @(Configuration["StoreName"] ?? "JAS International POS")</PageTitle>
+<PageTitle>Supplier account · @(Configuration["StoreName"] ?? "JAS International")</PageTitle>
 
 <AuthorizeView Policy="@AppPolicies.ManageUsers">
     <a href="@($"/accounts/suppliers/adjust?partyId={Id}")" class="btn-secondary mb-4">Opening balance / due adjustment</a>

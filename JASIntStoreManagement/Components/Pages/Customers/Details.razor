@@ -4,7 +4,7 @@
 @inject CustomerService Customers
 @inject ILogger<Details> Logger
 
-<PageTitle>Customer account · @(Configuration["StoreName"] ?? "JAS International POS")</PageTitle>
+<PageTitle>Customer account · @(Configuration["StoreName"] ?? "JAS International")</PageTitle>
 @if (Error is not null)
 {
     <p class="error-panel" role="alert">@Error</p>

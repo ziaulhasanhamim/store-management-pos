@@ -6,7 +6,7 @@
 @inject SalesService Sales
 @inject NavigationManager Navigation
 
-<PageTitle>@Title accounts · @(Configuration["StoreName"] ?? "JAS International POS")</PageTitle>
+<PageTitle>@Title accounts · @(Configuration["StoreName"] ?? "JAS International")</PageTitle>
 <div class="page-heading">
     <h1>@Title accounts</h1>
     <a href="@($"/accounts/{Kind}/adjust?partyId={PartyId}")" class="btn-secondary">Adjust balance / opening</a>

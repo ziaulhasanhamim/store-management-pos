@@ -190,7 +190,7 @@ public class MonthlyFinanceDetailsTests
         await workbook.Worksheets.Contains("Balance Sheet").Should().BeEqualTo(true);
 
         var overviewSheet = workbook.Worksheet("Overview");
-        await overviewSheet.Cell("A1").GetString().Should().BeEqualTo("JAS INTERNATIONAL POS");
+        await overviewSheet.Cell("A1").GetString().Should().BeEqualTo("JAS INTERNATIONAL");
 
         var locationsSheet = workbook.Worksheet("Stock Locations");
         await locationsSheet.Cell("A2").GetString().Should().BeEqualTo("Main Store");
@@ -264,7 +264,7 @@ public class MonthlyFinanceDetailsTests
             )
         };
 
-        var bytes = JASIntStoreManagement.Services.FinanceExportService.GenerateDayExcel(totals, "BDT", "JAS International POS");
+        var bytes = JASIntStoreManagement.Services.FinanceExportService.GenerateDayExcel(totals, "BDT", "JAS International");
         await bytes.Length.Should().BeGreaterThan(0);
 
         using var stream = new MemoryStream(bytes);
@@ -276,7 +276,7 @@ public class MonthlyFinanceDetailsTests
         await workbook.Worksheets.Contains("Itemized Transactions").Should().BeEqualTo(true);
 
         var overview = workbook.Worksheet("Day Overview");
-        await overview.Cell("A1").GetString().Should().BeEqualTo("JAS INTERNATIONAL POS");
+        await overview.Cell("A1").GetString().Should().BeEqualTo("JAS INTERNATIONAL");
         await overview.Cell("A2").GetString().Should().Contain("Daily Financial Closing Report");
 
         var drawers = workbook.Worksheet("Cash Drawers");

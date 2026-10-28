@@ -16,7 +16,7 @@ public static class FinanceExportService
     private static readonly XLColor SuccessGreen = XLColor.FromHtml("#047857");
     private static readonly XLColor DangerRed = XLColor.FromHtml("#B91C1C");
 
-    public static byte[] GenerateMonthExcel(ClosingTotals totals, string currencyCode = "BDT", string storeName = "JAS International POS")
+    public static byte[] GenerateMonthExcel(ClosingTotals totals, string currencyCode = "BDT", string storeName = "JAS International")
     {
         using var workbook = new XLWorkbook();
         var monthName = totals.Start.ToString("MMMM yyyy", CultureInfo.InvariantCulture);
@@ -36,7 +36,7 @@ public static class FinanceExportService
         return stream.ToArray();
     }
 
-    public static byte[] GenerateDayExcel(ClosingTotals totals, string currencyCode = "BDT", string storeName = "JAS International POS")
+    public static byte[] GenerateDayExcel(ClosingTotals totals, string currencyCode = "BDT", string storeName = "JAS International")
     {
         using var workbook = new XLWorkbook();
         var dateStr = totals.Start.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
@@ -69,7 +69,7 @@ public static class FinanceExportService
         var ws = workbook.Worksheets.Add("Day Overview");
         ws.ShowGridLines = true;
 
-        ws.Cell("A1").Value = (storeName ?? "JAS International POS").ToUpperInvariant();
+        ws.Cell("A1").Value = (storeName ?? "JAS International").ToUpperInvariant();
         ws.Cell("A1").Style.Font.Bold = true;
         ws.Cell("A1").Style.Font.FontSize = 16;
         ws.Cell("A1").Style.Font.FontColor = BrandBlue;
@@ -328,7 +328,7 @@ public static class FinanceExportService
         ws.ShowGridLines = true;
 
         // Title Block
-        ws.Cell("A1").Value = (storeName ?? "JAS International POS").ToUpperInvariant();
+        ws.Cell("A1").Value = (storeName ?? "JAS International").ToUpperInvariant();
         ws.Cell("A1").Style.Font.Bold = true;
         ws.Cell("A1").Style.Font.FontSize = 16;
         ws.Cell("A1").Style.Font.FontColor = BrandBlue;

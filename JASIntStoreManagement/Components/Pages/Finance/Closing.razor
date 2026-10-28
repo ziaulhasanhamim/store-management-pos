@@ -6,7 +6,7 @@
 @inject ClosingService Closings
 @inject NavigationManager Navigation
 
-<PageTitle>@(Kind == ClosingKind.Month ? "Month finance" : "Day finance") · @(Configuration["StoreName"] ?? "JAS International POS")</PageTitle>
+<PageTitle>@(Kind == ClosingKind.Month ? "Month finance" : "Day finance") · @(Configuration["StoreName"] ?? "JAS International")</PageTitle>
 <div class="page-heading no-print">
     <h1>@(Kind == ClosingKind.Month ? "Month finance" : "Day finance")</h1>
     <div class="flex flex-wrap gap-2">

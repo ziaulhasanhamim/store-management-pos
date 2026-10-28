@@ -108,7 +108,7 @@ docker run -d \
   -e DB_URL="Host=your-db-host.com;Port=5432;Database=jasint_pos;Username=postgres;Password=SecretPassword;SSL Mode=Require;Trust Server Certificate=true" \
   -e AdminUser__Username="admin" \
   -e AdminUser__Password="InitialAdminPassword123!" \
-  -e StoreName="JAS International POS" \
+  -e StoreName="JAS International" \
   -e StoreSubtitle="Store Management" \
   -e CurrencyCode="BDT" \
   -e BusinessTimeZone="Asia/Dhaka" \

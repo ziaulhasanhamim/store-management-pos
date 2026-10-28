@@ -5,7 +5,7 @@
 @inject InventoryService Inventory
 @inject ILogger<Home> Logger
 
-<PageTitle>Dashboard · @(Configuration["StoreName"] ?? "JAS International POS")</PageTitle>
+<PageTitle>Dashboard · @(Configuration["StoreName"] ?? "JAS International")</PageTitle>
 
 @if (Data is null && !Failed)
 {

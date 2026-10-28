@@ -20,7 +20,7 @@ public static class FinanceEndpoints
         var kind = period == "month" ? ClosingKind.Month : ClosingKind.Day;
         var data = await closings.ReadAsync(context.User, date, kind, context.RequestAborted, locationId);
         var currency = configuration["CurrencyCode"] ?? "BDT";
-        var storeName = configuration["StoreName"] ?? "JAS International POS";
+        var storeName = configuration["StoreName"] ?? "JAS International";
         var bytes = kind == ClosingKind.Month
             ? FinanceExportService.GenerateMonthExcel(data, currency, storeName)
             : FinanceExportService.GenerateDayExcel(data, currency, storeName);

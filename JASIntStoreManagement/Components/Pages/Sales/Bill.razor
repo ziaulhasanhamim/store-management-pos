@@ -3,7 +3,7 @@
 @attribute [StreamRendering]
 @inject SalesService Sales
 
-<PageTitle>Bill #@Id · @(Configuration["StoreName"] ?? "JAS International POS")</PageTitle>
+<PageTitle>Bill #@Id · @(Configuration["StoreName"] ?? "JAS International")</PageTitle>
 <div class="page-heading no-print">
     <h1>Bill #@Id</h1>
     <div class="flex gap-3">
@@ -60,7 +60,7 @@ else
         }
         <div class="border-b border-dashed border-slate-300 pb-5 text-center">
             <img src="/images/jas-mark.svg" alt="JAS International" class="mx-auto mb-2 size-12" />
-            <h2 class="text-xl font-bold">@(Configuration["StoreName"] ?? "JAS International POS")</h2>
+            <h2 class="text-xl font-bold">@(Configuration["StoreName"] ?? "JAS International")</h2>
             <p class="mt-1 text-sm">@Configuration["Store:Address"]</p>
             <p class="mt-1 text-sm">@Configuration["Store:Phone"]</p>
             <p class="mt-3 font-semibold">Bill #@Data.Id</p>

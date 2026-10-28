@@ -4,7 +4,7 @@
 @inject StockTakeService TakesService
 @inject ILogger<Take> Logger
 
-<PageTitle>Stock take #@Id · @(Configuration["StoreName"] ?? "JAS International POS")</PageTitle>
+<PageTitle>Stock take #@Id · @(Configuration["StoreName"] ?? "JAS International")</PageTitle>
 <div class="page-heading">
     <div>
         <p class="eyebrow">@Data?.Location · @Data?.Date.ToString("dd MMM yyyy")</p>
