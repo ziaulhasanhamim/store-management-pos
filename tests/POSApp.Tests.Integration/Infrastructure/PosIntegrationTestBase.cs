@@ -2,7 +2,6 @@ using System.Security.Claims;
 using Microsoft.Extensions.DependencyInjection;
 using POSApp.Client.Security;
 
-[assembly: NotInParallel]
 
 namespace POSApp.Tests.Integration.Infrastructure;
 
