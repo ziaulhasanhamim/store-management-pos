@@ -36,11 +36,17 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
             .ToPageAsync(movementPage, pageSize, ct);
         var breakdown = viewed is null ? [] : await db.CashMovements.Where(move => move.CashSessionId == viewed.Id)
             .GroupBy(move => move.Kind).Select(group => new CashSummary(group.Key, group.Sum(move => move.Amount))).ToArrayAsync(ct);
+        var undepositedServicing = selected.HasValue
+            ? await db.ServicingJobs
+                .Where(j => j.Date == date && j.LocationId == selected.Value && !j.IsDeposited)
+                .SumAsync(j => (decimal?)j.ShopProfit, ct) ?? 0m
+            : 0m;
         return new(current, viewed, movements?.Items ?? [], breakdown, recent.Items, admin)
         {
             MovementPagination = movements?.Pagination,
             SessionPagination = recent.Pagination,
             SelectedLocationId = selected,
+            UndepositedServicingProfit = undepositedServicing,
             Locations = locations.Select(location =>
             {
                 var drawer = drawers.SingleOrDefault(drawer => drawer.StockLocationId == location.Id);

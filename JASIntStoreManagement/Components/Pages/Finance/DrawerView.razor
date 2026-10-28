@@ -33,6 +33,31 @@
                 <strong class="text-2xl!">@Money(current.Expected)</strong>
             </div>
         </div>
+        @if (Data?.UndepositedServicingProfit > 0)
+        {
+            <div class="mb-6 max-w-2xl rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900 shadow-xs">
+                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div class="flex items-start gap-3">
+                        <div class="rounded-lg bg-amber-100 p-2 text-amber-700">
+                            <Icon Name="service" Class="size-5" />
+                        </div>
+                        <div>
+                            <h3 class="font-semibold text-slate-900">Undeposited servicing profit: @Money(Data.UndepositedServicingProfit)</h3>
+                            <p class="text-xs text-slate-600 mt-0.5">There is gadget repair profit earned today that has not been deposited into this drawer yet. Deposit it before closing so your expected cash matches your physical count.</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2 shrink-0 sm:self-center">
+                        <form method="post" @formname="cash-deposit-servicing" @onsubmit="DepositServicingProfitAsync" data-enhance data-submit-indication="true">
+                            <AntiforgeryToken />
+                            <button type="submit" class="btn-primary text-xs py-2 px-3 whitespace-nowrap" data-pending-text="Depositing…">
+                                Deposit @Money(Data.UndepositedServicingProfit)
+                            </button>
+                        </form>
+                        <a href="/servicing" class="btn-secondary text-xs py-2 px-3 whitespace-nowrap">View jobs</a>
+                    </div>
+                </div>
+            </div>
+        }
         <div class="mb-6 max-w-2xl">
             <section class="panel p-6">
                 <h2 class="mb-4 font-semibold">Count and close shift #@current.Id</h2>
@@ -253,6 +278,9 @@
     [Parameter]
     public EventCallback AssignAsync { get; set; }
 
+    [Parameter]
+    public EventCallback DepositServicingProfitAsync { get; set; }
+
     private string Currency => Configuration["CurrencyCode"] ?? "BDT";
 
     private static string MovementName(CashMovementKind kind) => kind switch
@@ -270,6 +298,7 @@
         CashMovementKind.DebtRepayment => "Debt repayments",
         CashMovementKind.OpeningBalance => "Opening balance",
         CashMovementKind.Reversal => "Transaction reversals",
+        CashMovementKind.ServicingProfit => "Servicing profit",
         _ => "Other movement"
     };
 

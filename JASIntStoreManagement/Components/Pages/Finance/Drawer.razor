@@ -3,6 +3,7 @@
 @using System.ComponentModel.DataAnnotations
 @inject CashDrawerService Drawers
 @inject FinanceService Finance
+@inject ServicingService Servicing
 @inject NavigationManager Navigation
 @inject ILogger<Drawer> Logger
 
@@ -59,13 +60,13 @@ else if (HttpMethods.IsGet(HttpContext.Request.Method))
 {
     <FinanceLoad TData="CashDrawerPage" Load="LoadAsync" Message="Loading cash drawer…">
         <ChildContent Context="loaded">
-            <DrawerView View="@View" Data="loaded" Open="Open!" Close="Close!" Adjustment="Adjustment!" Location="Location!" Transfer="Transfer!" Assignment="Assignment!" SelectLocationAsync="SelectLocationAsync" TransferAsync="TransferAsync" AssignAsync="AssignAsync" OpenAsync="OpenAsync" CloseAsync="CloseAsync" AdjustAsync="AdjustAsync" />
+            <DrawerView View="@View" Data="loaded" Open="Open!" Close="Close!" Adjustment="Adjustment!" Location="Location!" Transfer="Transfer!" Assignment="Assignment!" SelectLocationAsync="SelectLocationAsync" TransferAsync="TransferAsync" AssignAsync="AssignAsync" OpenAsync="OpenAsync" CloseAsync="CloseAsync" AdjustAsync="AdjustAsync" DepositServicingProfitAsync="DepositServicingProfitAsync" />
         </ChildContent>
     </FinanceLoad>
 }
 else if (Data is not null)
 {
-    <DrawerView View="@View" Data="Data" Open="Open!" Close="Close!" Adjustment="Adjustment!" Location="Location!" Transfer="Transfer!" Assignment="Assignment!" SelectLocationAsync="SelectLocationAsync" TransferAsync="TransferAsync" AssignAsync="AssignAsync" OpenAsync="OpenAsync" CloseAsync="CloseAsync" AdjustAsync="AdjustAsync" />
+    <DrawerView View="@View" Data="Data" Open="Open!" Close="Close!" Adjustment="Adjustment!" Location="Location!" Transfer="Transfer!" Assignment="Assignment!" SelectLocationAsync="SelectLocationAsync" TransferAsync="TransferAsync" AssignAsync="AssignAsync" OpenAsync="OpenAsync" CloseAsync="CloseAsync" AdjustAsync="AdjustAsync" DepositServicingProfitAsync="DepositServicingProfitAsync" />
 }
 
 @code {
@@ -161,6 +162,31 @@ else if (Data is not null)
         }
     }
     private Task AdjustAsync() => SubmitAsync(() => Drawers.AdjustAsync(HttpContext.User, Adjustment!, HttpContext.RequestAborted), "/cash-drawer?view=transfer");
+
+    private async Task DepositServicingProfitAsync()
+    {
+        try
+        {
+            var page = await LoadAsync();
+            var locId = page.SelectedLocationId ?? page.Current?.LocationId;
+            if (locId == null)
+            {
+                throw new ValidationException("No cash drawer location selected.");
+            }
+            var date = page.Current?.BusinessDate ?? DateOnly.FromDateTime(DateTime.Today);
+            await Servicing.DepositServicingProfitAsync(HttpContext.User, date, locId.Value, HttpContext.RequestAborted);
+            Navigation.NavigateTo("/cash-drawer");
+        }
+        catch (ValidationException exception)
+        {
+            Error = exception.Message;
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Failed to deposit servicing profit.");
+            Error = "Unable to deposit servicing profit. Reload and try again.";
+        }
+    }
 
     private async Task SubmitAsync(Func<Task> action, string? target = null)
     {

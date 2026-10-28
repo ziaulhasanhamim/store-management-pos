@@ -22,6 +22,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<DayFinance> DayFinances { get; set; } = null!;
     public DbSet<Employee> Employees { get; set; } = null!;
     public DbSet<MonthlySalary> MonthlySalaries { get; set; } = null!;
+    public DbSet<Technician> Technicians { get; set; } = null!;
+    public DbSet<ServicingJob> ServicingJobs { get; set; } = null!;
     public DbSet<BankAccount> BankAccounts { get; set; } = null!;
     public DbSet<BankMovement> BankMovements { get; set; } = null!;
     public DbSet<FinanceClosing> FinanceClosings { get; set; } = null!;

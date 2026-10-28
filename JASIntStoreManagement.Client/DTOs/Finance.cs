@@ -45,6 +45,7 @@ public sealed record CashDrawerPage(CashSessionRow? Current, CashSessionRow? Vie
     public PageInfo? MovementPagination { get; init; }
     public PageInfo? SessionPagination { get; init; }
     public int? SelectedLocationId { get; init; }
+    public decimal UndepositedServicingProfit { get; init; }
     public IReadOnlyList<CashLocationRow> Locations { get; init; } = [];
     public IReadOnlyList<LegacyCashDrawerRow> Unassigned { get; init; } = [];
 }

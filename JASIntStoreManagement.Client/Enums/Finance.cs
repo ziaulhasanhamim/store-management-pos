@@ -32,7 +32,8 @@ public enum CashMovementKind
     DebtBorrowing,
     DebtRepayment,
     OwnerContribution,
-    OwnerWithdrawal
+    OwnerWithdrawal,
+    ServicingProfit
 }
 
 public enum ClosingKind

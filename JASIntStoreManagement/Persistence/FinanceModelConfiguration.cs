@@ -129,5 +129,41 @@ internal static class FinanceModelConfiguration
             entity.HasIndex(entry => new { entry.StaffAccountId, entry.OccurredAt });
             entity.Property(entry => entry.Notes).HasMaxLength(2000);
         });
+        builder.Entity<Technician>(entity =>
+        {
+            entity.HasIndex(t => t.NormalizedName);
+            entity.Property(t => t.Name).HasMaxLength(100);
+            entity.Property(t => t.NormalizedName).HasMaxLength(100);
+            entity.Property(t => t.Phone).HasMaxLength(30);
+            entity.Property(t => t.DefaultCommissionRate).HasPrecision(5, 2);
+        });
+        builder.Entity<ServicingJob>(entity =>
+        {
+            entity.HasIndex(job => job.Date);
+            entity.HasIndex(job => new { job.LocationId, job.Date });
+            entity.HasIndex(job => new { job.TechnicianId, job.Date });
+            entity.HasIndex(job => job.IsDeposited);
+            entity.Property(job => job.GadgetDescription).HasMaxLength(200);
+            entity.Property(job => job.CustomerName).HasMaxLength(100);
+            entity.Property(job => job.CustomerPhone).HasMaxLength(30);
+            entity.Property(job => job.Notes).HasMaxLength(500);
+            entity.Property(job => job.BillAmount).HasPrecision(18, 2);
+            entity.Property(job => job.MaterialCost).HasPrecision(18, 2);
+            entity.Property(job => job.CommissionRate).HasPrecision(5, 2);
+            entity.Property(job => job.TechnicianCut).HasPrecision(18, 2);
+            entity.Property(job => job.ShopProfit).HasPrecision(18, 2);
+            entity.HasOne(job => job.Technician)
+                .WithMany(t => t.ServicingJobs)
+                .HasForeignKey(job => job.TechnicianId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(job => job.Location)
+                .WithMany()
+                .HasForeignKey(job => job.LocationId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(job => job.CashMovement)
+                .WithMany()
+                .HasForeignKey(job => job.CashMovementId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
     }
 }

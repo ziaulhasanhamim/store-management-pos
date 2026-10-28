@@ -1,0 +1,525 @@
+@page "/servicing"
+@attribute [Authorize(Policy = AppPolicies.MakeSales)]
+@using System.ComponentModel.DataAnnotations
+@using System.Globalization
+@inject ServicingService Servicing
+@inject NavigationManager Navigation
+
+<PageTitle>Servicing · @(Configuration["StoreName"] ?? "JAS International")</PageTitle>
+
+<div class="page-heading">
+    <div>
+        <div class="flex items-center gap-2 text-xs font-semibold tracking-wider text-slate-400 uppercase">
+            <span>Store Operations</span>
+            <span>/</span>
+            <span>Servicing</span>
+        </div>
+        <h1 class="mt-1">Mobile Gadget Servicing</h1>
+    </div>
+    <div class="flex flex-wrap items-center gap-3">
+        <a href="/servicing/technicians" class="btn-secondary">
+            <Icon Name="users" />
+            Manage technicians
+        </a>
+        <a href="/cash-drawer" class="btn-secondary">
+            <Icon Name="wallet" />
+            Cash drawer
+        </a>
+    </div>
+</div>
+
+@if (Error is not null)
+{
+    <p class="error-panel mb-6" role="alert">@Error</p>
+}
+
+@if (SuccessMessage is not null)
+{
+    <div class="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-800">
+        @SuccessMessage
+    </div>
+}
+
+@if (PageData is null)
+{
+    <LoadingPanel Message="Loading servicing records…" />
+}
+else
+{
+    <!-- Filter bar: Date & Location -->
+    <div class="panel mb-6 flex flex-wrap items-center justify-between gap-4 p-4">
+        <div class="flex flex-wrap items-center gap-3">
+            <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Date:</span>
+            <span class="rounded-lg bg-slate-100 px-3 py-1.5 text-sm font-semibold text-slate-800">
+                @PageData.Date.ToString("dd MMMM yyyy")
+            </span>
+            <span class="text-xs text-slate-400">(Working Date)</span>
+        </div>
+
+        @if (PageData.Locations.Count > 1)
+        {
+            <div class="flex items-center gap-2">
+                <label for="location-select" class="text-xs font-semibold uppercase tracking-wider text-slate-400">Location:</label>
+                <select id="location-select" class="field text-sm py-1.5" value="@PageData.LocationId" @onchange="OnLocationChanged">
+                    @foreach (var loc in PageData.Locations)
+                    {
+                        <option value="@loc.Id">@loc.Name</option>
+                    }
+                </select>
+            </div>
+        }
+    </div>
+
+    <!-- Deposit Servicing Profit Callout -->
+    @if (PageData.Summary.UndepositedShopProfit > 0)
+    {
+        <div class="mb-6 rounded-2xl border-2 border-emerald-500/30 bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 p-6 shadow-sm">
+            <div class="flex flex-wrap items-center justify-between gap-4">
+                <div class="flex items-start gap-4">
+                    <div class="rounded-xl bg-emerald-600 p-3 text-white shadow-sm">
+                        <Icon Name="cash" Class="size-6" />
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <h2 class="text-lg font-bold text-slate-900">Un-deposited Servicing Profit</h2>
+                            <span class="rounded-full bg-emerald-200/70 px-2.5 py-0.5 text-xs font-semibold text-emerald-900">
+                                @UndepositedJobsCount @(UndepositedJobsCount == 1 ? "job" : "jobs") ready
+                            </span>
+                        </div>
+                        <p class="mt-1 text-2xl font-black tracking-tight text-emerald-700">
+                            @Money(PageData.Summary.UndepositedShopProfit)
+                        </p>
+                        <p class="mt-1 text-xs text-slate-600">
+                            Technicians have already taken their cut upfront. Deposit this shop profit into the cash drawer before counting final cash at closing.
+                        </p>
+                    </div>
+                </div>
+
+                <div>
+                    @if (PageData.HasActiveDrawer)
+                    {
+                        <form method="post" @formname="deposit-profit" @onsubmit="DepositProfitAsync" data-enhance data-submit-indication="true">
+                            <AntiforgeryToken />
+                            <input type="hidden" name="DepositLocationId" value="@PageData.LocationId" />
+                            <input type="hidden" name="DepositDate" value="@PageData.Date.ToString("yyyy-MM-dd")" />
+                            <button class="btn-primary bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 px-6 rounded-xl shadow-sm text-sm" data-pending-text="Depositing…">
+                                Deposit @Money(PageData.Summary.UndepositedShopProfit) to Cash Drawer
+                            </button>
+                        </form>
+                    }
+                    else
+                    {
+                        <div class="text-right">
+                            <span class="inline-block rounded-lg bg-amber-100 px-3 py-1.5 text-xs font-semibold text-amber-800">
+                                Cash drawer is closed
+                            </span>
+                            <p class="mt-1 text-xs text-slate-500">
+                                <a href="/cash-drawer" class="font-medium text-blue-600 hover:underline">Open cash drawer</a> to deposit.
+                            </p>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+    else if (PageData.Summary.DepositedShopProfit > 0)
+    {
+        <div class="mb-6 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+                <Icon Name="check" Class="size-5 text-emerald-600" />
+                <span>All shop servicing profits for today (<strong>@Money(PageData.Summary.DepositedShopProfit)</strong>) have been deposited into the cash drawer.</span>
+            </div>
+            <a href="/cash-drawer" class="text-xs font-semibold text-blue-600 hover:underline">View drawer balance →</a>
+        </div>
+    }
+
+    <!-- KPI Summary Row -->
+    <div class="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        <div class="panel p-4">
+            <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Total Jobs</span>
+            <p class="mt-1 text-2xl font-bold text-slate-900">@PageData.Summary.TotalJobs</p>
+            <span class="mt-1 block text-[11px] text-slate-400">Completed today</span>
+        </div>
+        <div class="panel p-4">
+            <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Customer Billed</span>
+            <p class="mt-1 text-2xl font-bold text-slate-900">@Money(PageData.Summary.TotalBilled)</p>
+            <span class="mt-1 block text-[11px] text-slate-400">Gross revenue</span>
+        </div>
+        <div class="panel p-4">
+            <span class="text-xs font-semibold uppercase tracking-wider text-slate-400">Material Cost</span>
+            <p class="mt-1 text-2xl font-bold text-slate-700">@Money(PageData.Summary.TotalMaterialCost)</p>
+            <span class="mt-1 block text-[11px] text-slate-400">Parts paid from bill</span>
+        </div>
+        <div class="panel p-4">
+            <span class="text-xs font-semibold uppercase tracking-wider text-blue-600">Tech Cut (Paid)</span>
+            <p class="mt-1 text-2xl font-bold text-blue-600">@Money(PageData.Summary.TotalTechnicianCut)</p>
+            <span class="mt-1 block text-[11px] text-slate-400">Taken upfront daily</span>
+        </div>
+        <div class="panel p-4 col-span-2 sm:col-span-2 lg:col-span-1 border-emerald-200 bg-emerald-50/40">
+            <span class="text-xs font-semibold uppercase tracking-wider text-emerald-800">Shop Net Profit</span>
+            <p class="mt-1 text-2xl font-black text-emerald-700">@Money(PageData.Summary.TotalShopProfit)</p>
+            <span class="mt-1 block text-[11px] text-emerald-800/80">
+                Deposited: @Money(PageData.Summary.DepositedShopProfit)
+            </span>
+        </div>
+    </div>
+
+    <!-- Main Grid: Job Entry Form + Today's Jobs -->
+    <div class="grid items-start gap-6 lg:grid-cols-12">
+        <!-- Servicing Job Entry Form -->
+        <section class="panel p-6 lg:col-span-4">
+            <h2 class="mb-1 font-semibold text-slate-900">Log Servicing Job</h2>
+            <p class="mb-5 text-xs text-slate-500">Record a completed gadget repair. The technician takes their cut upfront from the profit, and the shop profit is staged for drawer deposit.</p>
+
+            @if (PageData.Technicians.Count == 0)
+            {
+                <div class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+                    <p class="font-semibold">No active technicians found.</p>
+                    <p class="mt-1 text-xs">Please add at least one technician before logging servicing jobs.</p>
+                    <a href="/servicing/technicians" class="btn-primary mt-3 inline-block text-xs py-2 px-3">Add technician</a>
+                </div>
+            }
+            else
+            {
+                <form method="post" @formname="job-form" @onsubmit="SaveJobAsync" data-enhance data-submit-indication="true">
+                    <AntiforgeryToken />
+                    <input type="hidden" name="JobForm.Date" value="@PageData.Date.ToString("yyyy-MM-dd")" />
+                    <input type="hidden" name="JobForm.LocationId" value="@(PageData.LocationId ?? 0)" />
+
+                    <div class="space-y-4">
+                        <div>
+                            <label class="field-label" for="job-tech">Technician</label>
+                            <select id="job-tech" name="JobForm.TechnicianId" class="field" value="@JobForm?.TechnicianId" @onchange="OnTechnicianSelected" required>
+                                <option value="">Select technician</option>
+                                @foreach (var tech in PageData.Technicians)
+                                {
+                                    <option value="@tech.Id">@tech.Name (@tech.DefaultCommissionRate.ToString("0.##")% cut)</option>
+                                }
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="field-label" for="job-gadget">Gadget & Problem / Work</label>
+                            <input id="job-gadget" name="JobForm.GadgetDescription" class="field" value="@JobForm?.GadgetDescription" maxlength="200" placeholder="e.g. iPhone 13 - Display Replacement" required />
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="field-label" for="job-customer">Customer (optional)</label>
+                                <input id="job-customer" name="JobForm.CustomerName" class="field" value="@JobForm?.CustomerName" maxlength="100" placeholder="Customer name" />
+                            </div>
+                            <div>
+                                <label class="field-label" for="job-phone">Phone (optional)</label>
+                                <input id="job-phone" name="JobForm.CustomerPhone" class="field" value="@JobForm?.CustomerPhone" maxlength="30" placeholder="017..." />
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="field-label" for="job-bill">Customer Bill</label>
+                                <input id="job-bill" name="JobForm.BillAmount" class="field font-semibold" inputmode="decimal" type="number" step="0.01" min="0.01" value="@((JobForm?.BillAmount ?? 0m) > 0 ? JobForm!.BillAmount.ToString("0.##", CultureInfo.InvariantCulture) : "")" placeholder="0.00" required />
+                            </div>
+                            <div>
+                                <label class="field-label" for="job-material">Material / Parts Cost</label>
+                                <input id="job-material" name="JobForm.MaterialCost" class="field" inputmode="decimal" type="number" step="0.01" min="0" value="@((JobForm?.MaterialCost ?? 0m).ToString("0.##", CultureInfo.InvariantCulture))" placeholder="0.00" />
+                            </div>
+                        </div>
+
+                        <div>
+                            <div class="flex items-center justify-between">
+                                <label class="field-label" for="job-commission">Technician Commission %</label>
+                                <span class="text-xs text-slate-400">Default: @(SelectedTechnician?.DefaultCommissionRate.ToString("0.##") ?? "50")%</span>
+                            </div>
+                            <div class="relative">
+                                <input id="job-commission" name="JobForm.CommissionRate" class="field pr-10" inputmode="decimal" type="number" step="0.5" min="0" max="100" value="@((JobForm?.CommissionRate ?? 50m).ToString("0.##", CultureInfo.InvariantCulture))" required />
+                                <span class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 text-sm text-slate-400">%</span>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="field-label" for="job-notes">Notes (optional)</label>
+                            <input id="job-notes" name="JobForm.Notes" class="field" value="@JobForm?.Notes" maxlength="500" placeholder="Parts supplier, warranty info, etc." />
+                        </div>
+
+                        <!-- Live Breakdown Card -->
+                        <div class="rounded-xl border border-slate-200 bg-slate-50/70 p-3.5 text-xs space-y-1.5">
+                            <div class="flex justify-between text-slate-600">
+                                <span>Net Profit (Bill − Parts):</span>
+                                <strong class="text-slate-900">@Money(JobForm?.JobProfit ?? 0m)</strong>
+                            </div>
+                            <div class="flex justify-between text-blue-700">
+                                <span>Technician Cut (@((JobForm?.CommissionRate ?? 50m).ToString("0.##"))% upfront):</span>
+                                <strong class="font-bold">@Money(JobForm?.TechnicianCut ?? 0m)</strong>
+                            </div>
+                            <div class="flex justify-between border-t border-slate-200 pt-1.5 text-emerald-800 font-medium">
+                                <span>Shop Profit (to Cash Drawer):</span>
+                                <strong class="font-black text-emerald-700">@Money(JobForm?.ShopProfit ?? 0m)</strong>
+                            </div>
+                        </div>
+
+                        <button class="btn-primary w-full py-3" data-pending-text="Saving job…">
+                            Save servicing job
+                        </button>
+                    </div>
+                </form>
+            }
+        </section>
+
+        <!-- Today's Servicing Jobs List -->
+        <section class="panel lg:col-span-8">
+            <div class="border-b border-slate-200 px-6 py-4 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                    <h2 class="font-semibold text-slate-900">Servicing Jobs for @PageData.Date.ToString("dd MMM yyyy")</h2>
+                    <span class="text-xs text-slate-400">@PageData.Jobs.Count @(PageData.Jobs.Count == 1 ? "job" : "jobs") recorded</span>
+                </div>
+                @if (PageData.Summary.UndepositedShopProfit > 0 && PageData.HasActiveDrawer)
+                {
+                    <span class="rounded-lg bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 border border-emerald-200">
+                        @Money(PageData.Summary.UndepositedShopProfit) pending deposit
+                    </span>
+                }
+            </div>
+
+            @if (PageData.Jobs.Count == 0)
+            {
+                <div class="p-12 text-center">
+                    <div class="mx-auto mb-3 flex size-12 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
+                        <Icon Name="service" Class="size-6" />
+                    </div>
+                    <p class="text-sm font-semibold text-slate-800">No servicing jobs recorded for this date.</p>
+                    <p class="mt-1 text-xs text-slate-500">Log repairs using the form on the left as customers pick up their devices.</p>
+                </div>
+            }
+            else
+            {
+                <div class="table-scroll">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Time / Job</th>
+                                <th>Technician</th>
+                                <th>Customer</th>
+                                <th class="text-right">Bill</th>
+                                <th class="text-right">Parts</th>
+                                <th class="text-right text-blue-700">Tech Cut</th>
+                                <th class="text-right text-emerald-800">Shop Profit</th>
+                                <th class="text-center">Deposit</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var job in PageData.Jobs)
+                            {
+                                <tr>
+                                    <td>
+                                        <div class="font-medium text-slate-900">@job.GadgetDescription</div>
+                                        <span class="text-[11px] text-slate-400">@job.CreatedAt.ToString("hh:mm tt")</span>
+                                        @if (!string.IsNullOrWhiteSpace(job.Notes))
+                                        {
+                                            <p class="text-[11px] text-slate-500 italic mt-0.5">@job.Notes</p>
+                                        }
+                                    </td>
+                                    <td>
+                                        <span class="font-medium text-slate-800">@job.TechnicianName</span>
+                                        <span class="block text-[11px] text-slate-400">@job.CommissionRate.ToString("0.##")%</span>
+                                    </td>
+                                    <td>
+                                        @if (!string.IsNullOrWhiteSpace(job.CustomerName))
+                                        {
+                                            <div class="text-slate-800">@job.CustomerName</div>
+                                        }
+                                        @if (!string.IsNullOrWhiteSpace(job.CustomerPhone))
+                                        {
+                                            <div class="text-[11px] text-slate-400">@job.CustomerPhone</div>
+                                        }
+                                        @if (string.IsNullOrWhiteSpace(job.CustomerName) && string.IsNullOrWhiteSpace(job.CustomerPhone))
+                                        {
+                                            <span class="text-slate-400">—</span>
+                                        }
+                                    </td>
+                                    <td class="text-right font-medium">@Money(job.BillAmount)</td>
+                                    <td class="text-right text-slate-600">@Money(job.MaterialCost)</td>
+                                    <td class="text-right font-semibold text-blue-600">@Money(job.TechnicianCut)</td>
+                                    <td class="text-right font-bold text-emerald-700">@Money(job.ShopProfit)</td>
+                                    <td class="text-center">
+                                        @if (job.IsDeposited)
+                                        {
+                                            <span class="rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700 border border-emerald-200">
+                                                Deposited
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="rounded-full bg-amber-50 px-2.5 py-0.5 text-[11px] font-semibold text-amber-800 border border-amber-200">
+                                                Pending
+                                            </span>
+                                        }
+                                    </td>
+                                    <td class="text-right">
+                                        @if (!job.IsDeposited)
+                                        {
+                                            <button type="button" class="icon-button text-rose-500 hover:bg-rose-50 hover:text-rose-700" title="Delete job" @onclick="() => DeleteJobAsync(job.Id)">
+                                                <Icon Name="trash" Class="size-4" />
+                                            </button>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </section>
+    </div>
+}
+
+@code {
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromForm(FormName = "job-form")]
+    private ServicingJobInput? JobForm { get; set; }
+
+    [SupplyParameterFromQuery]
+    public int? LocationId { get; set; }
+
+    [SupplyParameterFromQuery]
+    public string? Date { get; set; }
+
+    private ServicingPageData? PageData;
+    private TechnicianDto? SelectedTechnician;
+    private string? Error;
+    private string? SuccessMessage;
+
+    private int UndepositedJobsCount => PageData?.Jobs.Count(j => !j.IsDeposited) ?? 0;
+
+    protected override void OnParametersSet()
+    {
+        JobForm ??= new();
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        DateOnly? selectedDate = null;
+        if (!string.IsNullOrWhiteSpace(Date) && DateOnly.TryParseExact(Date, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var d))
+        {
+            selectedDate = d;
+        }
+
+        await LoadDataAsync(selectedDate, LocationId);
+
+        if (PageData != null && JobForm != null && JobForm.TechnicianId == 0 && PageData.Technicians.Count > 0)
+        {
+            var firstTech = PageData.Technicians.First();
+            JobForm.TechnicianId = firstTech.Id;
+            JobForm.CommissionRate = firstTech.DefaultCommissionRate;
+            SelectedTechnician = firstTech;
+        }
+    }
+
+    private async Task LoadDataAsync(DateOnly? date, int? locationId)
+    {
+        Error = null;
+        PageData = await Servicing.GetServicingPageDataAsync(HttpContext.User, date, locationId, HttpContext.RequestAborted);
+        if (JobForm != null)
+        {
+            if (JobForm.LocationId == 0 && PageData.LocationId.HasValue)
+            {
+                JobForm.LocationId = PageData.LocationId.Value;
+            }
+            JobForm.Date = PageData.Date;
+        }
+    }
+
+    private void OnTechnicianSelected(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var techId) && JobForm != null)
+        {
+            JobForm.TechnicianId = techId;
+            SelectedTechnician = PageData?.Technicians.FirstOrDefault(t => t.Id == techId);
+            if (SelectedTechnician != null)
+            {
+                JobForm.CommissionRate = SelectedTechnician.DefaultCommissionRate;
+            }
+        }
+    }
+
+    private async Task OnLocationChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var newLocationId))
+        {
+            LocationId = newLocationId;
+            await LoadDataAsync(PageData?.Date, newLocationId);
+        }
+    }
+
+    private async Task SaveJobAsync()
+    {
+        Error = null;
+        SuccessMessage = null;
+        try
+        {
+            if (JobForm == null || PageData == null) return;
+            JobForm.Date = PageData.Date;
+            JobForm.LocationId = PageData.LocationId ?? 0;
+            var jobId = await Servicing.CreateServicingJobAsync(HttpContext.User, JobForm, HttpContext.RequestAborted);
+            SuccessMessage = "Servicing job saved successfully.";
+
+            // Reset form for next entry
+            var currentTechId = JobForm.TechnicianId;
+            var currentComm = JobForm.CommissionRate;
+            JobForm = new ServicingJobInput
+            {
+                TechnicianId = currentTechId,
+                CommissionRate = currentComm,
+                LocationId = PageData.LocationId ?? 0,
+                Date = PageData.Date
+            };
+
+            await LoadDataAsync(PageData.Date, PageData.LocationId);
+        }
+        catch (Exception ex)
+        {
+            Error = ex.Message;
+        }
+    }
+
+    private async Task DeleteJobAsync(int jobId)
+    {
+        Error = null;
+        SuccessMessage = null;
+        try
+        {
+            await Servicing.DeleteServicingJobAsync(HttpContext.User, jobId, HttpContext.RequestAborted);
+            SuccessMessage = "Servicing job removed.";
+            await LoadDataAsync(PageData?.Date, PageData?.LocationId);
+        }
+        catch (Exception ex)
+        {
+            Error = ex.Message;
+        }
+    }
+
+    private async Task DepositProfitAsync()
+    {
+        Error = null;
+        SuccessMessage = null;
+        try
+        {
+            var (deposited, count) = await Servicing.DepositServicingProfitAsync(
+                HttpContext.User,
+                PageData!.Date,
+                PageData.LocationId ?? 0,
+                HttpContext.RequestAborted);
+
+            SuccessMessage = $"Successfully deposited {Money(deposited)} ({count} jobs) into the active cash drawer.";
+            await LoadDataAsync(PageData.Date, PageData.LocationId);
+        }
+        catch (Exception ex)
+        {
+            Error = ex.Message;
+        }
+    }
+
+    private string Money(decimal amount) => $"{amount:N2} {Configuration["CurrencyCode"] ?? "BDT"}";
+}

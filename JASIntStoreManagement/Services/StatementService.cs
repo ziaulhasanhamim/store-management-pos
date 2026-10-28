@@ -184,6 +184,7 @@ public sealed class StatementService(IServiceScopeFactory scopes, IConfiguration
             CashMovementKind.Transfer => row.Amount >= 0 ? "Transfer in" : "Transfer out",
             CashMovementKind.DebtBorrowing => "Money borrowed",
             CashMovementKind.DebtRepayment => "Debt repayment",
+            CashMovementKind.ServicingProfit => "Servicing profit deposit",
             _ => "Transaction reversal"
         };
 
