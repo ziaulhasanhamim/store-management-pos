@@ -1,52 +1,82 @@
 {
   "openingDate": "2026-01-01",
+  "cashDrawer": {
+    "location": "DEMO-MAIN",
+    "openingBalance": 10000.0
+  },
+  "bankAccount": {
+    "code": "MAIN",
+    "openingBalance": 50000.0
+  },
   "categories": [
     {
       "name": "Electronics",
-      "description": "Devices and computer accessories"
+      "description": "Devices, cables, and computer accessories"
     },
     {
       "name": "Stationery",
-      "description": "Office and school supplies"
+      "description": "Office, paper, and school supplies"
     },
     {
       "name": "Home Essentials",
-      "description": "Everyday household items"
+      "description": "Everyday household and storage items"
     }
   ],
   "locations": [
     {
       "code": "DEMO-MAIN",
-      "name": "Main Store (Demo)"
+      "name": "Main Store (Demo)",
+      "canSell": true,
+      "address": "Level 2, Plot 14, Dhanmondi 27, Dhaka",
+      "phone": "+880 1711-000001"
     },
     {
       "code": "DEMO-BACK",
-      "name": "Back Room (Demo)"
+      "name": "Back Room (Demo)",
+      "canSell": false,
+      "address": "Tejgaon Industrial Area, Dhaka",
+      "phone": "+880 1711-000002"
     }
   ],
   "suppliers": [
     {
       "name": "Aster Wholesale (Demo)",
       "contactName": "Aster Sales",
+      "email": "orders@asterwholesale.demo",
+      "phone": "+880 1819-123456",
+      "address": "45 Motijheel C/A, Dhaka",
       "openingBalance": 2400.0
     },
     {
       "name": "Coastal Imports (Demo)",
       "contactName": "Coastal Accounts",
+      "email": "accounts@coastalimports.demo",
+      "phone": "+880 1819-234567",
+      "address": "12 Agrabad C/A, Chattogram",
       "openingBalance": -500.0
     },
     {
       "name": "Paper House (Demo)",
+      "contactName": "Paper House Dispatch",
+      "email": "sales@paperhouse.demo",
+      "phone": "+880 1819-345678",
+      "address": "78 Banglabazar, Dhaka",
       "openingBalance": 0.0
     }
   ],
   "customers": [
     {
       "name": "Mira Rahman (Demo)",
+      "email": "mira.rahman@example.com",
+      "phone": "+880 1712-112233",
+      "address": "House 15, Road 8, Gulshan 1, Dhaka",
       "openingBalance": 750.0
     },
     {
-      "name": "Saffron Caf\u00e9 (Demo)",
+      "name": "Saffron Café (Demo)",
+      "email": "orders@saffroncafe.demo",
+      "phone": "+880 1712-445566",
+      "address": "Road 11, Banani, Dhaka",
       "openingBalance": -100.0
     },
     {
@@ -58,6 +88,7 @@
     {
       "barcode": "DEMO-1001",
       "name": "Wireless Mouse",
+      "description": "2.4GHz optical wireless mouse with USB nano receiver",
       "category": "Electronics",
       "unit": "piece",
       "allowFractionUnit": false,
@@ -78,6 +109,7 @@
     {
       "barcode": "DEMO-1002",
       "name": "USB-C Cable",
+      "description": "1m braided USB-C fast charging and data sync cable",
       "category": "Electronics",
       "unit": "piece",
       "allowFractionUnit": false,
@@ -94,6 +126,7 @@
     {
       "barcode": "DEMO-1003",
       "name": "Notebook A5",
+      "description": "160-page lined spiral notebook, 80gsm paper",
       "category": "Stationery",
       "unit": "piece",
       "allowFractionUnit": false,
@@ -110,6 +143,7 @@
     {
       "barcode": "DEMO-1004",
       "name": "Ballpoint Pen Pack",
+      "description": "Pack of 10 smooth-writing blue ballpoint pens",
       "category": "Stationery",
       "unit": "pack",
       "allowFractionUnit": false,
@@ -126,6 +160,7 @@
     {
       "barcode": "DEMO-1005",
       "name": "Desk Lamp",
+      "description": "Adjustable LED desk lamp with 3 color modes and dimmer",
       "category": "Home Essentials",
       "unit": "piece",
       "allowFractionUnit": false,
@@ -142,6 +177,7 @@
     {
       "barcode": "DEMO-1006",
       "name": "Storage Box",
+      "description": "Stackable clear plastic storage organizer box (15L)",
       "category": "Home Essentials",
       "unit": "piece",
       "allowFractionUnit": false,
@@ -149,6 +185,36 @@
       "sellingPrice": 350.0,
       "stock": [],
       "supplier": "Aster Wholesale (Demo)"
+    },
+    {
+      "barcode": "DEMO-1007",
+      "name": "Device Setup Service",
+      "description": "Hardware inspection, firmware update, and configuration service",
+      "category": "Electronics",
+      "unit": "service",
+      "allowFractionUnit": false,
+      "isNonStocked": true,
+      "costPrice": 0.0,
+      "sellingPrice": 300.0,
+      "stock": [],
+      "supplier": "Aster Wholesale (Demo)"
+    },
+    {
+      "barcode": "DEMO-1008",
+      "name": "Packaging Tape",
+      "description": "Heavy-duty brown adhesive shipping and packaging tape",
+      "category": "Stationery",
+      "unit": "meter",
+      "allowFractionUnit": true,
+      "costPrice": 15.0,
+      "sellingPrice": 25.0,
+      "stock": [
+        {
+          "location": "DEMO-MAIN",
+          "quantity": 50.5
+        }
+      ],
+      "supplier": "Paper House (Demo)"
     }
   ]
 }

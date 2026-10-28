@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
     <TargetFramework>net11.0</TargetFramework>
@@ -20,6 +20,11 @@
 
   <ItemGroup>
     <Content Update="Data/development-seed.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="POSApp.Tests.Unit" />
+    <InternalsVisibleTo Include="POSApp.Tests.Integration" />
   </ItemGroup>
 
 </Project>
