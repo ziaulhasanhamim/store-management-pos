@@ -7,7 +7,7 @@
 
 InventoryService owns short-lived DI scopes and EF contexts for every operation. It rechecks roles in the database, including writes from an existing interactive circuit. Entity models remain property-only.
 
-API handlers live in `Endpoints`, with static route handlers and `RouteGroupBuilder` mapping extensions for items, suppliers, stock locations, and receiving. Shared form inputs, DTOs, requests, and responses live in `POSApp.Client/DTOs`; shared enums live in `POSApp.Client/Enums`. User management continues to use enhanced SSR forms.
+API handlers live in `Endpoints`, with static route handlers and `RouteGroupBuilder` mapping extensions for items, suppliers, stock locations, and receiving. Shared form inputs, DTOs, requests, and responses live in `JASIntStoreManagement.Client/DTOs`; shared enums live in `JASIntStoreManagement.Client/Enums`. User management continues to use enhanced SSR forms.
 
 Products have `AllowFractionUnit`, defaulting to false in both C# and the database. Whole-unit products reject fractional receipt quantities; enabled products support up to three decimal places. This rule is enforced by the receipt editor and InventoryService. Fractional units cannot be disabled while fractional stock remains. Apply the `AddProductAllowFractionUnit` migration before running against an existing database.
 
@@ -19,7 +19,7 @@ The full purchase total increases CurrentBalance and creates an invoice entry wi
 
 A stable receipt request GUID generates its unique purchase reference. Retrying the same request returns the previously saved receipt rather than adding stock twice. Concurrent serializable conflicts return a retry message; submitting again retains that GUID. New receipt creates a new GUID. In-progress receipts currently live in the Interactive Auto component and are not persisted as drafts across browser reloads. Saving keeps the confirmation visible; the SSR receipt history can be refreshed from its link.
 
-Tailwind is rebuilt with `npm run css:build`. Run `dotnet run --project POSApp.Persistence.Tests` for weighted averages across locations, opening/partial/full dues, movement history, retry protection, input validation, authorization/cost privacy, immutable purchase snapshots, and SSR item form/streaming checks. Tests use disposable SQLite; production uses PostgreSQL. Set `POS_TEST_PREVIEW=1` to run a disposable browser preview with sample catalog data after the checks pass.
+Tailwind is rebuilt with `npm run css:build`. Run `dotnet run --project JASIntStoreManagement.Persistence.Tests` for weighted averages across locations, opening/partial/full dues, movement history, retry protection, input validation, authorization/cost privacy, immutable purchase snapshots, and SSR item form/streaming checks. Tests use disposable SQLite; production uses PostgreSQL. Set `POS_TEST_PREVIEW=1` to run a disposable browser preview with sample catalog data after the checks pass.
 
 Quick-add modals are rendered from C# component state. Blazor event handlers manage close, cancel, backdrop click and Escape. Focus uses `ElementReference.FocusAsync`, and focus sentinels keep keyboard navigation inside the modal. The receiving editor behind the modal is inert, and dismissing is blocked while a save is pending. No custom dialog-opening JavaScript is loaded.
 
@@ -37,7 +37,7 @@ Sales support a selected stock location, customer, quantities, prices, discount,
 
 `/reports` links sales, receiving/returns and supplier payment history. Transaction reports provide today, yesterday, last seven days, this month, last month and inclusive custom dates with pagination. Date boundaries and displayed times use `BusinessTimeZone` (default `Asia/Dhaka`); the database stores UTC. Sales associates see their own completed sales, while inventory managers/admins can see all sales. Drafts are excluded.
 
-Apply the `AddSalesDraftPaymentsAndPaymentReferences` migration with `dotnet ef database update --project POSApp` before running these features against an existing database. This adds planned draft payment, cash tendered and unique payment references. The implementation does not update your existing database automatically. `CommerceChecks` covers mixed returns, average cost, barcode examples, supplier payment retries, draft isolation, partial payments, cash change, stock validation and report date boundaries. HTTP checks also cover antiforgery, static SSR label forms and report/supplier/sales page rendering.
+Apply the `AddSalesDraftPaymentsAndPaymentReferences` migration with `dotnet ef database update --project JASIntStoreManagement` before running these features against an existing database. This adds planned draft payment, cash tendered and unique payment references. The implementation does not update your existing database automatically. `CommerceChecks` covers mixed returns, average cost, barcode examples, supplier payment retries, draft isolation, partial payments, cash change, stock validation and report date boundaries. HTTP checks also cover antiforgery, static SSR label forms and report/supplier/sales page rendering.
 
 ## Roll labels, split tenders and line profit
 
@@ -51,7 +51,7 @@ The UI shows only the whole-order discount; bill item amounts remain gross. Inte
 
 Apply `AddSplitPayments` before running this version. It adds persisted draft payment rows and per-payment tendered amounts; existing single-payment API requests and draft rows remain readable. Tests cover split payments and account snapshots, updated drafts, cash change, price-weighted allocation, cent reconciliation, historical backfill and item profit.
 
-Run `node --test POSApp.Client.Tests/barcode-scanner.test.mjs` for keyboard scanner boundary detection, queued lookups, optional Enter suffix, ordinary typing and disposal. The scanner's local capture is the only additional JavaScript behavior; dialogs and payment confirmation remain in Blazor/C#.
+Run `node --test JASIntStoreManagement.Client.Tests/barcode-scanner.test.mjs` for keyboard scanner boundary detection, queued lookups, optional Enter suffix, ordinary typing and disposal. The scanner's local capture is the only additional JavaScript behavior; dialogs and payment confirmation remain in Blazor/C#.
 
 
 Apply `AddSaleItemUnitDiscount` for the per-unit representation and generated line total column. The migration renames and converts existing line discounts using their quantities. It preserves totals when rolling back as well. Per-unit allocations remain internal: the checkout and printed bill show a single discount for the order.
@@ -70,7 +70,7 @@ Deleting a sale or receiving is a soft delete in one serializable transaction. I
 
 After transaction deletion, product cost is replayed from remaining inventory movements in posting order, ignoring deleted transactions and reversal entries. Purchases/opening stock/positive adjustments establish weighted average; sales and returns consume or restore quantities at the current average. Effective date corrections do not reorder historical costing. For one unit at 100 followed by one at 200, deleting the second receipt leaves one unit at cost 100. Deletions that would produce negative current or intermediate stock fail and roll back all changes. Existing sale cost snapshots remain unchanged.
 
-Apply `AddDefaultSuppliersAndRecordCorrections` with `dotnet ef database update --project POSApp`. It adds supplier foreign keys, soft-delete fields and the administrator audit table. Existing products use their latest active purchase supplier; those without supplier history are assigned a clearly named legacy supplier for later review. Fresh product forms require an explicit selection. No migration is applied automatically by this change.
+Apply `AddDefaultSuppliersAndRecordCorrections` with `dotnet ef database update --project JASIntStoreManagement`. It adds supplier foreign keys, soft-delete fields and the administrator audit table. Existing products use their latest active purchase supplier; those without supplier history are assigned a clearly named legacy supplier for later review. Fresh product forms require an explicit selection. No migration is applied automatically by this change.
 
 `AdministrationChecks` covers returns/exchanges, partial split refunds, supplier valuation, administrator-only corrections, stale revisions, stock and due reversals, preserved records, atomic rollback, and weighted average after deletion. HTTP checks submit the enhanced correction/deletion forms and verify timezone conversion and retained history.
 

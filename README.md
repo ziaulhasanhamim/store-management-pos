@@ -1,4 +1,4 @@
-# RetailPOS · Store Management & Point of Sale
+# JAS International POS · Store Management & Point of Sale
 
 A modern, high-performance, multi-store Point of Sale and Retail Management System engineered with **.NET 11**, **Blazor Web App** (Server-Side Stream Rendering + Interactive WebAssembly), **Entity Framework Core**, **PostgreSQL**, and **Tailwind CSS v4**.
 
@@ -67,24 +67,24 @@ Designed for single-store and multi-location retail businesses with full support
 
 Clone the repository:
 ```bash
-git clone https://github.com/ziaulhasanhamim/store-management-pos.git
-cd store-management-pos
+git clone https://github.com/ziaulhasanhamim/JASIntStoreManagement.git
+cd JASIntStoreManagement
 ```
 
-Configure your PostgreSQL database connection string in `POSApp/appsettings.Development.json` or via environment variable:
+Configure your PostgreSQL database connection string in `JASIntStoreManagement/appsettings.Development.json` or via environment variable:
 ```bash
-export DB_URL="Host=localhost;Database=retailpos_dev;Username=postgres;Password=yourpassword"
+export DB_URL="Host=localhost;Database=jasint_pos_dev;Username=postgres;Password=yourpassword"
 export AdminUser__Password="YourStrongPassword123!"
 ```
 
 Run database migrations:
 ```bash
-dotnet ef database update --project POSApp
+dotnet ef database update --project JASIntStoreManagement
 ```
 
 Run the application:
 ```bash
-dotnet run --project POSApp
+dotnet run --project JASIntStoreManagement
 ```
 Visit `https://localhost:5001` or `http://localhost:5000` in your browser.
 
@@ -96,24 +96,24 @@ A production-ready, multi-stage `Dockerfile` is included. It exposes port `8080`
 
 ### 1. Build the Docker Image
 ```bash
-docker build -t retailpos:latest .
+docker build -t jasint-pos:latest .
 ```
 
 ### 2. Run the Container
 Point the container to your cloud or external PostgreSQL database:
 ```bash
 docker run -d \
-  --name retailpos \
+  --name jasint-pos \
   -p 8080:8080 \
-  -e DB_URL="Host=your-db-host.com;Port=5432;Database=retailpos;Username=postgres;Password=SecretPassword;SSL Mode=Require;Trust Server Certificate=true" \
+  -e DB_URL="Host=your-db-host.com;Port=5432;Database=jasint_pos;Username=postgres;Password=SecretPassword;SSL Mode=Require;Trust Server Certificate=true" \
   -e AdminUser__Username="admin" \
   -e AdminUser__Password="InitialAdminPassword123!" \
-  -e StoreName="City Mart" \
-  -e StoreSubtitle="Superstore & Retail" \
-  -e CurrencyCode="USD" \
-  -e BusinessTimeZone="America/New_York" \
+  -e StoreName="JAS International POS" \
+  -e StoreSubtitle="Store Management" \
+  -e CurrencyCode="BDT" \
+  -e BusinessTimeZone="Asia/Dhaka" \
   -e AUTO_MIGRATE="true" \
-  retailpos:latest
+  jasint-pos:latest
 ```
 
 ---
@@ -125,7 +125,7 @@ All application behaviors can be customized without rebuilding:
 | Environment Variable | Default | Description |
 | :--- | :--- | :--- |
 | `DB_URL` | *(None)* | PostgreSQL connection string (or `ConnectionStrings__DefaultConnection`). |
-| `StoreName` | `RetailPOS` | Business name displayed on header, receipts, page titles, and exports. |
+| `StoreName` | `JAS International POS` | Business name displayed on header, receipts, page titles, and exports. |
 | `StoreSubtitle` | `Store Management` | Sub-branding / tag line displayed on login and navigation. |
 | `CurrencyCode` | `BDT` | ISO currency code formatted across monetary values (e.g. `USD`, `EUR`, `GBP`, `BDT`). |
 | `BusinessTimeZone` | `Asia/Dhaka` | IANA / Windows timezone for business day calculations and receipt timestamps. |
@@ -154,10 +154,10 @@ The solution includes a test suite with 73 unit and integration tests (using Tes
 
 ```bash
 # Run unit tests
-dotnet test tests/POSApp.Tests.Unit
+dotnet test tests/JASIntStoreManagement.Tests.Unit
 
 # Run integration tests (requires Docker for Testcontainers)
-dotnet test tests/POSApp.Tests.Integration
+dotnet test tests/JASIntStoreManagement.Tests.Integration
 ```
 
 ---

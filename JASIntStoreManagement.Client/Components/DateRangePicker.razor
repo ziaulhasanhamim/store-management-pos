@@ -1,0 +1,178 @@
+@namespace JASIntStoreManagement.Client.Components
+@using System.Globalization
+
+<div class="date-range-picker-container relative inline-block w-full @Class" id="@Id" data-range-picker>
+    <button type="button" class="field flex items-center justify-between gap-2 text-left cursor-pointer w-full bg-white" aria-haspopup="dialog" aria-expanded="false" data-range-trigger>
+        <span class="range-display font-medium text-slate-800 truncate" data-range-display>
+            @DisplayLabel
+        </span>
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-slate-400 shrink-0" aria-hidden="true">
+            <rect width="18" height="18" x="3" y="4" rx="2" ry="2"/>
+            <line x1="16" x2="16" y1="2" y2="6"/>
+            <line x1="8" x2="8" y1="2" y2="6"/>
+            <line x1="3" x2="21" y1="10" y2="10"/>
+        </svg>
+    </button>
+    <input type="hidden" name="@StartName" value="@Start?.ToString("yyyy-MM-dd")" data-range-start />
+    <input type="hidden" name="@EndName" value="@End?.ToString("yyyy-MM-dd")" data-range-end />
+
+    <div class="date-range-popover hidden absolute top-full left-0 z-50 mt-2 w-[calc(100vw-2rem)] max-w-155 rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl transition"
+         role="dialog" aria-modal="true" aria-label="Select date range"
+         data-calendar-popover
+         data-auto-submit="@AutoSubmit.ToString().ToLowerInvariant()"
+         data-view-year="@viewYear"
+         data-view-month="@viewMonth">
+
+        <!-- Presets Bar -->
+        <div class="mb-4 flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
+            <div class="flex items-center gap-1 text-xs">
+                <button type="button" class="filter-chip" data-range-preset="today">Today</button>
+                <button type="button" class="filter-chip" data-range-preset="yesterday">Yesterday</button>
+                <button type="button" class="filter-chip" data-range-preset="last7">Last 7 days</button>
+                <button type="button" class="filter-chip" data-range-preset="thisMonth">This month</button>
+                <button type="button" class="filter-chip" data-range-preset="lastMonth">Last month</button>
+            </div>
+            <button type="button" class="text-xs font-semibold text-slate-500 hover:text-slate-800 p-1" data-range-close aria-label="Close calendar">✕</button>
+        </div>
+
+        <!-- Month Headers & Prev/Next Navigation -->
+        <div class="flex items-center justify-between mb-3 px-1">
+            <button type="button" class="inline-flex size-8 items-center justify-center rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-600 transition" data-month-nav="prev" aria-label="Previous month">
+                <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
+            </button>
+            <div class="flex-1 flex justify-around font-semibold text-sm text-slate-800">
+                <span data-month-header-1>@CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(viewMonth) @viewYear</span>
+                <span class="hidden md:inline" data-month-header-2>@CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(NextMonthNumber) @NextMonthYear</span>
+            </div>
+            <button type="button" class="inline-flex size-8 items-center justify-center rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-600 transition" data-month-nav="next" aria-label="Next month">
+                <svg class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
+            </button>
+        </div>
+
+        <!-- Dual Month Calendar Grids -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div data-calendar-month-1>
+                @RenderMonth(viewYear, viewMonth)
+            </div>
+            <div class="hidden md:block" data-calendar-month-2>
+                @RenderMonth(NextMonthYear, NextMonthNumber)
+            </div>
+        </div>
+
+        <!-- Footer Status & Reset -->
+        <div class="mt-4 flex items-center justify-between border-t border-slate-100 pt-3 text-xs text-slate-500">
+            <div class="status-instruction" data-status-instruction>
+                <span>Click a date to select start date</span>
+            </div>
+            <button type="button" class="text-rose-600 hover:underline hidden" data-range-reset>Reset</button>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public DateOnly? Start { get; set; }
+    [Parameter] public DateOnly? End { get; set; }
+    [Parameter] public string StartName { get; set; } = "start";
+    [Parameter] public string EndName { get; set; } = "end";
+    [Parameter] public string Id { get; set; } = "date-range-picker";
+    [Parameter] public string? Class { get; set; }
+    [Parameter] public bool AutoSubmit { get; set; } = true;
+
+    private int viewYear;
+    private int viewMonth;
+
+    private int NextMonthNumber => viewMonth == 12 ? 1 : viewMonth + 1;
+    private int NextMonthYear => viewMonth == 12 ? viewYear + 1 : viewYear;
+
+    protected override void OnParametersSet()
+    {
+        var refDate = Start ?? DateOnly.FromDateTime(DateTime.Today);
+        viewYear = refDate.Year;
+        viewMonth = refDate.Month;
+    }
+
+    private string DisplayLabel
+    {
+        get
+        {
+            if (Start.HasValue && End.HasValue)
+            {
+                return Start.Value == End.Value
+                    ? Start.Value.ToString("dd MMM yyyy", CultureInfo.InvariantCulture)
+                    : $"{Start.Value.ToString("dd MMM yyyy", CultureInfo.InvariantCulture)} – {End.Value.ToString("dd MMM yyyy", CultureInfo.InvariantCulture)}";
+            }
+            if (Start.HasValue) return $"From {Start.Value.ToString("dd MMM yyyy", CultureInfo.InvariantCulture)}";
+            if (End.HasValue) return $"Through {End.Value.ToString("dd MMM yyyy", CultureInfo.InvariantCulture)}";
+            return "Select date range";
+        }
+    }
+
+    private RenderFragment RenderMonth(int year, int month) => __builder =>
+    {
+        var firstDay = new DateOnly(year, month, 1);
+        var daysInMonth = DateTime.DaysInMonth(year, month);
+        var startDayOfWeek = (int)firstDay.DayOfWeek;
+
+        <div>
+            <div class="grid grid-cols-7 gap-1 text-center text-[11px] font-semibold text-slate-400 mb-1">
+                <span>Su</span><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span>
+            </div>
+            <div class="grid grid-cols-7 gap-1">
+                @for (var i = 0; i < startDayOfWeek; i++)
+                {
+                    <div class="size-8"></div>
+                }
+                @for (var day = 1; day <= daysInMonth; day++)
+                {
+                    var dayDate = new DateOnly(year, month, day);
+                    <div class="@GetDayWrapClass(dayDate)" data-wrap="@dayDate.ToString("yyyy-MM-dd")">
+                        <button type="button"
+                                class="@GetDayButtonClass(dayDate)"
+                                data-date="@dayDate.ToString("yyyy-MM-dd")"
+                                aria-label="@dayDate.ToString("yyyy-MM-dd")">
+                            @day
+                        </button>
+                    </div>
+                }
+            </div>
+        </div>
+    };
+
+    private string GetDayButtonClass(DateOnly day)
+    {
+        bool isStart = Start.HasValue && day == Start.Value;
+        bool isEnd = End.HasValue && day == End.Value;
+        bool isInSelectedRange = Start.HasValue && End.HasValue && day > Start.Value && day < End.Value;
+
+        var baseClass = "size-8 inline-flex items-center justify-center text-xs transition cursor-pointer select-none";
+
+        if (isStart && isEnd)
+            return $"{baseClass} bg-blue-600 text-white font-semibold rounded-lg shadow-sm z-10";
+        if (isStart)
+            return $"{baseClass} bg-blue-600 text-white font-semibold " + (End.HasValue ? "rounded-l-lg" : "rounded-lg") + " shadow-sm z-10";
+        if (isEnd)
+            return $"{baseClass} bg-blue-600 text-white font-semibold rounded-r-lg shadow-sm z-10";
+        if (isInSelectedRange)
+            return $"{baseClass} text-blue-900 font-medium bg-blue-100/80";
+
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        if (day == today)
+            return $"{baseClass} text-slate-700 hover:bg-slate-100 rounded-lg border border-blue-400 font-semibold";
+
+        return $"{baseClass} text-slate-700 hover:bg-slate-100 rounded-lg";
+    }
+
+    private string GetDayWrapClass(DateOnly day)
+    {
+        bool inRange = Start.HasValue && End.HasValue && day >= Start.Value && day <= End.Value;
+
+        var cls = "relative flex items-center justify-center";
+        if (inRange)
+        {
+            cls += " bg-blue-50";
+            if (Start.HasValue && day == Start.Value) cls += End.HasValue ? " rounded-l-lg" : " rounded-lg";
+            else if (End.HasValue && day == End.Value) cls += " rounded-r-lg";
+        }
+        return cls;
+    }
+}

@@ -1,7 +1,7 @@
 {
   "scripts": {
-    "css:build": "tailwindcss -i POSApp/wwwroot/css/main.css -o POSApp/wwwroot/tailwind.css --minify",
-    "css:watch": "tailwindcss -i POSApp/wwwroot/css/main.css -o POSApp/wwwroot/tailwind.css --watch"
+    "css:build": "tailwindcss -i JASIntStoreManagement/wwwroot/css/main.css -o JASIntStoreManagement/wwwroot/tailwind.css --minify",
+    "css:watch": "tailwindcss -i JASIntStoreManagement/wwwroot/css/main.css -o JASIntStoreManagement/wwwroot/tailwind.css --watch"
   },
   "dependencies": {
     "@tailwindcss/cli": "^4.3.3",

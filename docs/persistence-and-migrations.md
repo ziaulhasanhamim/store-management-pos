@@ -31,14 +31,14 @@ The models contain no workflow enforcement or automatic posting. Services must h
 Check EF field mappings, indexes, relationships, and schema generation without connecting to a database:
 
 ```sh
-dotnet run --project POSApp.Persistence.Tests
+dotnet run --project JASIntStoreManagement.Persistence.Tests
 ```
 
 There are currently no migration files. Configure `DB_URL` or `ConnectionStrings:DefaultConnection`, then generate and review a migration appropriate to the existing database before applying it:
 
 ```sh
-dotnet ef migrations add InitialPosSchema --project POSApp
-dotnet ef database update --project POSApp
+dotnet ef migrations add InitialPosSchema --project JASIntStoreManagement
+dotnet ef database update --project JASIntStoreManagement
 ```
 
 An initial migration includes Identity tables. No database changes are applied automatically at startup.

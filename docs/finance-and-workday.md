@@ -51,7 +51,7 @@ The closing screen exports UTF-8 CSV with a BOM for Excel, containing the summar
 
 ## Upgrade and verification
 
-Apply migrations through `StoreMonthlyFinanceBreakdowns` using `dotnet ef database update --project POSApp`. No real database is updated automatically. The migration preserves cash history, converts existing staff/payroll records into independent employees and settled monthly salaries, and imports recorded noncash payments, supplier payments, expenses and payroll into the bank ledger. Historic business dates use the application's established Asia/Dhaka timezone. Only legacy staff with account history become employees; creating an employee never grants login access.
+Apply migrations through `StoreMonthlyFinanceBreakdowns` using `dotnet ef database update --project JASIntStoreManagement`. No real database is updated automatically. The migration preserves cash history, converts existing staff/payroll records into independent employees and settled monthly salaries, and imports recorded noncash payments, supplier payments, expenses and payroll into the bank ledger. Historic business dates use the application's established Asia/Dhaka timezone. Only legacy staff with account history become employees; creating an employee never grants login access.
 
 The global-day migration replaces per-user selections with their latest selected date, preserves old daily closing snapshots in `DayFinance`, initializes historical advances, and aligns payroll expense snapshots with recorded payroll payouts. Legacy closings have no invented physical count: `CountedCash` stays null and carry-forward uses their expected closing. Its downgrade is intentionally blocked to preserve reconciliation history.
 
@@ -59,7 +59,7 @@ The location-drawer migration preserves old cashier attribution in audit fields,
 
 Imported bank movements start with zero initial bank funds. Enter the opening balance from before those recorded movements, or use a signed adjustment to reconcile to a known current balance. An opening adds to existing recorded flows; it does not overwrite them. New employees have no relationship to users, so this migration's automatic down path is intentionally unsupported rather than creating login accounts or discarding financial history. Rollback requires a pre-upgrade backup.
 
-Run `dotnet run --project POSApp.Persistence.Tests`. Isolated SQLite checks cover stock transfer conservation/fractions/retries, selling restrictions, independent drawers, bank posting/transfers, employees without users, monthly salary installments/bonuses, opening corrections/waivers, selected business dates, exact day arithmetic, shared dates across users, required cash counts, shortage carry-forward, month-end variances, salary overpayments and advance application without double expense, frozen month snapshots and full daily/category/employee/asset breakdowns, automatic 2,000-salary/3,000-payment advance calculations, historical employee balances, historical dues, permissions and rollback. HTTP checks submit real enhanced forms for each feature and download the CSV. Existing scanner checks run with `node --test POSApp.Client.Tests/barcode-scanner.test.mjs`. Model/migration validation and PostgreSQL script generation do not apply migrations to a real business database.
+Run `dotnet run --project JASIntStoreManagement.Persistence.Tests`. Isolated SQLite checks cover stock transfer conservation/fractions/retries, selling restrictions, independent drawers, bank posting/transfers, employees without users, monthly salary installments/bonuses, opening corrections/waivers, selected business dates, exact day arithmetic, shared dates across users, required cash counts, shortage carry-forward, month-end variances, salary overpayments and advance application without double expense, frozen month snapshots and full daily/category/employee/asset breakdowns, automatic 2,000-salary/3,000-payment advance calculations, historical employee balances, historical dues, permissions and rollback. HTTP checks submit real enhanced forms for each feature and download the CSV. Existing scanner checks run with `node --test JASIntStoreManagement.Client.Tests/barcode-scanner.test.mjs`. Model/migration validation and PostgreSQL script generation do not apply migrations to a real business database.
 
 ## Fast entry and separated finance pages
 
@@ -71,7 +71,7 @@ The administrator can add, rename and archive expense categories from `/expenses
 
 Corrections append reversal and replacement cash/bank postings. Supplier/customer corrections append signed account adjustments, preserving original ledger amounts and before/after audit records. Changing party restores the old account before applying the corrected payment to the new account. Money collected beyond customer due becomes customer credit; supplier overpayments become advances. Posting foreign keys allow multiple historical postings per entry; unique request IDs and unique reversal links continue to guard retries and reversals. Original supplier/customer ledger payment links retain their uniqueness. No payroll, sales, purchase, or closed-period totals are rewritten by entry correction.
 
-`BatchMoneyEntriesAndExpenseCategories` backfills existing expenses to the corresponding managed built-in category without changing amounts or dates. Apply it with `dotnet ef database update --project POSApp`; startup does not run migrations automatically. The upgrade keeps payroll/request/reversal uniqueness while replacing payment/expense posting uniqueness with normal foreign-key indexes so historical amendments can coexist.
+`BatchMoneyEntriesAndExpenseCategories` backfills existing expenses to the corresponding managed built-in category without changing amounts or dates. Apply it with `dotnet ef database update --project JASIntStoreManagement`; startup does not run migrations automatically. The upgrade keeps payroll/request/reversal uniqueness while replacing payment/expense posting uniqueness with normal foreign-key indexes so historical amendments can coexist.
 
 ## Loans and lender debt
 
@@ -79,7 +79,7 @@ Administrators manage lenders at `/finance/debt` and borrowing/repayments at `/f
 
 Entries use the shared working date, reject stale form dates and closed periods, and atomically save debt with its linked cash/bank movement. Request IDs prevent duplicate submissions, including retries after day closing; reusing an ID with changed values is rejected. The enhanced SSR forms use antiforgery protection and submit feedback. Histories can be filtered by lender and show the latest 200 entries; stored balances include every entry.
 
-Day/month finance and CSV exports show borrowing, repayments and outstanding debt separately from revenue, operating expenses and profit. Monthly assets subtract lender debt using historical dates, and closing snapshots retain the saved debt totals. Apply `AddLenderDebt` with `dotnet ef database update --project POSApp` before using the new pages.
+Day/month finance and CSV exports show borrowing, repayments and outstanding debt separately from revenue, operating expenses and profit. Monthly assets subtract lender debt using historical dates, and closing snapshots retain the saved debt totals. Apply `AddLenderDebt` with `dotnet ef database update --project JASIntStoreManagement` before using the new pages.
 
 ## Operating flow and reviewed closings
 
@@ -171,7 +171,7 @@ Voids retain original records and reversal history; the admin UI previews transa
 value, payments and signed stock effects and requires an explicit confirmation.
 
 Focused verification includes the existing isolated service/SSR suite and
-`node POSApp.Persistence.Tests/form-drafts.check.mjs` for browser-draft semantics:
+`node JASIntStoreManagement.Persistence.Tests/form-drafts.check.mjs` for browser-draft semantics:
 missing drafts, immediate local backup, exclusion of antiforgery tokens, enhanced
 form node reuse, acknowledged submission reset and stale-tab preservation.
 `RefinementChecks` injects PostgreSQL conflict errors at commit against an isolated

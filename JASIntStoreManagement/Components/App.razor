@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <BasePath />
+    <ResourcePreloader />
+    <link rel="stylesheet" href="@Assets["app.css"]" />
+    <link rel="stylesheet" href="@Assets["tailwind.css"]" />
+    <link rel="stylesheet" href="@Assets["JASIntStoreManagement.styles.css"]" />
+    <link rel="icon" type="image/svg+xml" href="/images/logo.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <ImportMap />
+    <HeadOutlet />
+</head>
+
+<body>
+    <div id="navigation-progress" data-permanent hidden role="status" aria-live="polite" class="navigation-progress">
+        <div class="navigation-progress-bar"></div>
+        <span class="sr-only">Loading page…</span>
+    </div>
+    <Routes />
+    <ReconnectModal />
+    <script type="module" src="@Assets["number-fields.js"]"></script>
+    <script type="module" src="@Assets["printing.js"]"></script>
+    <script type="module" src="@Assets["date-range-picker.js"]"></script>
+    <script src="@Assets["_framework/blazor.web.js"]"></script>
+</body>
+
+</html>

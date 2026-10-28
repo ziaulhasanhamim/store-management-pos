@@ -1,0 +1,10 @@
+global using Microsoft.AspNetCore.Components;
+global using Microsoft.AspNetCore.Components.Forms;
+global using Microsoft.AspNetCore.Components.Authorization;
+global using Microsoft.JSInterop;
+global using JASIntStoreManagement.Client.DTOs;
+global using JASIntStoreManagement.Persistence.Entities;
+global using JASIntStoreManagement.Security;
+global using JASIntStoreManagement.Services;
+global using JASIntStoreManagement.Client.Enums;
+global using JASIntStoreManagement.Client.Security;

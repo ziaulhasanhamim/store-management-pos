@@ -6,7 +6,7 @@ Public static assets use `MapStaticAssets().ShortCircuit()` so CSS, JavaScript, 
 
 The users list streams its loading state and then its data. On the edit page, only the GET data-loader component streams; form POSTs remain buffered so self-edit cookie refreshes and redirects can complete before response headers are sent. New-user pages don't load existing user details. Abandoned reads use the request cancellation token. Read failures show a retry link.
 
-`wwwroot/POSApp.lib.module.js` is a Blazor JavaScript initializer. It provides a navigation progress bar for all enhanced navigation and pending button text for enhanced form submissions. New asynchronous read pages can reuse `LoadingPanel` inside a `[StreamRendering]` component; authentication and mutation handlers should remain buffered.
+`wwwroot/JASIntStoreManagement.lib.module.js` is a Blazor JavaScript initializer. It provides a navigation progress bar for all enhanced navigation and pending button text for enhanced form submissions. New asynchronous read pages can reuse `LoadingPanel` inside a `[StreamRendering]` component; authentication and mutation handlers should remain buffered.
 
 Form feedback is opt-in: set `data-submit-indication="true"` on an enhanced form to enable submit-button disabling, pending text, spinner visibility, and the busy cursor. If this attribute is missing or `"false"`, the form's controls and spinner are left untouched. The app-wide navigation bar operates independently. The wait cursor defaults to enabled for opted-in busy forms; set `data-pending-cursor="false"` to opt out.
 
@@ -21,8 +21,8 @@ The top bar starts at a small width, gradually advances while enhanced navigatio
 Configure the PostgreSQL connection using `DB_URL` or `ConnectionStrings:DefaultConnection`. Provision the schema before starting the app. If no migrations exist, generate and review an initial migration first:
 
 ```sh
-dotnet ef migrations add InitialPosSchema --project POSApp
-dotnet ef database update --project POSApp
+dotnet ef migrations add InitialPosSchema --project JASIntStoreManagement
+dotnet ef database update --project JASIntStoreManagement
 ```
 
 Configure `AdminUser:Username` and `AdminUser:Password`. The checked-in username is `admin`, and the password is intentionally empty. Supply the password through .NET user secrets or an environment variable (`AdminUser__Password`); do not commit a real password to appsettings. Set `AdminUser__Username` to override the username.
@@ -53,8 +53,8 @@ Tailwind source is `wwwroot/css/main.css`; the generated stylesheet is `wwwroot/
 
 ```sh
 npm run css:build
-dotnet build POSApp.sln
-dotnet run --project POSApp.Persistence.Tests
+dotnet build JASIntStoreManagement.sln
+dotnet run --project JASIntStoreManagement.Persistence.Tests
 ```
 
 Tests use an isolated SQLite database for Identity provisioning, user edits, password resets, policies, rollback, cookies, and lockout. A local test server exercises the real SSR login, user forms, logout, enhanced-navigation headers, and antiforgery checks. Gated database reads verify that loading HTML arrives before the data query completes, followed by the loaded list or form. They also verify PostgreSQL model/schema generation. No production database is touched.
