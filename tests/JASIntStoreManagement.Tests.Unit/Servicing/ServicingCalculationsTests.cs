@@ -5,140 +5,140 @@ namespace JASIntStoreManagement.Tests.Unit.Servicing;
 public class ServicingCalculationsTests
 {
     [Test]
-    public async Task JobProfit_StandardCase_CalculatesProfitAndEvenSplit()
+    public async Task DailyServicingProfit_StandardCase_CalculatesProfitAndEvenSplit()
     {
-        // Arrange: 50% split on 2000 profit (3000 bill - 1000 material)
-        var input = new ServicingJobInput
+        // Arrange: 50% split on 8000 profit (12000 total servicing - 4000 parts cost)
+        var input = new MobileServicingEntryInput
         {
-            BillAmount = 3000m,
-            MaterialCost = 1000m,
+            TotalAmount = 12000m,
+            TotalCost = 4000m,
             CommissionRate = 50m
         };
 
         // Assert
-        await input.JobProfit.Should().BeEqualTo(2000m);
-        await input.TechnicianCut.Should().BeEqualTo(1000m);
-        await input.ShopProfit.Should().BeEqualTo(1000m);
-        await (input.TechnicianCut + input.ShopProfit).Should().BeEqualTo(input.JobProfit);
+        await input.Profit.Should().BeEqualTo(8000m);
+        await input.TechnicianCut.Should().BeEqualTo(4000m);
+        await input.ShopProfit.Should().BeEqualTo(4000m);
+        await (input.TechnicianCut + input.ShopProfit).Should().BeEqualTo(input.Profit);
     }
 
     [Test]
-    public async Task JobProfit_ZeroMaterialCost_CalculatesFullProfit()
+    public async Task DailyServicingProfit_ZeroMaterialCost_CalculatesFullProfit()
     {
-        // Arrange: Pure service / labor without spare parts
-        var input = new ServicingJobInput
+        // Arrange: Pure service / labor without spare parts cost
+        var input = new MobileServicingEntryInput
         {
-            BillAmount = 800m,
-            MaterialCost = 0m,
+            TotalAmount = 2500m,
+            TotalCost = 0m,
             CommissionRate = 50m
         };
 
         // Assert
-        await input.JobProfit.Should().BeEqualTo(800m);
-        await input.TechnicianCut.Should().BeEqualTo(400m);
-        await input.ShopProfit.Should().BeEqualTo(400m);
+        await input.Profit.Should().BeEqualTo(2500m);
+        await input.TechnicianCut.Should().BeEqualTo(1250m);
+        await input.ShopProfit.Should().BeEqualTo(1250m);
     }
 
     [Test]
-    public async Task JobProfit_CustomCommissionRate_CalculatesAccurately()
+    public async Task DailyServicingProfit_CustomCommissionRate_CalculatesAccurately()
     {
-        // Arrange: 40% commission rate on 1500 profit
-        var input = new ServicingJobInput
+        // Arrange: 40% commission rate on 5000 profit
+        var input = new MobileServicingEntryInput
         {
-            BillAmount = 2500m,
-            MaterialCost = 1000m,
+            TotalAmount = 8000m,
+            TotalCost = 3000m,
             CommissionRate = 40m
         };
 
         // Assert
-        await input.JobProfit.Should().BeEqualTo(1500m);
-        await input.TechnicianCut.Should().BeEqualTo(600m);
-        await input.ShopProfit.Should().BeEqualTo(900m);
-        await (input.TechnicianCut + input.ShopProfit).Should().BeEqualTo(input.JobProfit);
+        await input.Profit.Should().BeEqualTo(5000m);
+        await input.TechnicianCut.Should().BeEqualTo(2000m);
+        await input.ShopProfit.Should().BeEqualTo(3000m);
+        await (input.TechnicianCut + input.ShopProfit).Should().BeEqualTo(input.Profit);
     }
 
     [Test]
-    public async Task JobProfit_RoundingAwayFromZero_PreservesTotalBalance()
+    public async Task DailyServicingProfit_RoundingAwayFromZero_PreservesTotalBalance()
     {
         // Arrange: 33.33% commission on 100 profit
-        var input = new ServicingJobInput
+        var input = new MobileServicingEntryInput
         {
-            BillAmount = 100m,
-            MaterialCost = 0m,
+            TotalAmount = 100m,
+            TotalCost = 0m,
             CommissionRate = 33.33m
         };
 
         // 100 * 0.3333 = 33.33
-        await input.JobProfit.Should().BeEqualTo(100m);
+        await input.Profit.Should().BeEqualTo(100m);
         await input.TechnicianCut.Should().BeEqualTo(33.33m);
         await input.ShopProfit.Should().BeEqualTo(66.67m);
-        await (input.TechnicianCut + input.ShopProfit).Should().BeEqualTo(input.JobProfit);
+        await (input.TechnicianCut + input.ShopProfit).Should().BeEqualTo(input.Profit);
     }
 
     [Test]
-    public async Task JobProfit_FullTechnicianCut_ShopProfitIsZero()
+    public async Task DailyServicingProfit_FullTechnicianCut_ShopProfitIsZero()
     {
         // Arrange: 100% technician commission
-        var input = new ServicingJobInput
+        var input = new MobileServicingEntryInput
         {
-            BillAmount = 1200m,
-            MaterialCost = 400m,
+            TotalAmount = 3000m,
+            TotalCost = 1000m,
             CommissionRate = 100m
         };
 
-        await input.JobProfit.Should().BeEqualTo(800m);
-        await input.TechnicianCut.Should().BeEqualTo(800m);
+        await input.Profit.Should().BeEqualTo(2000m);
+        await input.TechnicianCut.Should().BeEqualTo(2000m);
         await input.ShopProfit.Should().BeEqualTo(0m);
     }
 
     [Test]
-    public async Task JobProfit_ZeroTechnicianCommission_ShopGetsFullProfit()
+    public async Task DailyServicingProfit_ZeroTechnicianCommission_ShopGetsFullProfit()
     {
         // Arrange: 0% commission (in-house store work)
-        var input = new ServicingJobInput
+        var input = new MobileServicingEntryInput
         {
-            BillAmount = 1500m,
-            MaterialCost = 500m,
+            TotalAmount = 4000m,
+            TotalCost = 1500m,
             CommissionRate = 0m
         };
 
-        await input.JobProfit.Should().BeEqualTo(1000m);
+        await input.Profit.Should().BeEqualTo(2500m);
         await input.TechnicianCut.Should().BeEqualTo(0m);
-        await input.ShopProfit.Should().BeEqualTo(1000m);
+        await input.ShopProfit.Should().BeEqualTo(2500m);
     }
 
     [Test]
-    public async Task JobProfit_AtCost_ProfitsAreZero()
+    public async Task DailyServicingProfit_AtCost_ProfitsAreZero()
     {
-        // Arrange: Customer was charged exactly parts cost
-        var input = new ServicingJobInput
+        // Arrange: Servicing was done at exact parts cost
+        var input = new MobileServicingEntryInput
         {
-            BillAmount = 750m,
-            MaterialCost = 750m,
+            TotalAmount = 1500m,
+            TotalCost = 1500m,
             CommissionRate = 50m
         };
 
-        await input.JobProfit.Should().BeEqualTo(0m);
+        await input.Profit.Should().BeEqualTo(0m);
         await input.TechnicianCut.Should().BeEqualTo(0m);
         await input.ShopProfit.Should().BeEqualTo(0m);
     }
 
     [Test]
-    [Arguments(100, 20, 50)]
-    [Arguments(250.50, 100.25, 45)]
-    [Arguments(1299.99, 450.50, 60)]
-    [Arguments(5000, 1250, 35)]
-    [Arguments(87.50, 12.25, 50)]
-    public async Task TechnicianCutAndShopProfit_AlwaysSumToJobProfit(double bill, double material, double commission)
+    [Arguments(1000, 200, 50)]
+    [Arguments(2500.50, 1000.25, 45)]
+    [Arguments(12999.99, 4500.50, 60)]
+    [Arguments(50000, 12500, 35)]
+    [Arguments(875.50, 120.25, 50)]
+    public async Task TechnicianCutAndShopProfit_AlwaysSumToDayProfit(double totalAmount, double totalCost, double commission)
     {
-        var input = new ServicingJobInput
+        var input = new MobileServicingEntryInput
         {
-            BillAmount = (decimal)bill,
-            MaterialCost = (decimal)material,
+            TotalAmount = (decimal)totalAmount,
+            TotalCost = (decimal)totalCost,
             CommissionRate = (decimal)commission
         };
 
         var sum = input.TechnicianCut + input.ShopProfit;
-        await sum.Should().BeEqualTo(input.JobProfit);
+        await sum.Should().BeEqualTo(input.Profit);
     }
 }

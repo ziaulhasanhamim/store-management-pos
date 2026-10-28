@@ -137,32 +137,29 @@ internal static class FinanceModelConfiguration
             entity.Property(t => t.Phone).HasMaxLength(30);
             entity.Property(t => t.DefaultCommissionRate).HasPrecision(5, 2);
         });
-        builder.Entity<ServicingJob>(entity =>
+        builder.Entity<MobileServicingEntry>(entity =>
         {
-            entity.HasIndex(job => job.Date);
-            entity.HasIndex(job => new { job.LocationId, job.Date });
-            entity.HasIndex(job => new { job.TechnicianId, job.Date });
-            entity.HasIndex(job => job.IsDeposited);
-            entity.Property(job => job.GadgetDescription).HasMaxLength(200);
-            entity.Property(job => job.CustomerName).HasMaxLength(100);
-            entity.Property(job => job.CustomerPhone).HasMaxLength(30);
-            entity.Property(job => job.Notes).HasMaxLength(500);
-            entity.Property(job => job.BillAmount).HasPrecision(18, 2);
-            entity.Property(job => job.MaterialCost).HasPrecision(18, 2);
-            entity.Property(job => job.CommissionRate).HasPrecision(5, 2);
-            entity.Property(job => job.TechnicianCut).HasPrecision(18, 2);
-            entity.Property(job => job.ShopProfit).HasPrecision(18, 2);
-            entity.HasOne(job => job.Technician)
-                .WithMany(t => t.ServicingJobs)
-                .HasForeignKey(job => job.TechnicianId)
+            entity.HasIndex(entry => entry.Date);
+            entity.HasIndex(entry => new { entry.LocationId, entry.Date });
+            entity.HasIndex(entry => new { entry.TechnicianId, entry.Date });
+            entity.HasIndex(entry => entry.IsDeposited);
+            entity.Property(entry => entry.Notes).HasMaxLength(500);
+            entity.Property(entry => entry.TotalAmount).HasPrecision(18, 2);
+            entity.Property(entry => entry.TotalCost).HasPrecision(18, 2);
+            entity.Property(entry => entry.CommissionRate).HasPrecision(5, 2);
+            entity.Property(entry => entry.TechnicianCut).HasPrecision(18, 2);
+            entity.Property(entry => entry.ShopProfit).HasPrecision(18, 2);
+            entity.HasOne(entry => entry.Technician)
+                .WithMany(t => t.ServicingEntries)
+                .HasForeignKey(entry => entry.TechnicianId)
                 .OnDelete(DeleteBehavior.Restrict);
-            entity.HasOne(job => job.Location)
+            entity.HasOne(entry => entry.Location)
                 .WithMany()
-                .HasForeignKey(job => job.LocationId)
+                .HasForeignKey(entry => entry.LocationId)
                 .OnDelete(DeleteBehavior.Restrict);
-            entity.HasOne(job => job.CashMovement)
+            entity.HasOne(entry => entry.CashMovement)
                 .WithMany()
-                .HasForeignKey(job => job.CashMovementId)
+                .HasForeignKey(entry => entry.CashMovementId)
                 .OnDelete(DeleteBehavior.SetNull);
         });
     }

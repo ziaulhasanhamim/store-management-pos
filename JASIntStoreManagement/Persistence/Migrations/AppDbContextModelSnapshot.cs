@@ -1529,6 +1529,83 @@ namespace JASIntStoreManagement.Persistence.Migrations
                     b.ToTable("LenderBalances");
                 });
 
+            modelBuilder.Entity("JASIntStoreManagement.Persistence.Entities.MobileServicingEntry", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int?>("CashMovementId")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("CommissionRate")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("CreatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date");
+
+                    b.Property<DateTimeOffset?>("DepositedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsDeposited")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("LocationId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<decimal>("ShopProfit")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal>("TechnicianCut")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<int>("TechnicianId")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("TotalAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal>("TotalCost")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("UpdatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CashMovementId");
+
+                    b.HasIndex("Date");
+
+                    b.HasIndex("IsDeposited");
+
+                    b.HasIndex("LocationId", "Date");
+
+                    b.HasIndex("TechnicianId", "Date");
+
+                    b.ToTable("MobileServicingEntries");
+                });
+
             modelBuilder.Entity("JASIntStoreManagement.Persistence.Entities.MonthlySalary", b =>
                 {
                     b.Property<int>("Id")
@@ -2371,96 +2448,6 @@ namespace JASIntStoreManagement.Persistence.Migrations
                     b.HasIndex("SaleId");
 
                     b.ToTable("SaleItems");
-                });
-
-            modelBuilder.Entity("JASIntStoreManagement.Persistence.Entities.ServicingJob", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<decimal>("BillAmount")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<int?>("CashMovementId")
-                        .HasColumnType("integer");
-
-                    b.Property<decimal>("CommissionRate")
-                        .HasPrecision(5, 2)
-                        .HasColumnType("numeric(5,2)");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("CreatedByUserId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("CustomerName")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<string>("CustomerPhone")
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)");
-
-                    b.Property<DateOnly>("Date")
-                        .HasColumnType("date");
-
-                    b.Property<DateTimeOffset?>("DepositedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("GadgetDescription")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
-                    b.Property<bool>("IsDeposited")
-                        .HasColumnType("boolean");
-
-                    b.Property<int>("LocationId")
-                        .HasColumnType("integer");
-
-                    b.Property<decimal>("MaterialCost")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<string>("Notes")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<decimal>("ShopProfit")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<decimal>("TechnicianCut")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<int>("TechnicianId")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTimeOffset?>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("UpdatedByUserId")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CashMovementId");
-
-                    b.HasIndex("Date");
-
-                    b.HasIndex("IsDeposited");
-
-                    b.HasIndex("LocationId", "Date");
-
-                    b.HasIndex("TechnicianId", "Date");
-
-                    b.ToTable("ServicingJobs");
                 });
 
             modelBuilder.Entity("JASIntStoreManagement.Persistence.Entities.StaffAccount", b =>
@@ -3698,6 +3685,32 @@ namespace JASIntStoreManagement.Persistence.Migrations
                     b.Navigation("Lender");
                 });
 
+            modelBuilder.Entity("JASIntStoreManagement.Persistence.Entities.MobileServicingEntry", b =>
+                {
+                    b.HasOne("JASIntStoreManagement.Persistence.Entities.CashMovement", "CashMovement")
+                        .WithMany()
+                        .HasForeignKey("CashMovementId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("JASIntStoreManagement.Persistence.Entities.StockLocation", "Location")
+                        .WithMany()
+                        .HasForeignKey("LocationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("JASIntStoreManagement.Persistence.Entities.Technician", "Technician")
+                        .WithMany("ServicingEntries")
+                        .HasForeignKey("TechnicianId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("CashMovement");
+
+                    b.Navigation("Location");
+
+                    b.Navigation("Technician");
+                });
+
             modelBuilder.Entity("JASIntStoreManagement.Persistence.Entities.MonthlySalary", b =>
                 {
                     b.HasOne("JASIntStoreManagement.Persistence.Entities.Employee", "Employee")
@@ -3903,32 +3916,6 @@ namespace JASIntStoreManagement.Persistence.Migrations
                     b.Navigation("Product");
 
                     b.Navigation("Sale");
-                });
-
-            modelBuilder.Entity("JASIntStoreManagement.Persistence.Entities.ServicingJob", b =>
-                {
-                    b.HasOne("JASIntStoreManagement.Persistence.Entities.CashMovement", "CashMovement")
-                        .WithMany()
-                        .HasForeignKey("CashMovementId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("JASIntStoreManagement.Persistence.Entities.StockLocation", "Location")
-                        .WithMany()
-                        .HasForeignKey("LocationId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("JASIntStoreManagement.Persistence.Entities.Technician", "Technician")
-                        .WithMany("ServicingJobs")
-                        .HasForeignKey("TechnicianId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("CashMovement");
-
-                    b.Navigation("Location");
-
-                    b.Navigation("Technician");
                 });
 
             modelBuilder.Entity("JASIntStoreManagement.Persistence.Entities.StaffAccount", b =>
@@ -4269,7 +4256,7 @@ namespace JASIntStoreManagement.Persistence.Migrations
 
             modelBuilder.Entity("JASIntStoreManagement.Persistence.Entities.Technician", b =>
                 {
-                    b.Navigation("ServicingJobs");
+                    b.Navigation("ServicingEntries");
                 });
 #pragma warning restore 612, 618
         }

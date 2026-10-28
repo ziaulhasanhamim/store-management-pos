@@ -8,7 +8,7 @@ public record TechnicianDto(
     string? Phone,
     decimal DefaultCommissionRate,
     bool IsArchived,
-    int TotalJobs = 0,
+    int TotalDays = 0,
     decimal TotalProfit = 0m,
     decimal TotalTechnicianCut = 0m);
 
@@ -29,20 +29,17 @@ public class TechnicianInput
     public bool IsArchived { get; set; }
 }
 
-public record ServicingJobDto(
+public record MobileServicingEntryDto(
     int Id,
     DateOnly Date,
     int LocationId,
     string LocationName,
     int TechnicianId,
     string TechnicianName,
-    string GadgetDescription,
-    string? CustomerName,
-    string? CustomerPhone,
-    decimal BillAmount,
-    decimal MaterialCost,
+    decimal TotalAmount,
+    decimal TotalCost,
     decimal CommissionRate,
-    decimal JobProfit,
+    decimal Profit,
     decimal TechnicianCut,
     decimal ShopProfit,
     bool IsDeposited,
@@ -50,8 +47,10 @@ public record ServicingJobDto(
     DateTimeOffset CreatedAt,
     string? Notes);
 
-public class ServicingJobInput
+public class MobileServicingEntryInput
 {
+    public int? Id { get; set; }
+
     public DateOnly Date { get; set; }
 
     public int LocationId { get; set; }
@@ -59,21 +58,11 @@ public class ServicingJobInput
     [Range(1, int.MaxValue, ErrorMessage = "Please select a technician.")]
     public int TechnicianId { get; set; }
 
-    [Required(ErrorMessage = "Gadget / service details are required.")]
-    [StringLength(200, ErrorMessage = "Description cannot exceed 200 characters.")]
-    public string GadgetDescription { get; set; } = string.Empty;
+    [Range(0, 10000000, ErrorMessage = "Total servicing amount must be zero or positive.")]
+    public decimal TotalAmount { get; set; }
 
-    [StringLength(100, ErrorMessage = "Customer name cannot exceed 100 characters.")]
-    public string? CustomerName { get; set; }
-
-    [StringLength(30, ErrorMessage = "Customer phone cannot exceed 30 characters.")]
-    public string? CustomerPhone { get; set; }
-
-    [Range(0.01, 10000000, ErrorMessage = "Bill amount must be greater than zero.")]
-    public decimal BillAmount { get; set; }
-
-    [Range(0, 10000000, ErrorMessage = "Material cost cannot be negative.")]
-    public decimal MaterialCost { get; set; }
+    [Range(0, 10000000, ErrorMessage = "Total cost cannot be negative.")]
+    public decimal TotalCost { get; set; }
 
     [Range(0, 100, ErrorMessage = "Commission rate must be between 0% and 100%.")]
     public decimal CommissionRate { get; set; } = 50m;
@@ -81,29 +70,27 @@ public class ServicingJobInput
     [StringLength(500, ErrorMessage = "Notes cannot exceed 500 characters.")]
     public string? Notes { get; set; }
 
-    public decimal JobProfit => Math.Max(0, BillAmount - MaterialCost);
+    public decimal Profit => Math.Max(0m, TotalAmount - TotalCost);
 
-    public decimal TechnicianCut => Math.Round(JobProfit * (CommissionRate / 100m), 2, MidpointRounding.AwayFromZero);
+    public decimal TechnicianCut => Math.Round(Profit * (CommissionRate / 100m), 2, MidpointRounding.AwayFromZero);
 
-    public decimal ShopProfit => JobProfit - TechnicianCut;
+    public decimal ShopProfit => Profit - TechnicianCut;
 }
 
-public record ServicingSummaryDto(
-    int TotalJobs,
-    decimal TotalBilled,
-    decimal TotalMaterialCost,
+public record MobileServicingSummaryDto(
+    int TechnicianCount,
+    decimal TotalServicingAmount,
+    decimal TotalCost,
     decimal TotalProfit,
     decimal TotalTechnicianCut,
     decimal TotalShopProfit,
     decimal UndepositedShopProfit,
     decimal DepositedShopProfit);
 
-public record ServicingPageData(
+public record MobileServicingPageData(
     DateOnly Date,
     int? LocationId,
     IReadOnlyList<StockLocationOption> Locations,
     IReadOnlyList<TechnicianDto> Technicians,
-    IReadOnlyList<ServicingJobDto> Jobs,
-    ServicingSummaryDto Summary,
-    bool HasActiveDrawer,
-    decimal ActiveDrawerBalance);
+    IReadOnlyList<MobileServicingEntryDto> Entries,
+    MobileServicingSummaryDto Summary);

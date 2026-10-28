@@ -7,21 +7,18 @@ public sealed class Technician : SoftDeletableEntity
     public string? Phone { get; set; }
     public decimal DefaultCommissionRate { get; set; } = 50m;
     public bool IsArchived { get; set; }
-    public ICollection<ServicingJob> ServicingJobs { get; set; } = [];
+    public ICollection<MobileServicingEntry> ServicingEntries { get; set; } = [];
 }
 
-public sealed class ServicingJob : AuditableEntity
+public sealed class MobileServicingEntry : AuditableEntity
 {
     public DateOnly Date { get; set; }
     public int LocationId { get; set; }
     public StockLocation? Location { get; set; }
     public int TechnicianId { get; set; }
     public Technician? Technician { get; set; }
-    public required string GadgetDescription { get; set; }
-    public string? CustomerName { get; set; }
-    public string? CustomerPhone { get; set; }
-    public decimal BillAmount { get; set; }
-    public decimal MaterialCost { get; set; }
+    public decimal TotalAmount { get; set; }
+    public decimal TotalCost { get; set; }
     public decimal CommissionRate { get; set; } = 50m;
     public decimal TechnicianCut { get; set; }
     public decimal ShopProfit { get; set; }

@@ -117,7 +117,7 @@
                             <th>Technician</th>
                             <th>Phone</th>
                             <th class="text-center">Commission</th>
-                            <th class="text-right">Jobs</th>
+                            <th class="text-right">Days</th>
                             <th class="text-right">Total Profit</th>
                             <th class="text-right">Tech Cut (Paid)</th>
                             <th class="text-center">Status</th>
@@ -131,7 +131,7 @@
                                 <td class="font-medium text-slate-900">@tech.Name</td>
                                 <td class="text-slate-500">@(tech.Phone ?? "—")</td>
                                 <td class="text-center font-semibold text-blue-600">@tech.DefaultCommissionRate.ToString("0.##")%</td>
-                                <td class="text-right">@tech.TotalJobs</td>
+                                <td class="text-right">@tech.TotalDays</td>
                                 <td class="text-right font-medium">@Money(tech.TotalProfit)</td>
                                 <td class="text-right font-semibold text-emerald-600">@Money(tech.TotalTechnicianCut)</td>
                                 <td class="text-center">

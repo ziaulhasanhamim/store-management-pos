@@ -30,9 +30,9 @@ public sealed class ServicingService(IServiceScopeFactory scopes, IConfiguration
                 t.Phone,
                 t.DefaultCommissionRate,
                 t.IsArchived,
-                t.ServicingJobs.Count,
-                t.ServicingJobs.Sum(j => (decimal?)j.ShopProfit + j.TechnicianCut) ?? 0m,
-                t.ServicingJobs.Sum(j => (decimal?)j.TechnicianCut) ?? 0m))
+                t.ServicingEntries.Count,
+                t.ServicingEntries.Sum(j => (decimal?)j.ShopProfit + j.TechnicianCut) ?? 0m,
+                t.ServicingEntries.Sum(j => (decimal?)j.TechnicianCut) ?? 0m))
             .ToListAsync(ct);
     }
 
@@ -94,7 +94,7 @@ public sealed class ServicingService(IServiceScopeFactory scopes, IConfiguration
         return technician.Id;
     }
 
-    public async Task<ServicingPageData> GetServicingPageDataAsync(
+    public async Task<MobileServicingPageData> GetMobileServicingPageDataAsync(
         ClaimsPrincipal actor,
         DateOnly? date = null,
         int? locationId = null,
@@ -131,12 +131,12 @@ public sealed class ServicingService(IServiceScopeFactory scopes, IConfiguration
                 t.Phone,
                 t.DefaultCommissionRate,
                 t.IsArchived,
-                t.ServicingJobs.Count,
-                t.ServicingJobs.Sum(j => (decimal?)j.ShopProfit + j.TechnicianCut) ?? 0m,
-                t.ServicingJobs.Sum(j => (decimal?)j.TechnicianCut) ?? 0m))
+                t.ServicingEntries.Count,
+                t.ServicingEntries.Sum(j => (decimal?)j.ShopProfit + j.TechnicianCut) ?? 0m,
+                t.ServicingEntries.Sum(j => (decimal?)j.TechnicianCut) ?? 0m))
             .ToListAsync(ct);
 
-        var jobsQuery = db.ServicingJobs
+        var entriesQuery = db.MobileServicingEntries
             .AsNoTracking()
             .Include(j => j.Location)
             .Include(j => j.Technician)
@@ -144,25 +144,22 @@ public sealed class ServicingService(IServiceScopeFactory scopes, IConfiguration
 
         if (selectedLocationId.HasValue)
         {
-            jobsQuery = jobsQuery.Where(j => j.LocationId == selectedLocationId.Value);
+            entriesQuery = entriesQuery.Where(j => j.LocationId == selectedLocationId.Value);
         }
 
-        var jobs = await jobsQuery
+        var entries = await entriesQuery
             .OrderByDescending(j => j.CreatedAt)
-            .Select(j => new ServicingJobDto(
+            .Select(j => new MobileServicingEntryDto(
                 j.Id,
                 j.Date,
                 j.LocationId,
                 j.Location != null ? j.Location.Name : "Unknown",
                 j.TechnicianId,
                 j.Technician != null ? j.Technician.Name : "Unknown",
-                j.GadgetDescription,
-                j.CustomerName,
-                j.CustomerPhone,
-                j.BillAmount,
-                j.MaterialCost,
+                j.TotalAmount,
+                j.TotalCost,
                 j.CommissionRate,
-                j.BillAmount - j.MaterialCost,
+                j.TotalAmount - j.TotalCost,
                 j.TechnicianCut,
                 j.ShopProfit,
                 j.IsDeposited,
@@ -171,72 +168,48 @@ public sealed class ServicingService(IServiceScopeFactory scopes, IConfiguration
                 j.Notes))
             .ToListAsync(ct);
 
-        var totalJobs = jobs.Count;
-        var totalBilled = jobs.Sum(j => j.BillAmount);
-        var totalMaterial = jobs.Sum(j => j.MaterialCost);
-        var totalProfit = jobs.Sum(j => j.JobProfit);
-        var totalTechCut = jobs.Sum(j => j.TechnicianCut);
-        var totalShopProfit = jobs.Sum(j => j.ShopProfit);
-        var undeposited = jobs.Where(j => !j.IsDeposited).Sum(j => j.ShopProfit);
-        var deposited = jobs.Where(j => j.IsDeposited).Sum(j => j.ShopProfit);
+        var totalAmount = entries.Sum(e => e.TotalAmount);
+        var totalCost = entries.Sum(e => e.TotalCost);
+        var totalProfit = entries.Sum(e => e.Profit);
+        var totalTechCut = entries.Sum(e => e.TechnicianCut);
+        var totalShopProfit = entries.Sum(e => e.ShopProfit);
+        var undepositedShopProfit = entries.Where(e => !e.IsDeposited).Sum(e => e.ShopProfit);
+        var depositedShopProfit = entries.Where(e => e.IsDeposited).Sum(e => e.ShopProfit);
 
-        var summary = new ServicingSummaryDto(
-            totalJobs,
-            totalBilled,
-            totalMaterial,
-            totalProfit,
-            totalTechCut,
-            totalShopProfit,
-            undeposited,
-            deposited);
+        var summary = new MobileServicingSummaryDto(
+            TechnicianCount: entries.Select(e => e.TechnicianId).Distinct().Count(),
+            TotalServicingAmount: totalAmount,
+            TotalCost: totalCost,
+            TotalProfit: totalProfit,
+            TotalTechnicianCut: totalTechCut,
+            TotalShopProfit: totalShopProfit,
+            UndepositedShopProfit: undepositedShopProfit,
+            DepositedShopProfit: depositedShopProfit);
 
-        var hasActiveDrawer = false;
-        var drawerBalance = 0m;
-
-        if (selectedLocationId.HasValue)
-        {
-            var drawer = await db.CashDrawers
-                .Include(d => d.CurrentSession)
-                .FirstOrDefaultAsync(d => d.StockLocationId == selectedLocationId.Value, ct);
-
-            if (drawer?.CurrentSession is { ClosedAt: null } session)
-            {
-                hasActiveDrawer = true;
-                drawerBalance = drawer.CurrentCash;
-            }
-        }
-
-        return new ServicingPageData(
-            activeDate,
-            selectedLocationId,
-            locations,
-            technicians,
-            jobs,
-            summary,
-            hasActiveDrawer,
-            drawerBalance);
+        return new MobileServicingPageData(
+            Date: activeDate,
+            LocationId: selectedLocationId,
+            Locations: locations,
+            Technicians: technicians,
+            Entries: entries,
+            Summary: summary);
     }
 
-    public async Task<int> CreateServicingJobAsync(ClaimsPrincipal actor, ServicingJobInput input, CancellationToken ct = default)
+    public async Task<int> SaveMobileServicingEntryAsync(ClaimsPrincipal actor, MobileServicingEntryInput input, CancellationToken ct = default)
     {
-        if (input.BillAmount <= 0)
+        if (input.TotalAmount < 0)
         {
-            throw new ValidationException("Customer bill amount must be greater than zero.");
+            throw new ValidationException("Total servicing amount cannot be negative.");
         }
 
-        if (input.MaterialCost < 0)
+        if (input.TotalCost < 0)
         {
-            throw new ValidationException("Material cost cannot be negative.");
+            throw new ValidationException("Total cost cannot be negative.");
         }
 
-        if (input.MaterialCost > input.BillAmount)
+        if (input.TotalCost > input.TotalAmount)
         {
-            throw new ValidationException("Material cost cannot exceed the customer bill amount.");
-        }
-
-        if (string.IsNullOrWhiteSpace(input.GadgetDescription))
-        {
-            throw new ValidationException("Gadget / service description is required.");
+            throw new ValidationException("Total material/parts cost cannot exceed total servicing amount.");
         }
 
         if (input.CommissionRate < 0 || input.CommissionRate > 100)
@@ -249,61 +222,110 @@ public sealed class ServicingService(IServiceScopeFactory scopes, IConfiguration
         var actorId = await StoreAccess.RequireAsync(db, actor, AppPolicies.MakeSales, ct);
 
         var technician = await db.Technicians.FirstOrDefaultAsync(t => t.Id == input.TechnicianId && !t.IsDeleted, ct)
-            ?? throw new ValidationException("Selected technician was not found.");
-
-        var location = await db.StockLocations.FirstOrDefaultAsync(l => l.Id == input.LocationId && l.CanSell && !l.IsDeleted, ct)
-            ?? throw new ValidationException("Selected store location was not found or cannot sell.");
+            ?? throw new ValidationException("Selected technician does not exist.");
 
         var activeDate = input.Date != default ? input.Date : await AccountingCalendar.SelectedAsync(db, actorId, configuration, ct);
+        var locationId = input.LocationId;
+        if (locationId == 0)
+        {
+            var userLocation = await db.Users
+                .Where(u => u.Id == actorId)
+                .Select(u => u.CashLocationId)
+                .SingleOrDefaultAsync(ct);
+            locationId = userLocation ?? (await db.StockLocations.Where(l => l.CanSell && !l.IsDeleted).Select(l => l.Id).FirstOrDefaultAsync(ct));
+        }
 
-        var profit = input.BillAmount - input.MaterialCost;
+        var profit = Math.Max(0m, input.TotalAmount - input.TotalCost);
         var techCut = Math.Round(profit * (input.CommissionRate / 100m), 2, MidpointRounding.AwayFromZero);
         var shopProfit = profit - techCut;
 
-        var job = new ServicingJob
+        MobileServicingEntry entry;
+        if (input.Id is { } id and > 0)
         {
-            Date = activeDate,
-            LocationId = location.Id,
-            TechnicianId = technician.Id,
-            GadgetDescription = input.GadgetDescription.Trim(),
-            CustomerName = string.IsNullOrWhiteSpace(input.CustomerName) ? null : input.CustomerName.Trim(),
-            CustomerPhone = string.IsNullOrWhiteSpace(input.CustomerPhone) ? null : input.CustomerPhone.Trim(),
-            BillAmount = input.BillAmount,
-            MaterialCost = input.MaterialCost,
-            CommissionRate = input.CommissionRate,
-            TechnicianCut = techCut,
-            ShopProfit = shopProfit,
-            IsDeposited = false,
-            Notes = string.IsNullOrWhiteSpace(input.Notes) ? null : input.Notes.Trim(),
-            CreatedAt = DateTimeOffset.UtcNow,
-            CreatedByUserId = actorId
-        };
+            entry = await db.MobileServicingEntries.FirstOrDefaultAsync(e => e.Id == id, ct)
+                ?? throw new ValidationException("Servicing entry not found.");
 
-        db.ServicingJobs.Add(job);
+            if (entry.IsDeposited)
+            {
+                throw new ValidationException("This servicing entry has already been deposited into the cash drawer and cannot be modified.");
+            }
+
+            entry.TotalAmount = input.TotalAmount;
+            entry.TotalCost = input.TotalCost;
+            entry.CommissionRate = input.CommissionRate;
+            entry.TechnicianCut = techCut;
+            entry.ShopProfit = shopProfit;
+            entry.Notes = string.IsNullOrWhiteSpace(input.Notes) ? null : input.Notes.Trim();
+            entry.UpdatedAt = DateTimeOffset.UtcNow;
+            entry.UpdatedByUserId = actorId;
+        }
+        else
+        {
+            // Check if an undeposited entry for the same (date, location, technician) already exists
+            var existing = await db.MobileServicingEntries
+                .FirstOrDefaultAsync(e => e.Date == activeDate && e.LocationId == locationId && e.TechnicianId == input.TechnicianId, ct);
+
+            if (existing != null)
+            {
+                if (existing.IsDeposited)
+                {
+                    throw new ValidationException("A servicing entry for this technician today has already been deposited into the cash drawer.");
+                }
+
+                // Update existing record
+                existing.TotalAmount = input.TotalAmount;
+                existing.TotalCost = input.TotalCost;
+                existing.CommissionRate = input.CommissionRate;
+                existing.TechnicianCut = techCut;
+                existing.ShopProfit = shopProfit;
+                existing.Notes = string.IsNullOrWhiteSpace(input.Notes) ? null : input.Notes.Trim();
+                existing.UpdatedAt = DateTimeOffset.UtcNow;
+                existing.UpdatedByUserId = actorId;
+                entry = existing;
+            }
+            else
+            {
+                entry = new MobileServicingEntry
+                {
+                    Date = activeDate,
+                    LocationId = locationId,
+                    TechnicianId = input.TechnicianId,
+                    TotalAmount = input.TotalAmount,
+                    TotalCost = input.TotalCost,
+                    CommissionRate = input.CommissionRate,
+                    TechnicianCut = techCut,
+                    ShopProfit = shopProfit,
+                    Notes = string.IsNullOrWhiteSpace(input.Notes) ? null : input.Notes.Trim(),
+                    CreatedAt = DateTimeOffset.UtcNow,
+                    CreatedByUserId = actorId
+                };
+                db.MobileServicingEntries.Add(entry);
+            }
+        }
+
         await db.SaveChangesAsync(ct);
-
-        return job.Id;
+        return entry.Id;
     }
 
-    public async Task DeleteServicingJobAsync(ClaimsPrincipal actor, int jobId, CancellationToken ct = default)
+    public async Task DeleteMobileServicingEntryAsync(ClaimsPrincipal actor, int entryId, CancellationToken ct = default)
     {
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var actorId = await StoreAccess.RequireAsync(db, actor, AppPolicies.MakeSales, ct);
 
-        var job = await db.ServicingJobs.FirstOrDefaultAsync(j => j.Id == jobId, ct)
-            ?? throw new ValidationException("Servicing job was not found.");
+        var entry = await db.MobileServicingEntries.FirstOrDefaultAsync(e => e.Id == entryId, ct)
+            ?? throw new ValidationException("Servicing entry not found.");
 
-        if (job.IsDeposited)
+        if (entry.IsDeposited)
         {
-            throw new ValidationException("This job's profit has already been deposited into the cash drawer. Cannot delete deposited jobs.");
+            throw new ValidationException("Cannot delete a servicing entry that has already been deposited into the cash drawer.");
         }
 
-        db.ServicingJobs.Remove(job);
+        db.MobileServicingEntries.Remove(entry);
         await db.SaveChangesAsync(ct);
     }
 
-    public async Task<(decimal DepositedAmount, int JobsCount)> DepositServicingProfitAsync(
+    public async Task<(decimal DepositedAmount, int EntriesCount)> DepositServicingProfitAsync(
         ClaimsPrincipal actor,
         DateOnly date,
         int locationId,
@@ -313,31 +335,29 @@ public sealed class ServicingService(IServiceScopeFactory scopes, IConfiguration
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var actorId = await StoreAccess.RequireAsync(db, actor, AppPolicies.MakeSales, ct);
 
-        var undepositedJobs = await db.ServicingJobs
-            .Where(j => j.Date == date && j.LocationId == locationId && !j.IsDeposited)
+        var undepositedEntries = await db.MobileServicingEntries
+            .Where(e => e.Date == date && e.LocationId == locationId && !e.IsDeposited)
             .ToListAsync(ct);
 
-        if (undepositedJobs.Count == 0)
+        if (undepositedEntries.Count == 0)
         {
             throw new ValidationException("No undeposited servicing profit found for this date and location.");
         }
 
-        var totalShopProfit = undepositedJobs.Sum(j => j.ShopProfit);
+        var totalShopProfit = undepositedEntries.Sum(e => e.ShopProfit);
         if (totalShopProfit <= 0)
         {
-            // If total profit is zero (e.g. at cost), mark them as deposited without cash movement
-            foreach (var job in undepositedJobs)
+            foreach (var entry in undepositedEntries)
             {
-                job.IsDeposited = true;
-                job.DepositedAt = DateTimeOffset.UtcNow;
-                job.UpdatedByUserId = actorId;
-                job.UpdatedAt = DateTimeOffset.UtcNow;
+                entry.IsDeposited = true;
+                entry.DepositedAt = DateTimeOffset.UtcNow;
+                entry.UpdatedByUserId = actorId;
+                entry.UpdatedAt = DateTimeOffset.UtcNow;
             }
             await db.SaveChangesAsync(ct);
-            return (0m, undepositedJobs.Count);
+            return (0m, undepositedEntries.Count);
         }
 
-        // Require active open cash drawer session for the location
         var session = await CashDrawerService.RequireOpenAsync(db, actorId, ct, locationId);
 
         var movement = new CashMovement
@@ -347,24 +367,24 @@ public sealed class ServicingService(IServiceScopeFactory scopes, IConfiguration
             BusinessDate = date,
             Kind = CashMovementKind.ServicingProfit,
             Amount = totalShopProfit,
-            Notes = $"Servicing profit deposit for {date:yyyy-MM-dd} ({undepositedJobs.Count} jobs)",
+            Notes = $"Mobile servicing profit deposit for {date:yyyy-MM-dd} ({undepositedEntries.Count} technicians)",
             CreatedAt = DateTimeOffset.UtcNow,
             CreatedByUserId = actorId
         };
 
         CashDrawerService.Append(db, session, movement);
 
-        foreach (var job in undepositedJobs)
+        foreach (var entry in undepositedEntries)
         {
-            job.IsDeposited = true;
-            job.DepositedAt = DateTimeOffset.UtcNow;
-            job.CashMovement = movement;
-            job.UpdatedByUserId = actorId;
-            job.UpdatedAt = DateTimeOffset.UtcNow;
+            entry.IsDeposited = true;
+            entry.DepositedAt = DateTimeOffset.UtcNow;
+            entry.CashMovement = movement;
+            entry.UpdatedByUserId = actorId;
+            entry.UpdatedAt = DateTimeOffset.UtcNow;
         }
 
         await db.SaveChangesAsync(ct);
-        return (totalShopProfit, undepositedJobs.Count);
+        return (totalShopProfit, undepositedEntries.Count);
     }
 
     public async Task<decimal> GetUndepositedServicingProfitAsync(DateOnly date, int locationId, CancellationToken ct = default)
@@ -372,8 +392,8 @@ public sealed class ServicingService(IServiceScopeFactory scopes, IConfiguration
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-        return await db.ServicingJobs
-            .Where(j => j.Date == date && j.LocationId == locationId && !j.IsDeposited)
-            .SumAsync(j => (decimal?)j.ShopProfit, ct) ?? 0m;
+        return await db.MobileServicingEntries
+            .Where(e => e.Date == date && e.LocationId == locationId && !e.IsDeposited)
+            .SumAsync(e => (decimal?)e.ShopProfit, ct) ?? 0m;
     }
 }
