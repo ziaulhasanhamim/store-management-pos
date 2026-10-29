@@ -142,9 +142,9 @@ else
 
     <div class="grid gap-6 lg:grid-cols-12 items-start">
         <!-- Daily Technician Servicing Entry Form -->
-        <section class="panel p-6 lg:col-span-5">
+        <section id="servicing-form-section" class="panel p-6 lg:col-span-5">
             <div class="mb-4">
-                <h2 class="font-semibold text-slate-900">
+                <h2 id="entry-form-title" class="font-semibold text-slate-900">
                     @(EntryForm?.Id is { } and > 0 ? "Edit daily servicing" : "Record technician daily totals")
                 </h2>
                 <p class="text-xs text-slate-500 mt-0.5">
@@ -163,18 +163,20 @@ else
             {
                 <form method="post" @formname="servicing-entry-form" @onsubmit="SaveEntryAsync" data-enhance data-submit-indication="true">
                     <AntiforgeryToken />
-                    <input type="hidden" name="EntryForm.Id" value="@EntryForm?.Id" />
+                    <input type="hidden" id="entry-id" name="EntryForm.Id" value="@EntryForm?.Id" />
                     <input type="hidden" name="EntryForm.Date" value="@PageData.Date.ToString("yyyy-MM-dd")" />
                     <input type="hidden" name="EntryForm.LocationId" value="@(PageData.LocationId ?? 0)" />
 
                     <div class="space-y-4">
                         <div>
                             <label class="field-label" for="entry-tech">Technician</label>
-                            <select id="entry-tech" name="EntryForm.TechnicianId" class="field font-medium" value="@EntryForm?.TechnicianId" @onchange="OnTechnicianSelected" required>
+                            <select id="entry-tech" name="EntryForm.TechnicianId" class="field font-medium" value="@EntryForm?.TechnicianId" required>
                                 <option value="">Select technician</option>
                                 @foreach (var tech in PageData.Technicians)
                                 {
-                                    <option value="@tech.Id">@tech.Name (@tech.DefaultCommissionRate.ToString("0.##")% default)</option>
+                                    <option value="@tech.Id" data-commission="@tech.DefaultCommissionRate.ToString("0.##", CultureInfo.InvariantCulture)">
+                                        @tech.Name (@tech.DefaultCommissionRate.ToString("0.##")% default)
+                                    </option>
                                 }
                             </select>
                         </div>
@@ -208,30 +210,30 @@ else
                             <input id="entry-notes" name="EntryForm.Notes" class="field" value="@EntryForm?.Notes" maxlength="500" placeholder="Optional notes" />
                         </div>
 
-                        <!-- Live Calculation Card -->
+                        <!-- Live Calculation Card (Updates on every keystroke) -->
                         <div class="rounded-xl border border-slate-200 bg-slate-50/80 p-4 text-xs space-y-2">
                             <div class="flex justify-between text-slate-600">
                                 <span>Day's Profit (Servicing − Parts Cost):</span>
-                                <strong class="text-slate-900 font-semibold text-sm">@Money(EntryForm?.Profit ?? 0m)</strong>
+                                <strong id="calc-profit" class="text-slate-900 font-semibold text-sm">@Money(EntryForm?.Profit ?? 0m)</strong>
                             </div>
                             <div class="flex justify-between text-indigo-700">
-                                <span>Technician Cut (@((EntryForm?.CommissionRate ?? 50m).ToString("0.##"))% taken upfront):</span>
-                                <strong class="font-bold text-sm">@Money(EntryForm?.TechnicianCut ?? 0m)</strong>
+                                <span id="calc-comm-label">Technician Cut (@((EntryForm?.CommissionRate ?? 50m).ToString("0.##"))% taken upfront):</span>
+                                <strong id="calc-tech-cut" class="font-bold text-sm">@Money(EntryForm?.TechnicianCut ?? 0m)</strong>
                             </div>
                             <div class="flex justify-between border-t border-slate-200 pt-2 text-emerald-800 font-medium">
                                 <span>Shop Profit (to Cash Drawer):</span>
-                                <strong class="font-black text-sm text-emerald-700">@Money(EntryForm?.ShopProfit ?? 0m)</strong>
+                                <strong id="calc-shop-profit" class="font-black text-sm text-emerald-700">@Money(EntryForm?.ShopProfit ?? 0m)</strong>
                             </div>
+                            <p id="calc-warning" class="hidden text-xs font-semibold text-amber-800 bg-amber-100 p-2 rounded-lg"></p>
                         </div>
 
                         <div class="flex items-center gap-2 pt-2">
-                            <button type="submit" class="btn-primary flex-1 py-2.5 font-semibold" data-pending-text="Saving…">
+                            <button id="entry-submit-btn" type="submit" class="btn-primary flex-1 py-2.5 font-semibold" data-pending-text="Saving…">
                                 @(EntryForm?.Id is { } and > 0 ? "Update daily servicing" : "Save daily servicing")
                             </button>
-                            @if (EntryForm?.Id is { } and > 0)
-                            {
-                                <button type="button" class="btn-secondary py-2.5" @onclick="CancelEdit">Cancel</button>
-                            }
+                            <button id="entry-cancel-btn" type="button" class="btn-secondary py-2.5 @(EntryForm?.Id is { } and > 0 ? "" : "hidden")" onclick="window.cancelServicingEdit()">
+                                Cancel
+                            </button>
                         </div>
                     </div>
                 </form>
@@ -306,7 +308,7 @@ else
                                         @if (!entry.IsDeposited)
                                         {
                                             <div class="flex items-center justify-end gap-1.5">
-                                                <button type="button" class="btn-secondary py-1 px-2 text-xs" @onclick="() => EditEntry(entry)" title="Edit entry">
+                                                <button type="button" class="btn-secondary py-1 px-2 text-xs" onclick="window.editServicingEntry(@entry.Id, @entry.TechnicianId, @entry.TotalAmount.ToString(CultureInfo.InvariantCulture), @entry.TotalCost.ToString(CultureInfo.InvariantCulture), @entry.CommissionRate.ToString(CultureInfo.InvariantCulture), '@(entry.Notes?.Replace("'", "\\'"))', '@(entry.TechnicianName.Replace("'", "\\'"))')" title="Edit entry">
                                                     Edit
                                                 </button>
                                                 <form method="post" @formname="@($"delete-entry-{entry.Id}")" @onsubmit="() => DeleteEntryAsync(entry.Id)" class="inline" data-enhance>
@@ -337,6 +339,20 @@ else
             }
         </section>
     </div>
+
+    <!-- Currency & Daily entries state for real-time client-side calculation -->
+    <script>
+        window.__STORE_CURRENCY__ = '@(Configuration["CurrencyCode"] ?? "BDT")';
+        window.__TODAY_SERVICING_ENTRIES__ = {
+            @foreach (var entry in PageData.Entries)
+            {
+                @:@entry.TechnicianId: { id: @entry.Id, technicianId: @entry.TechnicianId, technicianName: '@(entry.TechnicianName.Replace("'", "\\'"))', totalAmount: @entry.TotalAmount.ToString(CultureInfo.InvariantCulture), totalCost: @entry.TotalCost.ToString(CultureInfo.InvariantCulture), commissionRate: @entry.CommissionRate.ToString(CultureInfo.InvariantCulture), isDeposited: @(entry.IsDeposited ? "true" : "false"), notes: '@(entry.Notes?.Replace("'", "\\'"))' },
+            }
+        };
+        if (typeof window.updateServicingCalculations === 'function') {
+            window.updateServicingCalculations();
+        }
+    </script>
 }
 
 @code {
@@ -395,58 +411,6 @@ else
         }
     }
 
-    private void OnTechnicianSelected(ChangeEventArgs e)
-    {
-        if (int.TryParse(e.Value?.ToString(), out var techId) && EntryForm != null)
-        {
-            EntryForm.TechnicianId = techId;
-            SelectedTechnician = PageData?.Technicians.FirstOrDefault(t => t.Id == techId);
-            if (SelectedTechnician != null)
-            {
-                EntryForm.CommissionRate = SelectedTechnician.DefaultCommissionRate;
-            }
-
-            // If an undeposited entry for this technician already exists today, auto-load their numbers
-            var existing = PageData?.Entries.FirstOrDefault(entry => entry.TechnicianId == techId && !entry.IsDeposited);
-            if (existing != null)
-            {
-                EntryForm.Id = existing.Id;
-                EntryForm.TotalAmount = existing.TotalAmount;
-                EntryForm.TotalCost = existing.TotalCost;
-                EntryForm.CommissionRate = existing.CommissionRate;
-                EntryForm.Notes = existing.Notes;
-            }
-            else
-            {
-                EntryForm.Id = null;
-                EntryForm.TotalAmount = 0m;
-                EntryForm.TotalCost = 0m;
-                EntryForm.Notes = null;
-            }
-        }
-    }
-
-    private void EditEntry(MobileServicingEntryDto entry)
-    {
-        if (EntryForm == null) return;
-        EntryForm.Id = entry.Id;
-        EntryForm.TechnicianId = entry.TechnicianId;
-        EntryForm.TotalAmount = entry.TotalAmount;
-        EntryForm.TotalCost = entry.TotalCost;
-        EntryForm.CommissionRate = entry.CommissionRate;
-        EntryForm.Notes = entry.Notes;
-        SelectedTechnician = PageData?.Technicians.FirstOrDefault(t => t.Id == entry.TechnicianId);
-    }
-
-    private void CancelEdit()
-    {
-        if (EntryForm == null) return;
-        EntryForm.Id = null;
-        EntryForm.TotalAmount = 0m;
-        EntryForm.TotalCost = 0m;
-        EntryForm.Notes = null;
-    }
-
     private async Task SaveEntryAsync()
     {
         Error = null;
@@ -456,17 +420,23 @@ else
             if (EntryForm == null || PageData == null) return;
             EntryForm.Date = PageData.Date;
             EntryForm.LocationId = PageData.LocationId ?? 0;
+            var isUpdate = EntryForm.Id is { } and > 0;
             var entryId = await Servicing.SaveMobileServicingEntryAsync(HttpContext.User, EntryForm, HttpContext.RequestAborted);
-            SuccessMessage = EntryForm.Id is { } and > 0 ? "Daily servicing totals updated." : "Daily servicing totals recorded.";
 
-            var currentTechId = EntryForm.TechnicianId;
-            var currentComm = EntryForm.CommissionRate;
+            var tech = PageData.Technicians.FirstOrDefault(t => t.Id == EntryForm.TechnicianId);
+            var profit = EntryForm.Profit;
+            var techCut = EntryForm.TechnicianCut;
+            var shopProfit = EntryForm.ShopProfit;
+
+            SuccessMessage = isUpdate
+                ? $"Updated daily servicing for {tech?.Name ?? "Technician"}: Profit {Money(profit)} (Technician cut: {Money(techCut)}, Shop profit: {Money(shopProfit)})."
+                : $"Recorded daily servicing for {tech?.Name ?? "Technician"}: Profit {Money(profit)} (Technician cut: {Money(techCut)}, Shop profit: {Money(shopProfit)}). Staged for drawer deposit.";
+
             EntryForm = new MobileServicingEntryInput
             {
-                TechnicianId = currentTechId,
-                CommissionRate = currentComm,
                 LocationId = PageData.LocationId ?? 0,
-                Date = PageData.Date
+                Date = PageData.Date,
+                CommissionRate = 50m
             };
 
             await LoadDataAsync(PageData.Date, PageData.LocationId);
