@@ -8,6 +8,8 @@ public record TechnicianDto(
     string? Phone,
     decimal DefaultCommissionRate,
     bool IsArchived,
+    int LocationId = 0,
+    string LocationName = "",
     int TotalDays = 0,
     decimal TotalProfit = 0m,
     decimal TotalTechnicianCut = 0m);
@@ -22,6 +24,9 @@ public class TechnicianInput
 
     [StringLength(30, ErrorMessage = "Phone cannot exceed 30 characters.")]
     public string? Phone { get; set; }
+
+    [Range(1, int.MaxValue, ErrorMessage = "Please select a store location.")]
+    public int LocationId { get; set; }
 
     [Range(0, 100, ErrorMessage = "Commission must be between 0% and 100%.")]
     public decimal DefaultCommissionRate { get; set; } = 50m;
@@ -94,3 +99,27 @@ public record MobileServicingPageData(
     IReadOnlyList<TechnicianDto> Technicians,
     IReadOnlyList<MobileServicingEntryDto> Entries,
     MobileServicingSummaryDto Summary);
+
+public record ServicingReportTechnicianRow(
+    int TechnicianId,
+    string TechnicianName,
+    string LocationName,
+    decimal CommissionRate,
+    int DaysWorked,
+    decimal TotalServicing,
+    decimal TotalCost,
+    decimal TotalProfit,
+    decimal TechnicianCut,
+    decimal ShopProfit);
+
+public record ServicingReportData(
+    DateOnly StartDate,
+    DateOnly EndDate,
+    int? LocationId,
+    int? TechnicianId,
+    string? Search,
+    MobileServicingSummaryDto Summary,
+    IReadOnlyList<StockLocationOption> Locations,
+    IReadOnlyList<TechnicianDto> Technicians,
+    IReadOnlyList<ServicingReportTechnicianRow> TechnicianSummaries,
+    IReadOnlyList<MobileServicingEntryDto> Entries);

@@ -53,6 +53,18 @@
                 </div>
 
                 <div>
+                    <label class="field-label" for="tech-location">Store location</label>
+                    <select id="tech-location" name="Form.LocationId" class="field font-medium" value="@Form?.LocationId" required>
+                        <option value="">Select store location</option>
+                        @foreach (var loc in Locations)
+                        {
+                            <option value="@loc.Id">@loc.Name</option>
+                        }
+                    </select>
+                    <p class="mt-1 text-[11px] text-slate-400">Servicing profits will count toward and deposit into this store location's cash drawer.</p>
+                </div>
+
+                <div>
                     <label class="field-label" for="tech-phone">Phone number</label>
                     <input id="tech-phone" name="Form.Phone" class="field" value="@Form?.Phone" maxlength="30" placeholder="e.g. 01711-000000" />
                 </div>
@@ -128,7 +140,10 @@
                         @foreach (var tech in TechnicianList)
                         {
                             <tr class="@(tech.IsArchived ? "opacity-60 bg-slate-50/50" : "")">
-                                <td class="font-medium text-slate-900">@tech.Name</td>
+                                <td class="font-medium text-slate-900">
+                                    @tech.Name
+                                    <span class="block text-[11px] text-slate-500 font-normal">@tech.LocationName</span>
+                                </td>
                                 <td class="text-slate-500">@(tech.Phone ?? "—")</td>
                                 <td class="text-center font-semibold text-blue-600">@tech.DefaultCommissionRate.ToString("0.##")%</td>
                                 <td class="text-right">@tech.TotalDays</td>
@@ -169,6 +184,7 @@
     public int? EditId { get; set; }
 
     private IReadOnlyList<TechnicianDto>? TechnicianList;
+    private IReadOnlyList<StockLocationOption> Locations = [];
     private string? Error;
     private string? SuccessMessage;
 
@@ -179,7 +195,13 @@
 
     protected override async Task OnInitializedAsync()
     {
+        Locations = await Servicing.GetLocationsAsync(HttpContext.RequestAborted);
         await LoadTechniciansAsync();
+
+        if (Form != null && Form.LocationId == 0 && Locations.Count > 0)
+        {
+            Form.LocationId = Locations[0].Id;
+        }
 
         if (EditId is { } id and > 0 && TechnicianList != null)
         {
@@ -191,6 +213,7 @@
                     Id = match.Id,
                     Name = match.Name,
                     Phone = match.Phone,
+                    LocationId = match.LocationId,
                     DefaultCommissionRate = match.DefaultCommissionRate,
                     IsArchived = match.IsArchived
                 };
@@ -210,6 +233,7 @@
             Id = tech.Id,
             Name = tech.Name,
             Phone = tech.Phone,
+            LocationId = tech.LocationId,
             DefaultCommissionRate = tech.DefaultCommissionRate,
             IsArchived = tech.IsArchived
         };

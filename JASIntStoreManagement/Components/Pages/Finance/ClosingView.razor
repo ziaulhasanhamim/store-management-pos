@@ -17,7 +17,7 @@
 }
 @if (Kind == ClosingKind.Day)
 {
-    <div class="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <div class="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         <!-- Card 1: Present office cash -->
         <div class="flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs transition hover:shadow-sm">
             <div>
@@ -42,35 +42,7 @@
             </div>
         </div>
 
-        <!-- Card 2: Due & pay status -->
-        <div class="flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs transition hover:shadow-sm">
-            <div>
-                <div class="flex items-center justify-between">
-                    <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">Due & pay status</span>
-                    <span class="rounded-md bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700">Suppliers</span>
-                </div>
-                <div class="mt-2 text-2xl font-bold tracking-tight text-slate-900 tabular-nums">
-                    @Money(Data.SupplierPaid)
-                </div>
-                <p class="mt-0.5 text-[11px] text-slate-400">Supplier payments made today</p>
-            </div>
-            <div class="mt-4 border-t border-slate-100 pt-3 space-y-1.5 text-xs">
-                <div class="flex justify-between items-center text-slate-600">
-                    <span>Suppliers due (payable):</span>
-                    <span class="font-semibold text-rose-600 tabular-nums">@Money(Data.SupplierDue)</span>
-                </div>
-                <div class="flex justify-between items-center text-slate-600">
-                    <span>Customer due (receivable):</span>
-                    <span class="font-semibold text-emerald-700 tabular-nums">@Money(Data.CustomerDue)</span>
-                </div>
-                <div class="flex justify-between items-center text-slate-600">
-                    <span>Stock received (tStok In):</span>
-                    <span class="font-semibold text-slate-900 tabular-nums">@Money(Data.PurchaseTotal)</span>
-                </div>
-            </div>
-        </div>
-
-        <!-- Card 3: Sales & margin -->
+        <!-- Card 2: Sales & margin -->
         <div class="flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs transition hover:shadow-sm">
             <div>
                 <div class="flex items-center justify-between">
@@ -98,7 +70,63 @@
             </div>
         </div>
 
-        <!-- Card 4: Spend & net profit -->
+        <!-- Card 3: Mobile Servicing -->
+        <div class="flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs transition hover:shadow-sm">
+            <div>
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">Mobile servicing</span>
+                    <span class="rounded-md bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-700">Services</span>
+                </div>
+                <div class="mt-2 text-2xl font-bold tracking-tight text-slate-900 tabular-nums">
+                    @Money(Data.ServicingProfit)
+                </div>
+                <p class="mt-0.5 text-[11px] text-slate-400">Shop servicing profit today</p>
+            </div>
+            <div class="mt-4 border-t border-slate-100 pt-3 space-y-1.5 text-xs">
+                <div class="flex justify-between items-center text-slate-600">
+                    <span>Total servicing:</span>
+                    <span class="font-semibold text-blue-700 tabular-nums">@Money(Data.ServicingTotal)</span>
+                </div>
+                <div class="flex justify-between items-center text-slate-600">
+                    <span>Parts cost:</span>
+                    <span class="font-semibold text-slate-900 tabular-nums">@Money(Data.ServicingPartsCost)</span>
+                </div>
+                <div class="flex justify-between items-center text-slate-600">
+                    <span>Tech cut upfront:</span>
+                    <span class="font-semibold text-indigo-700 tabular-nums">@Money(Data.ServicingTechCut)</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Card 4: Due & pay status -->
+        <div class="flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs transition hover:shadow-sm">
+            <div>
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">Due & pay status</span>
+                    <span class="rounded-md bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700">Suppliers</span>
+                </div>
+                <div class="mt-2 text-2xl font-bold tracking-tight text-slate-900 tabular-nums">
+                    @Money(Data.SupplierPaid)
+                </div>
+                <p class="mt-0.5 text-[11px] text-slate-400">Supplier payments made today</p>
+            </div>
+            <div class="mt-4 border-t border-slate-100 pt-3 space-y-1.5 text-xs">
+                <div class="flex justify-between items-center text-slate-600">
+                    <span>Suppliers due (payable):</span>
+                    <span class="font-semibold text-rose-600 tabular-nums">@Money(Data.SupplierDue)</span>
+                </div>
+                <div class="flex justify-between items-center text-slate-600">
+                    <span>Customer due (receivable):</span>
+                    <span class="font-semibold text-emerald-700 tabular-nums">@Money(Data.CustomerDue)</span>
+                </div>
+                <div class="flex justify-between items-center text-slate-600">
+                    <span>Stock received (tStok In):</span>
+                    <span class="font-semibold text-slate-900 tabular-nums">@Money(Data.PurchaseTotal)</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Card 5: Spend & net profit -->
         <div class="flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs transition hover:shadow-sm">
             <div>
                 <div class="flex items-center justify-between">
@@ -165,6 +193,7 @@ else
                     <th class="text-right">Net Sales</th>
                     <th class="text-right">Cost of Goods</th>
                     <th class="text-right">Sales Profit</th>
+                    <th class="text-right">Servicing Profit</th>
                     <th class="text-right">Margin %</th>
                     <th class="text-right">Stock Received (tStok In)</th>
                     <th class="text-right">Stock Inventory Value</th>
@@ -180,6 +209,7 @@ else
                         <td class="text-right tabular-nums">@Money(loc.Sales)</td>
                         <td class="text-right tabular-nums">@Money(loc.Cogs)</td>
                         <td class="text-right tabular-nums font-semibold text-emerald-700">@Money(loc.SalesProfit)</td>
+                        <td class="text-right tabular-nums font-semibold text-emerald-700">@Money(loc.ServicingProfit)</td>
                         <td class="text-right tabular-nums">@margin.ToString("0.#")%</td>
                         <td class="text-right tabular-nums">@Money(loc.StockReceived)</td>
                         <td class="text-right tabular-nums font-medium text-slate-900">@Money(loc.StockValue)</td>
@@ -195,6 +225,7 @@ else
                     <td class="text-right font-bold tabular-nums">@Money(Data.LocationBreakdown.Sum(l => l.Sales))</td>
                     <td class="text-right font-bold tabular-nums">@Money(Data.LocationBreakdown.Sum(l => l.Cogs))</td>
                     <td class="text-right font-bold tabular-nums text-emerald-700">@Money(Data.LocationBreakdown.Sum(l => l.SalesProfit))</td>
+                    <td class="text-right font-bold tabular-nums text-emerald-700">@Money(Data.LocationBreakdown.Sum(l => l.ServicingProfit))</td>
                     <td class="text-right font-bold tabular-nums">
                         @{
                             var totalSales = Data.LocationBreakdown.Sum(l => l.Sales);
@@ -338,10 +369,11 @@ else
             ("Net sales", Data.Revenue),
             ("Cost of goods sold", Data.Cogs),
             ("Sales profit", Data.Revenue - Data.Cogs),
+            ("Mobile servicing profit", Data.ServicingProfit),
             ("Operational expenses", Data.Expenses),
             ("Salary / bonus / advance expense", Data.Salaries),
             ("Stock take gain / loss (noncash)", Data.StockVariance),
-            ("Net profit", Data.Revenue - Data.Cogs - Data.Expenses - Data.Salaries + Data.StockVariance)
+            ("Net profit", Data.Revenue - Data.Cogs + Data.ServicingProfit - Data.Expenses - Data.Salaries + Data.StockVariance)
         ]),
         ("Receipts & payments", [
             ("Sales receipts / refunds", Data.SalesReceipts),
@@ -375,6 +407,6 @@ else
     ];
 
     private decimal TotalClosingFunds => (Data.CountedCash ?? Data.ClosingCash) + Data.ClosingBank;
-    private decimal DayNetProfit => Data.Revenue - Data.Cogs - Data.Expenses - Data.Salaries + Data.StockVariance;
+    private decimal DayNetProfit => Data.Revenue - Data.Cogs + Data.ServicingProfit - Data.Expenses - Data.Salaries + Data.StockVariance;
     private string Money(decimal amount) => $"{Configuration["CurrencyCode"] ?? "BDT"} {amount:N2}";
 }

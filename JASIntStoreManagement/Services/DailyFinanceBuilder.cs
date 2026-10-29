@@ -62,9 +62,31 @@ internal static class DailyFinanceBuilder
                         : move.DebtEntry != null ? move.DebtEntry.LenderBalance!.Lender!.Name : "",
                     "Bank / digital", move.Method, move.Amount, move.Notes)).ToArrayAsync(ct)
             : [];
+
+        var servicingEntries = await db.MobileServicingEntries.AsNoTracking()
+            .Include(e => e.Technician)
+            .Include(e => e.Location)
+            .Where(e => e.Date == date && (locationId == null || e.LocationId == locationId.Value))
+            .OrderBy(e => e.Technician!.Name)
+            .ToArrayAsync(ct);
+
+        var techServicing = servicingEntries.Select(e => new TechnicianDayServicingSummary(
+            e.TechnicianId,
+            e.Technician?.Name ?? "Technician",
+            e.Location?.Name ?? "Store",
+            e.TotalAmount,
+            e.TotalCost,
+            e.TechnicianCut,
+            e.ShopProfit,
+            e.IsDeposited
+        )).ToArray();
+
         return new(categories, cash.Concat(bank).OrderBy(row => row.At)
             .Select(row => new DayPayment(row.At, Label(row.Kind, row.IsCollection), row.Party,
-                row.Account, row.Method, row.Amount, row.Notes)).ToArray());
+                row.Account, row.Method, row.Amount, row.Notes)).ToArray())
+        {
+            TechnicianServicing = techServicing
+        };
     }
 
     private static string Label(CashMovementKind kind, bool collection) => collection ? "Customer collections" : kind switch

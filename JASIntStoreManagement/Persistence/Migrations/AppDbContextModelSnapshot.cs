@@ -3094,6 +3094,9 @@ namespace JASIntStoreManagement.Persistence.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
+                    b.Property<int>("LocationId")
+                        .HasColumnType("integer");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -3115,6 +3118,8 @@ namespace JASIntStoreManagement.Persistence.Migrations
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("LocationId");
 
                     b.HasIndex("NormalizedName");
 
@@ -4079,6 +4084,17 @@ namespace JASIntStoreManagement.Persistence.Migrations
                     b.Navigation("Purchase");
 
                     b.Navigation("SupplierBalance");
+                });
+
+            modelBuilder.Entity("JASIntStoreManagement.Persistence.Entities.Technician", b =>
+                {
+                    b.HasOne("JASIntStoreManagement.Persistence.Entities.StockLocation", "Location")
+                        .WithMany()
+                        .HasForeignKey("LocationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Location");
                 });
 
             modelBuilder.Entity("JASIntStoreManagement.Persistence.Entities.User", b =>

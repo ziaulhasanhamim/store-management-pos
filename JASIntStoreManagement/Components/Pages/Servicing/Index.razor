@@ -165,7 +165,7 @@ else
                     <AntiforgeryToken />
                     <input type="hidden" id="entry-id" name="EntryForm.Id" value="@EntryForm?.Id" />
                     <input type="hidden" name="EntryForm.Date" value="@PageData.Date.ToString("yyyy-MM-dd")" />
-                    <input type="hidden" name="EntryForm.LocationId" value="@(PageData.LocationId ?? 0)" />
+                    <input type="hidden" id="entry-location-id" name="EntryForm.LocationId" value="@(EntryForm?.LocationId > 0 ? EntryForm.LocationId : (PageData.LocationId ?? 0))" />
 
                     <div class="space-y-4">
                         <div>
@@ -174,11 +174,17 @@ else
                                 <option value="">Select technician</option>
                                 @foreach (var tech in PageData.Technicians)
                                 {
-                                    <option value="@tech.Id" data-commission="@tech.DefaultCommissionRate.ToString("0.##", CultureInfo.InvariantCulture)">
-                                        @tech.Name (@tech.DefaultCommissionRate.ToString("0.##")% default)
+                                    <option value="@tech.Id" 
+                                            data-commission="@tech.DefaultCommissionRate.ToString("0.##", CultureInfo.InvariantCulture)"
+                                            data-location-id="@tech.LocationId"
+                                            data-location-name="@tech.LocationName">
+                                        @tech.Name (@tech.LocationName, @tech.DefaultCommissionRate.ToString("0.##")% default)
                                     </option>
                                 }
                             </select>
+                            <p id="entry-tech-location-hint" class="text-xs text-slate-500 mt-1">
+                                Assigned store: <strong class="text-slate-700" id="tech-assigned-loc">@(SelectedTechnician?.LocationName ?? (PageData.Technicians.FirstOrDefault(t => t.Id == EntryForm?.TechnicianId)?.LocationName ?? "Select technician"))</strong>
+                            </p>
                         </div>
 
                         <div class="grid grid-cols-2 gap-3">
@@ -419,11 +425,18 @@ else
         {
             if (EntryForm == null || PageData == null) return;
             EntryForm.Date = PageData.Date;
-            EntryForm.LocationId = PageData.LocationId ?? 0;
+            var tech = PageData.Technicians.FirstOrDefault(t => t.Id == EntryForm.TechnicianId);
+            if (tech != null)
+            {
+                EntryForm.LocationId = tech.LocationId;
+            }
+            else if (EntryForm.LocationId <= 0)
+            {
+                EntryForm.LocationId = PageData.LocationId ?? 0;
+            }
             var isUpdate = EntryForm.Id is { } and > 0;
             var entryId = await Servicing.SaveMobileServicingEntryAsync(HttpContext.User, EntryForm, HttpContext.RequestAborted);
 
-            var tech = PageData.Technicians.FirstOrDefault(t => t.Id == EntryForm.TechnicianId);
             var profit = EntryForm.Profit;
             var techCut = EntryForm.TechnicianCut;
             var shopProfit = EntryForm.ShopProfit;

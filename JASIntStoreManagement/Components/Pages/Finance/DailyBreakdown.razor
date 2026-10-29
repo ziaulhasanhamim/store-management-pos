@@ -5,6 +5,67 @@
             <p class="mt-1 text-xs text-slate-500">Active payments only. Corrections replace the original posting; internal cash transfers are excluded.</p>
         </div>
     </div>
+    @if (Data.TechnicianServicing.Count > 0)
+    {
+        <div class="border-b border-slate-200 p-5">
+            <div class="flex items-center justify-between mb-3">
+                <h3 class="font-semibold text-slate-900">Technicians · Servicing breakdown</h3>
+                <a href="/servicing?date=@Date.ToString("yyyy-MM-dd")" class="text-xs font-semibold text-blue-700 hover:underline">Manage servicing</a>
+            </div>
+            <div class="table-scroll">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Technician</th>
+                            <th>Store Location</th>
+                            <th class="text-right">Total Servicing</th>
+                            <th class="text-right">Parts Cost</th>
+                            <th class="text-right">Technician Cut (Upfront)</th>
+                            <th class="text-right">Shop Profit (to Drawer)</th>
+                            <th class="text-center">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var tech in Data.TechnicianServicing)
+                        {
+                            <tr>
+                                <td class="font-medium text-slate-900">@tech.TechnicianName</td>
+                                <td class="text-slate-600">@tech.LocationName</td>
+                                <td class="text-right tabular-nums font-semibold text-blue-700">@Money(tech.TotalServicing)</td>
+                                <td class="text-right tabular-nums text-slate-700">@Money(tech.TotalCost)</td>
+                                <td class="text-right tabular-nums text-indigo-700">@Money(tech.TechnicianCut)</td>
+                                <td class="text-right tabular-nums font-bold text-emerald-700">@Money(tech.ShopProfit)</td>
+                                <td class="text-center">
+                                    @if (tech.IsDeposited)
+                                    {
+                                        <span class="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
+                                            Deposited in drawer
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
+                                            Pending deposit
+                                        </span>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                    <tfoot>
+                        <tr>
+                            <th colspan="2">Total (@Data.TechnicianServicing.Count @(Data.TechnicianServicing.Count == 1 ? "technician" : "technicians"))</th>
+                            <td class="text-right font-bold tabular-nums text-blue-700">@Money(Data.TechnicianServicing.Sum(t => t.TotalServicing))</td>
+                            <td class="text-right font-bold tabular-nums text-slate-700">@Money(Data.TechnicianServicing.Sum(t => t.TotalCost))</td>
+                            <td class="text-right font-bold tabular-nums text-indigo-700">@Money(Data.TechnicianServicing.Sum(t => t.TechnicianCut))</td>
+                            <td class="text-right font-bold tabular-nums text-emerald-700">@Money(Data.TechnicianServicing.Sum(t => t.ShopProfit))</td>
+                            <td></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+    }
     <div class="grid gap-6 p-5 lg:grid-cols-2">
         <div>
             <h3 class="mb-3 font-semibold">Expenses by category</h3>

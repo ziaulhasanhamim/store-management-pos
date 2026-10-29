@@ -13,6 +13,7 @@
     <div class="grid gap-4 md:grid-cols-2">
         <AuthorizeView Policy="@AppPolicies.MakeSales">
             <HubCard Href="/reports/sales" Title="Sales" Hint="Bills, item breakdowns, receipts and gross profit" IconName="wallet" />
+            <HubCard Href="/reports/servicing" Title="Mobile servicing" Hint="Daily technician totals, collections, parts cost, payouts and shop profit" IconName="service" />
         </AuthorizeView>
         <AuthorizeView Policy="@AppPolicies.ManageInventory">
             <HubCard Href="/reports/items" Title="Item sales & returns" Hint="Net quantities, saved costs, discounts and item profit" IconName="box" />

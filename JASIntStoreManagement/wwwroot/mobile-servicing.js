@@ -53,6 +53,17 @@ export function onTechnicianChanged() {
     const selectedOption = techSelect.options[techSelect.selectedIndex];
     const techId = parseInt(techSelect.value, 10);
     const commInput = document.getElementById('entry-commission');
+    const locInput = document.getElementById('entry-location-id');
+    const locHint = document.getElementById('tech-assigned-loc');
+
+    if (selectedOption) {
+        if (locHint && selectedOption.dataset.locationName) {
+            locHint.textContent = selectedOption.dataset.locationName;
+        }
+        if (locInput && selectedOption.dataset.locationId) {
+            locInput.value = selectedOption.dataset.locationId;
+        }
+    }
 
     // Auto-fill default commission if not in custom edit mode
     const isEditing = document.getElementById('entry-id')?.value;

@@ -292,4 +292,59 @@ public class MonthlyFinanceDetailsTests
         await payments.Cell("B2").GetString().Should().BeEqualTo("Sale");
         await payments.Cell("F2").GetValue<decimal>().Should().BeEqualTo(1500m);
     }
+
+    [Test]
+    public async Task Servicing_DailyAndMonthlyFinance_ComputesServicingProfitCorrectly()
+    {
+        var day = new DailyBusinessResult(
+            Date: new DateOnly(2026, 10, 10),
+            Sales: 10000m,
+            Cogs: 7000m,
+            Expenses: 500m,
+            Payroll: 300m)
+        {
+            ServicingProfit = 1200m,
+            StockVariance = 50m
+        };
+
+        // Sales profit = 10000 - 7000 = 3000
+        await day.SalesProfit.Should().BeEqualTo(3000m);
+        // Total spend = 500 + 300 = 800
+        await day.TotalSpend.Should().BeEqualTo(800m);
+        // Net profit = 3000 (sales profit) + 1200 (servicing profit) - 800 (spend) + 50 (stock variance) = 3450
+        await day.NetProfit.Should().BeEqualTo(3450m);
+
+        var techSummaries = new List<TechnicianMonthlyServicingSummary>
+        {
+            new(1, "Rahim", "Main Store", 5000m, 2000m, 1500m, 1500m, 5),
+            new(2, "Karim", "Outlet Branch", 4000m, 1000m, 1500m, 1500m, 4)
+        };
+
+        var locationBreakdown = new List<LocationFinanceSummary>
+        {
+            new(1, "Main Store", 20000m, 14000m, 6000m, 5000m, 50000m) { ServicingProfit = 1500m },
+            new(2, "Outlet Branch", 15000m, 10000m, 5000m, 4000m, 30000m) { ServicingProfit = 1500m }
+        };
+
+        var monthly = new MonthlyFinanceDetails(
+            Days: [day],
+            Categories: [new(ExpenseCategory.Refreshments, 500m)],
+            Employees: [new(1, "Hamim", 10000m, 300m, 0m, 0m)],
+            OpeningAssets: new(50000m, 10000m, 20000m, 15000m, 5000m),
+            ClosingAssets: new(55000m, 12000m, 25000m, 10000m, 6000m))
+        {
+            Technicians = techSummaries,
+            LocationBreakdown = locationBreakdown
+        };
+
+        await monthly.TotalServicing.Should().BeEqualTo(9000m);
+        await monthly.TotalServicingCost.Should().BeEqualTo(3000m);
+        await monthly.TotalServicingTechCut.Should().BeEqualTo(3000m);
+        await monthly.TotalServicingProfit.Should().BeEqualTo(3000m);
+        await monthly.ServicingProfit.Should().BeEqualTo(1200m);
+        await monthly.NetProfit.Should().BeEqualTo(3450m);
+
+        await locationBreakdown[0].ServicingProfit.Should().BeEqualTo(1500m);
+        await locationBreakdown[1].ServicingProfit.Should().BeEqualTo(1500m);
+    }
 }

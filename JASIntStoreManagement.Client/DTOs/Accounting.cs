@@ -34,7 +34,10 @@ public sealed record LocationFinanceSummary(
     decimal Cogs,
     decimal SalesProfit,
     decimal StockReceived,
-    decimal StockValue);
+    decimal StockValue)
+{
+    public decimal ServicingProfit { get; init; }
+}
 
 public sealed record ClosingTotals(DateOnly Start, DateOnly End, decimal OpeningCash, decimal OpeningBank,
     decimal CashIn, decimal CashOut, decimal BankIn, decimal BankOut, decimal ClosingCash, decimal ClosingBank,
@@ -45,6 +48,10 @@ public sealed record ClosingTotals(DateOnly Start, DateOnly End, decimal Opening
     public string? SelectedLocationName { get; init; }
     public IReadOnlyList<StockLocationOption> AvailableLocations { get; init; } = [];
     public IReadOnlyList<LocationFinanceSummary> LocationBreakdown { get; init; } = [];
+    public decimal ServicingTotal { get; init; }
+    public decimal ServicingPartsCost { get; init; }
+    public decimal ServicingTechCut { get; init; }
+    public decimal ServicingProfit { get; init; }
     public decimal OwnerContributions { get; init; }
     public decimal OwnerWithdrawals { get; init; }
     public decimal StockVariance { get; init; }
@@ -66,8 +73,21 @@ public sealed record ClosingTotals(DateOnly Start, DateOnly End, decimal Opening
     public decimal CashVariance { get; init; }
 }
 
+public sealed record TechnicianDayServicingSummary(
+    int TechnicianId,
+    string TechnicianName,
+    string LocationName,
+    decimal TotalServicing,
+    decimal TotalCost,
+    decimal TechnicianCut,
+    decimal ShopProfit,
+    bool IsDeposited);
+
 public sealed record DailyFinanceDetails(IReadOnlyList<ExpenseCategoryTotal> Categories,
-    IReadOnlyList<DayPayment> Payments);
+    IReadOnlyList<DayPayment> Payments)
+{
+    public IReadOnlyList<TechnicianDayServicingSummary> TechnicianServicing { get; init; } = [];
+}
 
 public sealed record DayPayment(DateTimeOffset At, string Type, string Party, string Account,
     PaymentMethod Method, decimal Amount, string Notes);
@@ -118,11 +138,12 @@ public sealed record DailyBusinessResult(DateOnly Date, decimal Sales, decimal C
     public decimal StockVariance { get; init; }
     public decimal SupplierPaid { get; init; }
     public decimal StockReceived { get; init; }
+    public decimal ServicingProfit { get; init; }
     public IReadOnlyList<ExpenseCategoryTotal> ExpenseCategories { get; init; } = [];
     public bool IsWorkingDay { get; init; } = true;
     public decimal SalesProfit => Sales - Cogs;
     public decimal TotalSpend => Expenses + Payroll;
-    public decimal NetProfit => SalesProfit - TotalSpend + StockVariance;
+    public decimal NetProfit => SalesProfit + ServicingProfit - TotalSpend + StockVariance;
 }
 
 public sealed record ExpenseCategoryTotal(ExpenseCategory Category, decimal Amount)
@@ -149,12 +170,23 @@ public sealed record SupplierMonthlySummary(
     decimal PaymentsMade,
     decimal CurrentDue);
 
+public sealed record TechnicianMonthlyServicingSummary(
+    int TechnicianId,
+    string TechnicianName,
+    string LocationName,
+    decimal TotalServicing,
+    decimal TotalCost,
+    decimal TechnicianCut,
+    decimal ShopProfit,
+    int DaysActive);
+
 public sealed record MonthlyFinanceDetails(IReadOnlyList<DailyBusinessResult> Days,
     IReadOnlyList<ExpenseCategoryTotal> Categories, IReadOnlyList<EmployeeMonthlyPaid> Employees,
     AssetPosition OpeningAssets, AssetPosition ClosingAssets)
 {
     public int AssetCalculationVersion { get; init; }
     public IReadOnlyList<SupplierMonthlySummary> Suppliers { get; init; } = [];
+    public IReadOnlyList<TechnicianMonthlyServicingSummary> Technicians { get; init; } = [];
     public int? SelectedLocationId { get; init; }
     public string? SelectedLocationName { get; init; }
     public IReadOnlyList<LocationFinanceSummary> LocationBreakdown { get; init; } = [];
@@ -162,12 +194,17 @@ public sealed record MonthlyFinanceDetails(IReadOnlyList<DailyBusinessResult> Da
     public decimal StockVariance => Days.Sum(day => day.StockVariance);
     public decimal TotalSales => Days.Sum(day => day.Sales);
     public decimal SalesProfit => Days.Sum(day => day.SalesProfit);
+    public decimal ServicingProfit => Days.Sum(day => day.ServicingProfit);
+    public decimal TotalServicing => Technicians.Sum(t => t.TotalServicing);
+    public decimal TotalServicingCost => Technicians.Sum(t => t.TotalCost);
+    public decimal TotalServicingTechCut => Technicians.Sum(t => t.TechnicianCut);
+    public decimal TotalServicingProfit => Technicians.Sum(t => t.ShopProfit);
     public decimal TotalSupplierPaid => Days.Sum(day => day.SupplierPaid);
     public decimal TotalStockReceived => Days.Sum(day => day.StockReceived);
     public decimal Expenses => Categories.Sum(category => category.Amount);
     public decimal Payroll => Employees.Sum(employee => employee.TotalPaid);
     public decimal TotalSpend => Expenses + Payroll;
-    public decimal NetProfit => SalesProfit - TotalSpend + StockVariance;
+    public decimal NetProfit => SalesProfit + ServicingProfit - TotalSpend + StockVariance;
     public decimal AssetGrowth => ClosingAssets.NetAssets - OpeningAssets.NetAssets;
 }
 

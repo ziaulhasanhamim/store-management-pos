@@ -123,6 +123,38 @@ public static class ReportEndpoints
             }));
             rows.Add(["TOTAL", "", "", "", "", "", "", Number(data.TotalQuantity), "", Number(data.TotalFinancialLoss), ""]);
         }
+        else if (kind == "servicing")
+        {
+            var servicing = context.RequestServices.GetRequiredService<ServicingService>();
+            var config = context.RequestServices.GetRequiredService<IConfiguration>();
+            var zone = AccountingCalendar.Zone(config);
+            range = ReportService.ResolveRange(period, start, end, zone, DateTimeOffset.UtcNow);
+            var data = await servicing.GetServicingReportAsync(context.User, range.Start, range.End, locationId, null, search, context.RequestAborted);
+            count = data.Entries.Count;
+            rows.Add(["Entry ID", "Date", "Store Location", "Technician", "Servicing Total", "Parts Cost", "Day Profit", "Commission %", "Technician Cut", "Shop Profit", "Status", "Notes"]);
+            rows.AddRange(data.Entries.Select(entry => new[] {
+                Number(entry.Id),
+                entry.Date.ToString("yyyy-MM-dd"),
+                entry.LocationName,
+                entry.TechnicianName,
+                Number(entry.TotalAmount),
+                Number(entry.TotalCost),
+                Number(entry.Profit),
+                Number(entry.CommissionRate),
+                Number(entry.TechnicianCut),
+                Number(entry.ShopProfit),
+                entry.IsDeposited ? "Deposited" : "Pending",
+                entry.Notes ?? ""
+            }));
+            rows.Add(["TOTAL", "", "", $"{data.TechnicianSummaries.Count} technicians",
+                Number(data.Summary.TotalServicingAmount),
+                Number(data.Summary.TotalCost),
+                Number(data.Summary.TotalProfit),
+                "",
+                Number(data.Summary.TotalTechnicianCut),
+                Number(data.Summary.TotalShopProfit),
+                "", ""]);
+        }
         else
         {
             return Results.NotFound();

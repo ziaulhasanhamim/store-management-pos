@@ -7,6 +7,8 @@ public sealed class Technician : SoftDeletableEntity
     public string? Phone { get; set; }
     public decimal DefaultCommissionRate { get; set; } = 50m;
     public bool IsArchived { get; set; }
+    public int LocationId { get; set; }
+    public StockLocation? Location { get; set; }
     public ICollection<MobileServicingEntry> ServicingEntries { get; set; } = [];
 }
 

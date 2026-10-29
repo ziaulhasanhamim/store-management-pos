@@ -139,6 +139,15 @@ public sealed class ClosingService(IServiceScopeFactory scopes, IConfiguration c
                     ? await db.DayFinances.AsNoTracking().SingleOrDefaultAsync(day => day.Date == normalized, ct)
                     : null;
                 var snapshot = Snapshot(saved);
+                var savedServicingQuery = db.MobileServicingEntries.Where(e => e.Date >= snapshot.Start && e.Date <= snapshot.End
+                    && (locationId == null || e.LocationId == locationId.Value));
+                snapshot = snapshot with
+                {
+                    ServicingTotal = await savedServicingQuery.Select(e => (decimal?)e.TotalAmount).SumAsync(ct) ?? 0m,
+                    ServicingPartsCost = await savedServicingQuery.Select(e => (decimal?)e.TotalCost).SumAsync(ct) ?? 0m,
+                    ServicingTechCut = await savedServicingQuery.Select(e => (decimal?)e.TechnicianCut).SumAsync(ct) ?? 0m,
+                    ServicingProfit = await savedServicingQuery.Select(e => (decimal?)e.ShopProfit).SumAsync(ct) ?? 0m
+                };
                 if (kind == ClosingKind.Month)
                 {
                     var details = saved.MonthlyDetailsJson is null || locationId != null
@@ -172,7 +181,7 @@ public sealed class ClosingService(IServiceScopeFactory scopes, IConfiguration c
                 }
 
                 var dayBreakdown = (kind == ClosingKind.Day && locationId == null)
-                    ? await MonthlyFinanceBuilder.BuildLocationBreakdownAsync(db, Utc(normalized), Utc(normalized.AddDays(1)), ct)
+                    ? await MonthlyFinanceBuilder.BuildLocationBreakdownAsync(db, Utc(normalized), Utc(normalized.AddDays(1)), ct, normalized, normalized)
                     : snapshot.Monthly?.LocationBreakdown ?? [];
 
                 return snapshot with
@@ -529,10 +538,22 @@ public sealed class ClosingService(IServiceScopeFactory scopes, IConfiguration c
                     && move.OccurredAt >= from && move.OccurredAt < through
                     && (locationId == null || move.StockLocationId == locationId.Value))
                 .Select(move => new { move.Quantity, move.UnitCost }).ToArrayAsync(ct))
-                .Sum(move => decimal.Round(move.Quantity * move.UnitCost, 2, MidpointRounding.AwayFromZero))
+                .Sum(move => decimal.Round(move.Quantity * move.UnitCost, 2, MidpointRounding.AwayFromZero)),
+            ServicingTotal = await db.MobileServicingEntries.Where(e => e.Date >= start && e.Date <= end
+                    && (locationId == null || e.LocationId == locationId.Value))
+                .Select(e => (decimal?)e.TotalAmount).SumAsync(ct) ?? 0m,
+            ServicingPartsCost = await db.MobileServicingEntries.Where(e => e.Date >= start && e.Date <= end
+                    && (locationId == null || e.LocationId == locationId.Value))
+                .Select(e => (decimal?)e.TotalCost).SumAsync(ct) ?? 0m,
+            ServicingTechCut = await db.MobileServicingEntries.Where(e => e.Date >= start && e.Date <= end
+                    && (locationId == null || e.LocationId == locationId.Value))
+                .Select(e => (decimal?)e.TechnicianCut).SumAsync(ct) ?? 0m,
+            ServicingProfit = await db.MobileServicingEntries.Where(e => e.Date >= start && e.Date <= end
+                    && (locationId == null || e.LocationId == locationId.Value))
+                .Select(e => (decimal?)e.ShopProfit).SumAsync(ct) ?? 0m
         };
         var locationBreakdown = locationId == null
-            ? await MonthlyFinanceBuilder.BuildLocationBreakdownAsync(db, from, through, ct)
+            ? await MonthlyFinanceBuilder.BuildLocationBreakdownAsync(db, from, through, ct, start, end)
             : [];
         return kind == ClosingKind.Month
             ? totals with

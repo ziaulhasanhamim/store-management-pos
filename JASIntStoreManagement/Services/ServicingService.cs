@@ -30,9 +30,22 @@ public sealed class ServicingService(IServiceScopeFactory scopes, IConfiguration
                 t.Phone,
                 t.DefaultCommissionRate,
                 t.IsArchived,
+                t.LocationId,
+                t.Location != null ? t.Location.Name : "Unassigned",
                 t.ServicingEntries.Count,
                 t.ServicingEntries.Sum(j => (decimal?)j.ShopProfit + j.TechnicianCut) ?? 0m,
                 t.ServicingEntries.Sum(j => (decimal?)j.TechnicianCut) ?? 0m))
+            .ToListAsync(ct);
+    }
+
+    public async Task<IReadOnlyList<StockLocationOption>> GetLocationsAsync(CancellationToken ct = default)
+    {
+        await using var scope = scopes.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        return await db.StockLocations
+            .Where(loc => loc.CanSell && !loc.IsDeleted)
+            .OrderBy(loc => loc.Name)
+            .Select(loc => new StockLocationOption(loc.Id, loc.Name))
             .ToListAsync(ct);
     }
 
@@ -43,6 +56,11 @@ public sealed class ServicingService(IServiceScopeFactory scopes, IConfiguration
             throw new ValidationException("Technician name is required.");
         }
 
+        if (input.LocationId <= 0)
+        {
+            throw new ValidationException("Please assign a store location to the technician.");
+        }
+
         if (input.DefaultCommissionRate < 0 || input.DefaultCommissionRate > 100)
         {
             throw new ValidationException("Commission rate must be between 0% and 100%.");
@@ -51,6 +69,12 @@ public sealed class ServicingService(IServiceScopeFactory scopes, IConfiguration
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var actorId = await StoreAccess.RequireAsync(db, actor, AppRoles.Admin, ct);
+
+        var locationExists = await db.StockLocations.AnyAsync(l => l.Id == input.LocationId && !l.IsDeleted, ct);
+        if (!locationExists)
+        {
+            throw new ValidationException("Selected store location is invalid.");
+        }
 
         var normalized = NameNormalization.Normalize(input.Name);
 
@@ -70,6 +94,7 @@ public sealed class ServicingService(IServiceScopeFactory scopes, IConfiguration
             technician.Name = input.Name.Trim();
             technician.NormalizedName = normalized;
             technician.Phone = string.IsNullOrWhiteSpace(input.Phone) ? null : input.Phone.Trim();
+            technician.LocationId = input.LocationId;
             technician.DefaultCommissionRate = input.DefaultCommissionRate;
             technician.IsArchived = input.IsArchived;
             technician.UpdatedAt = DateTimeOffset.UtcNow;
@@ -82,6 +107,7 @@ public sealed class ServicingService(IServiceScopeFactory scopes, IConfiguration
                 Name = input.Name.Trim(),
                 NormalizedName = normalized,
                 Phone = string.IsNullOrWhiteSpace(input.Phone) ? null : input.Phone.Trim(),
+                LocationId = input.LocationId,
                 DefaultCommissionRate = input.DefaultCommissionRate,
                 IsArchived = input.IsArchived,
                 CreatedAt = DateTimeOffset.UtcNow,
@@ -131,6 +157,8 @@ public sealed class ServicingService(IServiceScopeFactory scopes, IConfiguration
                 t.Phone,
                 t.DefaultCommissionRate,
                 t.IsArchived,
+                t.LocationId,
+                t.Location != null ? t.Location.Name : "Unassigned",
                 t.ServicingEntries.Count,
                 t.ServicingEntries.Sum(j => (decimal?)j.ShopProfit + j.TechnicianCut) ?? 0m,
                 t.ServicingEntries.Sum(j => (decimal?)j.TechnicianCut) ?? 0m))
@@ -225,7 +253,7 @@ public sealed class ServicingService(IServiceScopeFactory scopes, IConfiguration
             ?? throw new ValidationException("Selected technician does not exist.");
 
         var activeDate = input.Date != default ? input.Date : await AccountingCalendar.SelectedAsync(db, actorId, configuration, ct);
-        var locationId = input.LocationId;
+        var locationId = technician.LocationId > 0 ? technician.LocationId : input.LocationId;
         if (locationId == 0)
         {
             var userLocation = await db.Users
@@ -395,5 +423,114 @@ public sealed class ServicingService(IServiceScopeFactory scopes, IConfiguration
         return await db.MobileServicingEntries
             .Where(e => e.Date == date && e.LocationId == locationId && !e.IsDeposited)
             .SumAsync(e => (decimal?)e.ShopProfit, ct) ?? 0m;
+    }
+
+    public async Task<ServicingReportData> GetServicingReportAsync(
+        ClaimsPrincipal actor,
+        DateOnly startDate,
+        DateOnly endDate,
+        int? locationId = null,
+        int? technicianId = null,
+        string? search = null,
+        CancellationToken ct = default)
+    {
+        await using var scope = scopes.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await StoreAccess.RequireAsync(db, actor, AppPolicies.MakeSales, ct);
+
+        var locations = await GetLocationsAsync(ct);
+        var technicians = await GetTechniciansAsync(includeArchived: true, ct: ct);
+
+        var query = db.MobileServicingEntries.AsNoTracking()
+            .Include(e => e.Technician)
+            .Include(e => e.Location)
+            .Where(e => e.Date >= startDate && e.Date <= endDate);
+
+        if (locationId.HasValue && locationId.Value > 0)
+        {
+            query = query.Where(e => e.LocationId == locationId.Value);
+        }
+
+        if (technicianId.HasValue && technicianId.Value > 0)
+        {
+            query = query.Where(e => e.TechnicianId == technicianId.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim().ToLower();
+            query = query.Where(e =>
+                (e.Technician != null && e.Technician.Name.ToLower().Contains(term)) ||
+                (e.Notes != null && e.Notes.ToLower().Contains(term)));
+        }
+
+        var entriesList = await query
+            .OrderByDescending(e => e.Date)
+            .ThenBy(e => e.Technician!.Name)
+            .ToArrayAsync(ct);
+
+        var entryDtos = entriesList.Select(e => new MobileServicingEntryDto(
+            e.Id,
+            e.Date,
+            e.LocationId,
+            e.Location?.Name ?? "Store",
+            e.TechnicianId,
+            e.Technician?.Name ?? "Technician",
+            e.TotalAmount,
+            e.TotalCost,
+            e.CommissionRate,
+            Math.Max(0m, e.TotalAmount - e.TotalCost),
+            e.TechnicianCut,
+            e.ShopProfit,
+            e.IsDeposited,
+            e.DepositedAt,
+            e.CreatedAt,
+            e.Notes
+        )).ToArray();
+
+        var techSummaries = entriesList
+            .GroupBy(e => e.TechnicianId)
+            .Select(g =>
+            {
+                var first = g.First();
+                return new ServicingReportTechnicianRow(
+                    first.TechnicianId,
+                    first.Technician?.Name ?? "Technician",
+                    first.Location?.Name ?? "Store",
+                    first.CommissionRate,
+                    g.Select(e => e.Date).Distinct().Count(),
+                    g.Sum(e => e.TotalAmount),
+                    g.Sum(e => e.TotalCost),
+                    g.Sum(e => Math.Max(0m, e.TotalAmount - e.TotalCost)),
+                    g.Sum(e => e.TechnicianCut),
+                    g.Sum(e => e.ShopProfit)
+                );
+            })
+            .OrderBy(t => t.TechnicianName)
+            .ToArray();
+
+        var summary = new MobileServicingSummaryDto(
+            TechnicianCount: entriesList.Select(e => e.TechnicianId).Distinct().Count(),
+            TotalServicingAmount: entriesList.Sum(e => e.TotalAmount),
+            TotalCost: entriesList.Sum(e => e.TotalCost),
+            TotalProfit: entriesList.Sum(e => Math.Max(0m, e.TotalAmount - e.TotalCost)),
+            TotalTechnicianCut: entriesList.Sum(e => e.TechnicianCut),
+            TotalShopProfit: entriesList.Sum(e => e.ShopProfit),
+            UndepositedShopProfit: entriesList.Where(e => !e.IsDeposited).Sum(e => e.ShopProfit),
+            DepositedShopProfit: entriesList.Where(e => e.IsDeposited).Sum(e => e.ShopProfit)
+        );
+
+        return new ServicingReportData(
+            startDate,
+            endDate,
+            locationId,
+            technicianId,
+            search,
+            summary,
+            locations,
+            technicians,
+            techSummaries,
+            entryDtos
+        );
     }
 }

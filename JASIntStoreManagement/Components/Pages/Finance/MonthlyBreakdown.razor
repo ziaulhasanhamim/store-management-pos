@@ -56,7 +56,7 @@
             </div>
         </details>
     </div>
-    <div class="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <div class="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         <!-- Card 1: Present Office Cash -->
         <div class="flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs transition hover:shadow-sm">
             <div>
@@ -81,35 +81,7 @@
             </div>
         </div>
 
-        <!-- Card 2: Due & Pay Status -->
-        <div class="flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs transition hover:shadow-sm">
-            <div>
-                <div class="flex items-center justify-between">
-                    <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">Due & pay status</span>
-                    <span class="rounded-md bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700">Suppliers</span>
-                </div>
-                <div class="mt-2 text-2xl font-bold tracking-tight text-slate-900 tabular-nums">
-                    @Money(Data.TotalSupplierPaid)
-                </div>
-                <p class="mt-0.5 text-[11px] text-slate-400">Total supplier payments made</p>
-            </div>
-            <div class="mt-4 border-t border-slate-100 pt-3 space-y-1.5 text-xs">
-                <div class="flex justify-between items-center text-slate-600">
-                    <span>Suppliers due (payable):</span>
-                    <span class="font-semibold text-rose-600 tabular-nums">@Money(Data.ClosingAssets.SupplierDue)</span>
-                </div>
-                <div class="flex justify-between items-center text-slate-600">
-                    <span>Customer due (receivable):</span>
-                    <span class="font-semibold text-emerald-700 tabular-nums">@Money(Data.ClosingAssets.CustomerDue)</span>
-                </div>
-                <div class="flex justify-between items-center text-slate-600">
-                    <span>Stock received (tStok In):</span>
-                    <span class="font-semibold text-slate-900 tabular-nums">@Money(Data.TotalStockReceived)</span>
-                </div>
-            </div>
-        </div>
-
-        <!-- Card 3: Sales Status -->
+        <!-- Card 2: Sales Status -->
         <div class="flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs transition hover:shadow-sm">
             <div>
                 <div class="flex items-center justify-between">
@@ -137,7 +109,63 @@
             </div>
         </div>
 
-        <!-- Card 4: Asset Built & Equity -->
+        <!-- Card 3: Mobile Servicing -->
+        <div class="flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs transition hover:shadow-sm">
+            <div>
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">Mobile servicing</span>
+                    <span class="rounded-md bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-700">Services</span>
+                </div>
+                <div class="mt-2 text-2xl font-bold tracking-tight text-slate-900 tabular-nums">
+                    @Money(Data.TotalServicingProfit)
+                </div>
+                <p class="mt-0.5 text-[11px] text-slate-400">Total shop servicing profit</p>
+            </div>
+            <div class="mt-4 border-t border-slate-100 pt-3 space-y-1.5 text-xs">
+                <div class="flex justify-between items-center text-slate-600">
+                    <span>Total servicing:</span>
+                    <span class="font-semibold text-blue-700 tabular-nums">@Money(Data.TotalServicing)</span>
+                </div>
+                <div class="flex justify-between items-center text-slate-600">
+                    <span>Parts cost:</span>
+                    <span class="font-semibold text-slate-900 tabular-nums">@Money(Data.TotalServicingCost)</span>
+                </div>
+                <div class="flex justify-between items-center text-slate-600">
+                    <span>Tech payouts upfront:</span>
+                    <span class="font-semibold text-indigo-700 tabular-nums">@Money(Data.TotalServicingTechCut)</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Card 4: Due & Pay Status -->
+        <div class="flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs transition hover:shadow-sm">
+            <div>
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">Due & pay status</span>
+                    <span class="rounded-md bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700">Suppliers</span>
+                </div>
+                <div class="mt-2 text-2xl font-bold tracking-tight text-slate-900 tabular-nums">
+                    @Money(Data.TotalSupplierPaid)
+                </div>
+                <p class="mt-0.5 text-[11px] text-slate-400">Total supplier payments made</p>
+            </div>
+            <div class="mt-4 border-t border-slate-100 pt-3 space-y-1.5 text-xs">
+                <div class="flex justify-between items-center text-slate-600">
+                    <span>Suppliers due (payable):</span>
+                    <span class="font-semibold text-rose-600 tabular-nums">@Money(Data.ClosingAssets.SupplierDue)</span>
+                </div>
+                <div class="flex justify-between items-center text-slate-600">
+                    <span>Customer due (receivable):</span>
+                    <span class="font-semibold text-emerald-700 tabular-nums">@Money(Data.ClosingAssets.CustomerDue)</span>
+                </div>
+                <div class="flex justify-between items-center text-slate-600">
+                    <span>Stock received (tStok In):</span>
+                    <span class="font-semibold text-slate-900 tabular-nums">@Money(Data.TotalStockReceived)</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Card 5: Asset Built & Equity -->
         <div class="flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs transition hover:shadow-sm">
             <div>
                 <div class="flex items-center justify-between">
@@ -179,6 +207,7 @@
                         <th class="text-right">Net Sales</th>
                         <th class="text-right">Cost of Goods</th>
                         <th class="text-right">Sales Profit</th>
+                        <th class="text-right">Servicing Profit</th>
                         <th class="text-right">Margin %</th>
                         <th class="text-right">Stock Received (tStok In)</th>
                         <th class="text-right">Stock Inventory Value</th>
@@ -194,6 +223,7 @@
                             <td class="text-right tabular-nums">@Money(loc.Sales)</td>
                             <td class="text-right tabular-nums">@Money(loc.Cogs)</td>
                             <td class="text-right tabular-nums font-semibold text-emerald-700">@Money(loc.SalesProfit)</td>
+                            <td class="text-right tabular-nums font-semibold text-emerald-700">@Money(loc.ServicingProfit)</td>
                             <td class="text-right tabular-nums">@margin.ToString("0.#")%</td>
                             <td class="text-right tabular-nums">@Money(loc.StockReceived)</td>
                             <td class="text-right tabular-nums font-medium text-slate-900">@Money(loc.StockValue)</td>
@@ -209,6 +239,7 @@
                         <td class="text-right font-bold tabular-nums">@Money(Data.LocationBreakdown.Sum(l => l.Sales))</td>
                         <td class="text-right font-bold tabular-nums">@Money(Data.LocationBreakdown.Sum(l => l.Cogs))</td>
                         <td class="text-right font-bold tabular-nums text-emerald-700">@Money(Data.LocationBreakdown.Sum(l => l.SalesProfit))</td>
+                        <td class="text-right font-bold tabular-nums text-emerald-700">@Money(Data.LocationBreakdown.Sum(l => l.ServicingProfit))</td>
                         <td class="text-right font-bold tabular-nums">
                             @{
                                 var totalSales = Data.LocationBreakdown.Sum(l => l.Sales);
@@ -240,6 +271,7 @@
                     <th>Date</th>
                     <th class="text-right">Sales</th>
                     <th class="text-right">Sales profit</th>
+                    <th class="text-right">Servicing profit</th>
                     <th class="text-right">Supplier paid</th>
                     <th class="text-right">Stock received</th>
                     <th class="text-right">Expenses</th>
@@ -258,6 +290,7 @@
                         </td>
                         <td class="text-right tabular-nums">@Money(day.Sales)</td>
                         <td class="text-right tabular-nums text-emerald-700 font-medium">@Money(day.SalesProfit)</td>
+                        <td class="text-right tabular-nums text-emerald-700 font-medium">@Money(day.ServicingProfit)</td>
                         <td class="text-right tabular-nums">@Money(day.SupplierPaid)</td>
                         <td class="text-right tabular-nums">@Money(day.StockReceived)</td>
                         <td class="text-right tabular-nums">
@@ -292,6 +325,7 @@
                     <th>Total (@Data.Days.Count @(Data.Days.Count == 1 ? "day" : "days"))</th>
                     <td class="text-right font-bold tabular-nums">@Money(Data.TotalSales)</td>
                     <td class="text-right font-bold tabular-nums text-emerald-700">@Money(Data.SalesProfit)</td>
+                    <td class="text-right font-bold tabular-nums text-emerald-700">@Money(Data.ServicingProfit)</td>
                     <td class="text-right font-bold tabular-nums">@Money(Data.TotalSupplierPaid)</td>
                     <td class="text-right font-bold tabular-nums">@Money(Data.TotalStockReceived)</td>
                     <td class="text-right font-bold tabular-nums">@Money(Data.Expenses)</td>
@@ -303,6 +337,65 @@
             </tfoot>
         </table>
         <p class="p-4 text-xs text-slate-500">Sales are net of returns and discounts. Sales profit subtracts the cost of the goods sold. Idle non-working days without transactions are hidden.</p>
+    </section>
+
+    <!-- Technicians Mobile Servicing Performance Section -->
+    <section class="panel mb-6 table-scroll">
+        <div class="panel-heading">
+            <div>
+                <h3 class="font-semibold text-slate-900">Technicians · Mobile servicing performance</h3>
+                <p class="mt-0.5 text-xs text-slate-500">Servicing collections, parts costs, technician payouts, and shop profit per technician this month.</p>
+            </div>
+        </div>
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Technician</th>
+                    <th>Store Location</th>
+                    <th class="text-right">Days Active</th>
+                    <th class="text-right">Total Servicing</th>
+                    <th class="text-right">Parts Cost</th>
+                    <th class="text-right">Technician Cut (Upfront)</th>
+                    <th class="text-right">Shop Profit (to Drawer)</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Data.Technicians.Count == 0)
+                {
+                    <tr>
+                        <td colspan="7" class="p-4 text-center text-xs text-slate-400">No mobile servicing entries recorded for this month.</td>
+                    </tr>
+                }
+                else
+                {
+                    @foreach (var tech in Data.Technicians)
+                    {
+                        <tr>
+                            <td class="font-medium text-slate-900">@tech.TechnicianName</td>
+                            <td class="text-slate-600">@tech.LocationName</td>
+                            <td class="text-right tabular-nums">@tech.DaysActive</td>
+                            <td class="text-right tabular-nums font-semibold text-blue-700">@Money(tech.TotalServicing)</td>
+                            <td class="text-right tabular-nums text-slate-700">@Money(tech.TotalCost)</td>
+                            <td class="text-right tabular-nums text-indigo-700">@Money(tech.TechnicianCut)</td>
+                            <td class="text-right tabular-nums font-bold text-emerald-700">@Money(tech.ShopProfit)</td>
+                        </tr>
+                    }
+                }
+            </tbody>
+            @if (Data.Technicians.Count > 0)
+            {
+                <tfoot>
+                    <tr>
+                        <th colspan="2">Total (@Data.Technicians.Count @(Data.Technicians.Count == 1 ? "technician" : "technicians"))</th>
+                        <td class="text-right font-bold tabular-nums">@Data.Technicians.Sum(t => t.DaysActive)</td>
+                        <td class="text-right font-bold tabular-nums text-blue-700">@Money(Data.TotalServicing)</td>
+                        <td class="text-right font-bold tabular-nums text-slate-700">@Money(Data.TotalServicingCost)</td>
+                        <td class="text-right font-bold tabular-nums text-indigo-700">@Money(Data.TotalServicingTechCut)</td>
+                        <td class="text-right font-bold tabular-nums text-emerald-700">@Money(Data.TotalServicingProfit)</td>
+                    </tr>
+                </tfoot>
+            }
+        </table>
     </section>
 
     <!-- Suppliers Breakdown Section -->

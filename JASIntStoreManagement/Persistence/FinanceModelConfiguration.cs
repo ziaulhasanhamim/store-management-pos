@@ -132,10 +132,15 @@ internal static class FinanceModelConfiguration
         builder.Entity<Technician>(entity =>
         {
             entity.HasIndex(t => t.NormalizedName);
+            entity.HasIndex(t => t.LocationId);
             entity.Property(t => t.Name).HasMaxLength(100);
             entity.Property(t => t.NormalizedName).HasMaxLength(100);
             entity.Property(t => t.Phone).HasMaxLength(30);
             entity.Property(t => t.DefaultCommissionRate).HasPrecision(5, 2);
+            entity.HasOne(t => t.Location)
+                .WithMany()
+                .HasForeignKey(t => t.LocationId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
         builder.Entity<MobileServicingEntry>(entity =>
         {

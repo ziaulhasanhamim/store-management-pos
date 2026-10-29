@@ -60,6 +60,17 @@ internal static class MonthlyFinanceBuilder
         var dailyExpense = expenses.GroupBy(expense => Date(expense.OccurredAt)).ToDictionary(group => group.Key, group => group.Sum(expense => expense.Amount));
         var dailyPayroll = payroll.GroupBy(entry => Date(entry.OccurredAt)).ToDictionary(group => group.Key, group => group.Sum(entry => entry.PaidAmount));
 
+        var servicingEntries = await db.MobileServicingEntries.AsNoTracking()
+            .Include(e => e.Technician)
+            .Include(e => e.Location)
+            .Where(e => e.Date >= totals.Start && e.Date <= totals.End
+                && (locationId == null || e.LocationId == locationId.Value))
+            .ToArrayAsync(ct);
+
+        var dailyServicingProfit = servicingEntries
+            .GroupBy(e => e.Date)
+            .ToDictionary(g => g.Key, g => g.Sum(e => e.ShopProfit));
+
         var cashSupplierPayments = await db.CashMovements.AsNoTracking()
             .Where(move => move.BusinessDate >= totals.Start && move.BusinessDate <= totals.End
                 && move.Kind == CashMovementKind.SupplierPayment
@@ -122,6 +133,7 @@ internal static class MonthlyFinanceBuilder
             || dailyPayroll.ContainsKey(date)
             || dailySupplierPaid.ContainsKey(date)
             || dailyStockReceived.ContainsKey(date)
+            || dailyServicingProfit.ContainsKey(date)
             || (dailyVariance.TryGetValue(date, out var variance) && variance != 0)
         ).ToList();
 
@@ -140,7 +152,8 @@ internal static class MonthlyFinanceBuilder
                 SupplierPaid = dailySupplierPaid.GetValueOrDefault(date),
                 StockReceived = dailyStockReceived.GetValueOrDefault(date),
                 ExpenseCategories = dayCategoriesByDate.GetValueOrDefault(date) ?? [],
-                IsWorkingDay = true
+                IsWorkingDay = true,
+                ServicingProfit = dailyServicingProfit.GetValueOrDefault(date)
             };
         }).ToArray();
         var categories = expenses.GroupBy(expense => new { Id = expense.CategoryDefinitionId ?? -(int)expense.Category, expense.Category })
@@ -258,6 +271,25 @@ internal static class MonthlyFinanceBuilder
                 .FirstOrDefaultAsync(ct);
         }
 
+        var technicianSummaries = servicingEntries
+            .GroupBy(e => e.TechnicianId)
+            .Select(g =>
+            {
+                var first = g.First();
+                return new TechnicianMonthlyServicingSummary(
+                    first.TechnicianId,
+                    first.Technician?.Name ?? "Technician",
+                    first.Location?.Name ?? "Store",
+                    g.Sum(e => e.TotalAmount),
+                    g.Sum(e => e.TotalCost),
+                    g.Sum(e => e.TechnicianCut),
+                    g.Sum(e => e.ShopProfit),
+                    g.Select(e => e.Date).Distinct().Count()
+                );
+            })
+            .OrderBy(t => t.TechnicianName)
+            .ToArray();
+
         var closingCash = await CashAtAsync(db, totals.End.AddDays(1), ct);
         return new(days, categories, employees,
             new(openingStock, openingCash, openingBank, openingSupplierDue, openingCustomerDue)
@@ -271,14 +303,15 @@ internal static class MonthlyFinanceBuilder
         {
             AssetCalculationVersion = AssetCalculationVersion,
             Suppliers = supplierSummaries,
+            Technicians = technicianSummaries,
             SelectedLocationId = locationId,
             SelectedLocationName = selectedLocationName,
-            LocationBreakdown = locationId == null ? await BuildLocationBreakdownAsync(db, from, through, ct) : []
+            LocationBreakdown = locationId == null ? await BuildLocationBreakdownAsync(db, from, through, ct, totals.Start, totals.End) : []
         };
     }
 
     public static async Task<IReadOnlyList<LocationFinanceSummary>> BuildLocationBreakdownAsync(
-        AppDbContext db, DateTimeOffset from, DateTimeOffset through, CancellationToken ct)
+        AppDbContext db, DateTimeOffset from, DateTimeOffset through, CancellationToken ct, DateOnly? startDate = null, DateOnly? endDate = null)
     {
         var locations = await db.StockLocations.AsNoTracking()
             .Where(l => !l.IsDeleted)
@@ -287,6 +320,14 @@ internal static class MonthlyFinanceBuilder
             .ToArrayAsync(ct);
 
         if (locations.Length == 0) return [];
+
+        var startDay = startDate ?? DateOnly.FromDateTime(from.Date);
+        var endDay = endDate ?? DateOnly.FromDateTime(through.AddTicks(-1).Date);
+        var servicingByLoc = await db.MobileServicingEntries.AsNoTracking()
+            .Where(e => e.Date >= startDay && e.Date <= endDay)
+            .GroupBy(e => e.LocationId)
+            .Select(g => new { LocationId = g.Key, ShopProfit = g.Sum(e => e.ShopProfit) })
+            .ToDictionaryAsync(x => x.LocationId, x => x.ShopProfit, ct);
 
         var salesByLoc = await db.Sales.AsNoTracking()
             .Where(s => !s.IsDeleted && s.Status == SaleStatus.Completed && s.SoldAt >= from && s.SoldAt < through)
@@ -324,7 +365,11 @@ internal static class MonthlyFinanceBuilder
             var profit = sales - cogs;
             var received = purchasesByLoc.GetValueOrDefault(l.Id);
             var stockVal = stockValuesByLoc.GetValueOrDefault(l.Id);
-            return new LocationFinanceSummary(l.Id, l.Name, sales, cogs, profit, received, stockVal);
+            var servicingProfit = servicingByLoc.GetValueOrDefault(l.Id);
+            return new LocationFinanceSummary(l.Id, l.Name, sales, cogs, profit, received, stockVal)
+            {
+                ServicingProfit = servicingProfit
+            };
         }).ToArray();
     }
 
