@@ -1,0 +1,35 @@
+databases:
+  - name: jasintpos-db
+    databaseName: jasintpos
+    user: jasuser
+    plan: free
+    region: singapore
+    postgresMajorVersion: "18"
+
+services:
+  - type: web
+    name: jasintpos
+    runtime: docker
+    plan: free
+    region: singapore
+    branch: main
+    healthCheckPath: /health
+    envVars:
+      - key: DB_URL
+        fromDatabase:
+          name: jasintpos-db
+          property: connectionString
+      - key: AUTO_MIGRATE
+        value: "true"
+      - key: ASPNETCORE_ENVIRONMENT
+        value: "Production"
+      - key: AdminUser__Username
+        value: "superuser"
+      - key: AdminUser__Password
+        value: "superuser5078"
+      - key: BusinessTimeZone
+        value: "Asia/Dhaka"
+      - key: CurrencyCode
+        value: "BDT"
+      - key: StoreName
+        value: "JAS International"
