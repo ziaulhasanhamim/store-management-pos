@@ -612,10 +612,21 @@ public sealed class InventoryService(IServiceScopeFactory scopes, IConfiguration
 
             if (product.IsNonStocked != input.IsNonStocked && productId is { } changedId
                 && (await db.InventoryBalances.AnyAsync(balance => balance.ProductId == changedId && balance.QuantityOnHand != 0, ct)
-                    || await db.InventoryMovements.AnyAsync(movement => movement.ProductId == changedId, ct)
+                    || await db.InventoryMovements.AnyAsync(movement => movement.ProductId == changedId && movement.Quantity != 0, ct)
                     || await db.SaleItems.AnyAsync(item => item.ProductId == changedId, ct)))
             {
-                throw new ValidationException("Stock type cannot be changed after stock or sales activity. Create a separate item instead.");
+                throw new ValidationException("Stock type cannot be changed while items are in stock or after sales/movement activity. Adjust stock to zero first or create a separate item.");
+            }
+
+            if (input.IsNonStocked && productId is { } nonStockedId)
+            {
+                var zeroBalances = await db.InventoryBalances
+                    .Where(balance => balance.ProductId == nonStockedId && balance.QuantityOnHand == 0)
+                    .ToListAsync(ct);
+                if (zeroBalances.Count > 0)
+                {
+                    db.InventoryBalances.RemoveRange(zeroBalances);
+                }
             }
 
             product.IsNonStocked = input.IsNonStocked;

@@ -190,4 +190,54 @@ public class InventoryServiceTests : PosIntegrationTestBase
         await itemInLoc2.Should().NotBeNull();
         await itemInLoc2!.Stock.Should().BeEqualTo(0);
     }
+
+    [Test]
+    public async Task SaveProductAsync_CanChangeToNonStocked_WhenZeroQuantityAndNoSales()
+    {
+        await using var scope = CreateScope();
+        var inventory = scope.ServiceProvider.GetRequiredService<InventoryService>();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        // 1. Create a stocked product
+        var productInput = new ProductInput
+        {
+            Name = "Service Fee Placeholder",
+            Unit = "piece",
+            CostPrice = 0m,
+            SellingPrice = 50m,
+            SupplierId = 1,
+            CategoryId = 1,
+            IsNonStocked = false
+        };
+        var productId = await inventory.SaveProductAsync(InventoryUser, null, productInput);
+
+        // Add a zero-quantity balance and zero-quantity movement
+        db.InventoryBalances.Add(new Persistence.Entities.InventoryBalance
+        {
+            ProductId = productId,
+            StockLocationId = 1,
+            QuantityOnHand = 0m
+        });
+        db.InventoryMovements.Add(new Persistence.Entities.InventoryMovement
+        {
+            ProductId = productId,
+            StockLocationId = 1,
+            Quantity = 0m,
+            UnitCost = 0m,
+            Type = InventoryMovementType.Adjustment
+        });
+        await db.SaveChangesAsync();
+
+        // 2. Change to non-stocked
+        productInput.IsNonStocked = true;
+        var updatedId = await inventory.SaveProductAsync(InventoryUser, productId, productInput);
+        await updatedId.Should().BeEqualTo(productId);
+
+        var product = await db.Products.AsNoTracking().SingleAsync(p => p.Id == productId);
+        await product.IsNonStocked.Should().BeTrue();
+        await product.CostPrice.Should().BeEqualTo(0m);
+
+        var balances = await db.InventoryBalances.Where(b => b.ProductId == productId).ToListAsync();
+        await balances.Count.Should().BeEqualTo(0);
+    }
 }

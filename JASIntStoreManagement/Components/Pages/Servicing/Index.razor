@@ -170,7 +170,7 @@ else
                     <div class="space-y-4">
                         <div>
                             <label class="field-label" for="entry-tech">Technician</label>
-                            <select id="entry-tech" name="EntryForm.TechnicianId" class="field font-medium" value="@EntryForm?.TechnicianId" required>
+                            <select id="entry-tech" name="EntryForm.TechnicianId" class="field font-medium" value="@EntryForm?.TechnicianId" onchange="window.onTechnicianChanged && window.onTechnicianChanged()" required>
                                 <option value="">Select technician</option>
                                 @foreach (var tech in PageData.Technicians)
                                 {
@@ -190,12 +190,12 @@ else
                         <div class="grid grid-cols-2 gap-3">
                             <div>
                                 <label class="field-label" for="entry-total">Total Servicing Amount</label>
-                                <input id="entry-total" name="EntryForm.TotalAmount" class="field font-semibold text-blue-700" inputmode="decimal" type="number" step="0.01" min="0" value="@((EntryForm?.TotalAmount ?? 0m) > 0 ? EntryForm!.TotalAmount.ToString("0.##", CultureInfo.InvariantCulture) : "")" placeholder="0.00" required />
+                                <input id="entry-total" name="EntryForm.TotalAmount" class="field font-semibold text-blue-700" inputmode="decimal" type="number" step="0.01" min="0" value="@((EntryForm?.TotalAmount ?? 0m) > 0 ? EntryForm!.TotalAmount.ToString("0.##", CultureInfo.InvariantCulture) : "")" placeholder="0.00" oninput="window.updateServicingCalculations && window.updateServicingCalculations()" required />
                                 <p class="text-[11px] text-slate-400 mt-1">Total collected from customers</p>
                             </div>
                             <div>
                                 <label class="field-label" for="entry-cost">Total Material / Parts Cost</label>
-                                <input id="entry-cost" name="EntryForm.TotalCost" class="field font-semibold text-slate-700" inputmode="decimal" type="number" step="0.01" min="0" value="@((EntryForm?.TotalCost ?? 0m).ToString("0.##", CultureInfo.InvariantCulture))" placeholder="0.00" />
+                                <input id="entry-cost" name="EntryForm.TotalCost" class="field font-semibold text-slate-700" inputmode="decimal" type="number" step="0.01" min="0" value="@((EntryForm?.TotalCost ?? 0m) > 0 ? EntryForm!.TotalCost.ToString("0.##", CultureInfo.InvariantCulture) : "")" placeholder="0.00" oninput="window.updateServicingCalculations && window.updateServicingCalculations()" />
                                 <p class="text-[11px] text-slate-400 mt-1">Total spare parts cost</p>
                             </div>
                         </div>
@@ -206,7 +206,7 @@ else
                                 <span class="text-xs text-slate-400">Default: @(SelectedTechnician?.DefaultCommissionRate.ToString("0.##") ?? "50")%</span>
                             </div>
                             <div class="relative">
-                                <input id="entry-commission" name="EntryForm.CommissionRate" class="field pr-10" inputmode="decimal" type="number" step="0.5" min="0" max="100" value="@((EntryForm?.CommissionRate ?? 50m).ToString("0.##", CultureInfo.InvariantCulture))" required />
+                                <input id="entry-commission" name="EntryForm.CommissionRate" class="field pr-10" inputmode="decimal" type="number" step="0.5" min="0" max="100" value="@((EntryForm?.CommissionRate ?? 50m).ToString("0.##", CultureInfo.InvariantCulture))" oninput="window.updateServicingCalculations && window.updateServicingCalculations()" required />
                                 <span class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3 text-sm text-slate-400">%</span>
                             </div>
                         </div>
@@ -217,7 +217,13 @@ else
                         </div>
 
                         <!-- Live Calculation Card (Updates on every keystroke) -->
-                        <div class="rounded-xl border border-slate-200 bg-slate-50/80 p-4 text-xs space-y-2">
+                        <div id="servicing-calc-card" class="rounded-xl border border-slate-200 bg-slate-50/80 p-4 text-xs space-y-2">
+                            <div class="flex items-center justify-between border-b border-slate-200/80 pb-2 mb-1">
+                                <span class="font-medium text-slate-500 uppercase tracking-wider text-[10px]">Estimated Profit Distribution</span>
+                                <span id="calc-badge" class="@((EntryForm?.TotalAmount ?? 0m) > 0 ? "badge badge-success text-[10px]" : "badge badge-neutral text-[10px]")">
+                                    @((EntryForm?.TotalAmount ?? 0m) > 0 ? "Calculated" : "Live Preview")
+                                </span>
+                            </div>
                             <div class="flex justify-between text-slate-600">
                                 <span>Day's Profit (Servicing − Parts Cost):</span>
                                 <strong id="calc-profit" class="text-slate-900 font-semibold text-sm">@Money(EntryForm?.Profit ?? 0m)</strong>
@@ -230,6 +236,9 @@ else
                                 <span>Shop Profit (to Cash Drawer):</span>
                                 <strong id="calc-shop-profit" class="font-black text-sm text-emerald-700">@Money(EntryForm?.ShopProfit ?? 0m)</strong>
                             </div>
+                            <p id="calc-hint" class="text-[11px] text-slate-400 italic @((EntryForm?.TotalAmount ?? 0m) > 0 ? "hidden" : "")">
+                                Enter total servicing amount and cost above to preview live profit split.
+                            </p>
                             <p id="calc-warning" class="hidden text-xs font-semibold text-amber-800 bg-amber-100 p-2 rounded-lg"></p>
                         </div>
 
@@ -347,6 +356,10 @@ else
     </div>
 
     <!-- Currency & Daily entries state for real-time client-side calculation -->
+    <div id="servicing-entries-metadata" class="hidden"
+         data-currency="@(Configuration["CurrencyCode"] ?? "BDT")"
+         data-entries='@(System.Text.Json.JsonSerializer.Serialize(PageData.Entries.ToDictionary(e => e.TechnicianId.ToString(), e => new { id = e.Id, technicianId = e.TechnicianId, technicianName = e.TechnicianName, totalAmount = e.TotalAmount, totalCost = e.TotalCost, commissionRate = e.CommissionRate, isDeposited = e.IsDeposited, notes = e.Notes ?? "" })))'>
+    </div>
     <script>
         window.__STORE_CURRENCY__ = '@(Configuration["CurrencyCode"] ?? "BDT")';
         window.__TODAY_SERVICING_ENTRIES__ = {
