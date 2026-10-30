@@ -2,12 +2,20 @@
 @inject ClosingService Closings
 @inject CashDrawerService Drawers
 
-<a data-draft-owner="@HttpContext.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value" data-working-date="@Date?.ToString("yyyy-MM-dd")" href="/finance/day" class="text-xs font-medium text-blue-700">
-    Working day @(Date?.ToString("dd MMM yyyy") ?? "…")
-</a>
-<a href="/cash-drawer" class="text-xs font-medium text-blue-700">
-    Cash: @(CashLocation ?? "select location")
-</a>
+<div class="hidden sm:flex items-center gap-2">
+    <a data-draft-owner="@HttpContext.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value" data-working-date="@Date?.ToString("yyyy-MM-dd")" href="/finance/day" class="inline-flex items-center rounded-lg bg-blue-50/70 px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100/70 transition">
+        Working day @(Date?.ToString("dd MMM yyyy") ?? "…")
+    </a>
+    <a href="/cash-drawer" class="inline-flex items-center rounded-lg bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-200 transition">
+        Cash: @(CashLocation ?? "select location")
+    </a>
+</div>
+<div class="flex sm:hidden items-center">
+    <a data-draft-owner="@HttpContext.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value" data-working-date="@Date?.ToString("yyyy-MM-dd")" href="/finance/day" class="inline-flex items-center gap-1 rounded-md bg-blue-50 px-2 py-1 text-[11px] font-semibold text-blue-700" title="Working day @(Date?.ToString("dd MMM yyyy") ?? "…") · Cash: @(CashLocation ?? "select location")">
+        <span class="size-1.5 rounded-full bg-blue-600"></span>
+        @(Date?.ToString("dd MMM") ?? "…")
+    </a>
+</div>
 
 @code {
     [CascadingParameter]

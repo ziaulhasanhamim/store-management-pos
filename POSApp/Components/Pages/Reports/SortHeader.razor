@@ -1,7 +1,7 @@
 @using Microsoft.AspNetCore.WebUtilities
 @inject NavigationManager Navigation
 
-<th class="@(Numeric ? "text-right" : null)" aria-sort="@Direction">
+<th class="@Class @(Numeric ? "text-right" : null)" aria-sort="@Direction">
     <a href="@SortUrl" class="table-sort" title="@($"Sort {Label} {NextDescendingText}")">
         <span>@Label</span>
         <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true" class="sort-icon">
@@ -12,6 +12,9 @@
 </th>
 
 @code {
+    [Parameter]
+    public string? Class { get; set; }
+
     [Parameter, EditorRequired]
     public string Column { get; set; } = "";
 

@@ -1,7 +1,7 @@
 @inherits LayoutComponentBase
 @inject NavigationManager Navigation
 
-<div class="min-h-screen bg-slate-50 lg:pl-64">
+<div class="min-h-screen bg-slate-50 lg:pl-64 w-full max-w-full overflow-x-hidden">
     <!-- Mobile Drawer Peer Toggle -->
     <input type="checkbox" id="mobile-nav-toggle" class="peer hidden" aria-hidden="true" />
 
@@ -116,16 +116,16 @@
         </div>
     </aside>
 
-    <header class="flex h-16 sm:h-18 items-center justify-between border-b border-slate-200 bg-white px-4 sm:px-8">
-        <div class="flex items-center gap-3">
-            <label for="mobile-nav-toggle" class="icon-button lg:hidden cursor-pointer" aria-label="Open menu" title="Open menu">
+    <header class="flex h-16 sm:h-18 items-center justify-between border-b border-slate-200 bg-white px-3 sm:px-6 lg:px-8 w-full max-w-full">
+        <div class="flex items-center gap-2 sm:gap-3 min-w-0">
+            <label for="mobile-nav-toggle" class="icon-button shrink-0 lg:hidden cursor-pointer" aria-label="Open menu" title="Open menu">
                 <svg class="size-6 text-slate-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
                 </svg>
             </label>
-            <a href="/" class="flex items-center gap-2 lg:hidden">
+            <a href="/" class="flex items-center gap-2 shrink-0 lg:hidden">
                 <img src="/images/logo.svg" alt="@(Configuration["StoreName"] ?? "RetailPOS") logo" class="size-7 rounded-lg" />
-                <span class="text-sm font-bold text-slate-900">@(Configuration["StoreName"] ?? "RetailPOS")</span>
+                <span class="text-sm font-bold text-slate-900 truncate max-w-[120px] sm:max-w-none">@(Configuration["StoreName"] ?? "RetailPOS")</span>
             </a>
             <AuthorizeView>
                 <Authorized>
@@ -139,17 +139,17 @@
 
         <AuthorizeView>
             <Authorized Context="auth">
-                <div class="flex items-center gap-4">
+                <div class="flex items-center gap-2 sm:gap-4 shrink-0">
                     <AuthorizeView Policy="@AppPolicies.ManageUsers" Context="importsAuth">
                         <ImportIndicator @rendermode="InteractiveAuto" />
                     </AuthorizeView>
-                    <span class="flex size-8 items-center justify-center rounded-full bg-blue-50 text-xs font-bold text-blue-700">
+                    <span class="flex size-8 shrink-0 items-center justify-center rounded-full bg-blue-50 text-xs font-bold text-blue-700">
                         @auth.User.Identity?.Name?.FirstOrDefault().ToString().ToUpperInvariant()
                     </span>
-                    <span class="max-w-40 truncate text-sm font-medium text-slate-700" title="@auth.User.Identity?.Name">
+                    <span class="hidden md:inline max-w-40 truncate text-sm font-medium text-slate-700" title="@auth.User.Identity?.Name">
                         @auth.User.Identity?.Name
                     </span>
-                    <a href="/account/logout" class="icon-button" aria-label="Sign out" title="Sign out">
+                    <a href="/account/logout" class="icon-button shrink-0" aria-label="Sign out" title="Sign out">
                         <Icon Name="logout" />
                     </a>
                 </div>
@@ -160,7 +160,7 @@
         </AuthorizeView>
     </header>
 
-    <main class="mx-auto max-w-7xl px-5 py-8 sm:px-8">
+    <main class="mx-auto max-w-7xl px-3 sm:px-6 lg:px-8 py-4 sm:py-8 w-full min-w-0">
         <WorkspaceNav />
         @Body
     </main>
