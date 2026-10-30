@@ -1,11 +1,13 @@
 import { initialize as initializeFormDrafts } from "./js/form-drafts.js";
 import { initialize as initializeAutoSearch } from "./search-enhancements.js";
 import { initialize as initializeDateRangePicker } from "./date-range-picker.js";
+import { initialize as initializeCharts } from "./analytics-charts.js";
 
 export function afterWebStarted(blazor) {
     initializeFormDrafts(blazor);
     initializeAutoSearch(blazor);
     initializeDateRangePicker(blazor);
+    initializeCharts(blazor);
     let pending = null;
     let progress = 0;
     let active = false;
