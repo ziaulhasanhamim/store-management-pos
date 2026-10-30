@@ -92,10 +92,16 @@
                         <NavLink href="/cash-drawer?view=transfer">Move cash</NavLink>
                     </AuthorizeView>
                 </SidebarGroup>
-                <NavLink href="/reports" class="nav-link">
-                    <Icon Name="dashboard" />
-                    Reports
-                </NavLink>
+                <SidebarGroup Title="Reports & Analytics" IconName="dashboard" Prefix="/reports">
+                    <NavLink href="/reports" Match="NavLinkMatch.All">Reports hub</NavLink>
+                    <AuthorizeView Policy="@AppPolicies.MakeSales" Context="repSales">
+                        <NavLink href="/reports/sales">Sales report</NavLink>
+                        <NavLink href="/reports/categories">Category performance</NavLink>
+                        <NavLink href="/reports/suppliers-sales">Supplier sales</NavLink>
+                        <NavLink href="/reports/inventory-velocity">Dead stock & velocity</NavLink>
+                        <NavLink href="/reports/margin-matrix">Profit margin matrix</NavLink>
+                    </AuthorizeView>
+                </SidebarGroup>
                 <AuthorizeView Policy="@AppPolicies.ManageUsers" Context="admin">
                     <NavLink href="/administration" class="@AreaClass("administration")">
                         <Icon Name="settings" />

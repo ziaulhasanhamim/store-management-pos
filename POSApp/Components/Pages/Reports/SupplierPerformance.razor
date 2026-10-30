@@ -1,0 +1,342 @@
+@page "/reports/suppliers-sales"
+@attribute [Authorize(Policy = AppPolicies.MakeSales)]
+@using System.ComponentModel.DataAnnotations
+@using System.Text.Json
+@using POSApp.Client.DTOs
+@using POSApp.Client.Security
+@using POSApp.Services
+@inject AnalyticsService Analytics
+@inject IConfiguration Configuration
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<PageTitle>Supplier Sales Performance · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
+
+<div class="page-heading">
+    <div>
+        <nav class="breadcrumb">
+            <a href="/">Dashboard</a>
+            <span>/</span>
+            <a href="/reports">Reports</a>
+            <span>/</span>
+            <span>Supplier sales performance</span>
+        </nav>
+        <h1 class="mt-1">Supplier Sales Performance</h1>
+        <p class="text-sm text-slate-500">Sales velocity, profit margins, inventory value, and supplier turnover analytics</p>
+    </div>
+    <div class="flex flex-wrap gap-2 no-print">
+        <a href="@ExportCsvUrl" class="btn-secondary" download>
+            <Icon Name="history" Class="size-4 mr-1.5" />
+            Export CSV
+        </a>
+        <a href="/reports/inventory" class="btn-secondary">
+            <Icon Name="box" Class="size-4 mr-1.5" />
+            Stock valuation
+        </a>
+    </div>
+</div>
+
+@if (Error is not null)
+{
+    <p class="error-panel mb-4" role="alert">@Error</p>
+}
+
+@if (Data is null)
+{
+    <LoadingPanel Message="Aggregating supplier sales metrics…" />
+}
+else
+{
+    <!-- Filter Presets & Controls -->
+    <div class="report-filters no-print mb-6">
+        <div class="mb-4 flex flex-wrap items-center gap-2">
+            @foreach (var preset in Presets)
+            {
+                <a href="@PresetLink(preset.Key)" class="@(Period == preset.Key ? "filter-chip active" : "filter-chip")">@preset.Value</a>
+            }
+        </div>
+
+        <form method="get" action="/reports/suppliers-sales" class="grid items-end gap-3 sm:grid-cols-2 xl:grid-cols-4" data-enhance data-auto-search="false">
+            <input type="hidden" name="period" value="custom" />
+            <div class="sm:col-span-2">
+                <label class="field-label">Date range</label>
+                <DateRangePicker Id="supplier-date-range" Start="@EffectiveStart" End="@EffectiveEnd" AutoSubmit="false" />
+            </div>
+
+            <div>
+                <label class="field-label" for="filter-location">Store Location</label>
+                <select id="filter-location" name="locationId" class="field">
+                    <option value="">All store locations</option>
+                    @foreach (var loc in Data.Locations)
+                    {
+                        <option value="@loc.Id" selected="@(LocationId == loc.Id)">@loc.Name</option>
+                    }
+                </select>
+            </div>
+
+            <div class="flex items-end">
+                <button type="submit" class="btn-primary w-full py-2 px-4">
+                    <Icon Name="search" Class="size-4 mr-1" />
+                    Filter suppliers
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Summary KPI Cards -->
+    <div class="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div class="metric bg-white border border-slate-200/80 shadow-xs">
+            <div class="flex items-center justify-between">
+                <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Active Suppliers</p>
+                <span class="inline-flex size-7 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
+                    <Icon Name="users" Class="size-4" />
+                </span>
+            </div>
+            <strong class="text-2xl mt-1 text-slate-900">@Data.Suppliers.Count</strong>
+            <span class="text-xs text-slate-400 mt-0.5">Vendors with sales or stock</span>
+        </div>
+
+        <div class="metric bg-white border border-slate-200/80 shadow-xs">
+            <div class="flex items-center justify-between">
+                <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Total Sales Revenue</p>
+                <span class="inline-flex size-7 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+                    <Icon Name="wallet" Class="size-4" />
+                </span>
+            </div>
+            <strong class="text-2xl mt-1 text-blue-600">@Money(Data.TotalRevenue)</strong>
+            <span class="text-xs text-slate-400 mt-0.5">@EffectiveStart.ToString("dd MMM") – @EffectiveEnd.ToString("dd MMM yyyy")</span>
+        </div>
+
+        <div class="metric bg-white border border-slate-200/80 shadow-xs">
+            <div class="flex items-center justify-between">
+                <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Supplier Sales Profit</p>
+                <span class="inline-flex size-7 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
+                    <Icon Name="history" Class="size-4" />
+                </span>
+            </div>
+            <strong class="text-2xl mt-1 text-emerald-600">@Money(Data.TotalProfit)</strong>
+            <span class="text-xs text-slate-400 mt-0.5">
+                @(Data.TotalRevenue > 0 ? (Data.TotalProfit / Data.TotalRevenue * 100).ToString("0.0") : "0.0")% realized margin
+            </span>
+        </div>
+
+        <div class="metric bg-white border border-slate-200/80 shadow-xs">
+            <div class="flex items-center justify-between">
+                <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Tied-Up Stock Value</p>
+                <span class="inline-flex size-7 items-center justify-center rounded-lg bg-amber-50 text-amber-600">
+                    <Icon Name="box" Class="size-4" />
+                </span>
+            </div>
+            <strong class="text-2xl mt-1 text-amber-600">@Money(Data.TotalStockValue)</strong>
+            <span class="text-xs text-slate-400 mt-0.5">Current unsold inventory cost</span>
+        </div>
+    </div>
+
+    <!-- Visual Charts Row -->
+    @if (Data.Suppliers.Count > 0)
+    {
+        <div class="mb-6 grid gap-6 lg:grid-cols-12 no-print">
+            <!-- Top Suppliers by Revenue Bar Chart -->
+            <div class="chart-card lg:col-span-7 bg-white">
+                <div class="flex items-center justify-between mb-4">
+                    <div>
+                        <h3 class="chart-title">Top Suppliers by Sales Volume</h3>
+                        <p class="chart-subtitle">Gross turnover generated per supplier line</p>
+                    </div>
+                    <span class="stat-pill bg-blue-50 text-blue-700">Top Vendors</span>
+                </div>
+                <div class="relative h-64 w-full">
+                    <canvas id="supplier-revenue-bar"
+                            data-chart="bar"
+                            data-currency="@Currency"
+                            data-horizontal="true"
+                            data-labels="@JsonSerializer.Serialize(Data.Suppliers.Take(7).Select(s => s.SupplierName))"
+                            data-datasets="@JsonSerializer.Serialize(new object[] {
+                                new { label = "Revenue", data = Data.Suppliers.Take(7).Select(s => s.TotalRevenue).ToArray(), color = "#3b82f6" }
+                            })">
+                    </canvas>
+                </div>
+            </div>
+
+            <!-- Revenue vs Tied-Up Stock Value Comparison -->
+            <div class="chart-card lg:col-span-5 bg-white">
+                <div class="flex items-center justify-between mb-4">
+                    <div>
+                        <h3 class="chart-title">Turnover vs Tied-up Stock</h3>
+                        <p class="chart-subtitle">Comparison of sales revenue and holding stock</p>
+                    </div>
+                    <span class="stat-pill bg-violet-50 text-violet-700">Stock Velocity</span>
+                </div>
+                <div class="relative h-64 w-full">
+                    <canvas id="supplier-stock-bar"
+                            data-chart="bar"
+                            data-currency="@Currency"
+                            data-labels="@JsonSerializer.Serialize(Data.Suppliers.Take(5).Select(s => s.SupplierName))"
+                            data-datasets="@JsonSerializer.Serialize(new object[] {
+                                new { label = "Sales Revenue", data = Data.Suppliers.Take(5).Select(s => s.TotalRevenue).ToArray(), color = "#10b981" },
+                                new { label = "Stock Value", data = Data.Suppliers.Take(5).Select(s => s.CurrentStockValue).ToArray(), color = "#f59e0b" }
+                            })">
+                    </canvas>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- Detailed Performance Data Table -->
+    <section class="panel bg-white shadow-xs">
+        <div class="panel-heading border-b border-slate-100 px-5 py-4 flex items-center justify-between">
+            <h2 class="text-base font-bold text-slate-800">Supplier Ledger Breakdown</h2>
+            <span class="text-xs font-semibold text-slate-500">@Data.Suppliers.Count suppliers</span>
+        </div>
+        <div class="table-scroll">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Supplier</th>
+                        <th class="text-right">Items Sold</th>
+                        <th class="text-right">Units Sold</th>
+                        <th class="text-right">Total Revenue</th>
+                        <th class="text-right">Total Cost</th>
+                        <th class="text-right">Gross Profit</th>
+                        <th class="text-right">Margin %</th>
+                        <th class="text-right">In Stock Units</th>
+                        <th class="text-right">Stock Capital Value</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Data.Suppliers.Count == 0)
+                    {
+                        <tr>
+                            <td colspan="9" class="empty-state py-8 text-center text-slate-400">
+                                No sales or active inventory found for the selected filters.
+                            </td>
+                        </tr>
+                    }
+                    @foreach (var sup in Data.Suppliers)
+                    {
+                        <tr class="hover:bg-slate-50/70 transition-colors">
+                            <td class="font-semibold text-slate-900">
+                                <a href="/suppliers/@sup.SupplierId" class="hover:text-blue-600 transition-colors">
+                                    @sup.SupplierName
+                                </a>
+                            </td>
+                            <td class="text-right tabular-nums text-slate-600">@sup.ProductsSoldDistinct</td>
+                            <td class="text-right tabular-nums font-medium text-slate-900">@sup.UnitsSold.ToString("N0")</td>
+                            <td class="text-right tabular-nums font-semibold text-blue-600">@Money(sup.TotalRevenue)</td>
+                            <td class="text-right tabular-nums text-slate-500">@Money(sup.TotalCost)</td>
+                            <td class="text-right tabular-nums font-semibold text-emerald-600">@Money(sup.GrossProfit)</td>
+                            <td class="text-right tabular-nums">
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold @(sup.MarginPercent >= 25 ? "bg-emerald-50 text-emerald-700" : (sup.MarginPercent >= 10 ? "bg-blue-50 text-blue-700" : "bg-amber-50 text-amber-700"))">
+                                    @sup.MarginPercent.ToString("0.0")%
+                                </span>
+                            </td>
+                            <td class="text-right tabular-nums text-slate-700 font-medium">@sup.CurrentStockUnits.ToString("N0")</td>
+                            <td class="text-right tabular-nums text-amber-700 font-semibold">@Money(sup.CurrentStockValue)</td>
+                        </tr>
+                    }
+                </tbody>
+                @if (Data.Suppliers.Count > 0)
+                {
+                    <tfoot>
+                        <tr class="font-bold bg-slate-50/80 border-t-2 border-slate-200">
+                            <th>Total</th>
+                            <th class="text-right tabular-nums">@Data.Suppliers.Sum(s => s.ProductsSoldDistinct)</th>
+                            <th class="text-right tabular-nums">@Data.Suppliers.Sum(s => s.UnitsSold).ToString("N0")</th>
+                            <th class="text-right tabular-nums text-blue-700">@Money(Data.TotalRevenue)</th>
+                            <th class="text-right tabular-nums text-slate-600">@Money(Data.Suppliers.Sum(s => s.TotalCost))</th>
+                            <th class="text-right tabular-nums text-emerald-700">@Money(Data.TotalProfit)</th>
+                            <th class="text-right tabular-nums text-violet-700">
+                                @(Data.TotalRevenue > 0 ? (Data.TotalProfit / Data.TotalRevenue * 100).ToString("0.0") : "0.0")%
+                            </th>
+                            <th class="text-right tabular-nums">@Data.Suppliers.Sum(s => s.CurrentStockUnits).ToString("N0")</th>
+                            <th class="text-right tabular-nums text-amber-700">@Money(Data.TotalStockValue)</th>
+                        </tr>
+                    </tfoot>
+                }
+            </table>
+        </div>
+    </section>
+}
+
+@code {
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromQuery]
+    public string Period { get; set; } = "month";
+
+    [SupplyParameterFromQuery]
+    public DateOnly? Start { get; set; }
+
+    [SupplyParameterFromQuery]
+    public DateOnly? End { get; set; }
+
+    [SupplyParameterFromQuery]
+    public int? LocationId { get; set; }
+
+    private SupplierSalesPerformanceReportData? Data;
+    private string? Error;
+
+    private static readonly KeyValuePair<string, string>[] Presets =
+    [
+        new("today", "Today"),
+        new("yesterday", "Yesterday"),
+        new("week", "This week"),
+        new("month", "This month"),
+        new("lastmonth", "Last month"),
+        new("year", "This year"),
+        new("custom", "Custom")
+    ];
+
+    private DateOnly EffectiveStart => Data?.StartDate ?? DateOnly.FromDateTime(DateTime.UtcNow);
+    private DateOnly EffectiveEnd => Data?.EndDate ?? DateOnly.FromDateTime(DateTime.UtcNow);
+    private string Currency => Configuration["CurrencyCode"] ?? "BDT";
+
+    private string ExportCsvUrl =>
+        $"/api/reports/export/suppliers-sales?period={Period}&start={EffectiveStart:yyyy-MM-dd}&end={EffectiveEnd:yyyy-MM-dd}&locationId={LocationId}";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var zone = AccountingCalendar.Zone(Configuration);
+            var range = ReportService.ResolveRange(Period, Start, End, zone, DateTimeOffset.UtcNow);
+
+            Data = await Analytics.GetSupplierSalesPerformanceAsync(
+                HttpContext.User,
+                range.Start,
+                range.End,
+                LocationId,
+                HttpContext.RequestAborted);
+        }
+        catch (ValidationException ex)
+        {
+            Error = ex.Message;
+        }
+        catch (Exception ex)
+        {
+            Error = "Failed to load supplier performance: " + ex.Message;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("PosCharts.initDeclarativeCharts");
+        }
+        catch
+        {
+            // Ignore if JS interop is unavailable during SSR
+        }
+    }
+
+    private string PresetLink(string preset)
+    {
+        var query = new List<string> { $"period={preset}" };
+        if (LocationId.HasValue) query.Add($"locationId={LocationId.Value}");
+        return $"/reports/suppliers-sales?{string.Join("&", query)}";
+    }
+
+    private string Money(decimal amount) => $"{amount:N2} {Currency}";
+}

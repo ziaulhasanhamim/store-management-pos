@@ -48,6 +48,43 @@ public static class AdminSeeder
             // Changing bootstrap configuration must not promote an existing non-admin account.
             throw new InvalidOperationException("The configured admin username belongs to a non-admin user. Use an administrator account or disable AdminUser:Enabled after initial setup.");
         }
+
+        // Ensure at least one active selling location exists for day 1 retail operations
+        var defaultLocation = await db.StockLocations.FirstOrDefaultAsync(l => !l.IsDeleted && l.CanSell);
+        if (defaultLocation is null)
+        {
+            defaultLocation = new StockLocation
+            {
+                Code = "MAIN",
+                Name = "Main Store",
+                NormalizedName = NameNormalization.Normalize("Main Store"),
+                CanSell = true
+            };
+            db.StockLocations.Add(defaultLocation);
+            await db.SaveChangesAsync();
+        }
+
+        // Ensure default cash drawer is linked to the primary selling location
+        var defaultDrawer = await db.CashDrawers.FirstOrDefaultAsync(d => d.StockLocationId == defaultLocation.Id);
+        if (defaultDrawer is null)
+        {
+            defaultDrawer = new CashDrawer
+            {
+                StockLocationId = defaultLocation.Id,
+                OpeningBalance = 0m,
+                CurrentCash = 0m
+            };
+            db.CashDrawers.Add(defaultDrawer);
+            await db.SaveChangesAsync();
+        }
+
+        // Assign user to default cash location if not set
+        if (user is not null && user.CashLocationId == null)
+        {
+            user.CashLocationId = defaultLocation.Id;
+            await users.UpdateAsync(user);
+        }
+
         await transaction.CommitAsync();
     }
 

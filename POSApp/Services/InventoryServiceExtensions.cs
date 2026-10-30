@@ -38,6 +38,7 @@ public static class InventoryServiceExtensions
         services.AddScoped<SalesService>();
         services.AddScoped<ReportService>();
         services.AddScoped<ReceivingReportService>();
+        services.AddScoped<AnalyticsService>();
         services.AddScoped<ISalesClient, ServerSalesClient>();
         services.AddScoped<IReceivingClient, ServerReceivingClient>();
         services.AddScoped<IAttributeDefinitionClient, ServerAttributeDefinitionClient>();

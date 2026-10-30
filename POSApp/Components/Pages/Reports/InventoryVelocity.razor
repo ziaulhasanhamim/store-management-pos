@@ -1,0 +1,370 @@
+@page "/reports/inventory-velocity"
+@attribute [Authorize(Policy = AppPolicies.ManageInventory)]
+@using System.ComponentModel.DataAnnotations
+@using System.Text.Json
+@using POSApp.Client.DTOs
+@using POSApp.Client.Security
+@using POSApp.Services
+@inject AnalyticsService Analytics
+@inject IConfiguration Configuration
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+
+<PageTitle>Dead Stock & Inventory Velocity · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
+
+<div class="page-heading">
+    <div>
+        <nav class="breadcrumb">
+            <a href="/">Dashboard</a>
+            <span>/</span>
+            <a href="/reports">Reports</a>
+            <span>/</span>
+            <span>Dead stock & inventory velocity</span>
+        </nav>
+        <h1 class="mt-1">Dead Stock & Inventory Velocity</h1>
+        <p class="text-sm text-slate-500">Uncover trapped capital in stagnant stock and track fast-moving bestsellers</p>
+    </div>
+    <div class="flex flex-wrap gap-2 no-print">
+        <a href="@ExportCsvUrl" class="btn-secondary" download>
+            <Icon Name="history" Class="size-4 mr-1.5" />
+            Export CSV
+        </a>
+        <a href="/reports/inventory" class="btn-secondary">
+            <Icon Name="box" Class="size-4 mr-1.5" />
+            Stock valuation
+        </a>
+    </div>
+</div>
+
+@if (Error is not null)
+{
+    <p class="error-panel mb-4" role="alert">@Error</p>
+}
+
+@if (Data is null)
+{
+    <LoadingPanel Message="Auditing inventory velocity and stagnant stock…" />
+}
+else
+{
+    <!-- Filter Controls & Threshold Chips -->
+    <div class="report-filters no-print mb-6">
+        <div class="mb-4 flex flex-wrap items-center gap-2">
+            <span class="text-xs font-bold uppercase tracking-wider text-slate-500 mr-2">Inactivity Threshold:</span>
+            @foreach (var threshold in Thresholds)
+            {
+                <a href="@ThresholdLink(threshold.Key)" class="@(DaysThreshold == threshold.Key ? "filter-chip active" : "filter-chip")">
+                    @threshold.Value
+                </a>
+            }
+        </div>
+
+        <form method="get" action="/reports/inventory-velocity" class="grid items-end gap-3 sm:grid-cols-2 xl:grid-cols-4" data-enhance data-auto-search="false">
+            <input type="hidden" name="daysThreshold" value="@DaysThreshold" />
+
+            <div>
+                <label class="field-label" for="filter-location">Store Location</label>
+                <select id="filter-location" name="locationId" class="field">
+                    <option value="">All store locations</option>
+                    @foreach (var loc in Data.Locations)
+                    {
+                        <option value="@loc.Id" selected="@(LocationId == loc.Id)">@loc.Name</option>
+                    }
+                </select>
+            </div>
+
+            <div>
+                <label class="field-label" for="filter-category">Product Category</label>
+                <select id="filter-category" name="categoryId" class="field">
+                    <option value="">All product categories</option>
+                    @foreach (var cat in Data.Categories)
+                    {
+                        <option value="@cat.Id" selected="@(CategoryId == cat.Id)">@cat.Name</option>
+                    }
+                </select>
+            </div>
+
+            <div class="flex items-end sm:col-span-2 xl:col-span-2">
+                <button type="submit" class="btn-primary w-full py-2 px-4">
+                    <Icon Name="search" Class="size-4 mr-1" />
+                    Apply filters
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Summary KPI Cards -->
+    <div class="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div class="metric bg-white border border-rose-200/80 shadow-xs">
+            <div class="flex items-center justify-between">
+                <p class="text-xs font-semibold uppercase tracking-wider text-rose-600">Trapped Dead Capital</p>
+                <span class="inline-flex size-7 items-center justify-center rounded-lg bg-rose-50 text-rose-600">
+                    <Icon Name="trash" Class="size-4" />
+                </span>
+            </div>
+            <strong class="text-2xl mt-1 text-rose-600">@Money(Data.TotalDeadStockCapital)</strong>
+            <span class="text-xs text-rose-600/80 mt-0.5 font-medium">Stagnant for &ge; @DaysThreshold days</span>
+        </div>
+
+        <div class="metric bg-white border border-slate-200/80 shadow-xs">
+            <div class="flex items-center justify-between">
+                <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Dead Stock Items</p>
+                <span class="inline-flex size-7 items-center justify-center rounded-lg bg-rose-50 text-rose-600">
+                    <Icon Name="box" Class="size-4" />
+                </span>
+            </div>
+            <strong class="text-2xl mt-1 text-slate-900">@Data.DeadStockItemsCount</strong>
+            <span class="text-xs text-slate-400 mt-0.5">Lines requiring clearance / markdown</span>
+        </div>
+
+        <div class="metric bg-white border border-slate-200/80 shadow-xs">
+            <div class="flex items-center justify-between">
+                <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Fast Velocity Movers</p>
+                <span class="inline-flex size-7 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
+                    <Icon Name="wallet" Class="size-4" />
+                </span>
+            </div>
+            <strong class="text-2xl mt-1 text-emerald-600">@Data.FastMoversCount</strong>
+            <span class="text-xs text-slate-400 mt-0.5">High turnover bestsellers</span>
+        </div>
+
+        <div class="metric bg-white border border-slate-200/80 shadow-xs">
+            <div class="flex items-center justify-between">
+                <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Audited Catalog Items</p>
+                <span class="inline-flex size-7 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
+                    <Icon Name="dashboard" Class="size-4" />
+                </span>
+            </div>
+            <strong class="text-2xl mt-1 text-slate-900">@Data.Items.Count</strong>
+            <span class="text-xs text-slate-400 mt-0.5">Products with positive stock</span>
+        </div>
+    </div>
+
+    <!-- Visual Charts Row -->
+    @if (Data.Items.Count > 0)
+    {
+        <div class="mb-6 grid gap-6 lg:grid-cols-12 no-print">
+            <!-- Velocity Breakdown Donut -->
+            <div class="chart-card lg:col-span-5 bg-white">
+                <div class="flex items-center justify-between mb-4">
+                    <div>
+                        <h3 class="chart-title">Velocity Health Distribution</h3>
+                        <p class="chart-subtitle">Item count by movement velocity tier</p>
+                    </div>
+                    <span class="stat-pill bg-indigo-50 text-indigo-700">Health Ratio</span>
+                </div>
+                <div class="relative h-64 w-full flex items-center justify-center">
+                    <canvas id="velocity-donut"
+                            data-chart="donut"
+                            data-currency=""
+                            data-labels='["Fast Movers", "Normal Velocity", "Slow Moving", "Dead Stock"]'
+                            data-colors='["#10b981", "#3b82f6", "#f59e0b", "#f43f5e"]'
+                            data-values="@JsonSerializer.Serialize(new int[] {
+                                Data.Items.Count(i => i.Tier == StockVelocityTier.Fast),
+                                Data.Items.Count(i => i.Tier == StockVelocityTier.Normal),
+                                Data.Items.Count(i => i.Tier == StockVelocityTier.Slow),
+                                Data.Items.Count(i => i.Tier == StockVelocityTier.Dead)
+                            })">
+                    </canvas>
+                </div>
+            </div>
+
+            <!-- Top Tied Up Dead Stock Bar Chart -->
+            <div class="chart-card lg:col-span-7 bg-white">
+                <div class="flex items-center justify-between mb-4">
+                    <div>
+                        <h3 class="chart-title">Top Dead Stock by Tied-Up Capital</h3>
+                        <p class="chart-subtitle">Priority clearance targets with largest financial drain</p>
+                    </div>
+                    <span class="stat-pill bg-rose-50 text-rose-700">Trapped Value</span>
+                </div>
+                <div class="relative h-64 w-full">
+                    <canvas id="dead-stock-bar"
+                            data-chart="bar"
+                            data-currency="@Currency"
+                            data-horizontal="true"
+                            data-labels="@JsonSerializer.Serialize(Data.Items.Where(i => i.Tier == StockVelocityTier.Dead).Take(7).Select(i => i.ProductName))"
+                            data-datasets="@JsonSerializer.Serialize(new object[] {
+                                new { label = "Trapped Value", data = Data.Items.Where(i => i.Tier == StockVelocityTier.Dead).Take(7).Select(i => i.TiedUpCapital).ToArray(), color = "#f43f5e" }
+                            })">
+                    </canvas>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- Detailed Inventory Velocity Table -->
+    <section class="panel bg-white shadow-xs">
+        <div class="panel-heading border-b border-slate-100 px-5 py-4 flex items-center justify-between">
+            <h2 class="text-base font-bold text-slate-800">Inventory Velocity Roster</h2>
+            <span class="text-xs font-semibold text-slate-500">@Data.Items.Count products</span>
+        </div>
+        <div class="table-scroll">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Product</th>
+                        <th>Category</th>
+                        <th>Supplier</th>
+                        <th class="text-right">On Hand</th>
+                        <th class="text-right">Unit Cost</th>
+                        <th class="text-right">Tied-Up Capital</th>
+                        <th class="text-right">Last Sold</th>
+                        <th class="text-right">Days Inactive</th>
+                        <th class="text-right">Status Tier</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Data.Items.Count == 0)
+                    {
+                        <tr>
+                            <td colspan="9" class="empty-state py-8 text-center text-slate-400">
+                                No stock balances match the selected filter criteria.
+                            </td>
+                        </tr>
+                    }
+                    @foreach (var item in Data.Items)
+                    {
+                        <tr class="hover:bg-slate-50/70 transition-colors @(item.Tier == StockVelocityTier.Dead ? "bg-rose-50/20" : "")">
+                            <td>
+                                <a href="/items/@item.ProductId" class="font-semibold text-slate-900 hover:text-blue-600 transition-colors">
+                                    @item.ProductName
+                                </a>
+                                @if (!string.IsNullOrEmpty(item.Barcode))
+                                {
+                                    <span class="block text-[11px] font-mono text-slate-400">@item.Barcode</span>
+                                }
+                            </td>
+                            <td class="text-slate-600">@item.CategoryName</td>
+                            <td class="text-slate-600">@item.SupplierName</td>
+                            <td class="text-right tabular-nums font-semibold text-slate-900">@item.QuantityOnHand.ToString("N0")</td>
+                            <td class="text-right tabular-nums text-slate-500">@Money(item.CostPrice)</td>
+                            <td class="text-right tabular-nums font-semibold @(item.Tier == StockVelocityTier.Dead ? "text-rose-600 font-bold" : "text-slate-800")">
+                                @Money(item.TiedUpCapital)
+                            </td>
+                            <td class="text-right tabular-nums text-slate-500 text-xs">
+                                @(item.LastSoldDate?.ToString("dd MMM yyyy") ?? "Never")
+                            </td>
+                            <td class="text-right tabular-nums font-medium">
+                                <span class="@(item.DaysSinceLastSale >= DaysThreshold ? "text-rose-600 font-bold" : (item.DaysSinceLastSale <= 7 ? "text-emerald-600" : "text-slate-700"))">
+                                    @item.DaysSinceLastSale d
+                                </span>
+                            </td>
+                            <td class="text-right">
+                                @switch (item.Tier)
+                                {
+                                    case StockVelocityTier.Dead:
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                                            Dead Stock
+                                        </span>
+                                        break;
+                                    case StockVelocityTier.Slow:
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                                            Slow Moving
+                                        </span>
+                                        break;
+                                    case StockVelocityTier.Fast:
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                            Fast Velocity
+                                        </span>
+                                        break;
+                                    default:
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700">
+                                            Active
+                                        </span>
+                                        break;
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+                @if (Data.Items.Count > 0)
+                {
+                    <tfoot>
+                        <tr class="font-bold bg-slate-50/80 border-t-2 border-slate-200">
+                            <th colspan="3">Total (@Data.Items.Count products)</th>
+                            <th class="text-right tabular-nums">@Data.Items.Sum(i => i.QuantityOnHand).ToString("N0")</th>
+                            <th></th>
+                            <th class="text-right tabular-nums text-indigo-700">@Money(Data.Items.Sum(i => i.TiedUpCapital))</th>
+                            <th colspan="2"></th>
+                            <th class="text-right text-rose-600">@Money(Data.TotalDeadStockCapital) dead</th>
+                        </tr>
+                    </tfoot>
+                }
+            </table>
+        </div>
+    </section>
+}
+
+@code {
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromQuery]
+    public int DaysThreshold { get; set; } = 60;
+
+    [SupplyParameterFromQuery]
+    public int? LocationId { get; set; }
+
+    [SupplyParameterFromQuery]
+    public int? CategoryId { get; set; }
+
+    private InventoryVelocityReportData? Data;
+    private string? Error;
+
+    private static readonly KeyValuePair<int, string>[] Thresholds =
+    [
+        new(30, "30+ Days"),
+        new(60, "60+ Days (Default)"),
+        new(90, "90+ Days (Severe)"),
+        new(120, "120+ Days (Critical)")
+    ];
+
+    private string Currency => Configuration["CurrencyCode"] ?? "BDT";
+
+    private string ExportCsvUrl =>
+        $"/api/reports/export/inventory-velocity?daysThreshold={DaysThreshold}&locationId={LocationId}&categoryId={CategoryId}";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            Data = await Analytics.GetInventoryVelocityAsync(
+                HttpContext.User,
+                DaysThreshold,
+                LocationId,
+                CategoryId,
+                HttpContext.RequestAborted);
+        }
+        catch (ValidationException ex)
+        {
+            Error = ex.Message;
+        }
+        catch (Exception ex)
+        {
+            Error = "Failed to load inventory velocity: " + ex.Message;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("PosCharts.initDeclarativeCharts");
+        }
+        catch
+        {
+            // Ignore if JS interop is unavailable during SSR
+        }
+    }
+
+    private string ThresholdLink(int days)
+    {
+        var query = new List<string> { $"daysThreshold={days}" };
+        if (LocationId.HasValue) query.Add($"locationId={LocationId.Value}");
+        if (CategoryId.HasValue) query.Add($"categoryId={CategoryId.Value}");
+        return $"/reports/inventory-velocity?{string.Join("&", query)}";
+    }
+
+    private string Money(decimal amount) => $"{amount:N2} {Currency}";
+}

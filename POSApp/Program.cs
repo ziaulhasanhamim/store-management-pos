@@ -10,8 +10,11 @@ using POSApp.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddDbContextPool<AppDbContext>(o => o.UseNpgsql(builder.Configuration["DB_URL"] ?? builder.Configuration.GetConnectionString("DefaultConnection")
-        ?? throw new InvalidOperationException("Set DB_URL or ConnectionStrings:DefaultConnection to your PostgreSQL connection string.")));
+var rawConnectionString = builder.Configuration["DB_URL"] ?? builder.Configuration["DATABASE_URL"] ?? builder.Configuration.GetConnectionString("DefaultConnection")
+    ?? throw new InvalidOperationException("Set DB_URL, DATABASE_URL or ConnectionStrings:DefaultConnection to your PostgreSQL connection string.");
+var connectionString = Program.NormalizePostgresConnectionString(rawConnectionString);
+
+builder.Services.AddDbContextPool<AppDbContext>(o => o.UseNpgsql(connectionString));
 
 builder.Services.AddHealthChecks().AddCheck<DatabaseHealthCheck>("database");
 
@@ -156,4 +159,32 @@ if (app.Environment.IsDevelopment())
 
 app.Run();
 
-public partial class Program { }
+public partial class Program
+{
+    public static string NormalizePostgresConnectionString(string connectionString)
+    {
+        if (string.IsNullOrWhiteSpace(connectionString)) return connectionString;
+        if (connectionString.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase) ||
+            connectionString.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase))
+        {
+            var uri = new Uri(connectionString);
+            var userInfo = uri.UserInfo.Split(':');
+            var username = userInfo.Length > 0 ? Uri.UnescapeDataString(userInfo[0]) : "";
+            var password = userInfo.Length > 1 ? Uri.UnescapeDataString(userInfo[1]) : "";
+            var database = uri.AbsolutePath.TrimStart('/');
+            var port = uri.Port > 0 ? uri.Port : 5432;
+
+            var npgsqlBuilder = new Npgsql.NpgsqlConnectionStringBuilder
+            {
+                Host = uri.Host,
+                Port = port,
+                Database = database,
+                Username = username,
+                Password = password,
+                SslMode = Npgsql.SslMode.Require
+            };
+            return npgsqlBuilder.ConnectionString;
+        }
+        return connectionString;
+    }
+}

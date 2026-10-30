@@ -162,6 +162,10 @@
     .data-table tfoot td, .data-table tfoot th { @apply px-5 py-4; }
     .report-detail-row > td { @apply border-t-0 bg-slate-50/70 pt-0; }
     .report-lines { @apply my-3 rounded-xl bg-white; }
+    .chart-card { @apply rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs transition duration-200 hover:shadow-sm hover:border-slate-300; }
+    .chart-title { @apply text-sm font-bold tracking-tight text-slate-900; }
+    .chart-subtitle { @apply mt-0.5 text-xs text-slate-500; }
+    .stat-pill { @apply inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold; }
 }
 .sidebar { background: linear-gradient(180deg, #0f172a, #172554); }
 .sidebar > a > span { color: #f8fafc; }

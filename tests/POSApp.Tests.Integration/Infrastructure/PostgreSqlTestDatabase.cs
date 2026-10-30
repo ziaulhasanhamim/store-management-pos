@@ -102,6 +102,18 @@ public static class PostgreSqlTestDatabase
         {
             await connection.OpenAsync();
             await _respawner.ResetAsync(connection);
+
+            await using var cmd = connection.CreateCommand();
+            cmd.CommandText = @"
+                DO $$
+                DECLARE
+                    r RECORD;
+                BEGIN
+                    FOR r IN (SELECT sequence_name FROM information_schema.sequences WHERE sequence_schema = 'public') LOOP
+                        EXECUTE 'ALTER SEQUENCE ' || quote_ident(r.sequence_name) || ' RESTART WITH 1';
+                    END LOOP;
+                END $$;";
+            await cmd.ExecuteNonQueryAsync();
         }
 
         await SeedBaseDataAsync();

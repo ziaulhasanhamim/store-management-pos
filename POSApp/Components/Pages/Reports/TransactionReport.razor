@@ -1,6 +1,10 @@
 @attribute [StreamRendering]
 @using System.ComponentModel.DataAnnotations
+@using System.Text.Json
+@using POSApp.Client.DTOs
 @inject ReportService Reports
+@inject AnalyticsService Analytics
+@inject IJSRuntime JS
 @inject ILogger<TransactionReport> Logger
 
 <PageTitle>@Title report · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
@@ -49,6 +53,27 @@
                 <strong class="text-2xl!">@Money(Data.Paid)</strong>
             </div>
         </div>
+
+        @if (Sales && Timeline is not null && Timeline.Points.Count > 1)
+        {
+            <div class="chart-card bg-white rounded-xl border border-slate-200/80 p-5 shadow-xs mb-6 no-print">
+                <div class="flex items-center justify-between mb-4">
+                    <div>
+                        <h3 class="text-base font-bold text-slate-800">Sales & Profit Trend</h3>
+                        <p class="text-xs text-slate-500">Daily revenue and gross margin progression across period</p>
+                    </div>
+                    <span class="stat-pill bg-indigo-50 text-indigo-700 font-semibold text-xs px-2.5 py-1 rounded-full">Trend</span>
+                </div>
+                <div class="relative h-64 w-full">
+                    <canvas id="sales-timeline-chart"
+                            data-chart="line"
+                            data-currency="@(Configuration["CurrencyCode"] ?? "BDT")"
+                            data-labels="@JsonSerializer.Serialize(Timeline.Points.Select(p => p.Date.ToString("dd MMM")))"
+                            data-datasets="@JsonSerializer.Serialize(TimelineDatasets)">
+                    </canvas>
+                </div>
+            </div>
+        }
     }
 
     <div class="panel table-scroll">
@@ -176,6 +201,7 @@
         ?? (HttpContext.User.IsInRole(AppRoles.Admin) || HttpContext.User.IsInRole(AppRoles.InventoryManager));
     private int ColumnCount => CanViewCosts && Sales ? 8 : 6;
     private ReportPage? Data;
+    private SalesTimelineReportData? Timeline;
     private string? Error;
     private string Title => Sales ? "Sales" : "Receiving";
     private string Path => Sales ? "/reports/sales" : "/reports/receiving";
@@ -216,16 +242,43 @@
         ($"All matching transactions ({Data.Count})", Data.Total, Data.Paid, Data.Cost ?? 0)
     ];
 
+    private object[] TimelineDatasets => Timeline is null ? [] :
+    [
+        new {
+            label = "Sales Revenue",
+            data = Timeline.Points.Select(p => p.SalesRevenue).ToList(),
+            color = "#4f46e5",
+            fillColor = "rgba(79, 70, 229, 0.12)"
+        },
+        new {
+            label = "Gross Profit",
+            data = Timeline.Points.Select(p => p.GrossProfit).ToList(),
+            color = "#10b981",
+            fillColor = "rgba(16, 185, 129, 0.08)"
+        }
+    ];
+
     protected override async Task OnParametersSetAsync()
     {
         Sort = string.IsNullOrWhiteSpace(Sort) ? "id" : Sort;
         Period = string.IsNullOrWhiteSpace(Period) ? "today" : Period;
         Data = null;
+        Timeline = null;
         Error = null;
         try
         {
             Data = await Reports.ReadAsync(HttpContext.User, Sales, Period, Start, End, Page,
                 HttpContext.RequestAborted, Search, Sort, LocationId, QueryPagination.Size(PageSize));
+
+            if (Sales && Data is not null && Data.Range.Start != Data.Range.End)
+            {
+                Timeline = await Analytics.GetSalesTimelineAsync(
+                    HttpContext.User,
+                    Data.Range.Start,
+                    Data.Range.End,
+                    LocationId,
+                    HttpContext.RequestAborted);
+            }
         }
         catch (ValidationException exception)
         {
@@ -235,6 +288,17 @@
         {
             Logger.LogError(exception, "Report loading failed.");
             Error = "Unable to load this report. Try again.";
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("PosCharts.initDeclarativeCharts");
+        }
+        catch
+        {
         }
     }
 

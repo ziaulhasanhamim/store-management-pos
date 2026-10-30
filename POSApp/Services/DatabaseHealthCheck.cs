@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using POSApp.Persistence;
 
@@ -11,10 +12,8 @@ public sealed class DatabaseHealthCheck(IServiceScopeFactory scopes) : IHealthCh
         {
             await using var scope = scopes.CreateAsyncScope();
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            var canConnect = await db.Database.CanConnectAsync(cancellationToken);
-            return canConnect
-                ? HealthCheckResult.Healthy("Database connection is healthy.")
-                : HealthCheckResult.Unhealthy("Cannot connect to PostgreSQL.");
+            await db.Database.ExecuteSqlRawAsync("SELECT 1", cancellationToken);
+            return HealthCheckResult.Healthy("Database connection is healthy and keep-alive probe succeeded.");
         }
         catch (Exception ex)
         {

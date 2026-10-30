@@ -2,10 +2,12 @@ using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using POSApp.Client.Security;
+using POSApp.Persistence;
 using TUnit.AspNetCore;
 
 namespace POSApp.Tests.Integration.Infrastructure;
@@ -14,6 +16,7 @@ public class PosWebApplicationFactory : TestWebApplicationFactory<Program>
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
+        PostgreSqlTestDatabase.InitializeAsync().GetAwaiter().GetResult();
         builder.ConfigureAppConfiguration((_, config) =>
         {
             config.AddInMemoryCollection(new Dictionary<string, string?>
@@ -26,6 +29,10 @@ public class PosWebApplicationFactory : TestWebApplicationFactory<Program>
 
         builder.ConfigureTestServices(services =>
         {
+            services.RemoveAll<DbContextOptions<AppDbContext>>();
+            services.RemoveAll<AppDbContext>();
+            services.AddDbContextPool<AppDbContext>(o => o.UseNpgsql(PostgreSqlTestDatabase.ConnectionString));
+
             services.RemoveAll<IAntiforgery>();
             services.AddSingleton<IAntiforgery, TestAntiforgery>();
 

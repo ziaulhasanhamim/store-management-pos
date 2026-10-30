@@ -9,6 +9,25 @@
     </div>
 </div>
 <section class="mb-8">
+    <div class="mb-4 flex items-center justify-between">
+        <h2 class="text-sm font-semibold text-slate-500 uppercase tracking-wider">Visual Analytics & Intelligence</h2>
+        <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-100">
+            <span class="size-1.5 rounded-full bg-indigo-600 animate-pulse"></span>
+            Interactive Charts
+        </span>
+    </div>
+    <div class="grid gap-4 md:grid-cols-2">
+        <AuthorizeView Policy="@AppPolicies.MakeSales">
+            <HubCard Href="/reports/categories" Title="Category sales performance" Hint="Department revenue share donut, margin comparison and top products" IconName="box" />
+            <HubCard Href="/reports/suppliers-sales" Title="Supplier sales performance" Hint="Top grossing vendors, profitability margins and tied-up stock values" IconName="users" />
+            <HubCard Href="/reports/margin-matrix" Title="Profit margin matrix" Hint="Product portfolio quadrants: Stars, Cash Cows, Opportunities, and Laggards" IconName="dashboard" />
+        </AuthorizeView>
+        <AuthorizeView Policy="@AppPolicies.ManageInventory">
+            <HubCard Href="/reports/inventory-velocity" Title="Dead stock & inventory velocity" Hint="Identify stagnant tied-up capital (30/60/90+ days) and high turnover movers" IconName="trash" />
+        </AuthorizeView>
+    </div>
+</section>
+<section class="mb-8">
     <h2 class="mb-4 text-sm font-semibold text-slate-500">Trading & inventory</h2>
     <div class="grid gap-4 md:grid-cols-2">
         <AuthorizeView Policy="@AppPolicies.MakeSales">

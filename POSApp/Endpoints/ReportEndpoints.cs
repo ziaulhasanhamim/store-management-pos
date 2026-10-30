@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.Globalization;
 using System.Text;
+using POSApp.Services;
 
 namespace POSApp.Endpoints;
 
@@ -122,6 +123,128 @@ public static class ReportEndpoints
                 Number(row.TotalLoss), row.Notes ?? ""
             }));
             rows.Add(["TOTAL", "", "", "", "", "", "", Number(data.TotalQuantity), "", Number(data.TotalFinancialLoss), ""]);
+        }
+        else if (kind == "categories")
+        {
+            var analytics = context.RequestServices.GetRequiredService<AnalyticsService>();
+            var config = context.RequestServices.GetRequiredService<IConfiguration>();
+            var zone = AccountingCalendar.Zone(config);
+            range = ReportService.ResolveRange(period, start, end, zone, DateTimeOffset.UtcNow);
+            var data = await analytics.GetCategoryPerformanceAsync(context.User, range.Start, range.End, locationId, context.RequestAborted);
+            count = data.Categories.Count;
+            rows.Add(["Category ID", "Category Name", "Products Sold", "Units Sold", "Total Revenue", "Total Cost", "Gross Profit", "Margin %", "Revenue Share %", "Top Product"]);
+            rows.AddRange(data.Categories.Select(c => new[] {
+                Number(c.CategoryId),
+                c.CategoryName,
+                Number(c.ProductCount),
+                Number(c.UnitsSold),
+                Number(c.TotalRevenue),
+                Number(c.TotalCost),
+                Number(c.GrossProfit),
+                Number(c.MarginPercent),
+                Number(c.RevenueSharePercent),
+                c.TopProductName
+            }));
+            rows.Add(["TOTAL", $"{data.Categories.Count} categories",
+                Number(data.Categories.Sum(c => c.ProductCount)),
+                Number(data.Categories.Sum(c => c.UnitsSold)),
+                Number(data.TotalRevenue),
+                Number(data.TotalCost),
+                Number(data.TotalProfit),
+                Number(data.OverallMarginPercent),
+                "100.0",
+                ""]);
+        }
+        else if (kind == "suppliers-sales")
+        {
+            var analytics = context.RequestServices.GetRequiredService<AnalyticsService>();
+            var config = context.RequestServices.GetRequiredService<IConfiguration>();
+            var zone = AccountingCalendar.Zone(config);
+            range = ReportService.ResolveRange(period, start, end, zone, DateTimeOffset.UtcNow);
+            var data = await analytics.GetSupplierSalesPerformanceAsync(context.User, range.Start, range.End, locationId, context.RequestAborted);
+            count = data.Suppliers.Count;
+            rows.Add(["Supplier ID", "Supplier Name", "Distinct Items Sold", "Units Sold", "Total Revenue", "Total Cost", "Gross Profit", "Margin %", "Stock Units", "Stock Value"]);
+            rows.AddRange(data.Suppliers.Select(s => new[] {
+                Number(s.SupplierId),
+                s.SupplierName,
+                Number(s.ProductsSoldDistinct),
+                Number(s.UnitsSold),
+                Number(s.TotalRevenue),
+                Number(s.TotalCost),
+                Number(s.GrossProfit),
+                Number(s.MarginPercent),
+                Number(s.CurrentStockUnits),
+                Number(s.CurrentStockValue)
+            }));
+            rows.Add(["TOTAL", $"{data.Suppliers.Count} suppliers",
+                Number(data.Suppliers.Sum(s => s.ProductsSoldDistinct)),
+                Number(data.Suppliers.Sum(s => s.UnitsSold)),
+                Number(data.TotalRevenue),
+                Number(data.Suppliers.Sum(s => s.TotalCost)),
+                Number(data.TotalProfit),
+                data.TotalRevenue > 0 ? Number(decimal.Round(data.TotalProfit / data.TotalRevenue * 100, 1)) : "0",
+                Number(data.Suppliers.Sum(s => s.CurrentStockUnits)),
+                Number(data.TotalStockValue)]);
+        }
+        else if (kind == "inventory-velocity")
+        {
+            var analytics = context.RequestServices.GetRequiredService<AnalyticsService>();
+            int threshold = int.TryParse(context.Request.Query["daysThreshold"], out var t) ? t : 60;
+            int? catId = int.TryParse(context.Request.Query["categoryId"], out var cid) ? cid : null;
+            var data = await analytics.GetInventoryVelocityAsync(context.User, threshold, locationId, catId, context.RequestAborted);
+            count = data.Items.Count;
+            rows.Add(["Product ID", "Product Name", "Barcode", "Category", "Supplier", "Stock Qty", "Cost Price", "Selling Price", "Tied-Up Capital", "Last Sold Date", "Days Since Last Sale", "Units Sold in Period", "Velocity Tier"]);
+            rows.AddRange(data.Items.Select(item => new[] {
+                Number(item.ProductId),
+                item.ProductName,
+                item.Barcode ?? "",
+                item.CategoryName,
+                item.SupplierName,
+                Number(item.QuantityOnHand),
+                Number(item.CostPrice),
+                Number(item.SellingPrice),
+                Number(item.TiedUpCapital),
+                item.LastSoldDate?.ToString("yyyy-MM-dd") ?? "Never",
+                Number(item.DaysSinceLastSale),
+                Number(item.UnitsSoldPeriod),
+                item.Tier.ToString()
+            }));
+            rows.Add(["TOTAL", $"{data.Items.Count} products", "", "", "",
+                Number(data.Items.Sum(i => i.QuantityOnHand)),
+                "", "",
+                Number(data.Items.Sum(i => i.TiedUpCapital)),
+                "", "", "",
+                $"Dead: {Number(data.TotalDeadStockCapital)}"]);
+        }
+        else if (kind == "margin-matrix")
+        {
+            var analytics = context.RequestServices.GetRequiredService<AnalyticsService>();
+            var config = context.RequestServices.GetRequiredService<IConfiguration>();
+            var zone = AccountingCalendar.Zone(config);
+            range = ReportService.ResolveRange(period, start, end, zone, DateTimeOffset.UtcNow);
+            var data = await analytics.GetMarginMatrixAsync(context.User, range.Start, range.End, locationId, context.RequestAborted);
+            var quadrant = search;
+            var filtered = string.IsNullOrEmpty(quadrant) ? data.Items : data.Items.Where(i => i.Quadrant.ToString().Equals(quadrant, StringComparison.OrdinalIgnoreCase)).ToList();
+            count = filtered.Count;
+            rows.Add(["Product ID", "Product Name", "Category", "Units Sold", "Total Revenue", "Total Cost", "Gross Profit", "Margin %", "Quadrant"]);
+            rows.AddRange(filtered.Select(item => new[] {
+                Number(item.ProductId),
+                item.ProductName,
+                item.CategoryName,
+                Number(item.UnitsSold),
+                Number(item.TotalRevenue),
+                Number(item.TotalCost),
+                Number(item.TotalProfit),
+                Number(item.MarginPercent),
+                item.Quadrant.ToString()
+            }));
+            rows.Add(["TOTAL", $"{filtered.Count} products", "",
+                Number(filtered.Sum(i => i.UnitsSold)),
+                Number(filtered.Sum(i => i.TotalRevenue)),
+                Number(filtered.Sum(i => i.TotalCost)),
+                Number(filtered.Sum(i => i.TotalProfit)),
+                filtered.Sum(i => i.TotalRevenue) > 0 ? Number(decimal.Round(filtered.Sum(i => i.TotalProfit) / filtered.Sum(i => i.TotalRevenue) * 100, 1)) : "0",
+                ""]);
         }
         else
         {
