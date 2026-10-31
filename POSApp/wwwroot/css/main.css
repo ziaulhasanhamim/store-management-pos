@@ -712,3 +712,15 @@ th[aria-sort="descending"] {
 canvas[data-chart] {
     animation: fadeIn 350ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
+
+/* Mobile-first touch and viewport zoom prevention */
+button, a, input, select, textarea, label {
+    touch-action: manipulation;
+}
+
+@media (max-width: 639.98px) {
+    /* Prevent iOS Safari from auto-zooming viewport on input focus */
+    input, select, textarea {
+        font-size: 16px !important;
+    }
+}

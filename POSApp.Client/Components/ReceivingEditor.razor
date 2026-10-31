@@ -116,6 +116,7 @@
                         <div class="flex items-center gap-3">
                             <Icon Name="search" />
                             <input class="field" @bind="Search" @bind:event="oninput" @bind:after="SearchChanged"
+                                   @onkeydown="SearchKeyDownAsync"
                                    placeholder="Search name, barcode or ID" aria-label="Search products to receive" autocomplete="off" />
                         </div>
 
@@ -141,10 +142,15 @@
                             else
                             {
                                 <div class="mt-3 max-h-64 overflow-y-auto rounded-xl border border-slate-200">
-                                    @foreach (var product in Results.Take(30))
+                                    @{
+                                        var visibleResults = Results.Take(30).ToList();
+                                    }
+                                    @for (var i = 0; i < visibleResults.Count; i++)
                                     {
+                                        var product = visibleResults[i];
+                                        var isSelected = i == SelectedResultIndex;
                                         <button type="button"
-                                                class="flex w-full items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 text-left text-sm hover:bg-blue-50"
+                                                class="flex w-full items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 text-left text-sm transition-colors @(isSelected ? "bg-blue-100 ring-2 ring-inset ring-blue-500 font-medium" : "hover:bg-blue-50")"
                                                 @onclick="() => AddLine(product)">
                                             <span>
                                                 <strong class="font-medium text-slate-900">@product.Name</strong>

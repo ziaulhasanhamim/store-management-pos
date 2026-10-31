@@ -58,6 +58,7 @@ public partial class SalesEditor
     private int LocationId;
     private int? CustomerId;
     private string Search = "";
+    private int SelectedProductIndex = -1;
     private string? Notes;
     private decimal Discount;
     private int DiscountRevision;
@@ -181,6 +182,7 @@ public partial class SalesEditor
         Add(product);
         Search = "";
         Products = [];
+        SelectedProductIndex = -1;
         Searching = false;
         await SearchField.FocusAsync();
     }
@@ -231,6 +233,7 @@ public partial class SalesEditor
             }
             SearchCache[cacheKey] = found;
             Products = found;
+            SelectedProductIndex = found.Count > 0 ? 0 : -1;
             var exact = found.FirstOrDefault(product => !string.IsNullOrEmpty(product.Barcode)
                 && string.Equals(product.Barcode, query, StringComparison.OrdinalIgnoreCase));
             if (exact is not null)
@@ -238,6 +241,7 @@ public partial class SalesEditor
                 Add(exact);
                 Search = "";
                 Products = [];
+                SelectedProductIndex = -1;
                 await SearchField.FocusAsync();
             }
         }
@@ -257,9 +261,48 @@ public partial class SalesEditor
         }
     }
 
-    private Task SearchKeyAsync(KeyboardEventArgs args)
+    private async Task SearchKeyAsync(KeyboardEventArgs args)
     {
-        return args.Key == "Enter" ? ScanAsync(Search.Trim()) : Task.CompletedTask;
+        if (args.Key == "ArrowDown")
+        {
+            if (Products.Count > 0)
+            {
+                SelectedProductIndex = Math.Min(SelectedProductIndex + 1, Products.Count - 1);
+            }
+            return;
+        }
+
+        if (args.Key == "ArrowUp")
+        {
+            if (Products.Count > 0)
+            {
+                SelectedProductIndex = Math.Max(SelectedProductIndex - 1, 0);
+            }
+            return;
+        }
+
+        if (args.Key == "Escape")
+        {
+            SearchCancellation?.Cancel();
+            Products = [];
+            Search = "";
+            SelectedProductIndex = -1;
+            return;
+        }
+
+        if (args.Key == "Enter")
+        {
+            if (SelectedProductIndex >= 0 && SelectedProductIndex < Products.Count)
+            {
+                var selected = Products[SelectedProductIndex];
+                await SelectProductAsync(selected);
+            }
+            else
+            {
+                SelectedProductIndex = -1;
+                await ScanAsync(Search.Trim());
+            }
+        }
     }
 
     private async Task ScanAsync(string code)

@@ -44,6 +44,7 @@ public partial class StockAdjustmentEditor
     private DateOnly Date;
     private string Notes = "";
     private string Search = "";
+    private int SelectedMatchIndex = -1;
     private string? Error;
     private string? StorageWarning;
     private EditForm? AdjustmentForm;
@@ -222,6 +223,7 @@ public partial class StockAdjustmentEditor
             if (!cancellation.IsCancellationRequested && !Disposed)
             {
                 Matches = results;
+                SelectedMatchIndex = results.Count > 0 ? 0 : -1;
             }
         }
         catch (OperationCanceledException)
@@ -236,6 +238,46 @@ public partial class StockAdjustmentEditor
             if (SearchCancellation == cancellation)
             {
                 Searching = false;
+            }
+        }
+    }
+
+    private async Task SearchKeyDownAsync(KeyboardEventArgs args)
+    {
+        if (args.Key == "ArrowDown")
+        {
+            if (Matches.Count > 0)
+            {
+                SelectedMatchIndex = Math.Min(SelectedMatchIndex + 1, Matches.Count - 1);
+            }
+            return;
+        }
+
+        if (args.Key == "ArrowUp")
+        {
+            if (Matches.Count > 0)
+            {
+                SelectedMatchIndex = Math.Max(SelectedMatchIndex - 1, 0);
+            }
+            return;
+        }
+
+        if (args.Key == "Escape")
+        {
+            SearchCancellation?.Cancel();
+            Matches = [];
+            Search = "";
+            SelectedMatchIndex = -1;
+            Searching = false;
+            return;
+        }
+
+        if (args.Key == "Enter")
+        {
+            if (SelectedMatchIndex >= 0 && SelectedMatchIndex < Matches.Count)
+            {
+                var selected = Matches[SelectedMatchIndex];
+                await AddAsync(selected);
             }
         }
     }
@@ -260,6 +302,7 @@ public partial class StockAdjustmentEditor
         SearchCancellation?.Cancel();
         Search = "";
         Matches = [];
+        SelectedMatchIndex = -1;
         Searching = false;
         Page = Pages;
         await RememberAsync();

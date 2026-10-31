@@ -66,6 +66,7 @@ public partial class ReceivingEditor
     private string? Notes;
     private string? Phone;
     private string Search = "";
+    private int SelectedResultIndex = -1;
     private string PartyName = "";
     private int SupplierId;
     private int LocationId;
@@ -141,6 +142,7 @@ public partial class ReceivingEditor
                 }
                 SearchCache[term] = found;
                 Results = found;
+                SelectedResultIndex = found.Length > 0 ? 0 : -1;
             }
         }
         catch (OperationCanceledException)
@@ -151,6 +153,49 @@ public partial class ReceivingEditor
         {
             Searching = false;
         }
+    }
+
+    private Task SearchKeyDownAsync(KeyboardEventArgs args)
+    {
+        var count = Math.Min(Results.Count, 30);
+        if (args.Key == "ArrowDown")
+        {
+            if (count > 0)
+            {
+                SelectedResultIndex = Math.Min(SelectedResultIndex + 1, count - 1);
+            }
+            return Task.CompletedTask;
+        }
+
+        if (args.Key == "ArrowUp")
+        {
+            if (count > 0)
+            {
+                SelectedResultIndex = Math.Max(SelectedResultIndex - 1, 0);
+            }
+            return Task.CompletedTask;
+        }
+
+        if (args.Key == "Escape")
+        {
+            SearchCancellation?.Cancel();
+            Results = [];
+            Search = "";
+            SelectedResultIndex = -1;
+            Searching = false;
+            return Task.CompletedTask;
+        }
+
+        if (args.Key == "Enter")
+        {
+            if (SelectedResultIndex >= 0 && SelectedResultIndex < count)
+            {
+                var selected = Results[SelectedResultIndex];
+                AddLine(selected);
+            }
+        }
+
+        return Task.CompletedTask;
     }
 
     private void AddLine(ItemRow item)
@@ -184,6 +229,7 @@ public partial class ReceivingEditor
         SearchCancellation?.Cancel();
         Search = "";
         Results = [];
+        SelectedResultIndex = -1;
         Searching = false;
     }
 

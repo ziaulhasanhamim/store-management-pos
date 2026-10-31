@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Web;
 using POSApp.Client.DTOs;
 using POSApp.Client.Services;
 
@@ -42,6 +43,7 @@ public partial class TransferEditor
     private int SourceId;
     private int DestinationId;
     private string Search = "";
+    private int SelectedResultIndex = -1;
     private string Notes = "";
     private string? Error;
     private bool Searching;
@@ -86,6 +88,7 @@ public partial class TransferEditor
             if (!token.IsCancellationRequested)
             {
                 Results = found;
+                SelectedResultIndex = found.Count > 0 ? 0 : -1;
             }
         }
         catch (OperationCanceledException)
@@ -100,6 +103,50 @@ public partial class TransferEditor
             if (!token.IsCancellationRequested)
             {
                 Searching = false;
+            }
+        }
+    }
+
+    private void SearchKeyDownAsync(KeyboardEventArgs args)
+    {
+        var count = Math.Min(Results.Count, 30);
+        if (args.Key == "ArrowDown")
+        {
+            if (count > 0)
+            {
+                SelectedResultIndex = Math.Min(SelectedResultIndex + 1, count - 1);
+            }
+            return;
+        }
+
+        if (args.Key == "ArrowUp")
+        {
+            if (count > 0)
+            {
+                SelectedResultIndex = Math.Max(SelectedResultIndex - 1, 0);
+            }
+            return;
+        }
+
+        if (args.Key == "Escape")
+        {
+            SearchCancellation?.Cancel();
+            Results = [];
+            Search = "";
+            SelectedResultIndex = -1;
+            Searching = false;
+            return;
+        }
+
+        if (args.Key == "Enter")
+        {
+            if (SelectedResultIndex >= 0 && SelectedResultIndex < count)
+            {
+                var selected = Results[SelectedResultIndex];
+                if (selected.Stock > 0)
+                {
+                    Add(selected);
+                }
             }
         }
     }
@@ -124,6 +171,7 @@ public partial class TransferEditor
         Searching = false;
         Search = "";
         Results = [];
+        SelectedResultIndex = -1;
     }
 
     private async Task Save()

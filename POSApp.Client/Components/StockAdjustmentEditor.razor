@@ -48,6 +48,7 @@
                                 <Icon Name="search" />
                                 <input id="adjustment-search" type="search" class="field" placeholder="Search name, barcode or ID"
                                        aria-label="Search products to adjust" value="@Search" @oninput="SearchChangedAsync"
+                                       @onkeydown="SearchKeyDownAsync"
                                        disabled="@(LocationId is null)" autocomplete="off" maxlength="200" />
                             </div>
                             @if (Searching)
@@ -60,9 +61,11 @@
                             else if (Matches.Count > 0)
                             {
                                 <div class="mt-3 max-h-64 overflow-y-auto rounded-xl border border-slate-200">
-                                    @foreach (var product in Matches)
+                                    @for (var i = 0; i < Matches.Count; i++)
                                     {
-                                        <button type="button" class="flex w-full items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 text-left text-sm hover:bg-blue-50"
+                                        var product = Matches[i];
+                                        var isSelected = i == SelectedMatchIndex;
+                                        <button type="button" class="flex w-full items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 text-left text-sm transition-colors @(isSelected ? "bg-blue-100 ring-2 ring-inset ring-blue-500 font-medium" : "hover:bg-blue-50")"
                                                 @onclick="() => AddAsync(product)">
                                             <span>
                                                 <strong class="font-medium text-slate-900">@product.Name</strong>

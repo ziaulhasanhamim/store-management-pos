@@ -80,17 +80,17 @@
                         </AuthorizeView>
                         <SortHeader Column="id" Label="ID" Sort="@Sort" Numeric="true" />
                         <SortHeader Column="name" Label="Item" Sort="@Sort" Numeric="false" />
-                        <SortHeader Class="hidden sm:table-cell" Column="barcode" Label="Barcode" Sort="@Sort" Numeric="false" />
+                        <SortHeader Column="barcode" Label="Barcode" Sort="@Sort" Numeric="false" />
                         @foreach (var attributeColumn in AttributeColumns)
                         {
-                            <th class="hidden md:table-cell" title="@attributeColumn.Key">@attributeColumn.DisplayName</th>
+                            <th title="@attributeColumn.Key">@attributeColumn.DisplayName</th>
                         }
-                        <SortHeader Class="hidden lg:table-cell" Column="supplier" Label="Default supplier" Sort="@Sort" Numeric="false" />
+                        <SortHeader Column="supplier" Label="Default supplier" Sort="@Sort" Numeric="false" />
                         <SortHeader Column="quantity" Label="Stock" Sort="@Sort" Numeric="true" />
                         <SortHeader Column="price" Label="Selling price" Sort="@Sort" Numeric="true" />
                         <AuthorizeView Policy="@AppPolicies.ViewCostPrice">
-                            <SortHeader Class="hidden md:table-cell" Column="cost" Label="Avg. cost" Sort="@Sort" Numeric="true" />
-                            <SortHeader Class="hidden lg:table-cell" Column="value" Label="Stock value" Sort="@Sort" Numeric="true" />
+                            <SortHeader Column="cost" Label="Avg. cost" Sort="@Sort" Numeric="true" />
+                            <SortHeader Column="value" Label="Stock value" Sort="@Sort" Numeric="true" />
                         </AuthorizeView>
                         <th class="w-8 sm:w-10">
                             <span class="sr-only">Details</span>
@@ -123,26 +123,18 @@
                             </td>
                             <td>
                                 <a href="@($"/items/{item.Id}")" class="font-semibold text-slate-900 hover:text-blue-600 block">@item.Name</a>
-                                <div class="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-slate-400">
+                                <div class="mt-0.5 text-xs text-slate-400">
                                     <span>@(item.Category ?? "Uncategorized")</span>
-                                    @if (!string.IsNullOrWhiteSpace(item.Barcode))
-                                    {
-                                        <span class="sm:hidden font-mono text-slate-500">· @item.Barcode</span>
-                                    }
-                                    @if (!string.IsNullOrWhiteSpace(item.Supplier))
-                                    {
-                                        <span class="lg:hidden text-slate-500">· @item.Supplier</span>
-                                    }
                                 </div>
                             </td>
-                            <td class="hidden sm:table-cell font-mono text-xs text-slate-500">
+                            <td class="font-mono text-xs text-slate-500 whitespace-nowrap">
                                 @(item.Barcode ?? "—")
                             </td>
                             @foreach (var attributeColumn in AttributeColumns)
                             {
-                                <td class="hidden md:table-cell text-xs">@(item.Attributes.FirstOrDefault(attribute => attribute.Key == attributeColumn.Key)?.Value ?? "—")</td>
+                                <td class="text-xs whitespace-nowrap">@(item.Attributes.FirstOrDefault(attribute => attribute.Key == attributeColumn.Key)?.Value ?? "—")</td>
                             }
-                            <td class="hidden lg:table-cell text-xs">@item.Supplier</td>
+                            <td class="text-xs whitespace-nowrap">@item.Supplier</td>
                             <td class="text-right whitespace-nowrap">
                                 @if (item.IsNonStocked)
                                 {
@@ -156,8 +148,8 @@
                             </td>
                             <td class="text-right whitespace-nowrap font-medium text-slate-900">@Money(item.Price)</td>
                             <AuthorizeView Policy="@AppPolicies.ViewCostPrice">
-                                <td class="text-right whitespace-nowrap hidden md:table-cell text-xs text-slate-500">@Money(item.Cost ?? 0)</td>
-                                <td class="text-right whitespace-nowrap hidden lg:table-cell text-xs text-slate-500">@Money(item.Stock * (item.Cost ?? 0))</td>
+                                <td class="text-right whitespace-nowrap text-xs text-slate-500">@Money(item.Cost ?? 0)</td>
+                                <td class="text-right whitespace-nowrap text-xs text-slate-500">@Money(item.Stock * (item.Cost ?? 0))</td>
                             </AuthorizeView>
                             <td class="text-right">
                                 <a href="@($"/items/{item.Id}")" class="icon-button size-8" aria-label="@($"View {item.Name}")">
