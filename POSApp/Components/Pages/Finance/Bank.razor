@@ -48,8 +48,6 @@ else
                         {
                             <option value="opening">Opening balance</option>
                         }
-                        <option value="contribution">Owner contribution</option>
-                        <option value="owner-withdrawal">Owner withdrawal</option>
                         <option value="adjustment">Adjustment (signed amount)</option>
                         <option value="deposit">Cash drawer → bank</option>
                         <option value="withdraw">Bank → cash drawer</option>
@@ -67,7 +65,7 @@ else
             </div>
             <label class="field-label mt-4" for="bank-notes">Reason / reference</label>
             <input id="bank-notes" name="Input.Notes" class="field" maxlength="2000" required />
-            <p class="mt-3 text-xs text-slate-500">Enter the opening from before recorded bank movements. Use a signed adjustment to reconcile a current balance. Owner contributions/withdrawals do not affect profit. Cash transfers require an open drawer.</p>
+            <p class="mt-3 text-xs text-slate-500">Enter the opening from before recorded bank movements. Use a signed adjustment to reconcile a current balance. Cash transfers require an open drawer.</p>
             <button class="btn-primary mt-4" data-pending-text="Recording…">Record movement</button>
         </form>
     </section>
@@ -89,7 +87,11 @@ else
 
     protected override async Task OnParametersSetAsync()
     {
-        Input ??= new() { Date = (await Closings.SelectedAsync(HttpContext.User, HttpContext.RequestAborted)).ToDateTime(TimeOnly.MinValue) };
+        var selectedDate = (await Closings.SelectedAsync(HttpContext.User, HttpContext.RequestAborted)).ToDateTime(TimeOnly.MinValue);
+        if (Saved || Input is null)
+        {
+            Input = new() { RequestId = Guid.NewGuid(), Date = selectedDate };
+        }
         Data = await Banks.ReadAsync(HttpContext.User, HttpContext.RequestAborted);
     }
 
@@ -97,12 +99,18 @@ else
     {
         try
         {
+            var savedId = Input!.RequestId;
             await Banks.SaveAsync(HttpContext.User, Input!, HttpContext.RequestAborted);
-            Navigation.NavigateTo($"/finance/bank?saved=true&savedRequest={Input!.RequestId}");
+            Input = new() { RequestId = Guid.NewGuid(), Date = Input.Date };
+            Navigation.NavigateTo($"/finance/bank?saved=true&savedRequest={savedId}");
         }
         catch (ValidationException exception)
         {
             Error = exception.Message;
+            if (exception.Message.Contains("already saved") || exception.Message.Contains("different values"))
+            {
+                Input!.RequestId = Guid.NewGuid();
+            }
         }
     }
 

@@ -72,10 +72,14 @@ function triggerDebouncedSearch(input) {
     }, DEBOUNCE_DELAY_MS);
 }
 
-export function scrollSelectedIntoView(selector) {
+export function scrollSelectedIntoView(selector, options) {
     const el = selector ? document.querySelector(selector) : document.querySelector('[data-search-selected="true"]');
     if (el) {
-        el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'auto' });
+        if (selector === '#checkout-section') {
+            el.scrollIntoView({ block: 'start', behavior: 'smooth' });
+        } else {
+            el.scrollIntoView(options || { block: 'nearest', inline: 'nearest', behavior: 'auto' });
+        }
     }
 }
 

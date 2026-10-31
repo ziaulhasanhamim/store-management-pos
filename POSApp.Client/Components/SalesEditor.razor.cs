@@ -550,6 +550,20 @@ public partial class SalesEditor
         StateHasChanged();
     });
 
+    private async Task ScrollToCheckoutAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("scrollSelectedIntoView", "#checkout-section");
+        }
+        catch (JSDisconnectedException)
+        {
+        }
+        catch (InvalidOperationException)
+        {
+        }
+    }
+
     public async ValueTask DisposeAsync()
     {
         SearchCancellation?.Cancel();

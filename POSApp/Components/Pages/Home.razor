@@ -255,7 +255,7 @@ else if (Data is { } data)
                                 {
                                     <tr>
                                         <td class="font-semibold">
-                                            <a href="/sales/bill/@sale.Id" class="text-blue-600 hover:underline">
+                                            <a href="/sales/@sale.Id/bill" class="text-blue-600 hover:underline">
                                                 @sale.ReceiptNumber
                                             </a>
                                         </td>
@@ -316,7 +316,11 @@ else if (Data is { } data)
                                 {
                                     var unpaid = receipt.Total - receipt.Paid;
                                     <tr>
-                                        <td class="font-medium text-slate-900">@receipt.Supplier</td>
+                                        <td class="font-medium text-slate-900">
+                                            <a href="/receiving/@receipt.Id" class="text-blue-600 hover:underline">
+                                                @receipt.Supplier
+                                            </a>
+                                        </td>
                                         <td class="tabular-nums text-slate-500">
                                             @receipt.At.ToBusinessTime(Configuration).ToString("dd MMM, HH:mm")
                                         </td>

@@ -47,6 +47,7 @@ export function initialize(blazor) {
     };
     const fields = form => [...form.elements].filter(element => element.name
         && !['__RequestVerificationToken', '__WorkingDay', '_handler'].includes(element.name)
+        && !element.name.endsWith('.RequestId')
         && !['password', 'file', 'submit'].includes(element.type) && !element.disabled);
     const capture = form => JSON.stringify(fields(form).map(element => ({
         name: element.name, value: element.value, checked: element.checked
@@ -54,7 +55,7 @@ export function initialize(blazor) {
     const restore = (form, payload) => {
         if (payload === 'null') return;
         for (const saved of JSON.parse(payload)) {
-            if (/\.(WorkingDate|Date|Month)$/.test(saved.name)) continue;
+            if (/\.(WorkingDate|Date|Month|RequestId)$/.test(saved.name)) continue;
             const element = fields(form).find(field => field.name === saved.name);
             if (!element) continue;
             element.value = saved.value;
@@ -83,9 +84,11 @@ export function initialize(blazor) {
         status.dataset.formDraftControl = 'true';
         form.append(status);
         const initialPayload = capture(form);
-        const savedRequest = new URLSearchParams(location.search).get('savedRequest');
-        const matchesSaved = draft => draft?.payload && draft.payload !== 'null'
-            && JSON.parse(draft.payload).some(field => field.name.endsWith('.RequestId') && field.value === savedRequest);
+        const searchParams = new URLSearchParams(location.search);
+        const isSaved = form.dataset.draftSuccess === 'true' || form.dataset.draftSuccess === 'True' || searchParams.get('saved') === 'true';
+        const savedRequest = searchParams.get('savedRequest');
+        const matchesSaved = draft => isSaved || (draft?.payload && draft.payload !== 'null'
+            && JSON.parse(draft.payload).some(field => field.name.endsWith('.RequestId') && field.value === savedRequest));
         let key;
         let local;
         let dirty = false;
@@ -127,11 +130,12 @@ export function initialize(blazor) {
                 }, 800);
             };
             const recovered = local && (!server || local.pending || local.updatedAt > server.updatedAt) ? local : server;
-            if (savedRequest && matchesSaved(recovered)) {
+            if (isSaved || (savedRequest && matchesSaved(recovered))) {
                 restoring = true;
                 restore(form, initialPayload);
                 restoring = false;
                 save('null');
+                try { localStorage.removeItem(key); } catch {}
             } else {
                 if (local && server && local.revision !== server.revision && local.payload !== server.payload && (local.pending || local.updatedAt > server.updatedAt)) {
                     state.conflict = true;

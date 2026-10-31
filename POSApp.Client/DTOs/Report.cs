@@ -55,6 +55,11 @@ public sealed record SalesReportLine(int ProductId, string Name, string Barcode,
     public decimal? Profit => Cost is { } cost ? Total - cost : null;
 }
 
+/// <summary>
+/// Aggregates sales and returns for a product. Cost represents the exact sum of line costs captured
+/// at selling time (Sum of UnitCost * Quantity for each sale). Profit is strictly Total - Cost,
+/// guaranteeing exact realized profit across changing supplier costs without average-cost approximations.
+/// </summary>
 public sealed record ProductSalesRow(int ProductId, string Name, string Barcode, string Unit,
     decimal Quantity, decimal Cost, decimal Subtotal, decimal Discount, decimal Total)
 {
