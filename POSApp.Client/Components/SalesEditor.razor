@@ -58,6 +58,8 @@
                             var product = Products[i];
                             var isSelected = i == SelectedProductIndex;
                             <button type="button"
+                                    id="@($"sales-search-result-{i}")"
+                                    data-search-selected="@(isSelected ? "true" : "false")"
                                     class="flex w-full items-center justify-between gap-4 p-3 text-left transition-colors @(isSelected ? "bg-blue-100 ring-2 ring-inset ring-blue-500 font-medium" : "hover:bg-blue-50")"
                                     @onclick="() => SelectProductAsync(product)">
                                 <span>

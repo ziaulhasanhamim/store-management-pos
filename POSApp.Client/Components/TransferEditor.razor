@@ -1,4 +1,5 @@
 @inject IReceivingClient Inventory
+@inject IJSRuntime JS
 @implements IDisposable
 
 <LocalDraft TState="TransferEditorState" Kind="transfer" State="DraftState" Empty="@(Completed is not null || (Lines.Count == 0 && string.IsNullOrWhiteSpace(Notes)))" Paused="Busy" Restore="RestoreDraft" Clear="Reset" ReadyChanged="@(ready => DraftReady = ready)" @ref="Recovery" />
@@ -102,6 +103,8 @@
                                 var item = visibleItems[i];
                                 var isSelected = i == SelectedResultIndex;
                                 <button type="button" disabled="@(item.Stock <= 0)" @onclick="() => Add(item)"
+                                        id="@($"transfer-search-result-{i}")"
+                                        data-search-selected="@(isSelected ? "true" : "false")"
                                         class="flex w-full items-center justify-between gap-3 border-b border-slate-100 px-4 py-3 text-left text-sm transition-colors @(isSelected ? "bg-blue-100 ring-2 ring-inset ring-blue-500 font-medium" : "hover:bg-blue-50") disabled:opacity-40">
                                     <span>
                                         <strong class="font-medium text-slate-900">@item.Name</strong>
@@ -140,7 +143,7 @@
                                     <tr @key="line.Item.Id">
                                         <td>
                                             <a href="@($"/items/{line.Item.Id}")" target="_blank" rel="noopener" class="font-medium text-slate-900">@line.Item.Name</a>
-                                            <span class="mt-1 block text-xs text-slate-400">#@line.Item.Id · @line.Item.Unit</span>
+                                            <span class="mt-1 block text-xs text-slate-500">#@line.Item.Id · <span class="font-medium text-slate-700">@line.Item.Stock.ToString("0.###") @line.Item.Unit</span> in stock</span>
                                             @if (!string.IsNullOrWhiteSpace(line.Item.Barcode))
                                             {
                                                 <span class="mt-1 block font-mono text-xs text-slate-500">@line.Item.Barcode</span>

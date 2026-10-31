@@ -268,6 +268,7 @@ public partial class SalesEditor
             if (Products.Count > 0)
             {
                 SelectedProductIndex = Math.Min(SelectedProductIndex + 1, Products.Count - 1);
+                try { await JS.InvokeVoidAsync("scrollSelectedIntoView", $"#sales-search-result-{SelectedProductIndex}"); } catch { }
             }
             return;
         }
@@ -277,6 +278,7 @@ public partial class SalesEditor
             if (Products.Count > 0)
             {
                 SelectedProductIndex = Math.Max(SelectedProductIndex - 1, 0);
+                try { await JS.InvokeVoidAsync("scrollSelectedIntoView", $"#sales-search-result-{SelectedProductIndex}"); } catch { }
             }
             return;
         }

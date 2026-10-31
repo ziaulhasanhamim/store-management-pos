@@ -135,8 +135,40 @@
         @apply relative rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs transition duration-200 hover:-translate-y-0.5 hover:shadow-md hover:border-indigo-200;
     }
 
+    .metric-sales {
+        @apply relative rounded-2xl border border-emerald-200/90 bg-linear-to-br from-emerald-500/10 via-teal-500/3 to-white p-5 shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:border-emerald-400 hover:shadow-lg hover:shadow-emerald-500/15;
+    }
+
+    .metric-funds {
+        @apply relative rounded-2xl border border-blue-200/90 bg-linear-to-br from-blue-500/10 via-indigo-500/3 to-white p-5 shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:border-blue-400 hover:shadow-lg hover:shadow-blue-500/15;
+    }
+
+    .metric-stock {
+        @apply relative rounded-2xl border border-amber-200/90 bg-linear-to-br from-amber-500/10 via-orange-500/3 to-white p-5 shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:border-amber-400 hover:shadow-lg hover:shadow-amber-500/15;
+    }
+
+    .metric-valuation {
+        @apply relative rounded-2xl border border-purple-200/90 bg-linear-to-br from-purple-500/10 via-violet-500/3 to-white p-5 shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:border-purple-400 hover:shadow-lg hover:shadow-purple-500/15;
+    }
+
     .metric p {
         @apply mb-2 text-xs font-medium text-slate-500;
+    }
+
+    .metric-sales p {
+        @apply mb-2 text-xs font-semibold text-emerald-800/80;
+    }
+
+    .metric-funds p {
+        @apply mb-2 text-xs font-semibold text-blue-800/80;
+    }
+
+    .metric-stock p {
+        @apply mb-2 text-xs font-semibold text-amber-800/80;
+    }
+
+    .metric-valuation p {
+        @apply mb-2 text-xs font-semibold text-purple-800/80;
     }
 
     .metric strong {
@@ -145,6 +177,22 @@
 
     .metric-icon {
         @apply absolute top-5 right-5 flex size-10 items-center justify-center rounded-xl bg-linear-to-br from-indigo-50 to-blue-100 text-indigo-600 shadow-xs;
+    }
+
+    .metric-icon-emerald {
+        @apply absolute top-5 right-5 flex size-10 items-center justify-center rounded-xl bg-linear-to-br from-emerald-500 to-teal-600 text-white shadow-md shadow-emerald-500/30;
+    }
+
+    .metric-icon-blue {
+        @apply absolute top-5 right-5 flex size-10 items-center justify-center rounded-xl bg-linear-to-br from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/30;
+    }
+
+    .metric-icon-amber {
+        @apply absolute top-5 right-5 flex size-10 items-center justify-center rounded-xl bg-linear-to-br from-amber-500 to-orange-600 text-white shadow-md shadow-amber-500/30;
+    }
+
+    .metric-icon-purple {
+        @apply absolute top-5 right-5 flex size-10 items-center justify-center rounded-xl bg-linear-to-br from-purple-600 to-violet-600 text-white shadow-md shadow-purple-500/30;
     }
 
     .metric-note {
@@ -396,11 +444,121 @@
 /* Consistent workspace surfaces, with stronger emphasis on operational status. */
 @layer components {
     .hub-card {
-        @apply flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:border-blue-300 hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600;
+        @apply relative flex items-center gap-4 rounded-2xl border border-slate-200/90 bg-white p-5 sm:p-6 shadow-xs transition-all duration-200 hover:-translate-y-1 hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600;
+    }
+
+    .hub-card:hover .hub-icon {
+        transform: scale(1.05);
+    }
+
+    .hub-card-emerald {
+        @apply hover:border-emerald-300 hover:shadow-emerald-500/10;
+    }
+    .hub-card-blue {
+        @apply hover:border-blue-300 hover:shadow-blue-500/10;
+    }
+    .hub-card-indigo {
+        @apply hover:border-indigo-300 hover:shadow-indigo-500/10;
+    }
+    .hub-card-purple {
+        @apply hover:border-purple-300 hover:shadow-purple-500/10;
+    }
+    .hub-card-amber {
+        @apply hover:border-amber-300 hover:shadow-amber-500/10;
+    }
+    .hub-card-rose {
+        @apply hover:border-rose-300 hover:shadow-rose-500/10;
+    }
+    .hub-card-teal {
+        @apply hover:border-teal-300 hover:shadow-teal-500/10;
+    }
+    .hub-card-cyan {
+        @apply hover:border-cyan-300 hover:shadow-cyan-500/10;
     }
 
     .hub-icon {
-        @apply flex size-12 shrink-0 items-center justify-center rounded-xl bg-linear-to-br from-blue-50 to-indigo-100 text-blue-700;
+        @apply flex size-12 shrink-0 items-center justify-center rounded-xl bg-linear-to-br from-blue-50 to-indigo-100 text-blue-700 transition duration-200;
+    }
+
+    .hub-icon-emerald {
+        @apply bg-linear-to-br from-emerald-500 to-teal-600 text-white shadow-md shadow-emerald-500/25;
+    }
+    .hub-icon-blue {
+        @apply bg-linear-to-br from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/25;
+    }
+    .hub-icon-indigo {
+        @apply bg-linear-to-br from-indigo-600 to-blue-600 text-white shadow-md shadow-indigo-500/25;
+    }
+    .hub-icon-purple {
+        @apply bg-linear-to-br from-purple-600 to-violet-600 text-white shadow-md shadow-purple-500/25;
+    }
+    .hub-icon-amber {
+        @apply bg-linear-to-br from-amber-500 to-orange-600 text-white shadow-md shadow-amber-500/25;
+    }
+    .hub-icon-rose {
+        @apply bg-linear-to-br from-rose-500 to-pink-600 text-white shadow-md shadow-rose-500/25;
+    }
+    .hub-icon-teal {
+        @apply bg-linear-to-br from-teal-500 to-emerald-600 text-white shadow-md shadow-teal-500/25;
+    }
+    .hub-icon-cyan {
+        @apply bg-linear-to-br from-cyan-500 to-blue-600 text-white shadow-md shadow-cyan-500/25;
+    }
+
+    /* Launchpad Tiles */
+    .launch-tile {
+        @apply flex flex-col gap-1.5 rounded-xl border p-3.5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-sm;
+    }
+
+    .launch-tile:hover .launch-badge {
+        transform: scale(1.05);
+    }
+
+    .launch-tile-emerald {
+        @apply border-emerald-200/80 bg-linear-to-br from-emerald-500/5 via-teal-500/3 to-white hover:border-emerald-400 hover:shadow-emerald-500/10;
+    }
+    .launch-tile-blue {
+        @apply border-blue-200/80 bg-linear-to-br from-blue-500/5 via-sky-500/3 to-white hover:border-blue-400 hover:shadow-blue-500/10;
+    }
+    .launch-tile-sky {
+        @apply border-sky-200/80 bg-linear-to-br from-sky-500/5 via-blue-500/3 to-white hover:border-sky-400 hover:shadow-sky-500/10;
+    }
+    .launch-tile-indigo {
+        @apply border-indigo-200/80 bg-linear-to-br from-indigo-500/5 via-purple-500/3 to-white hover:border-indigo-400 hover:shadow-indigo-500/10;
+    }
+    .launch-tile-purple {
+        @apply border-purple-200/80 bg-linear-to-br from-purple-500/5 via-violet-500/3 to-white hover:border-purple-400 hover:shadow-purple-500/10;
+    }
+    .launch-tile-amber {
+        @apply border-amber-200/80 bg-linear-to-br from-amber-500/5 via-orange-500/3 to-white hover:border-amber-400 hover:shadow-amber-500/10;
+    }
+    .launch-tile-teal {
+        @apply border-teal-200/80 bg-linear-to-br from-teal-500/5 via-emerald-500/3 to-white hover:border-teal-400 hover:shadow-teal-500/10;
+    }
+
+    .launch-badge {
+        @apply flex size-8 items-center justify-center rounded-lg text-white shadow-xs transition duration-200;
+    }
+    .launch-badge-emerald {
+        @apply bg-linear-to-br from-emerald-500 to-teal-600;
+    }
+    .launch-badge-blue {
+        @apply bg-linear-to-br from-blue-600 to-indigo-600;
+    }
+    .launch-badge-sky {
+        @apply bg-linear-to-br from-sky-500 to-blue-600;
+    }
+    .launch-badge-indigo {
+        @apply bg-linear-to-br from-indigo-600 to-purple-600;
+    }
+    .launch-badge-purple {
+        @apply bg-linear-to-br from-purple-600 to-violet-600;
+    }
+    .launch-badge-amber {
+        @apply bg-linear-to-br from-amber-500 to-orange-600;
+    }
+    .launch-badge-teal {
+        @apply bg-linear-to-br from-teal-500 to-emerald-600;
     }
 
     .workspace-nav {
@@ -420,23 +578,31 @@
     }
 
     .workday-board {
-        @apply rounded-2xl bg-linear-to-br from-slate-900 via-blue-950 to-indigo-900 p-6 text-white shadow-sm;
+        @apply rounded-2xl bg-linear-to-br from-slate-900 via-slate-950 to-indigo-950 p-6 text-white shadow-md border border-indigo-900/50;
     }
 
     .status-pill {
-        @apply rounded-full border border-white/20 bg-white/10 px-3 py-2 text-xs text-blue-100;
+        @apply inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-3.5 py-1.5 text-xs text-blue-100 font-medium;
+    }
+
+    .status-pill-live {
+        @apply border-emerald-400/40 bg-emerald-500/20 text-emerald-200 shadow-xs;
     }
 
     .workflow-step {
-        @apply flex items-center gap-2 rounded-xl border border-white/15 bg-white/5 p-3 text-xs text-blue-100;
+        @apply flex items-center gap-2.5 rounded-xl border border-white/10 bg-white/5 p-3 text-xs text-slate-300 transition duration-150;
     }
 
     .workflow-step.complete {
-        @apply border-emerald-300/30 bg-emerald-300/10 text-emerald-100;
+        @apply border-emerald-400/40 bg-emerald-500/15 text-emerald-100 shadow-xs;
     }
 
     .workflow-number {
-        @apply flex size-6 shrink-0 items-center justify-center rounded-full bg-white/15 font-semibold;
+        @apply flex size-6 shrink-0 items-center justify-center rounded-full bg-white/15 font-semibold text-white;
+    }
+
+    .workflow-step.complete .workflow-number {
+        @apply bg-emerald-400 text-slate-950 font-bold shadow-xs;
     }
 
     .metric-profit {

@@ -249,6 +249,7 @@ public partial class StockAdjustmentEditor
             if (Matches.Count > 0)
             {
                 SelectedMatchIndex = Math.Min(SelectedMatchIndex + 1, Matches.Count - 1);
+                try { await JS.InvokeVoidAsync("scrollSelectedIntoView", $"#adj-search-result-{SelectedMatchIndex}"); } catch { }
             }
             return;
         }
@@ -258,6 +259,7 @@ public partial class StockAdjustmentEditor
             if (Matches.Count > 0)
             {
                 SelectedMatchIndex = Math.Max(SelectedMatchIndex - 1, 0);
+                try { await JS.InvokeVoidAsync("scrollSelectedIntoView", $"#adj-search-result-{SelectedMatchIndex}"); } catch { }
             }
             return;
         }

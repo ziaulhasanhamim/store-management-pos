@@ -65,8 +65,8 @@ else if (Data is { } data)
     <!-- Hero 4-Card KPI Grid -->
     <div class="grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
         <!-- Today's Sales Card -->
-        <a href="/reports/sales" class="metric group hover:shadow-md transition">
-            <span class="metric-icon bg-emerald-50! text-emerald-600!">
+        <a href="/reports/sales" class="metric-sales group">
+            <span class="metric-icon-emerald">
                 <Icon Name="cart" />
             </span>
             <p>Today's Sales</p>
@@ -76,7 +76,7 @@ else if (Data is { } data)
                 <AuthorizeView Policy="@AppPolicies.ManageUsers">
                     @if (data.TodayProfit is { } profit)
                     {
-                        <span class="font-medium text-emerald-600 tabular-nums" title="Estimated gross margin">
+                        <span class="rounded-full bg-emerald-100/90 px-2 py-0.5 font-semibold text-emerald-800 tabular-nums ring-1 ring-emerald-600/20" title="Estimated gross margin">
                             +@Money(profit) profit
                         </span>
                     }
@@ -85,8 +85,8 @@ else if (Data is { } data)
         </a>
 
         <!-- Present Funds Card -->
-        <a href="/cash-drawer" class="metric group hover:shadow-md transition">
-            <span class="metric-icon bg-blue-50! text-blue-600!">
+        <a href="/cash-drawer" class="metric-funds group">
+            <span class="metric-icon-blue">
                 <Icon Name="cash" />
             </span>
             <p>Present Funds</p>
@@ -98,14 +98,15 @@ else if (Data is { } data)
                     <span>Bank: @Money(heroBank)</span>
                 }
             </div>
-            <span class="metric-note">
+            <span class="mt-2.5 flex items-center gap-1.5 text-[11px] text-blue-700/80 font-medium">
+                <span class="size-1.5 rounded-full @(data.OpenDrawersCount > 0 ? "bg-emerald-500 animate-pulse" : "bg-slate-400")"></span>
                 @data.OpenDrawersCount of @data.TotalDrawersCount drawers open
             </span>
         </a>
 
         <!-- Units in Stock Card -->
-        <a href="/items" class="metric group hover:shadow-md transition">
-            <span class="metric-icon @(data.OutOfStock > 0 ? "bg-amber-50! text-amber-600!" : "bg-blue-50! text-blue-600!")">
+        <a href="/items" class="metric-stock group">
+            <span class="metric-icon-amber">
                 <Icon Name="box" />
             </span>
             <p>Units in Stock</p>
@@ -114,18 +115,18 @@ else if (Data is { } data)
                 <span class="text-slate-500">@data.Items catalog items</span>
                 @if (data.OutOfStock > 0)
                 {
-                    <span class="font-semibold text-amber-600">@data.OutOfStock out of stock</span>
+                    <span class="rounded-full bg-amber-100/90 px-2 py-0.5 font-semibold text-amber-800 ring-1 ring-amber-600/20">@data.OutOfStock out of stock</span>
                 }
                 else
                 {
-                    <span class="font-medium text-emerald-600">Healthy stock</span>
+                    <span class="rounded-full bg-emerald-100/80 px-2 py-0.5 font-medium text-emerald-800">Healthy stock</span>
                 }
             </div>
         </a>
 
         <!-- Inventory Valuation / Staff Card -->
-        <div class="metric">
-            <span class="metric-icon bg-indigo-50! text-indigo-600!">
+        <div class="metric-valuation">
+            <span class="metric-icon-purple">
                 <Icon Name="wallet" />
             </span>
             @if (data.StockValue is { } value)
@@ -136,13 +137,13 @@ else if (Data is { } data)
                     <span class="text-slate-500">At weighted cost</span>
                     @if (data.SupplierDue is { } heroDue && heroDue > 0)
                     {
-                        <a href="/suppliers" class="font-semibold text-red-600 hover:underline" title="Outstanding supplier balance">
+                        <a href="/suppliers" class="rounded-full bg-red-100/90 px-2 py-0.5 font-semibold text-red-800 ring-1 ring-red-600/20 hover:underline" title="Outstanding supplier balance">
                             Due: @Money(heroDue)
                         </a>
                     }
                     else if (data.SupplierDue is { } clearDue)
                     {
-                        <span class="font-medium text-emerald-600">Dues clear</span>
+                        <span class="rounded-full bg-emerald-100/80 px-2 py-0.5 font-medium text-emerald-800">Dues clear</span>
                     }
                 </div>
             }
@@ -423,8 +424,8 @@ else if (Data is { } data)
                 </div>
                 <div class="grid grid-cols-2 gap-2.5 p-4">
                     <AuthorizeView Policy="@AppPolicies.MakeSales">
-                        <a href="/sales" class="flex flex-col gap-1.5 rounded-xl border border-slate-200/80 p-3 transition hover:border-emerald-300 hover:bg-emerald-50/40 group">
-                            <div class="flex size-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 group-hover:bg-emerald-100">
+                        <a href="/sales" class="launch-tile launch-tile-emerald">
+                            <div class="launch-badge launch-badge-emerald">
                                 <Icon Name="cart" Class="size-4" />
                             </div>
                             <span class="text-xs font-semibold text-slate-900">New Sale</span>
@@ -433,8 +434,8 @@ else if (Data is { } data)
                     </AuthorizeView>
 
                     <AuthorizeView Policy="@AppPolicies.ManageInventory">
-                        <a href="/receiving" class="flex flex-col gap-1.5 rounded-xl border border-slate-200/80 p-3 transition hover:border-blue-300 hover:bg-blue-50/40 group">
-                            <div class="flex size-8 items-center justify-center rounded-lg bg-blue-50 text-blue-600 group-hover:bg-blue-100">
+                        <a href="/receiving" class="launch-tile launch-tile-sky">
+                            <div class="launch-badge launch-badge-sky">
                                 <Icon Name="receive" Class="size-4" />
                             </div>
                             <span class="text-xs font-semibold text-slate-900">Receive Stock</span>
@@ -442,8 +443,8 @@ else if (Data is { } data)
                         </a>
                     </AuthorizeView>
 
-                    <a href="/cash-drawer" class="flex flex-col gap-1.5 rounded-xl border border-slate-200/80 p-3 transition hover:border-sky-300 hover:bg-sky-50/40 group">
-                        <div class="flex size-8 items-center justify-center rounded-lg bg-sky-50 text-sky-600 group-hover:bg-sky-100">
+                    <a href="/cash-drawer" class="launch-tile launch-tile-indigo">
+                        <div class="launch-badge launch-badge-indigo">
                             <Icon Name="cash" Class="size-4" />
                         </div>
                         <span class="text-xs font-semibold text-slate-900">Cash Drawers</span>
@@ -451,8 +452,8 @@ else if (Data is { } data)
                     </a>
 
                     <AuthorizeView Policy="@AppPolicies.ManageInventory">
-                        <a href="/items/new" class="flex flex-col gap-1.5 rounded-xl border border-slate-200/80 p-3 transition hover:border-violet-300 hover:bg-violet-50/40 group">
-                            <div class="flex size-8 items-center justify-center rounded-lg bg-violet-50 text-violet-600 group-hover:bg-violet-100">
+                        <a href="/items/new" class="launch-tile launch-tile-purple">
+                            <div class="launch-badge launch-badge-purple">
                                 <Icon Name="plus" Class="size-4" />
                             </div>
                             <span class="text-xs font-semibold text-slate-900">Add Item</span>
@@ -461,8 +462,8 @@ else if (Data is { } data)
                     </AuthorizeView>
 
                     <AuthorizeView Policy="@AppPolicies.ManageUsers">
-                        <a href="/finance/day" class="flex flex-col gap-1.5 rounded-xl border border-slate-200/80 p-3 transition hover:border-indigo-300 hover:bg-indigo-50/40 group">
-                            <div class="flex size-8 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 group-hover:bg-indigo-100">
+                        <a href="/finance/day" class="launch-tile launch-tile-amber">
+                            <div class="launch-badge launch-badge-amber">
                                 <Icon Name="receipt" Class="size-4" />
                             </div>
                             <span class="text-xs font-semibold text-slate-900">Day Finance</span>
@@ -471,8 +472,8 @@ else if (Data is { } data)
                     </AuthorizeView>
 
                     <AuthorizeView Policy="@AppPolicies.ManageInventory">
-                        <a href="/stock/take" class="flex flex-col gap-1.5 rounded-xl border border-slate-200/80 p-3 transition hover:border-amber-300 hover:bg-amber-50/40 group">
-                            <div class="flex size-8 items-center justify-center rounded-lg bg-amber-50 text-amber-600 group-hover:bg-amber-100">
+                        <a href="/stock/take" class="launch-tile launch-tile-teal">
+                            <div class="launch-badge launch-badge-teal">
                                 <Icon Name="dashboard" Class="size-4" />
                             </div>
                             <span class="text-xs font-semibold text-slate-900">Stock Take</span>
@@ -482,15 +483,15 @@ else if (Data is { } data)
 
                     <AuthorizeView Policy="@AppPolicies.ManageInventory">
                         <NotAuthorized>
-                            <a href="/customers" class="flex flex-col gap-1.5 rounded-xl border border-slate-200/80 p-3 transition hover:border-purple-300 hover:bg-purple-50/40 group">
-                                <div class="flex size-8 items-center justify-center rounded-lg bg-purple-50 text-purple-600 group-hover:bg-purple-100">
+                            <a href="/customers" class="launch-tile launch-tile-purple">
+                                <div class="launch-badge launch-badge-purple">
                                     <Icon Name="users" Class="size-4" />
                                 </div>
                                 <span class="text-xs font-semibold text-slate-900">Customers</span>
                                 <span class="text-[10px] text-slate-500">Balances & dues</span>
                             </a>
-                            <a href="/reports/sales" class="flex flex-col gap-1.5 rounded-xl border border-slate-200/80 p-3 transition hover:border-teal-300 hover:bg-teal-50/40 group">
-                                <div class="flex size-8 items-center justify-center rounded-lg bg-teal-50 text-teal-600 group-hover:bg-teal-100">
+                            <a href="/reports/sales" class="launch-tile launch-tile-teal">
+                                <div class="launch-badge launch-badge-teal">
                                     <Icon Name="history" Class="size-4" />
                                 </div>
                                 <span class="text-xs font-semibold text-slate-900">Sales History</span>

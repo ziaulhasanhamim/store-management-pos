@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
+using Microsoft.JSInterop;
 using POSApp.Client.DTOs;
 using POSApp.Client.Services;
 
@@ -107,7 +108,7 @@ public partial class TransferEditor
         }
     }
 
-    private void SearchKeyDownAsync(KeyboardEventArgs args)
+    private async Task SearchKeyDownAsync(KeyboardEventArgs args)
     {
         var count = Math.Min(Results.Count, 30);
         if (args.Key == "ArrowDown")
@@ -115,6 +116,7 @@ public partial class TransferEditor
             if (count > 0)
             {
                 SelectedResultIndex = Math.Min(SelectedResultIndex + 1, count - 1);
+                try { await JS.InvokeVoidAsync("scrollSelectedIntoView", $"#transfer-search-result-{SelectedResultIndex}"); } catch { }
             }
             return;
         }
@@ -124,6 +126,7 @@ public partial class TransferEditor
             if (count > 0)
             {
                 SelectedResultIndex = Math.Max(SelectedResultIndex - 1, 0);
+                try { await JS.InvokeVoidAsync("scrollSelectedIntoView", $"#transfer-search-result-{SelectedResultIndex}"); } catch { }
             }
             return;
         }

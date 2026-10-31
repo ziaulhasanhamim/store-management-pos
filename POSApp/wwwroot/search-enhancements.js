@@ -72,7 +72,27 @@ function triggerDebouncedSearch(input) {
     }, DEBOUNCE_DELAY_MS);
 }
 
+export function scrollSelectedIntoView(selector) {
+    const el = selector ? document.querySelector(selector) : document.querySelector('[data-search-selected="true"]');
+    if (el) {
+        el.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'auto' });
+    }
+}
+
+if (typeof window !== "undefined") {
+    window.scrollSelectedIntoView = scrollSelectedIntoView;
+}
+
 export function initialize(blazor) {
+    // Automatically keep active search selection scrolled into view on Arrow navigation
+    document.addEventListener("keydown", (event) => {
+        if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+            setTimeout(() => {
+                scrollSelectedIntoView();
+            }, 25);
+        }
+    }, false);
+
     // Input typing with debouncing
     document.addEventListener("input", (event) => {
         const target = event.target;

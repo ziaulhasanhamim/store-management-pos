@@ -2,6 +2,7 @@ using POSApp.Client.Enums;
 using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
+using Microsoft.JSInterop;
 using POSApp.Client.DTOs;
 using POSApp.Client.Services;
 
@@ -155,7 +156,7 @@ public partial class ReceivingEditor
         }
     }
 
-    private Task SearchKeyDownAsync(KeyboardEventArgs args)
+    private async Task SearchKeyDownAsync(KeyboardEventArgs args)
     {
         var count = Math.Min(Results.Count, 30);
         if (args.Key == "ArrowDown")
@@ -163,8 +164,9 @@ public partial class ReceivingEditor
             if (count > 0)
             {
                 SelectedResultIndex = Math.Min(SelectedResultIndex + 1, count - 1);
+                try { await JS.InvokeVoidAsync("scrollSelectedIntoView", $"#recv-search-result-{SelectedResultIndex}"); } catch { }
             }
-            return Task.CompletedTask;
+            return;
         }
 
         if (args.Key == "ArrowUp")
@@ -172,8 +174,9 @@ public partial class ReceivingEditor
             if (count > 0)
             {
                 SelectedResultIndex = Math.Max(SelectedResultIndex - 1, 0);
+                try { await JS.InvokeVoidAsync("scrollSelectedIntoView", $"#recv-search-result-{SelectedResultIndex}"); } catch { }
             }
-            return Task.CompletedTask;
+            return;
         }
 
         if (args.Key == "Escape")
@@ -183,7 +186,7 @@ public partial class ReceivingEditor
             Search = "";
             SelectedResultIndex = -1;
             Searching = false;
-            return Task.CompletedTask;
+            return;
         }
 
         if (args.Key == "Enter")
@@ -195,7 +198,7 @@ public partial class ReceivingEditor
             }
         }
 
-        return Task.CompletedTask;
+        return;
     }
 
     private void AddLine(ItemRow item)

@@ -1,12 +1,12 @@
-<a href="@Href" class="hub-card">
-    <span class="hub-icon">
+<a href="@Href" class="hub-card @ThemeCardClass">
+    <span class="hub-icon @ThemeIconClass">
         <Icon Name="@IconName" />
     </span>
     <div class="min-w-0 flex-1">
-        <h2 class="font-semibold text-slate-900">@Title</h2>
+        <h2 class="font-semibold text-slate-900 group-hover:text-blue-700 transition-colors">@Title</h2>
         <p class="mt-1 text-sm text-slate-500">@Hint</p>
     </div>
-    <Icon Name="arrow" Class="text-slate-400" />
+    <Icon Name="arrow" Class="text-slate-400 group-hover:text-blue-600 group-hover:translate-x-0.5 transition-all" />
 </a>
 
 @code {
@@ -21,4 +21,31 @@
 
     [Parameter]
     public string IconName { get; set; } = "box";
+
+    [Parameter]
+    public string Theme { get; set; } = "blue";
+
+    private string ThemeCardClass => Theme switch
+    {
+        "emerald" => "hub-card-emerald",
+        "indigo" => "hub-card-indigo",
+        "purple" => "hub-card-purple",
+        "amber" => "hub-card-amber",
+        "rose" => "hub-card-rose",
+        "teal" => "hub-card-teal",
+        "cyan" => "hub-card-cyan",
+        _ => "hub-card-blue"
+    };
+
+    private string ThemeIconClass => Theme switch
+    {
+        "emerald" => "hub-icon-emerald",
+        "indigo" => "hub-icon-indigo",
+        "purple" => "hub-icon-purple",
+        "amber" => "hub-icon-amber",
+        "rose" => "hub-icon-rose",
+        "teal" => "hub-icon-teal",
+        "cyan" => "hub-icon-cyan",
+        _ => "hub-icon-blue"
+    };
 }

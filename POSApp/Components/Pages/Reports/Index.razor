@@ -18,12 +18,12 @@
     </div>
     <div class="grid gap-4 md:grid-cols-2">
         <AuthorizeView Policy="@AppPolicies.MakeSales">
-            <HubCard Href="/reports/categories" Title="Category sales performance" Hint="Department revenue share donut, margin comparison and top products" IconName="box" />
-            <HubCard Href="/reports/suppliers-sales" Title="Supplier sales performance" Hint="Top grossing vendors, profitability margins and tied-up stock values" IconName="users" />
-            <HubCard Href="/reports/margin-matrix" Title="Profit margin matrix" Hint="Product portfolio quadrants: Stars, Cash Cows, Opportunities, and Laggards" IconName="dashboard" />
+            <HubCard Href="/reports/categories" Title="Category sales performance" Hint="Department revenue share donut, margin comparison and top products" IconName="box" Theme="purple" />
+            <HubCard Href="/reports/suppliers-sales" Title="Supplier sales performance" Hint="Top grossing vendors, profitability margins and tied-up stock values" IconName="users" Theme="blue" />
+            <HubCard Href="/reports/margin-matrix" Title="Profit margin matrix" Hint="Product portfolio quadrants: Stars, Cash Cows, Opportunities, and Laggards" IconName="dashboard" Theme="teal" />
         </AuthorizeView>
         <AuthorizeView Policy="@AppPolicies.ManageInventory">
-            <HubCard Href="/reports/inventory-velocity" Title="Dead stock & inventory velocity" Hint="Identify stagnant tied-up capital (30/60/90+ days) and high turnover movers" IconName="trash" />
+            <HubCard Href="/reports/inventory-velocity" Title="Dead stock & inventory velocity" Hint="Identify stagnant tied-up capital (30/60/90+ days) and high turnover movers" IconName="trash" Theme="rose" />
         </AuthorizeView>
     </div>
 </section>
@@ -31,13 +31,13 @@
     <h2 class="mb-4 text-sm font-semibold text-slate-500">Trading & inventory</h2>
     <div class="grid gap-4 md:grid-cols-2">
         <AuthorizeView Policy="@AppPolicies.MakeSales">
-            <HubCard Href="/reports/sales" Title="Sales" Hint="Bills, item breakdowns, receipts and gross profit" IconName="wallet" />
+            <HubCard Href="/reports/sales" Title="Sales" Hint="Bills, item breakdowns, receipts and gross profit" IconName="wallet" Theme="emerald" />
         </AuthorizeView>
         <AuthorizeView Policy="@AppPolicies.ManageInventory">
-            <HubCard Href="/reports/items" Title="Item sales & returns" Hint="Net quantities, saved costs, discounts and item profit" IconName="box" />
-            <HubCard Href="/reports/receiving" Title="Receiving & transfers" Hint="Purchases, supplier returns and movement by location" IconName="receive" />
-            <HubCard Href="/reports/inventory" Title="Inventory valuation" Hint="Current stock value and supplier comparisons" IconName="box" />
-            <HubCard Href="/reports/stock-loss" Title="Stock loss & waste" Hint="Damaged goods, expired products, promotional samples and shortages" IconName="trash" />
+            <HubCard Href="/reports/items" Title="Item sales & returns" Hint="Net quantities, saved costs, discounts and item profit" IconName="box" Theme="indigo" />
+            <HubCard Href="/reports/receiving" Title="Receiving & transfers" Hint="Purchases, supplier returns and movement by location" IconName="receive" Theme="amber" />
+            <HubCard Href="/reports/inventory" Title="Inventory valuation" Hint="Current stock value and supplier comparisons" IconName="box" Theme="cyan" />
+            <HubCard Href="/reports/stock-loss" Title="Stock loss & waste" Hint="Damaged goods, expired products, promotional samples and shortages" IconName="trash" Theme="rose" />
         </AuthorizeView>
     </div>
 </section>
@@ -45,13 +45,13 @@
     <section>
         <h2 class="mb-4 text-sm font-semibold text-slate-500">Finance & reconciliation</h2>
         <div class="grid gap-4 md:grid-cols-2">
-            <HubCard Href="/reports/statements/cash" Title="Cash drawer statements" Hint="Daily opening, every movement and running balances by location" IconName="wallet" />
-            <HubCard Href="/reports/statements/bank" Title="Bank & digital statements" Hint="Receipts, payouts and balances for any date range or year" IconName="history" />
-            <HubCard Href="/reports/profit-loss" Title="Profit & loss" Hint="Revenue, COGS, expenses and payroll" IconName="dashboard" />
-            <HubCard Href="/reports/profit-loss?period=year" Title="Year profit & loss" Hint="Annual revenue and expenses, excluding owner funding" IconName="dashboard" />
-            <HubCard Href="/finance/day" Title="Day finance" Hint="Payments, expected cash and location reconciliation" IconName="wallet" />
-            <HubCard Href="/finance/month" Title="Monthly business summary" Hint="Daily results, category spending, payroll and asset growth" IconName="history" />
-            <HubCard Href="/administration/audit" Title="Audit history" Hint="Corrections, counts, closings and reopenings" IconName="history" />
+            <HubCard Href="/reports/statements/cash" Title="Cash drawer statements" Hint="Daily opening, every movement and running balances by location" IconName="wallet" Theme="blue" />
+            <HubCard Href="/reports/statements/bank" Title="Bank & digital statements" Hint="Receipts, payouts and balances for any date range or year" IconName="history" Theme="purple" />
+            <HubCard Href="/reports/profit-loss" Title="Profit & loss" Hint="Revenue, COGS, expenses and payroll" IconName="dashboard" Theme="emerald" />
+            <HubCard Href="/reports/profit-loss?period=year" Title="Year profit & loss" Hint="Annual revenue and expenses, excluding owner funding" IconName="dashboard" Theme="teal" />
+            <HubCard Href="/finance/day" Title="Day finance" Hint="Payments, expected cash and location reconciliation" IconName="wallet" Theme="indigo" />
+            <HubCard Href="/finance/month" Title="Monthly business summary" Hint="Daily results, category spending, payroll and asset growth" IconName="history" Theme="amber" />
+            <HubCard Href="/administration/audit" Title="Audit history" Hint="Corrections, counts, closings and reopenings" IconName="history" Theme="blue" />
         </div>
     </section>
 </AuthorizeView>
