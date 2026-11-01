@@ -46,6 +46,44 @@ public class ProductSalesReportTests
     }
 
     [Test]
+    public async Task ProductSalesRow_CalculatesExactProfit_WithChangingCosts_300And400_SoldAt_400And600()
+    {
+        // Scenario from user:
+        // Item 1: Sold at 400 when cost was 300
+        // Item 2: Sold at 600 when cost was 400
+        // Total selling = 400 + 600 = 1000
+        // Total cost = 300 + 400 = 700
+        // Realized profit = 1000 - 700 = 300 (NOT 1000 - (400 * 2) = 200)
+        const decimal line1Total = 400m;
+        const decimal line1Cost = 300m;
+        const decimal line2Total = 600m;
+        const decimal line2Cost = 400m;
+
+        var totalQty = 2m;
+        var totalCost = line1Cost + line2Cost; // 700m
+        var totalSelling = line1Total + line2Total; // 1000m
+
+        var row = new ProductSalesRow(
+            ProductId: 1,
+            Name: "Smartphone Case",
+            Barcode: "99887766",
+            Unit: "piece",
+            Quantity: totalQty,
+            Cost: totalCost,
+            Subtotal: totalSelling,
+            Discount: 0m,
+            Total: totalSelling
+        );
+
+        await row.Cost.Should().BeEqualTo(700m);
+        await row.Total.Should().BeEqualTo(1000m);
+        await row.Profit.Should().BeEqualTo(300m);
+        await (row.Profit != (totalSelling - (400m * 2m))).Should().BeTrue();
+        await row.AverageCost.Should().BeEqualTo(350m);
+        await row.AveragePrice.Should().BeEqualTo(500m);
+    }
+
+    [Test]
     public async Task ProductSalesRow_WithReturns_SubtractedHistoricalCostPreservesProfit()
     {
         // Sale: 2 units sold at 500 each (Cost: 300 each = 600)
