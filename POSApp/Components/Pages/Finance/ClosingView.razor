@@ -1,3 +1,4 @@
+@using System.Text.Json
 <div class="no-print mb-4 flex flex-wrap gap-2">
     <a href="@($"/reports/statements/cash?period=custom&start={Data.Start:yyyy-MM-dd}&end={Data.End:yyyy-MM-dd}")" class="btn-secondary">Cash statement</a>
     <a href="@($"/reports/statements/bank?period=custom&start={Data.Start:yyyy-MM-dd}&end={Data.End:yyyy-MM-dd}")" class="btn-secondary">Bank statement</a>
@@ -15,139 +16,117 @@
         <a href="@(Kind == ClosingKind.Month ? $"/finance/month?month={Data.Start:yyyy-MM}" : $"/finance/day?date={Data.Start:yyyy-MM-dd}")" class="btn-secondary text-xs">View all locations</a>
     </div>
 }
-@if (Kind == ClosingKind.Day)
-{
-    <div class="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <!-- Card 1: Present office cash -->
-        <div class="flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs transition hover:shadow-sm">
-            <div>
-                <div class="flex items-center justify-between">
-                    <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">Present office cash</span>
-                    <span class="rounded-md bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-700">Funds</span>
-                </div>
-                <div class="mt-2 text-2xl font-bold tracking-tight text-slate-900 tabular-nums">
-                    @Money(TotalClosingFunds)
-                </div>
-                <p class="mt-0.5 text-[11px] text-slate-400">Total office cash & bank funds</p>
-            </div>
-            <div class="mt-4 border-t border-slate-100 pt-3 space-y-1.5 text-xs">
-                <div class="flex justify-between items-center text-slate-600">
-                    <span>Physical cash:</span>
-                    <span class="font-semibold text-slate-900 tabular-nums">@Money(Data.CountedCash ?? Data.ClosingCash)</span>
-                </div>
-                <div class="flex justify-between items-center text-slate-600">
-                    <span>Bank / digital:</span>
-                    <span class="font-semibold text-slate-900 tabular-nums">@Money(Data.ClosingBank)</span>
-                </div>
-            </div>
-        </div>
 
-        <!-- Card 2: Due & pay status -->
-        <div class="flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs transition hover:shadow-sm">
-            <div>
-                <div class="flex items-center justify-between">
-                    <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">Due & pay status</span>
-                    <span class="rounded-md bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700">Suppliers</span>
-                </div>
-                <div class="mt-2 text-2xl font-bold tracking-tight text-slate-900 tabular-nums">
-                    @Money(Data.SupplierPaid)
-                </div>
-                <p class="mt-0.5 text-[11px] text-slate-400">Supplier payments made today</p>
+<div class="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <!-- Card 1: Present office cash -->
+    <div class="flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs transition hover:shadow-sm">
+        <div>
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">Present office cash</span>
+                <span class="rounded-md bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-700">Funds</span>
             </div>
-            <div class="mt-4 border-t border-slate-100 pt-3 space-y-1.5 text-xs">
-                <div class="flex justify-between items-center text-slate-600">
-                    <span>Suppliers due (payable):</span>
-                    <span class="font-semibold text-rose-600 tabular-nums">@Money(Data.SupplierDue)</span>
-                </div>
-                <div class="flex justify-between items-center text-slate-600">
-                    <span>Customer due (receivable):</span>
-                    <span class="font-semibold text-emerald-700 tabular-nums">@Money(Data.CustomerDue)</span>
-                </div>
-                <div class="flex justify-between items-center text-slate-600">
-                    <span>Stock received (tStok In):</span>
-                    <span class="font-semibold text-slate-900 tabular-nums">@Money(Data.PurchaseTotal)</span>
-                </div>
+            <div class="mt-2 text-2xl font-bold tracking-tight text-slate-900 tabular-nums">
+                @Money(TotalClosingFunds)
             </div>
+            <p class="mt-0.5 text-[11px] text-slate-400">Total office cash & bank funds</p>
         </div>
-
-        <!-- Card 3: Sales & margin -->
-        <div class="flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs transition hover:shadow-sm">
-            <div>
-                <div class="flex items-center justify-between">
-                    <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">Sales & margin</span>
-                    <span class="rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">Trading</span>
-                </div>
-                <div class="mt-2 text-2xl font-bold tracking-tight text-slate-900 tabular-nums">
-                    @Money(Data.Revenue)
-                </div>
-                <p class="mt-0.5 text-[11px] text-slate-400">Net revenue today</p>
+        <div class="mt-4 border-t border-slate-100 pt-3 space-y-1.5 text-xs">
+            <div class="flex justify-between items-center text-slate-600">
+                <span>Physical cash:</span>
+                <span class="font-semibold text-slate-900 tabular-nums">@Money(Data.CountedCash ?? Data.ClosingCash)</span>
             </div>
-            <div class="mt-4 border-t border-slate-100 pt-3 space-y-1.5 text-xs">
-                <div class="flex justify-between items-center text-slate-600">
-                    <span>Cost of goods:</span>
-                    <span class="font-semibold text-slate-900 tabular-nums">@Money(Data.Cogs)</span>
-                </div>
-                <div class="flex justify-between items-center text-slate-600">
-                    <span>Sales profit:</span>
-                    <span class="font-semibold text-emerald-700 tabular-nums">@Money(Data.Revenue - Data.Cogs)</span>
-                </div>
-                <div class="flex justify-between items-center text-slate-600">
-                    <span>Margin:</span>
-                    <span class="font-semibold text-slate-900 tabular-nums">@(Data.Revenue > 0 ? $"{(Data.Revenue - Data.Cogs) / Data.Revenue * 100:0.#}%" : "0%")</span>
-                </div>
-            </div>
-        </div>
-
-        <!-- Card 4: Spend & net profit -->
-        <div class="flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs transition hover:shadow-sm">
-            <div>
-                <div class="flex items-center justify-between">
-                    <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">Spend & net profit</span>
-                    <span class="rounded-md bg-indigo-50 px-2 py-0.5 text-[11px] font-semibold text-indigo-700">Result</span>
-                </div>
-                <div class="mt-2 text-2xl font-bold tracking-tight tabular-nums @(DayNetProfit >= 0 ? "text-emerald-700" : "text-rose-600")">
-                    @Money(DayNetProfit)
-                </div>
-                <p class="mt-0.5 text-[11px] text-slate-400">Day's bottom line result</p>
-            </div>
-            <div class="mt-4 border-t border-slate-100 pt-3 space-y-1.5 text-xs">
-                <div class="flex justify-between items-center text-slate-600">
-                    <span>Operational expenses:</span>
-                    <span class="font-semibold text-slate-900 tabular-nums">@Money(Data.Expenses)</span>
-                </div>
-                <div class="flex justify-between items-center text-slate-600">
-                    <span>Payroll paid:</span>
-                    <span class="font-semibold text-slate-900 tabular-nums">@Money(Data.PayrollPaid)</span>
-                </div>
-                <div class="flex justify-between items-center text-slate-600">
-                    <span>Total spend:</span>
-                    <span class="font-semibold text-slate-900 tabular-nums">@Money(Data.Expenses + Data.PayrollPaid)</span>
-                </div>
+            <div class="flex justify-between items-center text-slate-600">
+                <span>Bank / digital:</span>
+                <span class="font-semibold text-slate-900 tabular-nums">@Money(Data.ClosingBank)</span>
             </div>
         </div>
     </div>
-}
-else
-{
-    <div class="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <div class="flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs">
-            <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">Opening cash</span>
-            <div class="mt-2 text-2xl font-bold tracking-tight text-slate-900 tabular-nums">@Money(Data.OpeningCash)</div>
+
+    <!-- Card 2: Due & pay status -->
+    <div class="flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs transition hover:shadow-sm">
+        <div>
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">Due & pay status</span>
+                <span class="rounded-md bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700">Suppliers</span>
+            </div>
+            <div class="mt-2 text-2xl font-bold tracking-tight text-slate-900 tabular-nums">
+                @Money(Data.SupplierPaid)
+            </div>
+            <p class="mt-0.5 text-[11px] text-slate-400">@(Kind == ClosingKind.Month ? "Supplier payments made this month" : "Supplier payments made today")</p>
         </div>
-        <div class="flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs">
-            <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">Expected cash</span>
-            <div class="mt-2 text-2xl font-bold tracking-tight text-slate-900 tabular-nums">@Money(Data.ClosingCash)</div>
-        </div>
-        <div class="flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs">
-            <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">Closing bank</span>
-            <div class="mt-2 text-2xl font-bold tracking-tight text-slate-900 tabular-nums">@Money(Data.ClosingBank)</div>
-        </div>
-        <div class="flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs">
-            <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">Total closing funds</span>
-            <div class="mt-2 text-2xl font-bold tracking-tight text-slate-900 tabular-nums">@Money(TotalClosingFunds)</div>
+        <div class="mt-4 border-t border-slate-100 pt-3 space-y-1.5 text-xs">
+            <div class="flex justify-between items-center text-slate-600">
+                <span>Suppliers due (payable):</span>
+                <span class="font-semibold text-rose-600 tabular-nums">@Money(Data.SupplierDue)</span>
+            </div>
+            <div class="flex justify-between items-center text-slate-600">
+                <span>Customer due (receivable):</span>
+                <span class="font-semibold text-emerald-700 tabular-nums">@Money(Data.CustomerDue)</span>
+            </div>
+            <div class="flex justify-between items-center text-slate-600">
+                <span>Stock received (tStok In):</span>
+                <span class="font-semibold text-slate-900 tabular-nums">@Money(Data.PurchaseTotal)</span>
+            </div>
         </div>
     </div>
-}
+
+    <!-- Card 3: Sales & margin -->
+    <div class="flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs transition hover:shadow-sm">
+        <div>
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">Sales & margin</span>
+                <span class="rounded-md bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">Trading</span>
+            </div>
+            <div class="mt-2 text-2xl font-bold tracking-tight text-slate-900 tabular-nums">
+                @Money(Data.Revenue)
+            </div>
+            <p class="mt-0.5 text-[11px] text-slate-400">@(Kind == ClosingKind.Month ? "Net revenue this month" : "Net revenue today")</p>
+        </div>
+        <div class="mt-4 border-t border-slate-100 pt-3 space-y-1.5 text-xs">
+            <div class="flex justify-between items-center text-slate-600">
+                <span>Cost of goods:</span>
+                <span class="font-semibold text-slate-900 tabular-nums">@Money(Data.Cogs)</span>
+            </div>
+            <div class="flex justify-between items-center text-slate-600">
+                <span>Sales profit:</span>
+                <span class="font-semibold text-emerald-700 tabular-nums">@Money(Data.Revenue - Data.Cogs)</span>
+            </div>
+            <div class="flex justify-between items-center text-slate-600">
+                <span>Margin:</span>
+                <span class="font-semibold text-slate-900 tabular-nums">@(Data.Revenue > 0 ? $"{(Data.Revenue - Data.Cogs) / Data.Revenue * 100:0.#}%" : "0%")</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Card 4: Spend & net profit -->
+    <div class="flex flex-col justify-between rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs transition hover:shadow-sm">
+        <div>
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">Spend & net profit</span>
+                <span class="rounded-md bg-indigo-50 px-2 py-0.5 text-[11px] font-semibold text-indigo-700">Result</span>
+            </div>
+            <div class="mt-2 text-2xl font-bold tracking-tight tabular-nums @(DayNetProfit >= 0 ? "text-emerald-700" : "text-rose-600")">
+                @Money(DayNetProfit)
+            </div>
+            <p class="mt-0.5 text-[11px] text-slate-400">@(Kind == ClosingKind.Month ? "Month bottom line result" : "Day's bottom line result")</p>
+        </div>
+        <div class="mt-4 border-t border-slate-100 pt-3 space-y-1.5 text-xs">
+            <div class="flex justify-between items-center text-slate-600">
+                <span>Operational expenses:</span>
+                <span class="font-semibold text-slate-900 tabular-nums">@Money(Data.Expenses)</span>
+            </div>
+            <div class="flex justify-between items-center text-slate-600">
+                <span>Payroll paid:</span>
+                <span class="font-semibold text-slate-900 tabular-nums">@Money(Data.PayrollPaid)</span>
+            </div>
+            <div class="flex justify-between items-center text-slate-600">
+                <span>Total spend:</span>
+                <span class="font-semibold text-slate-900 tabular-nums">@Money(Data.Expenses + Data.PayrollPaid)</span>
+            </div>
+        </div>
+    </div>
+</div>
+
 @if (Kind == ClosingKind.Day && Data.SelectedLocationName == null && Data.LocationBreakdown.Count > 0)
 {
     <!-- Stock Locations Multi-Store Performance Section for Day -->
@@ -244,69 +223,382 @@ else
     </section>
 }
 
-<div class="grid items-start gap-6 lg:grid-cols-2">
-    <section class="panel p-6">
-        <h2 class="mb-5 font-semibold">@Data.Start.ToString("dd MMM yyyy") – @Data.End.ToString("dd MMM yyyy")</h2>
-        @foreach (var section in Sections)
-        {
-            <h3 class="mt-6 mb-3 text-xs font-semibold tracking-wide text-slate-400 uppercase">@section.Title</h3>
-            <dl class="space-y-3 text-sm">
-                @foreach (var row in section.Rows)
+<!-- Balanced 2-Column Dashboard Grid: Domain Cards on Left (7 cols) + Action Panel & Visual Charts on Right (5 cols) -->
+<div class="grid items-start gap-6 lg:grid-cols-12">
+    <!-- Left Column: Themed Financial Cards -->
+    <div class="space-y-6 lg:col-span-7">
+        <div class="flex items-center justify-between">
+            <h2 class="text-lg font-bold text-slate-900">Financial Breakdown</h2>
+            <span class="text-xs font-semibold text-slate-500">@Data.Start.ToString("dd MMM yyyy") – @Data.End.ToString("dd MMM yyyy")</span>
+        </div>
+
+        <!-- Card 1: Trading & Profit (Emerald Theme) -->
+        <section class="rounded-2xl border border-emerald-200/80 bg-white p-5 shadow-xs transition hover:shadow-sm">
+            <div class="flex items-center justify-between border-b border-emerald-100/70 pb-3.5">
+                <div class="flex items-center gap-2.5">
+                    <span class="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-xs">
+                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                        </svg>
+                    </span>
+                    <div>
+                        <h3 class="font-bold text-slate-900">Trading & Profit</h3>
+                        <p class="text-xs text-slate-500">Gross margin & bottom line result</p>
+                    </div>
+                </div>
+                <span class="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700 border border-emerald-200/60">Income</span>
+            </div>
+
+            <dl class="mt-4 space-y-2.5 text-sm">
+                <div class="flex justify-between items-center text-slate-600">
+                    <span>Net sales</span>
+                    <span class="font-semibold text-slate-900 tabular-nums">@Money(Data.Revenue)</span>
+                </div>
+                <div class="flex justify-between items-center text-slate-600">
+                    <span>Cost of goods sold</span>
+                    <span class="font-semibold text-slate-900 tabular-nums">@Money(Data.Cogs)</span>
+                </div>
+                <div class="flex justify-between items-center text-slate-600">
+                    <span>Sales profit</span>
+                    <span class="font-semibold text-emerald-700 tabular-nums">
+                        @Money(Data.Revenue - Data.Cogs)
+                        @if (Data.Revenue > 0)
+                        {
+                            <span class="ml-1 text-xs font-normal text-emerald-600">(@(((Data.Revenue - Data.Cogs) / Data.Revenue * 100).ToString("0.#"))%)</span>
+                        }
+                    </span>
+                </div>
+                <div class="flex justify-between items-center text-slate-600">
+                    <span>Operational expenses</span>
+                    <span class="font-semibold text-slate-900 tabular-nums">@Money(Data.Expenses)</span>
+                </div>
+                <div class="flex justify-between items-center text-slate-600">
+                    <span>Salary / bonus / advance expense</span>
+                    <span class="font-semibold text-slate-900 tabular-nums">@Money(Data.Salaries)</span>
+                </div>
+                @if (Data.StockVariance != 0)
                 {
-                    <div class="flex justify-between gap-4">
-                        <dt>@row.Label</dt>
-                        <dd class="font-semibold">@Money(row.Value)</dd>
+                    <div class="flex justify-between items-center text-slate-600">
+                        <span>Stock take gain / loss (noncash)</span>
+                        <span class="font-semibold tabular-nums @(Data.StockVariance >= 0 ? "text-emerald-700" : "text-rose-600")">@Money(Data.StockVariance)</span>
                     </div>
                 }
             </dl>
-        }
-        <p class="mt-5 text-xs text-slate-500">Opening cash + cash received − cash paid out = expected cash. Bank payments stay separate. Borrowing and debt repayments affect funds and debt, without changing profit. Payroll includes salary, bonus and advances when paid; applying an old advance does not count it again.</p>
-    </section>
-    <section class="panel p-6 no-print">
-        @if (Data.ClosedAt is not null)
-        {
-            <h2 class="font-semibold text-emerald-700">Period closed</h2>
-            <p class="mt-3 text-sm text-slate-500">Saved @Data.ClosedAt.Value.ToBusinessTime(Configuration).ToString("dd MMM yyyy, HH:mm"). New postings and corrections to this period are blocked.</p>
-            @if (Data.CountedCash is { } counted)
-            {
-                <p class="mt-3">Counted cash: <strong>@Money(counted)</strong></p>
-                <p class="mt-2">Shortage / overage: <strong>@Money(Data.Difference ?? 0)</strong></p>
-            }
-            <p class="mt-3 text-sm">@Data.Notes</p>
-            <a href="@($"/finance/reopen?kind={(Kind == ClosingKind.Month ? "month" : "day")}&date={Data.Start:yyyy-MM-dd}")" class="btn-secondary mt-4">Reopen @(Kind == ClosingKind.Month ? "month" : "day")</a>
-            @if (Kind == ClosingKind.Day)
-            {
-                <a class="btn-primary mt-4" href="@($"/accounting-date?date={Data.Start.AddDays(1):yyyy-MM-dd}")">Open next working day</a>
-            }
-        }
-        else if (Kind == ClosingKind.Day && !Data.IsWorkingDay)
-        {
-            <p class="text-sm text-slate-500">Viewing another day. Open the working day to record its opening and closing.</p>
-            <a class="btn-secondary mt-4" href="/finance/day">Current working day</a>
-        }
-        else if (HideActions)
-        {
-            <p class="text-sm text-slate-500">Confirm the reviewed closing above, or keep this period open.</p>
-        }
-        else
-        {
-            <h2 class="mb-4 font-semibold">Consolidated closing</h2>
-            <form method="post" @formname="period-closing" @onsubmit="OnSave" data-enhance data-submit-indication="true">
-                <AntiforgeryToken />
-                <input type="hidden" name="Input.Date" value="@Data.Start.ToString("yyyy-MM-dd")" />
-                <input type="hidden" name="Input.Kind" value="@Kind" />
-                <p class="text-sm text-slate-500">Opening cash is calculated from the location drawers. Count and close each location separately; this business closing totals those counts without counting cash again.</p>
-                <a href="/cash-drawer" class="btn-secondary mt-4">Review location drawers</a>
-                <label class="field-label mt-4" for="period-notes">Notes / shortage or overage explanation</label>
-                <textarea id="period-notes" name="Input.Notes" class="field" maxlength="2000">@Data.Notes</textarea>
-                <div class="mt-4 flex flex-wrap gap-3">
-                    <button name="Action" value="save" class="btn-secondary" data-pending-text="Saving…">Refresh summary</button>
-                    <button name="Action" value="review" class="btn-primary" data-pending-text="Reviewing…">Review & close @(Kind == ClosingKind.Day ? "day" : "month")</button>
+
+            <div class="mt-4 rounded-xl border border-emerald-100 bg-emerald-50/60 p-3 flex justify-between items-center">
+                <div>
+                    <span class="text-xs font-semibold uppercase tracking-wider text-emerald-800">Net Profit</span>
+                    <p class="text-[11px] text-emerald-700/80">Net trading bottom line</p>
                 </div>
-                <p class="mt-3 text-xs text-slate-500">Close every active location drawer first. Closing freezes the combined summary.</p>
-            </form>
-        }
-    </section>
+                <div class="text-xl font-bold tracking-tight tabular-nums @(DayNetProfit >= 0 ? "text-emerald-700" : "text-rose-600")">
+                    @Money(DayNetProfit)
+                </div>
+            </div>
+        </section>
+
+        <!-- Card 2: Receipts & Payments (Indigo Theme) -->
+        <section class="rounded-2xl border border-indigo-200/80 bg-white p-5 shadow-xs transition hover:shadow-sm">
+            <div class="flex items-center justify-between border-b border-indigo-100/70 pb-3.5">
+                <div class="flex items-center gap-2.5">
+                    <span class="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-xs">
+                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                        </svg>
+                    </span>
+                    <div>
+                        <h3 class="font-bold text-slate-900">Receipts & Payments</h3>
+                        <p class="text-xs text-slate-500">Operating & financing cash flow</p>
+                    </div>
+                </div>
+                <span class="rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-semibold text-indigo-700 border border-indigo-200/60">Cash Flow</span>
+            </div>
+
+            <dl class="mt-4 space-y-2.5 text-sm">
+                <div class="flex justify-between items-center text-slate-600">
+                    <span>Sales receipts / refunds</span>
+                    <span class="font-semibold text-slate-900 tabular-nums">@Money(Data.SalesReceipts)</span>
+                </div>
+                <div class="flex justify-between items-center text-slate-600">
+                    <span>Customer due collections</span>
+                    <span class="font-semibold text-emerald-700 tabular-nums">@Money(Data.CustomerCollections)</span>
+                </div>
+                <div class="flex justify-between items-center text-slate-600">
+                    <span>Purchases / returns (including credit)</span>
+                    <span class="font-semibold text-slate-900 tabular-nums">@Money(Data.PurchaseTotal)</span>
+                </div>
+                <div class="flex justify-between items-center text-slate-600">
+                    <span>Supplier payments</span>
+                    <span class="font-semibold text-slate-900 tabular-nums">@Money(Data.SupplierPaid)</span>
+                </div>
+                <div class="flex justify-between items-center text-slate-600">
+                    <span>Salary / advance / bonus payouts</span>
+                    <span class="font-semibold text-slate-900 tabular-nums">@Money(Data.PayrollPaid)</span>
+                </div>
+                <div class="flex justify-between items-center text-slate-600">
+                    <span>New employee advances</span>
+                    <span class="font-semibold text-slate-900 tabular-nums">@Money(Data.AdvancesPaid)</span>
+                </div>
+                @if (Data.DebtBorrowed != 0 || Data.DebtRepaid != 0)
+                {
+                    <div class="flex justify-between items-center text-slate-600">
+                        <span>Money borrowed</span>
+                        <span class="font-semibold text-slate-900 tabular-nums">@Money(Data.DebtBorrowed)</span>
+                    </div>
+                    <div class="flex justify-between items-center text-slate-600">
+                        <span>Debt repayments</span>
+                        <span class="font-semibold text-slate-900 tabular-nums">@Money(Data.DebtRepaid)</span>
+                    </div>
+                }
+            </dl>
+        </section>
+
+        <!-- Card 3: Cash & Bank Liquidity (Cyan Theme) -->
+        <section class="rounded-2xl border border-cyan-200/80 bg-white p-5 shadow-xs transition hover:shadow-sm">
+            <div class="flex items-center justify-between border-b border-cyan-100/70 pb-3.5">
+                <div class="flex items-center gap-2.5">
+                    <span class="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 text-white shadow-xs">
+                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                        </svg>
+                    </span>
+                    <div>
+                        <h3 class="font-bold text-slate-900">Cash & Bank Liquidity</h3>
+                        <p class="text-xs text-slate-500">Drawer funds & digital accounts</p>
+                    </div>
+                </div>
+                <span class="rounded-full bg-cyan-50 px-2.5 py-0.5 text-xs font-semibold text-cyan-700 border border-cyan-200/60">Liquidity</span>
+            </div>
+
+            <dl class="mt-4 space-y-2.5 text-sm">
+                <div class="flex justify-between items-center text-slate-600">
+                    <span>Physical cash in drawers</span>
+                    <span class="font-semibold text-slate-900 tabular-nums">@Money(Data.CountedCash ?? Data.ClosingCash)</span>
+                </div>
+                <div class="flex justify-between items-center text-slate-600">
+                    <span>Bank / digital closing balance</span>
+                    <span class="font-semibold text-slate-900 tabular-nums">@Money(Data.ClosingBank)</span>
+                </div>
+                <div class="flex justify-between items-center text-slate-600">
+                    <span>Opening bank</span>
+                    <span class="font-semibold text-slate-900 tabular-nums">@Money(Data.OpeningBank)</span>
+                </div>
+                <div class="flex justify-between items-center text-slate-600">
+                    <span>Cash received (inflow)</span>
+                    <span class="font-semibold text-slate-900 tabular-nums">@Money(Data.CashIn)</span>
+                </div>
+                <div class="flex justify-between items-center text-slate-600">
+                    <span>Cash paid out (outflow)</span>
+                    <span class="font-semibold text-slate-900 tabular-nums">@Money(Data.CashOut)</span>
+                </div>
+                @if (Data.CashVariance != 0)
+                {
+                    <div class="flex justify-between items-center text-slate-600">
+                        <span>Cash count shortages / overages</span>
+                        <span class="font-semibold tabular-nums @(Data.CashVariance >= 0 ? "text-emerald-700" : "text-rose-600")">@Money(Data.CashVariance)</span>
+                    </div>
+                }
+            </dl>
+
+            <div class="mt-4 rounded-xl border border-cyan-100 bg-cyan-50/60 p-3 flex justify-between items-center">
+                <div>
+                    <span class="text-xs font-semibold uppercase tracking-wider text-cyan-800">Total Closing Funds</span>
+                    <p class="text-[11px] text-cyan-700/80">Available cash & bank funds</p>
+                </div>
+                <div class="text-xl font-bold tracking-tight text-cyan-900 tabular-nums">
+                    @Money(TotalClosingFunds)
+                </div>
+            </div>
+        </section>
+
+        <!-- Card 4: Financial Position & Balance Sheet (Amber Theme) -->
+        <section class="rounded-2xl border border-amber-200/80 bg-white p-5 shadow-xs transition hover:shadow-sm">
+            <div class="flex items-center justify-between border-b border-amber-100/70 pb-3.5">
+                <div class="flex items-center gap-2.5">
+                    <span class="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-xs">
+                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3" />
+                        </svg>
+                    </span>
+                    <div>
+                        <h3 class="font-bold text-slate-900">Financial Position</h3>
+                        <p class="text-xs text-slate-500">Payables, receivables & stock value</p>
+                    </div>
+                </div>
+                <span class="rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-700 border border-amber-200/60">Position</span>
+            </div>
+
+            <dl class="mt-4 space-y-2.5 text-sm">
+                <div class="flex justify-between items-center text-slate-600">
+                    <span>Supplier due / payable</span>
+                    <span class="font-semibold text-rose-600 tabular-nums">@Money(Data.SupplierDue)</span>
+                </div>
+                <div class="flex justify-between items-center text-slate-600">
+                    <span>Customer due / receivable</span>
+                    <span class="font-semibold text-emerald-700 tabular-nums">@Money(Data.CustomerDue)</span>
+                </div>
+                <div class="flex justify-between items-center text-slate-600">
+                    <span>Stock inventory value</span>
+                    <span class="font-semibold text-slate-900 tabular-nums">@Money(Data.StockValue)</span>
+                </div>
+                <div class="flex justify-between items-center text-slate-600">
+                    <span>Outstanding lender debt</span>
+                    <span class="font-semibold text-rose-600 tabular-nums">@Money(Data.OutstandingDebt)</span>
+                </div>
+            </dl>
+        </section>
+
+        <!-- Card 5: Owner Equity (Slate Theme) -->
+        <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs transition hover:shadow-sm">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3.5">
+                <div class="flex items-center gap-2.5">
+                    <span class="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-600 text-white shadow-xs">
+                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                        </svg>
+                    </span>
+                    <div>
+                        <h3 class="font-bold text-slate-900">Owner Equity</h3>
+                        <p class="text-xs text-slate-500">Capital contributions & draws</p>
+                    </div>
+                </div>
+                <span class="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-600">No Profit Effect</span>
+            </div>
+
+            <dl class="mt-4 space-y-2.5 text-sm">
+                <div class="flex justify-between items-center text-slate-600">
+                    <span>Owner contributions</span>
+                    <span class="font-semibold text-slate-900 tabular-nums">@Money(Data.OwnerContributions)</span>
+                </div>
+                <div class="flex justify-between items-center text-slate-600">
+                    <span>Owner withdrawals</span>
+                    <span class="font-semibold text-slate-900 tabular-nums">@Money(Data.OwnerWithdrawals)</span>
+                </div>
+                <div class="flex justify-between items-center text-slate-600">
+                    <span>Net owner funding</span>
+                    <span class="font-semibold text-slate-900 tabular-nums">@Money(Data.OwnerContributions - Data.OwnerWithdrawals)</span>
+                </div>
+            </dl>
+        </section>
+
+        <p class="text-xs text-slate-500 px-1">Opening cash + cash received − cash paid out = expected cash. Bank payments stay separate. Borrowing and debt repayments affect funds and debt, without changing profit. Payroll includes salary, bonus and advances when paid; applying an old advance does not count it again.</p>
+    </div>
+
+    <!-- Right Column: Closing Status & Consolidated Action Panel + Visual Charts -->
+    <div class="space-y-6 lg:col-span-5 no-print">
+        <!-- Panel 1: Closing Status or Action Form -->
+        <section class="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs">
+            @if (Data.ClosedAt is not null)
+            {
+                <div class="flex items-center justify-between border-b border-slate-100 pb-3.5">
+                    <div class="flex items-center gap-2">
+                        <span class="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700">
+                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                            </svg>
+                        </span>
+                        <h3 class="font-bold text-emerald-800">Period closed</h3>
+                    </div>
+                    <span class="rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700 border border-emerald-200">Locked</span>
+                </div>
+                <p class="mt-3 text-sm text-slate-500">Saved @Data.ClosedAt.Value.ToBusinessTime(Configuration).ToString("dd MMM yyyy, HH:mm"). New postings and corrections to this period are blocked.</p>
+                @if (Data.CountedCash is { } counted)
+                {
+                    <div class="mt-3 rounded-xl border border-slate-100 bg-slate-50/60 p-3 text-xs space-y-1">
+                        <div class="flex justify-between items-center text-slate-600">
+                            <span>Counted cash:</span>
+                            <span class="font-semibold text-slate-900 tabular-nums">@Money(counted)</span>
+                        </div>
+                        <div class="flex justify-between items-center text-slate-600">
+                            <span>Shortage / overage:</span>
+                            <span class="font-semibold tabular-nums @(Data.Difference >= 0 ? "text-emerald-700" : "text-rose-600")">@Money(Data.Difference ?? 0)</span>
+                        </div>
+                    </div>
+                }
+                @if (!string.IsNullOrWhiteSpace(Data.Notes))
+                {
+                    <p class="mt-3 text-xs text-slate-600 bg-slate-50 rounded-lg p-2.5 border border-slate-100 italic">"@Data.Notes"</p>
+                }
+                <div class="mt-4 flex flex-col gap-2">
+                    <a href="@($"/finance/reopen?kind={(Kind == ClosingKind.Month ? "month" : "day")}&date={Data.Start:yyyy-MM-dd}")" class="btn-secondary w-full justify-center">Reopen @(Kind == ClosingKind.Month ? "month" : "day")</a>
+                    @if (Kind == ClosingKind.Day)
+                    {
+                        <a class="btn-primary w-full justify-center" href="@($"/accounting-date?date={Data.Start.AddDays(1):yyyy-MM-dd}")">Open next working day</a>
+                    }
+                </div>
+            }
+            else if (Kind == ClosingKind.Day && !Data.IsWorkingDay)
+            {
+                <h3 class="font-bold text-slate-900">Non-working Day</h3>
+                <p class="mt-2 text-sm text-slate-500">Viewing another day. Open the working day to record its opening and closing.</p>
+                <a class="btn-secondary mt-4 inline-flex" href="/finance/day">Current working day</a>
+            }
+            else if (HideActions)
+            {
+                <h3 class="font-bold text-slate-900">Review Mode</h3>
+                <p class="mt-2 text-sm text-slate-500">Confirm the reviewed closing above, or keep this period open.</p>
+            }
+            else
+            {
+                <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <h3 class="font-bold text-slate-900">Consolidated closing</h3>
+                    <span class="rounded-full bg-blue-50 px-2.5 py-0.5 text-[11px] font-semibold text-blue-700 border border-blue-200">Open</span>
+                </div>
+                <form method="post" @formname="period-closing" @onsubmit="OnSave" data-enhance data-submit-indication="true">
+                    <AntiforgeryToken />
+                    <input type="hidden" name="Input.Date" value="@Data.Start.ToString("yyyy-MM-dd")" />
+                    <input type="hidden" name="Input.Kind" value="@Kind" />
+                    <p class="mt-3 text-xs text-slate-500">Opening cash is calculated from location drawers. Count and close each location separately; this business closing totals those counts without counting cash again.</p>
+                    <a href="/cash-drawer" class="btn-secondary mt-3 text-xs w-full justify-center">Review location drawers</a>
+                    <label class="field-label mt-4" for="period-notes">Notes / shortage or overage explanation</label>
+                    <textarea id="period-notes" name="Input.Notes" class="field text-sm" maxlength="2000" rows="3">@Data.Notes</textarea>
+                    <div class="mt-4 flex flex-col gap-2">
+                        <button name="Action" value="review" class="btn-primary w-full justify-center" data-pending-text="Reviewing…">Review & close @(Kind == ClosingKind.Day ? "day" : "month")</button>
+                        <button name="Action" value="save" class="btn-secondary w-full justify-center text-xs" data-pending-text="Saving…">Refresh summary</button>
+                    </div>
+                    <p class="mt-2 text-[11px] text-slate-400">Close every active location drawer first. Closing freezes the combined summary.</p>
+                </form>
+            }
+        </section>
+
+        <!-- Chart 1: Profit & Cost Structure Bar Chart -->
+        <div class="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs transition hover:shadow-sm">
+            <div class="flex items-center justify-between mb-4">
+                <div>
+                    <h4 class="font-bold text-slate-900">Profit & Cost Structure</h4>
+                    <p class="text-xs text-slate-500">Revenue, COGS, operating spend and net result</p>
+                </div>
+                <span class="rounded-full bg-indigo-50 px-2.5 py-0.5 text-[11px] font-semibold text-indigo-700 border border-indigo-200/60">Structure</span>
+            </div>
+            <div class="relative h-64 w-full">
+                <canvas id="finance-profit-bar"
+                        data-chart="bar"
+                        data-currency="@Currency"
+                        data-labels='["Structure"]'
+                        data-datasets="@JsonSerializer.Serialize(BarDatasets)">
+                </canvas>
+            </div>
+        </div>
+
+        <!-- Chart 2: Funds & Asset Allocation Donut Chart -->
+        <div class="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs transition hover:shadow-sm">
+            <div class="flex items-center justify-between mb-4">
+                <div>
+                    <h4 class="font-bold text-slate-900">Funds & Asset Allocation</h4>
+                    <p class="text-xs text-slate-500">Distribution between cash drawers, bank and stock</p>
+                </div>
+                <span class="rounded-full bg-cyan-50 px-2.5 py-0.5 text-[11px] font-semibold text-cyan-700 border border-cyan-200/60">Holdings</span>
+            </div>
+            <div class="relative h-60 w-full flex items-center justify-center">
+                <canvas id="finance-liquidity-donut"
+                        data-chart="donut"
+                        data-currency="@Currency"
+                        data-labels='["Drawer Cash", "Bank Balance", "Stock Value"]'
+                        data-values="@JsonSerializer.Serialize(DonutValues)"
+                        data-colors='["#06b6d4", "#4f46e5", "#f59e0b"]'>
+                </canvas>
+            </div>
+        </div>
+    </div>
 </div>
 
 @if (Data.Daily is { } daily)
@@ -332,49 +624,23 @@ else
     [Parameter]
     public EventCallback OnSave { get; set; }
 
-    private (string Title, (string Label, decimal Value)[] Rows)[] Sections =>
-    [
-        ("Trading & profit", [
-            ("Net sales", Data.Revenue),
-            ("Cost of goods sold", Data.Cogs),
-            ("Sales profit", Data.Revenue - Data.Cogs),
-            ("Operational expenses", Data.Expenses),
-            ("Salary / bonus / advance expense", Data.Salaries),
-            ("Stock take gain / loss (noncash)", Data.StockVariance),
-            ("Net profit", Data.Revenue - Data.Cogs - Data.Expenses - Data.Salaries + Data.StockVariance)
-        ]),
-        ("Receipts & payments", [
-            ("Sales receipts / refunds", Data.SalesReceipts),
-            ("Customer due collections", Data.CustomerCollections),
-            ("Purchases / returns (including credit)", Data.PurchaseTotal),
-            ("Supplier payments", Data.SupplierPaid),
-            ("Salary / advance / bonus payouts", Data.PayrollPaid),
-            ("New employee advances", Data.AdvancesPaid),
-            ("Money borrowed", Data.DebtBorrowed),
-            ("Debt repayments", Data.DebtRepaid)
-        ]),
-        ("Owner funding · excluded from profit", [
-            ("Owner contributions", Data.OwnerContributions),
-            ("Owner withdrawals", Data.OwnerWithdrawals),
-            ("Net owner funding", Data.OwnerContributions - Data.OwnerWithdrawals)
-        ]),
-        ("Cash & bank movement", [
-            ("Cash received", Data.CashIn),
-            ("Cash paid out", Data.CashOut),
-            ("Cash count shortages / overages", Data.CashVariance),
-            ("Opening bank", Data.OpeningBank),
-            ("Bank received", Data.BankIn),
-            ("Bank paid out", Data.BankOut)
-        ]),
-        ("Closing stock & account balances", [
-            ("Supplier due / advance", Data.SupplierDue),
-            ("Customer due / credit", Data.CustomerDue),
-            ("Stock value", Data.StockValue),
-            ("Outstanding lender debt", Data.OutstandingDebt)
-        ])
-    ];
-
     private decimal TotalClosingFunds => (Data.CountedCash ?? Data.ClosingCash) + Data.ClosingBank;
     private decimal DayNetProfit => Data.Revenue - Data.Cogs - Data.Expenses - Data.Salaries + Data.StockVariance;
-    private string Money(decimal amount) => $"{Configuration["CurrencyCode"] ?? "BDT"} {amount:N2}";
+    private string Currency => Configuration["CurrencyCode"] ?? "BDT";
+    private string Money(decimal amount) => $"{Currency} {amount:N2}";
+
+    private decimal[] DonutValues =>
+    [
+        Math.Max(0, Data.CountedCash ?? Data.ClosingCash),
+        Math.Max(0, Data.ClosingBank),
+        Math.Max(0, Data.StockValue)
+    ];
+
+    private object[] BarDatasets =>
+    [
+        new { label = "Net Sales", data = new[] { Math.Max(0, Data.Revenue) }, color = "#4f46e5" },
+        new { label = "Cost of Goods", data = new[] { Math.Max(0, Data.Cogs) }, color = "#f59e0b" },
+        new { label = "Operating Spend", data = new[] { Math.Max(0, Data.Expenses + Data.Salaries) }, color = "#ef4444" },
+        new { label = "Net Profit", data = new[] { DayNetProfit }, color = DayNetProfit >= 0 ? "#10b981" : "#e11d48" }
+    ];
 }

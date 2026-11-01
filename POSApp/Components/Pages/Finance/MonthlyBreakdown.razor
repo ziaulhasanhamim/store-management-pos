@@ -1,3 +1,4 @@
+@using System.Text.Json
 <section class="mt-6">
     @if (Data.SelectedLocationName != null)
     {
@@ -224,6 +225,38 @@
                 </tfoot>
             </table>
         </section>
+    }
+
+    @if (Data.Days.Count > 0)
+    {
+        <!-- Month-to-Date Performance Trend Chart -->
+        <div class="panel mb-6 p-5">
+            <div class="mb-4 flex flex-wrap items-center justify-between gap-2">
+                <div>
+                    <h3 class="font-bold text-slate-900">Month-to-Date Performance Trend</h3>
+                    <p class="text-xs text-slate-500">Daily net sales revenue vs realized net trading result across the month</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="inline-flex items-center gap-1.5 rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-700">
+                        <span class="h-2 w-2 rounded-full bg-indigo-600"></span> Sales
+                    </span>
+                    <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+                        <span class="h-2 w-2 rounded-full bg-emerald-500"></span> Net Profit
+                    </span>
+                </div>
+            </div>
+            <div class="relative h-72 w-full">
+                <canvas id="monthly-trend-line"
+                        data-chart="line"
+                        data-currency="@(Configuration["CurrencyCode"] ?? "BDT")"
+                        data-labels="@JsonSerializer.Serialize(Data.Days.Select(d => d.Date.ToString("dd MMM")))"
+                        data-datasets="@JsonSerializer.Serialize(new object[] {
+                            new { label = "Net Sales", data = Data.Days.Select(d => d.Sales).ToArray(), color = "#4f46e5" },
+                            new { label = "Net Profit", data = Data.Days.Select(d => d.NetProfit).ToArray(), color = "#10b981" }
+                        })">
+                </canvas>
+            </div>
+        </div>
     }
 
     <!-- Working Days Table -->
