@@ -107,6 +107,7 @@ public sealed class RecordAdministration(IServiceScopeFactory scopes, IConfigura
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             var actorId = await StoreAccess.RequireAsync(db, actor, AppRoles.Admin, ct);
             var activeDate = await AccountingCalendar.SelectedAsync(db, actorId, configuration, ct);
+            var effectiveAt = AccountingCalendar.At(activeDate, configuration);
             await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
             var now = DateTimeOffset.UtcNow;
             SoftDeletableEntity entity;
@@ -151,10 +152,10 @@ public sealed class RecordAdministration(IServiceScopeFactory scopes, IConfigura
                     var note = $"Sale {(delete ? "void" : "customer change")} #{id}: {input.Reason.Trim()}";
                     if (sale.Status == SaleStatus.Completed && (delete || sale.CustomerId != targetCustomer))
                     {
-                        await CustomerAdjustmentAsync(db, sale.CustomerId, -(sale.TotalAmount - paid), note, actorId, now, ct);
+                        await CustomerAdjustmentAsync(db, sale.CustomerId, -(sale.TotalAmount - paid), note, actorId, effectiveAt, ct);
                         if (!delete)
                         {
-                            var targetBalance = await CustomerAdjustmentAsync(db, targetCustomer, sale.TotalAmount - paid, note, actorId, now, ct);
+                            var targetBalance = await CustomerAdjustmentAsync(db, targetCustomer, sale.TotalAmount - paid, note, actorId, effectiveAt, ct);
                             foreach (var payment in sale.Payments)
                             {
                                 payment.CustomerBalance = targetBalance;
@@ -176,7 +177,7 @@ public sealed class RecordAdministration(IServiceScopeFactory scopes, IConfigura
                         foreach (var item in sale.Items.Where(item => !nonStockedIds.Contains(item.ProductId)).OrderBy(item => item.Quantity < 0))
                         {
                             await ReverseStockAsync(db, item.ProductId, sale.StockLocationId, item.Quantity,
-                                item.UnitCost, note, actorId, now, ct);
+                                item.UnitCost, note, actorId, effectiveAt, ct);
                         }
                     }
                     if (!delete)
@@ -213,10 +214,10 @@ public sealed class RecordAdministration(IServiceScopeFactory scopes, IConfigura
                     var supplierPaid = purchase.Payments.Sum(payment => payment.Amount);
                     if (purchase.Status == PurchaseStatus.Received && (delete || purchase.SupplierId != targetSupplier))
                     {
-                        await SupplierAdjustmentAsync(db, purchase.SupplierId, -(purchase.TotalAmount - supplierPaid), supplierNote, actorId, now, ct);
+                        await SupplierAdjustmentAsync(db, purchase.SupplierId, -(purchase.TotalAmount - supplierPaid), supplierNote, actorId, effectiveAt, ct);
                         if (!delete)
                         {
-                            var balance = await SupplierAdjustmentAsync(db, targetSupplier, purchase.TotalAmount - supplierPaid, supplierNote, actorId, now, ct);
+                            var balance = await SupplierAdjustmentAsync(db, targetSupplier, purchase.TotalAmount - supplierPaid, supplierNote, actorId, effectiveAt, ct);
                             foreach (var payment in purchase.Payments)
                             {
                                 payment.SupplierBalance = balance;
@@ -240,7 +241,7 @@ public sealed class RecordAdministration(IServiceScopeFactory scopes, IConfigura
                         foreach (var item in purchase.Items.OrderBy(item => item.Quantity > 0))
                         {
                             await ReverseStockAsync(db, item.ProductId, purchase.StockLocationId, -item.Quantity,
-                                item.UnitCost, supplierNote, actorId, now, ct);
+                                item.UnitCost, supplierNote, actorId, effectiveAt, ct);
                         }
                     }
                     if (!delete)
@@ -298,7 +299,7 @@ public sealed class RecordAdministration(IServiceScopeFactory scopes, IConfigura
     }
 
     private static async Task ReverseStockAsync(AppDbContext db, int productId, int locationId, decimal quantity,
-        decimal cost, string note, int actorId, DateTimeOffset now, CancellationToken ct)
+        decimal cost, string note, int actorId, DateTimeOffset effectiveAt, CancellationToken ct)
     {
         var stock = db.InventoryBalances.Local.SingleOrDefault(item => item.ProductId == productId && item.StockLocationId == locationId)
             ?? await db.InventoryBalances.SingleOrDefaultAsync(item => item.ProductId == productId && item.StockLocationId == locationId, ct);
@@ -323,7 +324,7 @@ public sealed class RecordAdministration(IServiceScopeFactory scopes, IConfigura
             Quantity = quantity,
             UnitCost = cost,
             Notes = note,
-            OccurredAt = now,
+            OccurredAt = effectiveAt,
             CreatedByUserId = actorId
         });
     }
@@ -368,7 +369,7 @@ public sealed class RecordAdministration(IServiceScopeFactory scopes, IConfigura
     }
 
     private static async Task<CustomerBalance?> CustomerAdjustmentAsync(AppDbContext db, int? customerId, decimal amount,
-        string note, int actorId, DateTimeOffset now, CancellationToken ct)
+        string note, int actorId, DateTimeOffset effectiveAt, CancellationToken ct)
     {
         if (customerId is null)
         {
@@ -377,13 +378,13 @@ public sealed class RecordAdministration(IServiceScopeFactory scopes, IConfigura
         var balance = await db.CustomerBalances.SingleOrDefaultAsync(item => item.CustomerId == customerId, ct);
         if (balance is null)
         {
-            balance = new CustomerBalance { CustomerId = customerId.Value, OpenedAt = now };
+            balance = new CustomerBalance { CustomerId = customerId.Value, OpenedAt = effectiveAt };
             balance.Entries.Add(new CustomerBalanceEntry
             {
                 CustomerBalanceId = 0,
                 CustomerBalance = balance,
                 Type = BalanceEntryType.OpeningBalance,
-                OccurredAt = now
+                OccurredAt = effectiveAt
             });
             db.CustomerBalances.Add(balance);
         }
@@ -399,25 +400,25 @@ public sealed class RecordAdministration(IServiceScopeFactory scopes, IConfigura
             Amount = amount,
             BalanceAfter = balance.CurrentBalance,
             Notes = note,
-            OccurredAt = now,
+            OccurredAt = effectiveAt,
             CreatedByUserId = actorId
         });
         return balance;
     }
 
     private static async Task<SupplierBalance> SupplierAdjustmentAsync(AppDbContext db, int supplierId, decimal amount,
-        string note, int actorId, DateTimeOffset now, CancellationToken ct)
+        string note, int actorId, DateTimeOffset effectiveAt, CancellationToken ct)
     {
         var balance = await db.SupplierBalances.SingleOrDefaultAsync(item => item.SupplierId == supplierId, ct);
         if (balance is null)
         {
-            balance = new SupplierBalance { SupplierId = supplierId, OpenedAt = now };
+            balance = new SupplierBalance { SupplierId = supplierId, OpenedAt = effectiveAt };
             balance.Entries.Add(new SupplierBalanceEntry
             {
                 SupplierBalanceId = 0,
                 SupplierBalance = balance,
                 Type = BalanceEntryType.OpeningBalance,
-                OccurredAt = now
+                OccurredAt = effectiveAt
             });
             db.SupplierBalances.Add(balance);
         }
@@ -433,7 +434,7 @@ public sealed class RecordAdministration(IServiceScopeFactory scopes, IConfigura
             Amount = amount,
             BalanceAfter = balance.CurrentBalance,
             Notes = note,
-            OccurredAt = now,
+            OccurredAt = effectiveAt,
             CreatedByUserId = actorId
         });
         return balance;
