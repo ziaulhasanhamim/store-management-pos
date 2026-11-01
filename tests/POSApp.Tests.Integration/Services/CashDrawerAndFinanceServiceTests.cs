@@ -138,4 +138,99 @@ public class CashDrawerAndFinanceServiceTests : PosIntegrationTestBase
         await issues.Should().NotBeNull();
         await issues.Count.Should().BeEqualTo(0);
     }
+
+    [Test]
+    public async Task BankService_AdjustmentAndMonthOpening_UpdatesBalanceAccurately()
+    {
+        await using var scope = CreateScope();
+        var bankService = scope.ServiceProvider.GetRequiredService<BankService>();
+
+        var page = await bankService.ReadAsync(AdminUser);
+        await page.Should().NotBeNull();
+        await page.MonthDate.HasValue.Should().BeTrue();
+        var initialBalance = page.Balance;
+
+        // Perform bank balance adjustment (non-drawer reconciliation)
+        var adjustInput = new BankInput
+        {
+            RequestId = Guid.NewGuid(),
+            Action = "adjustment",
+            Amount = 250m,
+            Notes = "Monthly bank interest earned",
+            Date = DateTime.UtcNow
+        };
+        await bankService.SaveAsync(AdminUser, adjustInput);
+
+        var updated = await bankService.ReadAsync(AdminUser);
+        await updated.Balance.Should().BeEqualTo(initialBalance + 250m);
+    }
+
+    [Test]
+    public async Task MoneyEntryService_DeleteAsync_VoidSupplierPayment_ReversesMovementsAndRestoresBalance()
+    {
+        int paymentId;
+        int supplierId;
+        decimal balanceBeforePayment;
+
+        await using (var scope = CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var supplier = await db.Suppliers.Include(s => s.Balance).FirstAsync();
+            supplierId = supplier.Id;
+            balanceBeforePayment = supplier.Balance?.CurrentBalance ?? 0m;
+
+            var entries = scope.ServiceProvider.GetRequiredService<MoneyEntryService>();
+            var calendar = scope.ServiceProvider.GetRequiredService<ClosingService>();
+            var today = await calendar.SelectedAsync(AdminUser);
+
+            // Record a supplier payment of 300 via Bank
+            var command = new MoneyEntryCommand(
+                RequestId: Guid.NewGuid(),
+                WorkingDate: today,
+                Rows: [new MoneyEntryInput
+                {
+                    RequestId = Guid.NewGuid(),
+                    Id = null,
+                    PartyId = supplierId,
+                    CategoryId = 0,
+                    Amount = 300m,
+                    Method = PaymentMethod.BankTransfer,
+                    Notes = "Test payment to be voided",
+                    Receipt = null
+                }]);
+
+            var saveResult = await entries.SaveAsync(AdminUser, "supplier-payments", command);
+            paymentId = saveResult.Ids.Single();
+        }
+
+        // Verify balance decreased after payment
+        await using (var scope = CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var balanceAfterPayment = (await db.SupplierBalances.SingleAsync(b => b.SupplierId == supplierId)).CurrentBalance;
+            await balanceAfterPayment.Should().BeEqualTo(balanceBeforePayment - 300m);
+
+            // Void the payment
+            var entries = scope.ServiceProvider.GetRequiredService<MoneyEntryService>();
+            await entries.DeleteAsync(AdminUser, "supplier-payments", paymentId);
+        }
+
+        // Verify supplier balance is restored and payment is deleted
+        await using (var scope = CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var restoredBalance = (await db.SupplierBalances.SingleAsync(b => b.SupplierId == supplierId)).CurrentBalance;
+            await restoredBalance.Should().BeEqualTo(balanceBeforePayment);
+
+            var paymentInDb = await db.SupplierPayments.SingleOrDefaultAsync(p => p.Id == paymentId);
+            await paymentInDb.Should().BeNull();
+
+            // Verify audit entry exists
+            var auditEntry = await db.SupplierBalanceEntries
+                .OrderByDescending(e => e.Id)
+                .FirstOrDefaultAsync(e => e.SupplierBalance!.SupplierId == supplierId && e.Type == BalanceEntryType.Adjustment);
+            await auditEntry.Should().NotBeNull();
+            await auditEntry!.Amount.Should().BeEqualTo(300m);
+        }
+    }
 }

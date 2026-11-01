@@ -11,6 +11,7 @@ public static class MoneyEntryEndpoints
         group.MapGet("/antiforgery", GetToken);
         group.MapGet("/{kind}", ReadAsync);
         group.MapPost("/{kind}", SaveAsync);
+        group.MapDelete("/{kind}/{id:int}", DeleteAsync);
         group.MapPost("/categories", SaveCategoryAsync).RequireAuthorization(AppPolicies.ManageUsers);
         return group;
     }
@@ -29,6 +30,12 @@ public static class MoneyEntryEndpoints
     public static Task<MoneyEntryResult> SaveAsync(string kind, MoneyEntryCommand input, HttpContext context, MoneyEntryService entries)
     {
         return entries.SaveAsync(context.User, kind, input, context.RequestAborted);
+    }
+
+    public static async Task<IResult> DeleteAsync(string kind, int id, HttpContext context, MoneyEntryService entries)
+    {
+        await entries.DeleteAsync(context.User, kind, id, context.RequestAborted);
+        return Results.NoContent();
     }
 
     public static Task<int> SaveCategoryAsync(ExpenseCategoryInput input, HttpContext context, MoneyEntryService entries)

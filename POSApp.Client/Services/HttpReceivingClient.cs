@@ -86,6 +86,25 @@ public sealed class HttpReceivingClient(HttpClient http) : IReceivingClient
         return await ReadResponseAsync<TResult>(response);
     }
 
+    public async Task DeleteAsync(string path, string tokenPath = "api/inventory/antiforgery")
+    {
+        var token = _cachedToken;
+        if (string.IsNullOrEmpty(token))
+        {
+            var responseToken = await ReadAsync<AntiforgeryResponse>(tokenPath);
+            token = _cachedToken = responseToken.Token;
+        }
+
+        using var request = new HttpRequestMessage(HttpMethod.Delete, path);
+        request.Headers.Add("X-CSRF-TOKEN", token);
+        using var response = await http.SendAsync(request);
+        if (!response.IsSuccessStatusCode)
+        {
+            _cachedToken = null;
+            await ReadResponseAsync<object>(response, allowEmpty: true);
+        }
+    }
+
     private static async Task<T> ReadResponseAsync<T>(HttpResponseMessage response, CancellationToken cancellationToken = default, bool allowEmpty = false)
     {
         if (!response.IsSuccessStatusCode)

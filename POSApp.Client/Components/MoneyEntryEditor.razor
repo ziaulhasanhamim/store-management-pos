@@ -183,6 +183,7 @@ else
     else
     {
         <MoneyEntryTable Loading="LoadingRows" Rows="Data.Rows" Currency="@Currency" PartyLabel="@(IsSupplier ? "Supplier" : "Customer")"
+                         AllowVoid="@IsSupplier" OnVoid="VoidEntryAsync"
                          Disabled="@(!RendererInfo.IsInteractive || !DraftReady || Busy)"
                          PendingIds="PendingIds" OnEdit="Edit" />
     }

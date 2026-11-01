@@ -18,61 +18,119 @@
 {
     <p class="error-panel" role="alert">@Error</p>
 }
+@if (Saved)
+{
+    <p class="mb-4 rounded-xl border border-emerald-200 bg-emerald-50/80 p-3.5 text-sm font-medium text-emerald-800" role="status">
+        Bank movement recorded successfully.
+    </p>
+}
 @if (Data is null)
 {
     <LoadingPanel Message="Loading bank balance…" />
 }
 else
 {
-    <div class="mb-6 grid gap-4 sm:grid-cols-2">
+    <div class="mb-6 grid gap-4 sm:grid-cols-3">
         <div class="metric">
             <p>Current balance</p>
             <strong class="text-2xl!">@Money(Data?.Balance ?? 0)</strong>
             <span class="metric-note">Combined bank, card and mobile wallet funds</span>
         </div>
         <div class="metric">
-            <p>Opening balance</p>
+            <p>This month's opening</p>
+            <strong class="text-2xl!">@Money(Data?.MonthOpening ?? 0)</strong>
+            <span class="metric-note">@(Data?.MonthDate?.ToString("MMMM yyyy") ?? "Current month") starting position</span>
+        </div>
+        <div class="metric">
+            <p>Account opening balance</p>
             <strong class="text-2xl!">@Money(Data?.Opening ?? 0)</strong>
             <span class="metric-note">@(Data?.OpeningDate?.ToString("dd MMM yyyy") ?? "Not recorded yet")</span>
         </div>
     </div>
+
     <section class="panel mb-6 max-w-2xl p-6">
-        <form method="post" @formname="bank" @onsubmit="SaveAsync" data-enhance data-submit-indication="true">
-            <AntiforgeryToken />
-            <input type="hidden" name="Input.RequestId" value="@Input!.RequestId" />
-            <div class="grid gap-4 sm:grid-cols-2">
-                <div>
-                    <label class="field-label" for="bank-action">Movement</label>
-                    <select id="bank-action" name="Input.Action" class="field">
-                        @if (Data?.OpeningDate is null)
-                        {
-                            <option value="opening">Opening balance</option>
-                        }
-                        <option value="adjustment">Adjustment (signed amount)</option>
-                        <option value="deposit">Cash drawer → bank</option>
-                        <option value="withdraw">Bank → cash drawer</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="field-label" for="bank-amount">Amount</label>
-                    <input id="bank-amount" name="Input.Amount" class="field" inputmode="decimal" required />
-                </div>
-                <div>
-                    <label class="field-label" for="bank-date">Accounting date</label>
-                    <input name="Input.Date" type="hidden" value="@Input.Date.ToString("yyyy-MM-dd")" />
-                    <p id="bank-date" class="py-2 text-sm">@Input.Date.ToString("dd MMM yyyy") · working day</p>
-                </div>
+        <div class="mb-5 flex border-b border-slate-200">
+            <a href="/finance/bank?tab=transfer" class="pb-2.5 px-3 text-sm font-semibold transition border-b-2 @(ActiveTab == "transfer" ? "border-primary text-primary" : "border-transparent text-slate-500 hover:text-slate-700")">
+                Cash Drawer ↔ Bank Transfer
+            </a>
+            <a href="/finance/bank?tab=adjustment" class="pb-2.5 px-3 text-sm font-semibold transition border-b-2 @(ActiveTab == "adjustment" ? "border-primary text-primary" : "border-transparent text-slate-500 hover:text-slate-700")">
+                Bank Balance Adjustment
+            </a>
+        </div>
+
+        @if (ActiveTab == "transfer")
+        {
+            <div class="mb-4 rounded-xl border border-blue-100 bg-blue-50/60 p-3 text-xs text-blue-900">
+                <strong>Cash Drawer Transfer:</strong> Requires an open active cash drawer. Moves physical cash between drawer and bank account.
             </div>
-            <label class="field-label mt-4" for="bank-notes">Reason / reference</label>
-            <input id="bank-notes" name="Input.Notes" class="field" maxlength="2000" required />
-            <p class="mt-3 text-xs text-slate-500">Enter the opening from before recorded bank movements. Use a signed adjustment to reconcile a current balance. Cash transfers require an open drawer.</p>
-            <button class="btn-primary mt-4" data-pending-text="Recording…">Record movement</button>
-        </form>
+            <form method="post" @formname="bank" @onsubmit="SaveAsync" data-enhance data-submit-indication="true">
+                <AntiforgeryToken />
+                <input type="hidden" name="Input.RequestId" value="@Input!.RequestId" />
+                <div class="grid gap-4 sm:grid-cols-2">
+                    <div>
+                        <label class="field-label" for="bank-action">Transfer direction</label>
+                        <select id="bank-action" name="Input.Action" class="field">
+                            <option value="deposit">Cash drawer → bank (Deposit)</option>
+                            <option value="withdraw">Bank → cash drawer (Withdrawal)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="field-label" for="bank-amount">Amount</label>
+                        <input id="bank-amount" name="Input.Amount" class="field" inputmode="decimal" min="0.01" step="0.01" required />
+                    </div>
+                    <div>
+                        <label class="field-label" for="bank-date">Accounting date</label>
+                        <input name="Input.Date" type="hidden" value="@Input.Date.ToString("yyyy-MM-dd")" />
+                        <p id="bank-date" class="py-2 text-sm text-slate-700">@Input.Date.ToString("dd MMM yyyy") · working day</p>
+                    </div>
+                </div>
+                <label class="field-label mt-4" for="bank-notes">Reason / reference</label>
+                <input id="bank-notes" name="Input.Notes" class="field" maxlength="2000" placeholder="e.g. Daily cash deposit to main account" required />
+                <button class="btn-primary mt-5" data-pending-text="Transferring…">Transfer funds</button>
+            </form>
+        }
+        else
+        {
+            <div class="mb-4 rounded-xl border border-amber-100 bg-amber-50/60 p-3 text-xs text-amber-900">
+                <strong>Bank Ledger Adjustment:</strong> Directly adjusts bank balance without affecting cash drawers. Use signed amounts (+ for interest/deposits, - for fees/corrections).
+            </div>
+            <form method="post" @formname="bank" @onsubmit="SaveAsync" data-enhance data-submit-indication="true">
+                <AntiforgeryToken />
+                <input type="hidden" name="Input.RequestId" value="@Input!.RequestId" />
+                <div class="grid gap-4 sm:grid-cols-2">
+                    <div>
+                        <label class="field-label" for="bank-action">Adjustment type</label>
+                        <select id="bank-action" name="Input.Action" class="field">
+                            @if (Data?.OpeningDate is null)
+                            {
+                                <option value="opening">Opening balance</option>
+                            }
+                            <option value="adjustment">Reconciliation adjustment (signed amount)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="field-label" for="bank-amount">Adjustment amount (+ / -)</label>
+                        <input id="bank-amount" name="Input.Amount" class="field" inputmode="decimal" step="0.01" required />
+                    </div>
+                    <div>
+                        <label class="field-label" for="bank-date">Accounting date</label>
+                        <input name="Input.Date" type="hidden" value="@Input.Date.ToString("yyyy-MM-dd")" />
+                        <p id="bank-date" class="py-2 text-sm text-slate-700">@Input.Date.ToString("dd MMM yyyy") · working day</p>
+                    </div>
+                </div>
+                <label class="field-label mt-4" for="bank-notes">Reason / statement reference</label>
+                <input id="bank-notes" name="Input.Notes" class="field" maxlength="2000" placeholder="e.g. Bank charges or statement reconciliation" required />
+                <button class="btn-primary mt-5" data-pending-text="Recording…">Record adjustment</button>
+            </form>
+        }
     </section>
     <AccountStatement Account="bank" Date="DateOnly.FromDateTime(Input!.Date)" />
 }
 
 @code {
+    [SupplyParameterFromQuery]
+    public string? Tab { get; set; }
+
     [SupplyParameterFromQuery]
     public bool Saved { get; set; }
 
@@ -84,13 +142,15 @@ else
 
     private BankPage? Data;
     private string? Error;
+    private string ActiveTab => (Tab == "adjustment" || Input?.Action is "opening" or "adjustment") ? "adjustment" : "transfer";
 
     protected override async Task OnParametersSetAsync()
     {
         var selectedDate = (await Closings.SelectedAsync(HttpContext.User, HttpContext.RequestAborted)).ToDateTime(TimeOnly.MinValue);
-        if (Saved || Input is null)
+        if (HttpContext.Request.Method != "POST" || Input is null)
         {
-            Input = new() { RequestId = Guid.NewGuid(), Date = selectedDate };
+            var defaultAction = ActiveTab == "adjustment" ? "adjustment" : "deposit";
+            Input = new() { RequestId = Guid.NewGuid(), Date = selectedDate, Action = defaultAction };
         }
         Data = await Banks.ReadAsync(HttpContext.User, HttpContext.RequestAborted);
     }
@@ -99,18 +159,13 @@ else
     {
         try
         {
-            var savedId = Input!.RequestId;
+            Input!.RequestId = Guid.NewGuid();
             await Banks.SaveAsync(HttpContext.User, Input!, HttpContext.RequestAborted);
-            Input = new() { RequestId = Guid.NewGuid(), Date = Input.Date };
-            Navigation.NavigateTo($"/finance/bank?saved=true&savedRequest={savedId}");
+            Navigation.NavigateTo($"/finance/bank?tab={ActiveTab}&saved=true");
         }
         catch (ValidationException exception)
         {
             Error = exception.Message;
-            if (exception.Message.Contains("already saved") || exception.Message.Contains("different values"))
-            {
-                Input!.RequestId = Guid.NewGuid();
-            }
         }
     }
 

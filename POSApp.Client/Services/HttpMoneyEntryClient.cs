@@ -23,4 +23,9 @@ public sealed class HttpMoneyEntryClient(HttpReceivingClient http) : IMoneyEntry
     {
         return http.WriteAsync<ExpenseCategoryInput, int>("api/entries/categories", input, "api/entries/antiforgery");
     }
+
+    public Task DeleteAsync(string kind, int id)
+    {
+        return http.DeleteAsync($"api/entries/{kind}/{id}", "api/entries/antiforgery");
+    }
 }

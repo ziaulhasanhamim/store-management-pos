@@ -197,6 +197,31 @@ public partial class MoneyEntryEditor
         }
     }
 
+    private async Task VoidEntryAsync(MoneyEntryRow row)
+    {
+        if (Busy)
+        {
+            return;
+        }
+        Busy = true;
+        Error = null;
+        Notice = null;
+        try
+        {
+            await Entries.DeleteAsync(Data.Kind, row.Id);
+            Notice = $"Payment #{row.Id} was successfully voided. The supplier balance has been restored.";
+            Data = await Entries.ReadAsync(Data.Kind, Data.Date, Data.Pagination?.Number ?? 1, Data.Pagination?.Size ?? 30);
+        }
+        catch (Exception exception)
+        {
+            Error = Message(exception);
+        }
+        finally
+        {
+            Busy = false;
+        }
+    }
+
     private async Task Refresh()
     {
         if (Busy)

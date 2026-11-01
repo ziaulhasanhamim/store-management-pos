@@ -12,7 +12,7 @@ public sealed class BankInput
 }
 
 public sealed record BankRow(DateOnly Date, string Kind, PaymentMethod Method, decimal Amount, decimal BalanceAfter, string Notes);
-public sealed record BankPage(decimal Opening, decimal Balance, DateOnly? OpeningDate, IReadOnlyList<BankRow> History);
+public sealed record BankPage(decimal Opening, decimal Balance, DateOnly? OpeningDate, IReadOnlyList<BankRow> History, decimal MonthOpening = 0, DateOnly? MonthDate = null);
 
 public sealed class ClosingInput
 {

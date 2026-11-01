@@ -49,10 +49,35 @@
                     <td>
                         @if (row.CanEdit)
                         {
-                            <button type="button" class="btn-secondary" @onclick="() => OnEdit.InvokeAsync(row)"
-                                    disabled="@(Disabled || PendingIds.Contains(row.Id))">
-                                Edit
-                            </button>
+                            <div class="flex items-center gap-1.5">
+                                @if (ConfirmingVoidId == row.Id)
+                                {
+                                    <button type="button" class="btn-secondary text-xs bg-rose-50! text-rose-700! border-rose-300!"
+                                            @onclick="() => ExecuteVoid(row)" disabled="@(Disabled || PendingIds.Contains(row.Id))">
+                                        Confirm void
+                                    </button>
+                                    <button type="button" class="btn-secondary text-xs text-slate-500!"
+                                            @onclick="() => ConfirmingVoidId = null">
+                                        Cancel
+                                    </button>
+                                }
+                                else
+                                {
+                                    <button type="button" class="btn-secondary text-xs" @onclick="() => OnEdit.InvokeAsync(row)"
+                                            disabled="@(Disabled || PendingIds.Contains(row.Id))">
+                                        Edit
+                                    </button>
+                                    @if (AllowVoid)
+                                    {
+                                        <button type="button" class="btn-secondary text-xs text-rose-600! hover:text-rose-700! hover:border-rose-300!"
+                                                @onclick="() => ConfirmingVoidId = row.Id"
+                                                disabled="@(Disabled || PendingIds.Contains(row.Id))"
+                                                title="Void payment and restore balance">
+                                            Void
+                                        </button>
+                                    }
+                                }
+                            </div>
                         }
                         else
                         {
@@ -87,4 +112,18 @@
 
     [Parameter]
     public EventCallback<MoneyEntryRow> OnEdit { get; set; }
+
+    [Parameter]
+    public bool AllowVoid { get; set; }
+
+    [Parameter]
+    public EventCallback<MoneyEntryRow> OnVoid { get; set; }
+
+    private int? ConfirmingVoidId;
+
+    private async Task ExecuteVoid(MoneyEntryRow row)
+    {
+        ConfirmingVoidId = null;
+        await OnVoid.InvokeAsync(row);
+    }
 }

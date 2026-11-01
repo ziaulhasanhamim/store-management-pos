@@ -333,7 +333,7 @@ public sealed partial class MoneyEntryService
             CashDrawerService.Append(db, move.CashSession, new CashMovement
             {
                 RequestId = Guid.NewGuid(), BusinessDate = move.BusinessDate, Kind = CashMovementKind.Reversal,
-                Amount = -move.Amount, Notes = $"Edit {kind} #{id}: reverse previous cash posting",
+                Amount = -move.Amount, Notes = $"Reversal {kind} #{id}: previous cash posting",
                 ReversesMovementId = move.Id, CreatedByUserId = actorId
             });
         }
@@ -350,10 +350,101 @@ public sealed partial class MoneyEntryService
             await FinancialPosting.BankAsync(db, new BankMovement
             {
                 RequestId = Guid.NewGuid(), BusinessDate = move.BusinessDate, Kind = CashMovementKind.Reversal,
-                Method = move.Method, Amount = -move.Amount, Notes = $"Edit {kind} #{id}: reverse previous bank posting",
+                Method = move.Method, Amount = -move.Amount, Notes = $"Reversal {kind} #{id}: previous bank posting",
                 ReversesMovementId = move.Id, CreatedByUserId = actorId
             }, ct);
         }
+    }
+
+    public async Task DeleteAsync(ClaimsPrincipal actor, string kind, int id, CancellationToken ct = default)
+    {
+        await StoreOperation.RunAsync(async () =>
+        {
+            var requiredRole = Role(kind);
+            await using var scope = scopes.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var actorId = await StoreAccess.RequireAsync(db, actor, requiredRole, ct);
+            var admin = await CashDrawerService.IsAdminAsync(db, actorId, ct);
+            await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
+
+            var date = await AccountingCalendar.SelectedAsync(db, actorId, configuration, ct);
+            AccountingCalendar.ValidateExpected(date, WorkingDayRequest.Date);
+            await AccountingCalendar.EnsureOpenAsync(db, date, ct);
+            var at = AccountingCalendar.At(date, configuration);
+
+            if (kind == "supplier-payments")
+            {
+                var payment = await db.SupplierPayments.Include(p => p.SupplierBalance).Include(p => p.Purchase)
+                    .SingleOrDefaultAsync(p => p.Id == id && (p.PurchaseId == null || !p.Purchase!.IsDeleted), ct)
+                    ?? throw new ValidationException("Supplier payment not found or already deleted.");
+
+                if (!admin && payment.CreatedByUserId != actorId)
+                {
+                    throw new UnauthorizedAccessException("Only the creator or admin can void this payment.");
+                }
+
+                var occurred = payment.PaidAt;
+                if (DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(occurred, AccountingCalendar.Zone(configuration)).DateTime) != date)
+                {
+                    throw new ValidationException("Only entries in the current open working day can be voided.");
+                }
+
+                await ReversePostingsAsync(db, kind, payment.Id, actorId, date, ct);
+
+                var balance = payment.SupplierBalance ?? await db.SupplierBalances.SingleOrDefaultAsync(b => b.Id == payment.SupplierBalanceId, ct);
+                if (balance != null)
+                {
+                    balance.CurrentBalance += payment.Amount;
+                    db.SupplierBalanceEntries.Add(new SupplierBalanceEntry
+                    {
+                        SupplierBalanceId = balance.Id,
+                        OccurredAt = at,
+                        Type = BalanceEntryType.Adjustment,
+                        Amount = payment.Amount,
+                        BalanceAfter = balance.CurrentBalance,
+                        Notes = $"Void payment #{payment.Id}: {payment.Notes}".Trim(),
+                        CreatedByUserId = actorId
+                    });
+                }
+
+                var before = Snapshot(payment);
+                db.RecordChanges.Add(new RecordChange
+                {
+                    RequestId = Guid.NewGuid(),
+                    RecordType = "supplierPayment",
+                    RecordId = payment.Id,
+                    Action = "Delete",
+                    Reason = $"Voided supplier payment #{payment.Id} of {payment.Amount:N2}",
+                    Before = before,
+                    After = "null"
+                });
+
+                var linkedEntries = await db.SupplierBalanceEntries.Where(e => e.SupplierPaymentId == payment.Id).ToArrayAsync(ct);
+                foreach (var entry in linkedEntries)
+                {
+                    entry.SupplierPaymentId = null;
+                }
+                var linkedCash = await db.CashMovements.Where(m => m.SupplierPaymentId == payment.Id).ToArrayAsync(ct);
+                foreach (var m in linkedCash)
+                {
+                    m.SupplierPaymentId = null;
+                }
+                var linkedBank = await db.BankMovements.Where(m => m.SupplierPaymentId == payment.Id).ToArrayAsync(ct);
+                foreach (var m in linkedBank)
+                {
+                    m.SupplierPaymentId = null;
+                }
+
+                db.SupplierPayments.Remove(payment);
+
+                await db.SaveChangesAsync(ct);
+                await transaction.CommitAsync(ct);
+            }
+            else
+            {
+                throw new NotSupportedException($"Voiding {kind} is not supported.");
+            }
+        }, ct);
     }
 
     private sealed class BatchPosting(AppDbContext db, int actorId, DateOnly date, CancellationToken ct)

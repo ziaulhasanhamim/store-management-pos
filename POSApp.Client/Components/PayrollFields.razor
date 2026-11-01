@@ -81,16 +81,43 @@
     [Parameter]
     public string Currency { get; set; } = "BDT";
 
-    private int? SelectedId;
+    private int? _selectedId;
+    private int? SelectedId
+    {
+        get => _selectedId;
+        set
+        {
+            _selectedId = value;
+            if (value is { } id && Employees.SingleOrDefault(e => e.Id == id) is { } emp)
+            {
+                if (string.IsNullOrWhiteSpace(Amount) || Amount == "0")
+                {
+                    var suggested = emp.Remaining > 0 ? emp.Remaining : (emp.Salary ?? emp.DefaultSalary);
+                    if (suggested > 0)
+                    {
+                        Amount = suggested.ToString(CultureInfo.InvariantCulture);
+                    }
+                }
+            }
+        }
+    }
     private PayrollKind Kind;
     private string Amount = "";
     private StaffRow? Selected => Employees.SingleOrDefault(employee => employee.Id == SelectedId);
 
     protected override void OnInitialized()
     {
-        SelectedId = InitialEmployeeId > 0 ? InitialEmployeeId : null;
+        _selectedId = InitialEmployeeId > 0 ? InitialEmployeeId : null;
         Kind = InitialKind == PayrollKind.Bonus ? PayrollKind.Bonus : PayrollKind.Salary;
         Amount = InitialAmount == 0 ? "" : InitialAmount.ToString(CultureInfo.InvariantCulture);
+        if (string.IsNullOrWhiteSpace(Amount) && _selectedId is { } id && Employees.SingleOrDefault(e => e.Id == id) is { } emp)
+        {
+            var suggested = emp.Remaining > 0 ? emp.Remaining : (emp.Salary ?? emp.DefaultSalary);
+            if (suggested > 0)
+            {
+                Amount = suggested.ToString(CultureInfo.InvariantCulture);
+            }
+        }
     }
 
     private string Money(decimal amount) => $"{Currency} {amount:N2}";

@@ -45,11 +45,12 @@ else
             <form method="post" @formname="monthly-salary" @onsubmit="CreateSalaryAsync" data-enhance data-submit-indication="true">
                 <AntiforgeryToken />
                 <label class="field-label" for="salary-employee">Employee · default salary</label>
-                <select id="salary-employee" name="SalaryForm.EmployeeId" class="field" required>
+                <select id="salary-employee" name="SalaryForm.EmployeeId" class="field" required
+                        onchange="const opt = this.options[this.selectedIndex]; if (opt?.dataset?.defaultSalary) { const input = document.getElementById('salary-amount'); if (input) { input.value = opt.dataset.defaultSalary; input.dispatchEvent(new Event('input', { bubbles: true })); } }">
                     <option value="">Select employee</option>
                     @foreach (var employee in Data!.Employees)
                     {
-                        <option value="@employee.Id" selected="@(SalaryForm!.EmployeeId == employee.Id)">@employee.Name · @Money(employee.MonthlySalary)</option>
+                        <option value="@employee.Id" data-default-salary="@employee.MonthlySalary.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)" selected="@(SalaryForm!.EmployeeId == employee.Id)">@employee.Name · @Money(employee.MonthlySalary)</option>
                     }
                 </select>
                 <div class="mt-4 grid gap-4 sm:grid-cols-2">
@@ -60,7 +61,7 @@ else
                     </div>
                     <div>
                         <label class="field-label" for="salary-amount">Salary amount</label>
-                        <input id="salary-amount" name="SalaryForm.Amount" class="field" inputmode="decimal" value="@SalaryForm!.Amount" required />
+                        <input id="salary-amount" name="SalaryForm.Amount" class="field" inputmode="decimal" value="@(SalaryForm!.Amount == 0 && SalaryForm.EmployeeId > 0 && Data!.Employees.FirstOrDefault(e => e.Id == SalaryForm.EmployeeId) is { } pre && pre.MonthlySalary > 0 ? pre.MonthlySalary : SalaryForm!.Amount)" data-select-on-focus="true" required />
                     </div>
                 </div>
                 <label class="field-label mt-4" for="salary-notes">Notes (optional)</label>

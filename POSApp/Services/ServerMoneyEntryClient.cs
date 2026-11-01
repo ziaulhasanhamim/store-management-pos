@@ -37,6 +37,11 @@ public sealed class ServerMoneyEntryClient : IMoneyEntryClient, IDisposable
         return await entries.SaveCategoryAsync((await StateAsync()).User, input);
     }
 
+    public async Task DeleteAsync(string kind, int id)
+    {
+        await entries.DeleteAsync((await StateAsync()).User, kind, id);
+    }
+
     public void Dispose()
     {
         authentication.AuthenticationStateChanged -= StateChanged;
