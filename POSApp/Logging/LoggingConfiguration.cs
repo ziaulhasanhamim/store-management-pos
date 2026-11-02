@@ -42,20 +42,26 @@ public static class LoggingConfiguration
             outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] [{CorrelationId}] {SourceContext}: {Message:lj}{NewLine}{Exception}"
         );
 
+        Serilog.Debugging.SelfLog.Enable(msg => Console.Error.WriteLine($"[Serilog OTLP] {msg}"));
+
         // 2. Axiom Cloud Sink (Development & Production)
         var axiomToken = configuration["AXIOM_API_TOKEN"] ?? configuration["Axiom:ApiToken"];
         var defaultDataset = environment.IsDevelopment() ? "posapp-dev-logs" : "posapp-logs";
-        var axiomDataset = configuration["AXIOM_DATASET"] ?? configuration["Axiom:Dataset"] ?? defaultDataset;
+        var axiomDataset = (configuration["AXIOM_DATASET"] ?? configuration["Axiom:Dataset"] ?? defaultDataset).Trim();
 
         if (!string.IsNullOrWhiteSpace(axiomToken))
         {
+            var cleanToken = axiomToken.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)
+                ? axiomToken["Bearer ".Length..].Trim()
+                : axiomToken.Trim();
+
             loggerConfig.WriteTo.OpenTelemetry(options =>
             {
                 options.Endpoint = "https://api.axiom.co/v1/logs";
                 options.Protocol = OtlpProtocol.HttpProtobuf;
                 options.Headers = new Dictionary<string, string>
                 {
-                    ["Authorization"] = $"Bearer {axiomToken}",
+                    ["Authorization"] = $"Bearer {cleanToken}",
                     ["X-Axiom-Dataset"] = axiomDataset
                 };
                 options.ResourceAttributes = new Dictionary<string, object>
