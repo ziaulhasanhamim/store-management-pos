@@ -9,8 +9,9 @@
         <option value="@employee.Id">@employee.Name</option>
     }
 </select>
-@if (Selected is { } selected)
+@if (Selected is not null)
 {
+    var selected = Selected;
     <dl class="mt-4 grid gap-3 rounded-xl bg-slate-50 p-4 text-sm sm:grid-cols-2">
         <div>
             <dt class="text-slate-500">Salary · @Month.ToString("MMM yyyy")</dt>
@@ -88,14 +89,18 @@
         set
         {
             _selectedId = value;
-            if (value is { } id && Employees.SingleOrDefault(e => e.Id == id) is { } emp)
+            if (value is not null)
             {
-                if (string.IsNullOrWhiteSpace(Amount) || Amount == "0")
+                var emp = Employees.SingleOrDefault(e => e.Id == value.Value);
+                if (emp is not null)
                 {
-                    var suggested = emp.Remaining > 0 ? emp.Remaining : (emp.Salary ?? emp.DefaultSalary);
-                    if (suggested > 0)
+                    if (string.IsNullOrWhiteSpace(Amount) || Amount == "0")
                     {
-                        Amount = suggested.ToString(CultureInfo.InvariantCulture);
+                        var suggested = emp.Remaining > 0 ? emp.Remaining : (emp.Salary ?? emp.DefaultSalary);
+                        if (suggested > 0)
+                        {
+                            Amount = suggested.ToString(CultureInfo.InvariantCulture);
+                        }
                     }
                 }
             }
@@ -110,12 +115,16 @@
         _selectedId = InitialEmployeeId > 0 ? InitialEmployeeId : null;
         Kind = InitialKind == PayrollKind.Bonus ? PayrollKind.Bonus : PayrollKind.Salary;
         Amount = InitialAmount == 0 ? "" : InitialAmount.ToString(CultureInfo.InvariantCulture);
-        if (string.IsNullOrWhiteSpace(Amount) && _selectedId is { } id && Employees.SingleOrDefault(e => e.Id == id) is { } emp)
+        if (string.IsNullOrWhiteSpace(Amount) && _selectedId is not null)
         {
-            var suggested = emp.Remaining > 0 ? emp.Remaining : (emp.Salary ?? emp.DefaultSalary);
-            if (suggested > 0)
+            var emp = Employees.SingleOrDefault(e => e.Id == _selectedId.Value);
+            if (emp is not null)
             {
-                Amount = suggested.ToString(CultureInfo.InvariantCulture);
+                var suggested = emp.Remaining > 0 ? emp.Remaining : (emp.Salary ?? emp.DefaultSalary);
+                if (suggested > 0)
+                {
+                    Amount = suggested.ToString(CultureInfo.InvariantCulture);
+                }
             }
         }
     }

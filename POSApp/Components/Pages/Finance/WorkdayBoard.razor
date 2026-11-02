@@ -10,8 +10,9 @@ else if (Error is not null)
 {
     <p class="error-panel" role="alert">@Error</p>
 }
-else if (Data is { } day)
+else if (Data is not null)
 {
+    var day = Data;
     <section class="workday-board mb-7">
         <div class="flex flex-wrap items-start justify-between gap-5">
             <div>

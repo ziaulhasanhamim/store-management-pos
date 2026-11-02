@@ -48,7 +48,7 @@
     private IReadOnlyList<Lookup> Categories = [];
     private IReadOnlyList<Lookup> SupplierOptions = [];
     private IReadOnlyList<ProductAttributeDefinitionOption> Definitions = [];
-    private string CancelUrl => Id is { } id ? $"/items/{id}" : "/items";
+    private string CancelUrl => Id is not null ? $"/items/{Id.Value}" : "/items";
 
     protected override async Task OnInitializedAsync()
     {

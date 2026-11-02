@@ -46,7 +46,7 @@ else
                 <Icon Name="trash" Class="text-rose-600 h-6 w-6 shrink-0" />
                 <div>
                     <strong class="text-base font-bold uppercase tracking-wide">Transaction Voided / Reversed</strong>
-                    <p class="text-xs text-rose-700">This sale was officially voided@(Data.VoidedAt is { } v ? $" on {v.ToBusinessTime(Configuration):dd MMM yyyy, HH:mm}" : ""). All inventory and payment postings have been reversed.</p>
+                    <p class="text-xs text-rose-700">This sale was officially voided@(Data.VoidedAt is not null ? $" on {Data.VoidedAt.Value.ToBusinessTime(Configuration):dd MMM yyyy, HH:mm}" : ""). All inventory and payment postings have been reversed.</p>
                 </div>
             </div>
             <span class="rounded bg-rose-200 px-3 py-1 text-xs font-bold uppercase tracking-wider text-rose-900">Voided</span>

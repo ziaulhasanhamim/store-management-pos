@@ -15,7 +15,7 @@ public sealed record ReportRow(
     decimal Paid)
 {
     public decimal? Cost { get; init; }
-    public decimal? Profit => Cost is { } cost ? Total - cost : null;
+    public decimal? Profit => Cost is not null ? Total - Cost.Value : null;
     public IReadOnlyList<SalesReportLine> Items { get; init; } = [];
 }
 
@@ -30,7 +30,7 @@ public sealed record ReportPage(
     public IReadOnlyList<Lookup> Locations { get; init; } = [];
     public bool CanViewCosts { get; init; }
     public decimal? Cost { get; init; }
-    public decimal? Profit => Cost is { } cost ? Total - cost : null;
+    public decimal? Profit => Cost is not null ? Total - Cost.Value : null;
 }
 
 public sealed record PurchaseDetail(
@@ -52,7 +52,7 @@ public sealed record SalesReportLine(int ProductId, string Name, string Barcode,
     decimal Quantity, decimal UnitPrice, decimal UnitDiscount, decimal Subtotal, decimal Total,
     decimal? UnitCost, decimal? Cost)
 {
-    public decimal? Profit => Cost is { } cost ? Total - cost : null;
+    public decimal? Profit => Cost is not null ? Total - Cost.Value : null;
 }
 
 /// <summary>

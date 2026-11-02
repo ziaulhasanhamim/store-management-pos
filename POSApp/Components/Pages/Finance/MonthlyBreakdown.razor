@@ -438,7 +438,7 @@
                     {
                         <tr>
                             <td>@employee.Employee</td>
-                            <td class="text-right tabular-nums">@(employee.Salary is { } salary ? Money(salary) : "Not created")</td>
+                            <td class="text-right tabular-nums">@(employee.Salary is not null ? Money(employee.Salary.Value) : "Not created")</td>
                             <td class="text-right tabular-nums">@Money(employee.SalaryPaid)</td>
                             <td class="text-right tabular-nums">@Money(employee.BonusPaid)</td>
                             <td class="text-right tabular-nums">@Money(employee.AdvancePaid)</td>

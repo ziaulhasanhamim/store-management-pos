@@ -201,7 +201,8 @@ internal static class PosModelConfiguration
 
         foreach (var entity in builder.Model.GetEntityTypes())
         {
-            if (entity.FindProperty("RequestHash") is { } fingerprint)
+            var fingerprint = entity.FindProperty("RequestHash");
+            if (fingerprint is not null)
             {
                 fingerprint.SetMaxLength(64);
             }

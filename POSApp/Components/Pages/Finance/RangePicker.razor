@@ -3,15 +3,15 @@
     {
         <a href="@($"{Path}?period={preset.Key}&group={Group}&sort={Sort}")" class="@(Period == preset.Key ? "btn-primary" : "btn-secondary")">@preset.Value</a>
     }
-    @if (Range is { } range && range.Start == range.End)
+    @if (Range is not null && Range.Start == Range.End)
     {
-        @if (range.Start > DateOnly.MinValue)
+        @if (Range.Start > DateOnly.MinValue)
         {
-            <a href="@DayLink(range.Start.AddDays(-1))" class="btn-secondary" aria-label="Previous day">← Previous day</a>
+            <a href="@DayLink(Range.Start.AddDays(-1))" class="btn-secondary" aria-label="Previous day">← Previous day</a>
         }
-        @if (range.End < DateOnly.MaxValue.AddDays(-1))
+        @if (Range.End < DateOnly.MaxValue.AddDays(-1))
         {
-            <a href="@DayLink(range.End.AddDays(1))" class="btn-secondary" aria-label="Next day">Next day →</a>
+            <a href="@DayLink(Range.End.AddDays(1))" class="btn-secondary" aria-label="Next day">Next day →</a>
         }
     }
 </div>

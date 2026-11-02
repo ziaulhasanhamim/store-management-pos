@@ -81,8 +81,8 @@
                         <span class="mt-1 block font-mono text-xs text-slate-500">@item.Barcode</span>
                     </td>
                     <td class="text-right">@item.Quantity.ToString("0.###") @item.Unit</td>
-                    <td class="text-right">@(item.AverageCost is { } cost ? Money(cost) : "—")</td>
-                    <td class="text-right">@(item.AveragePrice is { } price ? Money(price) : "—")</td>
+                    <td class="text-right">@(item.AverageCost is not null ? Money(item.AverageCost.Value) : "—")</td>
+                    <td class="text-right">@(item.AveragePrice is not null ? Money(item.AveragePrice.Value) : "—")</td>
                     <td class="text-right">@Money(item.Subtotal)</td>
                     <td class="text-right">@Money(item.Discount)</td>
                     <td class="text-right">@Money(item.Total)</td>

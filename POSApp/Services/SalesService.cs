@@ -207,7 +207,7 @@ public sealed class SalesService(IServiceScopeFactory scopes, IConfiguration? co
             await AccountingCalendar.EnsureOpenAsync(db, businessDate, ct);
             var effectiveAt = AccountingCalendar.At(businessDate, configuration);
             if (!await db.StockLocations.AnyAsync(location => location.Id == command.LocationId && !location.IsDeleted && location.CanSell, ct)
-                || (command.CustomerId is { } validationCustomerId && !await db.Customers.AnyAsync(customer => customer.Id == validationCustomerId && !customer.IsDeleted, ct)))
+                || (command.CustomerId is not null && !await db.Customers.AnyAsync(customer => customer.Id == command.CustomerId.Value && !customer.IsDeleted, ct)))
             {
                 throw new ValidationException("Choose an active stock location and customer.");
             }
@@ -321,8 +321,9 @@ public sealed class SalesService(IServiceScopeFactory scopes, IConfiguration? co
             if (complete)
             {
                 CustomerBalance? balance = null;
-                if (command.CustomerId is { } customerId)
+                if (command.CustomerId is not null)
                 {
+                    var customerId = command.CustomerId.Value;
                     balance = await db.CustomerBalances.SingleOrDefaultAsync(item => item.CustomerId == customerId, ct);
                     if (balance is null)
                     {

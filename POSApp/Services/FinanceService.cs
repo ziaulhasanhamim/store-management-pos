@@ -128,9 +128,9 @@ public sealed class FinanceService(IServiceScopeFactory scopes, IConfiguration c
             {
                 salary = await db.MonthlySalaries.SingleOrDefaultAsync(salary => salary.EmployeeId == input.EmployeeId && salary.Month == month, ct)
                     ?? throw new ValidationException("Create this employee's salary for the month before paying it.");
-                if (salary.CarriedToMonth is { } carriedTo)
+                if (salary.CarriedToMonth is not null)
                 {
-                    throw new ValidationException($"This salary balance was carried to {carriedTo:MMMM yyyy}. Pay that month's salary instead.");
+                    throw new ValidationException($"This salary balance was carried to {salary.CarriedToMonth.Value:MMMM yyyy}. Pay that month's salary instead.");
                 }
                 var remaining = Math.Max(0, salary.Amount - salary.SettledAmount);
                 advanceApplied = Math.Min(account.OutstandingAdvance, remaining);

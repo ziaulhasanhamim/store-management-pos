@@ -11,8 +11,9 @@
     {
         <p class="error-panel" role="alert">@Error</p>
     }
-    @if (Completed is { } saved)
+    @if (Completed is not null)
     {
+        var saved = Completed;
         <div class="success-panel" role="status">
             <Icon Name="check" />
             <div>

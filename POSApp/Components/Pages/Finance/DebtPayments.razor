@@ -130,7 +130,7 @@ else if (Data is not null)
                         <td>@row.Lender</td>
                         <td>@(row.Kind == DebtEntryKind.OpeningBalance ? "Opening debt" : row.Kind.ToString())</td>
                         <td>
-                            <span>@(row.Method is { } method ? SplitPayments.MethodName(method) : "—")</span>
+                            <span>@(row.Method is not null ? SplitPayments.MethodName(row.Method.Value) : "—")</span>
                             @if (row.CashLocation is not null)
                             {
                                 <span class="block text-xs text-slate-500">@row.CashLocation</span>

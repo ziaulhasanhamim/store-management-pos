@@ -64,11 +64,11 @@ else
             <strong class="text-2xl!">@Money(item.Price)</strong>
             <span class="metric-note">Per @item.Unit</span>
         </div>
-        @if (item.Cost is { } cost)
+        @if (item.Cost is not null)
         {
             <div class="metric">
                 <p>Average cost</p>
-                <strong class="text-2xl!">@Money(cost)</strong>
+                <strong class="text-2xl!">@Money(item.Cost.Value)</strong>
                 <span class="metric-note">Weighted by stock</span>
             </div>
         }
@@ -121,8 +121,9 @@ else
             }
         </div>
 
-        @if (Detail.Locations.FirstOrDefault(location => location.Id == Detail.SelectedHistoryLocationId) is { } selectedLocation)
+        @if (Detail.Locations.FirstOrDefault(location => location.Id == Detail.SelectedHistoryLocationId) is not null)
         {
+            var selectedLocation = Detail.Locations.First(location => location.Id == Detail.SelectedHistoryLocationId);
             <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
                 <div>
                     <p class="text-sm font-semibold text-slate-900">@selectedLocation.Name</p>

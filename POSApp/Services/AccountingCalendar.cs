@@ -21,9 +21,9 @@ public static class AccountingCalendar
 
     public static void ValidateExpected(DateOnly current, DateOnly? expected)
     {
-        if (expected is { } date && date != current)
+        if (expected is not null && expected.Value != current)
         {
-            throw new ValidationException($"The working day changed from {date:dd MMM yyyy} to {current:dd MMM yyyy}. Your entries are kept. Refresh and review the working day before submitting.");
+            throw new ValidationException($"The working day changed from {expected.Value:dd MMM yyyy} to {current:dd MMM yyyy}. Your entries are kept. Refresh and review the working day before submitting.");
         }
     }
 

@@ -177,7 +177,7 @@ public sealed class ImportProcessor(IServiceScopeFactory scopes, IConfiguration 
                     IsNonStocked = row.IsNonStocked,
                     CreatedByUserId = actorId
                 };
-                if (product.Barcode is { } barcode && barcode.Any(character => character < ' ' || character > '~'))
+                if (product.Barcode is not null && product.Barcode.Any(character => character < ' ' || character > '~'))
                 {
                     throw new ValidationException($"Product '{product.Name}' has a barcode containing unsupported characters.");
                 }
@@ -438,7 +438,7 @@ public sealed class ImportProcessor(IServiceScopeFactory scopes, IConfiguration 
                             Amount = row.Balance,
                             BalanceAfter = row.Balance,
                             OccurredAt = occurredAt,
-                            Notes = row.Id is { } sourceId ? $"Supplier migration · old ID {sourceId}" : "Supplier migration",
+                            Notes = row.Id is not null ? $"Supplier migration · old ID {row.Id.Value}" : "Supplier migration",
                             CreatedByUserId = actorId
                         }
                     ]

@@ -47,7 +47,7 @@ public partial class StockTakeEditor : IAsyncDisposable
     private long SearchVersion;
     private Task SearchTask = Task.CompletedTask;
     private List<CountRow> Filtered => Rows.Where(row => row.Item.ProductId == EditingId || (
-        (View != "differences" || !row.Valid || row.Difference is { } difference && difference != 0)
+        (View != "differences" || !row.Valid || (row.Difference is not null && row.Difference.Value != 0))
         && (string.IsNullOrWhiteSpace(Search) || row.Item.Name.Contains(Search.Trim(), StringComparison.OrdinalIgnoreCase)
             || row.Item.Barcode?.Contains(Search.Trim(), StringComparison.OrdinalIgnoreCase) == true
             || row.Item.ProductId.ToString() == Search.Trim().TrimStart('#')))).ToList();
@@ -444,7 +444,7 @@ public partial class StockTakeEditor : IAsyncDisposable
         public decimal? Count { get; set; }
         public bool Valid { get; set; } = true;
         public decimal? Difference => Count - Item.Expected;
-        public decimal Value => Difference is { } difference
-            ? decimal.Round(difference * Item.UnitCost, 2, MidpointRounding.AwayFromZero) : 0;
+        public decimal Value => Difference is not null
+            ? decimal.Round(Difference.Value * Item.UnitCost, 2, MidpointRounding.AwayFromZero) : 0;
     }
 }

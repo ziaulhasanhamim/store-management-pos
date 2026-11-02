@@ -271,8 +271,9 @@ public sealed class AnalyticsService(IServiceScopeFactory scopes, IConfiguration
                 int daysSinceSale;
                 DateOnly? lastSoldDate = null;
 
-                if (history?.LastSoldAt is { } lastSold)
+                if (history?.LastSoldAt is not null)
                 {
+                    var lastSold = history.LastSoldAt.Value;
                     var localLast = TimeZoneInfo.ConvertTime(lastSold, zone);
                     lastSoldDate = DateOnly.FromDateTime(localLast.DateTime);
                     daysSinceSale = Math.Max(0, (int)(now - lastSold).TotalDays);

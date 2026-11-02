@@ -34,8 +34,9 @@
             </div>
         }
 
-        @if (IsGet && Id is { } id)
+        @if (IsGet && Id is not null)
         {
+            var id = Id.Value;
             <UserEditLoader UserId="id">
                 <Found Context="user">
                     <UserEditorForm Input="@InputFor(user)" IsNew="false" OnValidSubmit="SaveAsync" OnInvalidSubmit="ClearPassword" />

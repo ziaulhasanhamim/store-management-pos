@@ -94,8 +94,9 @@
         Data = result.Items;
         Pagination = result.Pagination;
 
-        if (HttpMethods.IsGet(HttpContext.Request.Method) && Id is { } id)
+        if (HttpMethods.IsGet(HttpContext.Request.Method) && Id is not null)
         {
+            var id = Id.Value;
             var location = Data.SingleOrDefault(location => location.Id == id)
                 ?? await Transfers.LocationAsync(HttpContext.User, id, HttpContext.RequestAborted);
             if (location is not null)

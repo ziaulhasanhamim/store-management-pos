@@ -36,8 +36,9 @@
     {
         <p class="mt-3 text-sm" role="status">Uploading file…</p>
     }
-    @if (Latest is { } job)
+    @if (Latest is not null)
     {
+        var job = Latest;
         <div class="mt-4 rounded-lg border border-indigo-100 bg-indigo-50 p-4" role="status" aria-live="polite">
             <div class="flex items-start justify-between gap-3">
                 <p class="font-semibold">@job.Status · @job.FileName</p>
@@ -174,9 +175,9 @@
 
     private void DismissLatest()
     {
-        if (Latest is { } job)
+        if (Latest is not null)
         {
-            DismissedJobs.Add(job.Id);
+            DismissedJobs.Add(Latest.Id);
         }
         Latest = null;
         CancelDismissal();

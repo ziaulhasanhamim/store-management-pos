@@ -116,11 +116,11 @@ public static class StoreOperation
             // Concurrent first creation or identical submissions can surface as a
             // unique violation. Retry only known business identity constraints.
             if (postgres.SqlState == PostgresErrorCodes.UniqueViolation
-                && postgres.ConstraintName is { } constraint
-                && (constraint == "IX_ImportJobs_ActiveKey"
-                    || constraint == "PK_ImportJobs"
-                    || constraint.EndsWith("_RequestId", StringComparison.Ordinal)
-                    || constraint is "IX_Sales_ReceiptNumber" or "IX_Purchases_PurchaseNumber"
+                && postgres.ConstraintName is not null
+                && (postgres.ConstraintName == "IX_ImportJobs_ActiveKey"
+                    || postgres.ConstraintName == "PK_ImportJobs"
+                    || postgres.ConstraintName.EndsWith("_RequestId", StringComparison.Ordinal)
+                    || postgres.ConstraintName is "IX_Sales_ReceiptNumber" or "IX_Purchases_PurchaseNumber"
                         or "IX_Payments_Reference" or "IX_SupplierPayments_Reference"
                         or "IX_InventoryBalances_StockLocationId_ProductId"
                         or "IX_SupplierBalances_SupplierId" or "IX_CustomerBalances_CustomerId"

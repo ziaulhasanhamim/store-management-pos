@@ -18,8 +18,8 @@ public sealed class EmployeeService(IServiceScopeFactory scopes, IConfiguration 
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var actorId = await StoreAccess.RequireAsync(db, actor, AppRoles.Admin, ct);
-        var employee = input.Id is { } id
-            ? await db.Employees.SingleOrDefaultAsync(employee => employee.Id == id && !employee.IsDeleted, ct)
+        var employee = input.Id is not null
+            ? await db.Employees.SingleOrDefaultAsync(employee => employee.Id == input.Id.Value && !employee.IsDeleted, ct)
                 ?? throw new ValidationException("Employee not found.")
             : new Employee
             {

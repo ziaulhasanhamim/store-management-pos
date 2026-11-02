@@ -46,8 +46,9 @@ else
                 .Select(supplier => new Lookup(supplier.Id, supplier.Name)).ToArray();
             Definitions = await Inventory.AttributeDefinitionsAsync(HttpContext.User, HttpContext.RequestAborted);
 
-            if (Id is { } id)
+            if (Id is not null)
             {
+                var id = Id.Value;
                 var detail = await Inventory.FindAsync(HttpContext.User, id, HttpContext.RequestAborted);
                 if (detail is null)
                 {

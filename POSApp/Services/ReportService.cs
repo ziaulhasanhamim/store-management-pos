@@ -281,7 +281,7 @@ public sealed partial class ReportService(IServiceScopeFactory scopes, IConfigur
         var locations = await db.StockLocations.AsNoTracking().TagWith("Reports.Locations").OrderBy(location => location.Name)
             .Select(location => new Lookup(location.Id, location.Name + (location.IsDeleted ? " (archived)" : "")))
             .ToArrayAsync(ct);
-        if (locationId is { } selected && !locations.Any(location => location.Id == selected))
+        if (locationId is not null && !locations.Any(location => location.Id == locationId.Value))
         {
             throw new ValidationException("Choose a valid stock location or all locations.");
         }

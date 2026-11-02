@@ -213,7 +213,7 @@ public sealed partial class StockTakeService(IServiceScopeFactory scopes, IConfi
             foreach (var item in take.Items.Where(item => counts.ContainsKey(item.ProductId)))
             {
                 var count = counts[item.ProductId];
-                if (count is { } quantity && !ValidCount(item, quantity))
+                if (count is not null && !ValidCount(item, count.Value))
                 {
                     throw new ValidationException($"Enter a valid nonnegative count for {item.ProductName}. Fractional counts must be allowed by the product.");
                 }
@@ -265,7 +265,7 @@ public sealed partial class StockTakeService(IServiceScopeFactory scopes, IConfi
                 item.LastMovementId = stock.MovementId;
                 item.UnitCost = stock.Cost;
                 item.AllowFractionUnit = stock.AllowFraction;
-                if (item.CountedQuantity is { } count && !ValidCount(item, count))
+                if (item.CountedQuantity is not null && !ValidCount(item, item.CountedQuantity.Value))
                 {
                     item.CountedQuantity = null;
                 }

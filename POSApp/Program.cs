@@ -3,12 +3,20 @@ using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using POSApp.Components;
+using POSApp.Logging;
 using POSApp.Persistence;
 using POSApp.Persistence.Entities;
 using POSApp.Security;
 using POSApp.Services;
+using Serilog;
+using Serilog.Events;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Host.UseSerilog((context, services, configuration) =>
+    LoggingConfiguration.Configure(configuration, services, context.Configuration, context.HostingEnvironment));
+
+builder.Services.AddHttpContextAccessor();
 
 var rawConnectionString = builder.Configuration["DB_URL"] ?? builder.Configuration["DATABASE_URL"] ?? builder.Configuration.GetConnectionString("DefaultConnection")
     ?? throw new InvalidOperationException("Set DB_URL, DATABASE_URL or ConnectionStrings:DefaultConnection to your PostgreSQL connection string.");
@@ -94,6 +102,38 @@ app.UseForwardedHeaders(new ForwardedHeadersOptions
     ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
 });
 
+app.Use(async (context, next) =>
+{
+    var correlationId = context.TraceIdentifier;
+    if (string.IsNullOrWhiteSpace(correlationId))
+    {
+        correlationId = Guid.NewGuid().ToString("N");
+    }
+    context.Items["CorrelationId"] = correlationId;
+    context.Response.Headers["X-Correlation-ID"] = correlationId;
+    await next(context);
+});
+
+app.UseSerilogRequestLogging(options =>
+{
+    options.MessageTemplate = "HTTP {RequestMethod} {RequestPath} responded {StatusCode} in {Elapsed:0.0000} ms";
+    options.GetLevel = (httpContext, elapsed, ex) =>
+    {
+        if (ex != null || httpContext.Response.StatusCode >= 500)
+            return LogEventLevel.Error;
+        if (httpContext.Response.StatusCode >= 400)
+            return LogEventLevel.Warning;
+        if (httpContext.Request.Path.StartsWithSegments("/health") ||
+            httpContext.Request.Path.StartsWithSegments("/_framework") ||
+            httpContext.Request.Path.StartsWithSegments("/css") ||
+            httpContext.Request.Path.Value?.EndsWith(".js") == true ||
+            httpContext.Request.Path.Value?.EndsWith(".css") == true ||
+            httpContext.Request.Path.Value?.EndsWith(".ico") == true)
+            return LogEventLevel.Verbose;
+        return LogEventLevel.Information;
+    };
+});
+
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Error", createScopeForErrors: true);
@@ -157,7 +197,20 @@ if (app.Environment.IsDevelopment())
     await DevelopmentDataSeeder.SeedAsync(app.Services, app.Environment, app.Configuration);
 }
 
-app.Run();
+try
+{
+    Log.Information("Starting POSApp web host");
+    app.Run();
+}
+catch (Exception ex) when (ex is not HostAbortedException)
+{
+    Log.Fatal(ex, "POSApp web host terminated unexpectedly");
+    throw;
+}
+finally
+{
+    Log.CloseAndFlush();
+}
 
 public partial class Program
 {

@@ -588,10 +588,10 @@ public sealed class InventoryService(IServiceScopeFactory scopes, IConfiguration
                 ValidateAttributeValue(definitions[attribute.DefinitionId], attribute);
             }
 
-            if (!input.AllowFractionUnit && productId is { } existingId)
+            if (!input.AllowFractionUnit && productId is not null)
             {
                 var quantities = await db.InventoryBalances
-                    .Where(balance => balance.ProductId == existingId)
+                    .Where(balance => balance.ProductId == productId.Value)
                     .Select(balance => balance.QuantityOnHand)
                     .ToListAsync(ct);
 
@@ -601,8 +601,8 @@ public sealed class InventoryService(IServiceScopeFactory scopes, IConfiguration
                 }
             }
 
-            var product = productId is { } id
-                ? await db.Products.SingleOrDefaultAsync(candidate => candidate.Id == id && !candidate.IsDeleted, ct)
+            var product = productId is not null
+                ? await db.Products.SingleOrDefaultAsync(candidate => candidate.Id == productId.Value && !candidate.IsDeleted, ct)
                     ?? throw new ValidationException("Item not found.")
                 : new Product
                 {
@@ -610,18 +610,18 @@ public sealed class InventoryService(IServiceScopeFactory scopes, IConfiguration
                     CreatedByUserId = actorId
                 };
 
-            if (product.IsNonStocked != input.IsNonStocked && productId is { } changedId
-                && (await db.InventoryBalances.AnyAsync(balance => balance.ProductId == changedId && balance.QuantityOnHand != 0, ct)
-                    || await db.InventoryMovements.AnyAsync(movement => movement.ProductId == changedId && movement.Quantity != 0, ct)
-                    || await db.SaleItems.AnyAsync(item => item.ProductId == changedId, ct)))
+            if (product.IsNonStocked != input.IsNonStocked && productId is not null
+                && (await db.InventoryBalances.AnyAsync(balance => balance.ProductId == productId.Value && balance.QuantityOnHand != 0, ct)
+                    || await db.InventoryMovements.AnyAsync(movement => movement.ProductId == productId.Value && movement.Quantity != 0, ct)
+                    || await db.SaleItems.AnyAsync(item => item.ProductId == productId.Value, ct)))
             {
                 throw new ValidationException("Stock type cannot be changed while items are in stock or after sales/movement activity. Adjust stock to zero first or create a separate item.");
             }
 
-            if (input.IsNonStocked && productId is { } nonStockedId)
+            if (input.IsNonStocked && productId is not null)
             {
                 var zeroBalances = await db.InventoryBalances
-                    .Where(balance => balance.ProductId == nonStockedId && balance.QuantityOnHand == 0)
+                    .Where(balance => balance.ProductId == productId.Value && balance.QuantityOnHand == 0)
                     .ToListAsync(ct);
                 if (zeroBalances.Count > 0)
                 {
@@ -677,9 +677,9 @@ public sealed class InventoryService(IServiceScopeFactory scopes, IConfiguration
                 product.UpdatedByUserId = actorId;
             }
 
-            if (productId is { } savedProductId)
+            if (productId is not null)
             {
-                var oldValues = await db.ProductAttributeValues.Where(value => value.ProductId == savedProductId).ToArrayAsync(ct);
+                var oldValues = await db.ProductAttributeValues.Where(value => value.ProductId == productId.Value).ToArrayAsync(ct);
                 db.ProductAttributeValues.RemoveRange(oldValues);
             }
             foreach (var attribute in attributeInputs)
@@ -717,8 +717,9 @@ public sealed class InventoryService(IServiceScopeFactory scopes, IConfiguration
 
     private static void ValidateAttributeValue(ProductAttributeDefinition definition, ProductAttributeInput input)
     {
-        if (definition.Kind == ProductAttributeKind.Number && input.NumberValue is { } number)
+        if (definition.Kind == ProductAttributeKind.Number && input.NumberValue is not null)
         {
+            var number = input.NumberValue.Value;
             if ((definition.NonNegative && number < 0)
                 || (!definition.AllowFraction && decimal.Truncate(number) != number))
             {
@@ -1119,9 +1120,9 @@ public sealed class InventoryService(IServiceScopeFactory scopes, IConfiguration
                         && purchase.SupplierId == command.SupplierId && purchase.SupplierInvoiceNumber != null
                         && purchase.SupplierInvoiceNumber.ToUpper() == invoice)
                     .Select(purchase => (int?)purchase.Id).FirstOrDefaultAsync(ct);
-                if (duplicate is { } duplicateId && !command.AllowDuplicateInvoice)
+                if (duplicate is not null && !command.AllowDuplicateInvoice)
                 {
-                    throw new ValidationException($"Invoice already recorded in receiving #{duplicateId}. Review it, or approve an additional delivery against this invoice.");
+                    throw new ValidationException($"Invoice already recorded in receiving #{duplicate.Value}. Review it, or approve an additional delivery against this invoice.");
                 }
                 if (duplicate is not null && command.AllowDuplicateInvoice && string.IsNullOrWhiteSpace(command.Notes))
                 {

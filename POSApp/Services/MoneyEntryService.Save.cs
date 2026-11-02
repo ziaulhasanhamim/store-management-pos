@@ -92,8 +92,9 @@ public sealed partial class MoneyEntryService
                     throw new ValidationException("Enter a positive amount, valid payment method and notes up to 2,000 characters.");
                 }
                 AuditableEntity? entity = null;
-                if (row.Id is { } id)
+                if (row.Id is not null)
                 {
+                    var id = row.Id.Value;
                     entity = kind switch
                     {
                         "expenses" => await db.Expenses.FindAsync([id], ct),
@@ -462,9 +463,9 @@ public sealed partial class MoneyEntryService
                 {
                     session = await CashDrawerService.RequireOpenAsync(db, actorId, ct, cashLocationId);
                     sessions[key] = session;
-                    if (session.StockLocationId is { } location)
+                    if (session.StockLocationId is not null)
                     {
-                        sessions[location] = session;
+                        sessions[session.StockLocationId.Value] = session;
                     }
                 }
             }

@@ -88,8 +88,9 @@
             && value <= Maximum
             && decimal.Round(value, DecimalPlaces) == value;
 
-        if (Field is { } field)
+        if (Field is not null)
         {
+            var field = Field.Value;
             Messages?.Clear(field);
             if (!Valid)
             {
@@ -104,8 +105,9 @@
         }
 
         await ValidityChanged.InvokeAsync(Valid);
-        if (Field is { } changedField)
+        if (Field is not null)
         {
+            var changedField = Field.Value;
             Context?.NotifyFieldChanged(changedField);
             Context?.NotifyValidationStateChanged();
         }

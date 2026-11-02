@@ -20,14 +20,14 @@ public sealed class PartyAccountService(IServiceScopeFactory scopes, IConfigurat
             : db.Customers.Where(party => !party.IsDeleted).OrderBy(party => party.Name).ThenBy(party => party.Id)
                 .Select(party => new PartyRow(party.Id, party.Name, party.Phone, party.Balance == null ? 0 : party.Balance.OpeningBalance,
                     party.Balance == null ? 0 : party.Balance.CurrentBalance));
-        var result = page is { } number ? await partiesQuery.ToPageAsync(number, pageSize, ct) : null;
+        var result = page is not null ? await partiesQuery.ToPageAsync(page.Value, pageSize, ct) : null;
         var parties = result?.Items ?? await partiesQuery.ToArrayAsync(ct);
         IQueryable<PartyEntry> historyQuery = suppliers
             ? db.SupplierBalanceEntries.Where(entry => entry.SupplierBalance!.SupplierId == partyId).OrderByDescending(entry => entry.Id)
                 .Select(entry => new PartyEntry(entry.OccurredAt, entry.Type.ToString(), entry.Amount, entry.BalanceAfter, entry.Notes))
             : db.CustomerBalanceEntries.Where(entry => entry.CustomerBalance!.CustomerId == partyId).OrderByDescending(entry => entry.Id)
                 .Select(entry => new PartyEntry(entry.OccurredAt, entry.Type.ToString(), entry.Amount, entry.BalanceAfter, entry.Notes));
-        var historyResult = historyPage is { } historyNumber ? await historyQuery.ToPageAsync(historyNumber, pageSize, ct) : null;
+        var historyResult = historyPage is not null ? await historyQuery.ToPageAsync(historyPage.Value, pageSize, ct) : null;
         var history = historyResult?.Items ?? await historyQuery.Take(100).ToArrayAsync(ct);
         return new(parties, history) { Pagination = result?.Pagination, HistoryPagination = historyResult?.Pagination };
     }

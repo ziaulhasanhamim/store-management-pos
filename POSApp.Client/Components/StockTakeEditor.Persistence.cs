@@ -121,15 +121,15 @@ public partial class StockTakeEditor
         await ChangedAsync(immediate: true);
     }
 
-    private Task RestoreRecoveryAsync() => Recovery is { } draft ? RestoreDraftAsync(draft) : Task.CompletedTask;
+    private Task RestoreRecoveryAsync() => Recovery is not null ? RestoreDraftAsync(Recovery) : Task.CompletedTask;
 
     private async Task DiscardRecoveryAsync()
     {
-        if (Recovery is { } draft && DraftModule is not null)
+        if (Recovery is not null && DraftModule is not null)
         {
             try
             {
-                await DraftModule.InvokeVoidAsync("clear", DraftKey, draft.Version);
+                await DraftModule.InvokeVoidAsync("clear", DraftKey, Recovery.Version);
             }
             catch (JSException)
             {
@@ -256,7 +256,8 @@ public partial class StockTakeEditor
             Data = saved;
             foreach (var row in Rows)
             {
-                if (saved.Items.FirstOrDefault(item => item.ProductId == row.Item.ProductId) is { } item)
+                var item = saved.Items.FirstOrDefault(i => i.ProductId == row.Item.ProductId);
+                if (item is not null)
                 {
                     row.Item = item;
                 }

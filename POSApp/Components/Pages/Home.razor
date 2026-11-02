@@ -18,7 +18,7 @@ else if (Failed)
         <a href="/" class="underline">Retry</a>
     </p>
 }
-else if (Data is { } data)
+else if (Data is not null)
 {
     <!-- Executive Command Center Header -->
     <div class="mb-7 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -28,15 +28,15 @@ else if (Data is { } data)
             <div class="mt-2 flex flex-wrap items-center gap-2 text-xs">
                 <span class="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-2.5 py-1 font-semibold text-blue-700">
                     <Icon Name="receipt" Class="size-3.5" />
-                    @data.BusinessDate.ToString("dddd, dd MMM yyyy")
+                    @Data.BusinessDate.ToString("dddd, dd MMM yyyy")
                 </span>
                 <span class="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-700">
                     <Icon Name="dashboard" Class="size-3.5 text-slate-500" />
-                    @(data.LocationName ?? "All Locations")
+                    @(Data.LocationName ?? "All Locations")
                 </span>
-                <span class="inline-flex items-center gap-1.5 rounded-full @(data.OpenDrawersCount > 0 ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600") px-2.5 py-1 font-medium">
-                    <span class="size-1.5 rounded-full @(data.OpenDrawersCount > 0 ? "bg-emerald-500 animate-pulse" : "bg-slate-400")"></span>
-                    @(data.OpenDrawersCount > 0 ? $"{data.OpenDrawersCount} Active Drawer{(data.OpenDrawersCount == 1 ? "" : "s")}" : "Drawers Closed")
+                <span class="inline-flex items-center gap-1.5 rounded-full @(Data.OpenDrawersCount > 0 ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600") px-2.5 py-1 font-medium">
+                    <span class="size-1.5 rounded-full @(Data.OpenDrawersCount > 0 ? "bg-emerald-500 animate-pulse" : "bg-slate-400")"></span>
+                    @(Data.OpenDrawersCount > 0 ? $"{Data.OpenDrawersCount} Active Drawer{(Data.OpenDrawersCount == 1 ? "" : "s")}" : "Drawers Closed")
                 </span>
             </div>
         </div>
@@ -70,14 +70,14 @@ else if (Data is { } data)
                 <Icon Name="cart" />
             </span>
             <p>Today's Sales</p>
-            <strong class="tabular-nums">@Money(data.TodaySales)</strong>
+            <strong class="tabular-nums">@Money(Data.TodaySales)</strong>
             <div class="mt-2.5 flex flex-wrap items-center justify-between gap-1 text-[11px]">
-                <span class="text-slate-500">@data.TodayOrdersCount @(data.TodayOrdersCount == 1 ? "order" : "orders") completed</span>
+                <span class="text-slate-500">@Data.TodayOrdersCount @(Data.TodayOrdersCount == 1 ? "order" : "orders") completed</span>
                 <AuthorizeView Policy="@AppPolicies.ManageUsers">
-                    @if (data.TodayProfit is { } profit)
+                    @if (Data.TodayProfit is not null)
                     {
                         <span class="rounded-full bg-emerald-100/90 px-2 py-0.5 font-semibold text-emerald-800 tabular-nums ring-1 ring-emerald-600/20" title="Estimated gross margin">
-                            +@Money(profit) profit
+                            +@Money(Data.TodayProfit.Value) profit
                         </span>
                     }
                 </AuthorizeView>
@@ -90,17 +90,17 @@ else if (Data is { } data)
                 <Icon Name="cash" />
             </span>
             <p>Present Funds</p>
-            <strong class="tabular-nums">@Money(data.OfficeCash + (data.BankBalance ?? 0m))</strong>
+            <strong class="tabular-nums">@Money(Data.OfficeCash + (Data.BankBalance ?? 0m))</strong>
             <div class="mt-2.5 flex flex-wrap items-center justify-between gap-1 text-[11px] text-slate-500">
-                <span>Cash: @Money(data.OfficeCash)</span>
-                @if (data.BankBalance is { } heroBank)
+                <span>Cash: @Money(Data.OfficeCash)</span>
+                @if (Data.BankBalance is not null)
                 {
-                    <span>Bank: @Money(heroBank)</span>
+                    <span>Bank: @Money(Data.BankBalance.Value)</span>
                 }
             </div>
             <span class="mt-2.5 flex items-center gap-1.5 text-[11px] text-blue-700/80 font-medium">
-                <span class="size-1.5 rounded-full @(data.OpenDrawersCount > 0 ? "bg-emerald-500 animate-pulse" : "bg-slate-400")"></span>
-                @data.OpenDrawersCount of @data.TotalDrawersCount drawers open
+                <span class="size-1.5 rounded-full @(Data.OpenDrawersCount > 0 ? "bg-emerald-500 animate-pulse" : "bg-slate-400")"></span>
+                @Data.OpenDrawersCount of @Data.TotalDrawersCount drawers open
             </span>
         </a>
 
@@ -110,12 +110,12 @@ else if (Data is { } data)
                 <Icon Name="box" />
             </span>
             <p>Units in Stock</p>
-            <strong class="tabular-nums">@data.Stock.ToString("N0")</strong>
+            <strong class="tabular-nums">@Data.Stock.ToString("N0")</strong>
             <div class="mt-2.5 flex flex-wrap items-center justify-between gap-1 text-[11px]">
-                <span class="text-slate-500">@data.Items catalog items</span>
-                @if (data.OutOfStock > 0)
+                <span class="text-slate-500">@Data.Items catalog items</span>
+                @if (Data.OutOfStock > 0)
                 {
-                    <span class="rounded-full bg-amber-100/90 px-2 py-0.5 font-semibold text-amber-800 ring-1 ring-amber-600/20">@data.OutOfStock out of stock</span>
+                    <span class="rounded-full bg-amber-100/90 px-2 py-0.5 font-semibold text-amber-800 ring-1 ring-amber-600/20">@Data.OutOfStock out of stock</span>
                 }
                 else
                 {
@@ -129,19 +129,19 @@ else if (Data is { } data)
             <span class="metric-icon-purple">
                 <Icon Name="wallet" />
             </span>
-            @if (data.StockValue is { } value)
+            @if (Data.StockValue is not null)
             {
                 <p>Inventory Valuation</p>
-                <strong class="tabular-nums text-2xl!">@Money(value)</strong>
+                <strong class="tabular-nums text-2xl!">@Money(Data.StockValue.Value)</strong>
                 <div class="mt-2.5 flex flex-wrap items-center justify-between gap-1 text-[11px]">
                     <span class="text-slate-500">At weighted cost</span>
-                    @if (data.SupplierDue is { } heroDue && heroDue > 0)
+                    @if (Data.SupplierDue is not null && Data.SupplierDue.Value > 0)
                     {
                         <a href="/suppliers" class="rounded-full bg-red-100/90 px-2 py-0.5 font-semibold text-red-800 ring-1 ring-red-600/20 hover:underline" title="Outstanding supplier balance">
-                            Due: @Money(heroDue)
+                            Due: @Money(Data.SupplierDue.Value)
                         </a>
                     }
-                    else if (data.SupplierDue is { } clearDue)
+                    else if (Data.SupplierDue is not null)
                     {
                         <span class="rounded-full bg-emerald-100/80 px-2 py-0.5 font-medium text-emerald-800">Dues clear</span>
                     }
@@ -150,8 +150,8 @@ else if (Data is { } data)
             else
             {
                 <p>Register Status</p>
-                <strong class="text-2xl!">@(data.OpenDrawersCount > 0 ? "Active" : "Closed")</strong>
-                <span class="metric-note">@(data.LocationName ?? "Ready for transactions")</span>
+                <strong class="text-2xl!">@(Data.OpenDrawersCount > 0 ? "Active" : "Closed")</strong>
+                <span class="metric-note">@(Data.LocationName ?? "Ready for transactions")</span>
             }
         </div>
     </div>
@@ -166,24 +166,24 @@ else if (Data is { } data)
                         <a href="@TabUrl("sales")" class="@TabChipClass("sales")">
                             <Icon Name="cart" Class="size-4" />
                             <span>Today's Sales</span>
-                            <span class="@TabBadgeClass("sales")">@data.RecentSales.Count</span>
+                            <span class="@TabBadgeClass("sales")">@Data.RecentSales.Count</span>
                         </a>
 
-                        @if (data.StockValue is not null)
+                        @if (Data.StockValue is not null)
                         {
                             <a href="@TabUrl("deliveries")" class="@TabChipClass("deliveries")">
                                 <Icon Name="receive" Class="size-4" />
                                 <span>Recent Deliveries</span>
-                                <span class="@TabBadgeClass("deliveries")">@data.Receipts.Count</span>
+                                <span class="@TabBadgeClass("deliveries")">@Data.Receipts.Count</span>
                             </a>
                         }
 
                         <a href="@TabUrl("alerts")" class="@TabChipClass("alerts")">
-                            <Icon Name="alert" Class="@(data.StockAlerts.Count > 0 ? "size-4 text-amber-500" : "size-4")" />
+                            <Icon Name="alert" Class="@(Data.StockAlerts.Count > 0 ? "size-4 text-amber-500" : "size-4")" />
                             <span>Stock Alerts</span>
-                            @if (data.StockAlerts.Count > 0)
+                            @if (Data.StockAlerts.Count > 0)
                             {
-                                <span class="ml-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-700">@data.StockAlerts.Count</span>
+                                <span class="ml-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-700">@Data.StockAlerts.Count</span>
                             }
                             else
                             {
@@ -222,7 +222,7 @@ else if (Data is { } data)
 
             @if (ResolvedTab == "sales")
             {
-                @if (data.RecentSales.Count == 0)
+                @if (Data.RecentSales.Count == 0)
                 {
                     <div class="empty-state">
                         <Icon Name="cart" Class="size-10 text-slate-300" />
@@ -251,7 +251,7 @@ else if (Data is { } data)
                                 </tr>
                             </thead>
                             <tbody>
-                                @foreach (var sale in data.RecentSales)
+                                @foreach (var sale in Data.RecentSales)
                                 {
                                     <tr>
                                         <td class="font-semibold">
@@ -264,7 +264,7 @@ else if (Data is { } data)
                                         </td>
                                         <td class="text-slate-700">@sale.Cashier</td>
                                         <td>
-                                            <span class="max-w-[140px] truncate block text-slate-700" title="@sale.Customer">
+                                            <span class="max-w-35 truncate block text-slate-700" title="@sale.Customer">
                                                 @sale.Customer
                                             </span>
                                         </td>
@@ -285,7 +285,7 @@ else if (Data is { } data)
             }
             else if (ResolvedTab == "deliveries")
             {
-                @if (data.Receipts.Count == 0)
+                @if (Data.Receipts.Count == 0)
                 {
                     <div class="empty-state">
                         <Icon Name="receive" Class="size-10 text-slate-300" />
@@ -312,7 +312,7 @@ else if (Data is { } data)
                                 </tr>
                             </thead>
                             <tbody>
-                                @foreach (var receipt in data.Receipts)
+                                @foreach (var receipt in Data.Receipts)
                                 {
                                     var unpaid = receipt.Total - receipt.Paid;
                                     <tr>
@@ -350,7 +350,7 @@ else if (Data is { } data)
             }
             else if (ResolvedTab == "alerts")
             {
-                @if (data.StockAlerts.Count == 0)
+                @if (Data.StockAlerts.Count == 0)
                 {
                     <div class="empty-state">
                         <div class="flex size-12 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 mb-1">
@@ -374,7 +374,7 @@ else if (Data is { } data)
                                 </tr>
                             </thead>
                             <tbody>
-                                @foreach (var alert in data.StockAlerts)
+                                @foreach (var alert in Data.StockAlerts)
                                 {
                                     <tr>
                                         <td class="font-medium">
@@ -510,33 +510,33 @@ else if (Data is { } data)
             <section class="panel">
                 <div class="panel-heading">
                     <h2>Store & Register Status</h2>
-                    <span class="inline-flex size-2 rounded-full @(data.OpenDrawersCount > 0 ? "bg-emerald-500 animate-pulse" : "bg-slate-300")" title="@(data.OpenDrawersCount > 0 ? "Registers active" : "No open registers")"></span>
+                    <span class="inline-flex size-2 rounded-full @(Data.OpenDrawersCount > 0 ? "bg-emerald-500 animate-pulse" : "bg-slate-300")" title="@(Data.OpenDrawersCount > 0 ? "Registers active" : "No open registers")"></span>
                 </div>
                 <div class="p-4 space-y-3">
                     <div class="flex items-center justify-between text-xs">
                         <span class="text-slate-500">Active Location</span>
-                        <span class="font-medium text-slate-800">@(data.LocationName ?? "All Locations")</span>
+                        <span class="font-medium text-slate-800">@(Data.LocationName ?? "All Locations")</span>
                     </div>
                     <div class="flex items-center justify-between text-xs">
                         <span class="text-slate-500">Open Drawers</span>
-                        <span class="font-medium text-slate-800">@data.OpenDrawersCount of @data.TotalDrawersCount</span>
+                        <span class="font-medium text-slate-800">@Data.OpenDrawersCount of @Data.TotalDrawersCount</span>
                     </div>
                     <div class="flex items-center justify-between text-xs">
                         <span class="text-slate-500">Drawer Cash</span>
-                        <span class="font-medium tabular-nums text-slate-800">@Money(data.OfficeCash)</span>
+                        <span class="font-medium tabular-nums text-slate-800">@Money(Data.OfficeCash)</span>
                     </div>
-                    @if (data.BankBalance is { } statusBank)
+                    @if (Data.BankBalance is not null)
                     {
                         <div class="flex items-center justify-between text-xs">
                             <span class="text-slate-500">Bank / Digital</span>
-                            <span class="font-medium tabular-nums text-slate-800">@Money(statusBank)</span>
+                            <span class="font-medium tabular-nums text-slate-800">@Money(Data.BankBalance.Value)</span>
                         </div>
                     }
-                    @if (data.SupplierDue is { } statusDue && statusDue > 0)
+                    @if (Data.SupplierDue is not null && Data.SupplierDue.Value > 0)
                     {
                         <div class="flex items-center justify-between border-t border-slate-100 pt-2.5 text-xs">
                             <span class="text-slate-500">Supplier Dues</span>
-                            <a href="/suppliers" class="font-semibold tabular-nums text-red-600 hover:underline">@Money(statusDue)</a>
+                            <a href="/suppliers" class="font-semibold tabular-nums text-red-600 hover:underline">@Money(Data.SupplierDue.Value)</a>
                         </div>
                     }
 

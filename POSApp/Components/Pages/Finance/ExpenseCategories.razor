@@ -101,7 +101,7 @@ else if (Data is not null)
         try
         {
             Data = await Entries.CategoriesPageAsync(HttpContext.User, Page, PageSize, HttpContext.RequestAborted);
-            var category = Id is { } id ? await Entries.CategoryAsync(HttpContext.User, id, HttpContext.RequestAborted) : null;
+            var category = Id is not null ? await Entries.CategoryAsync(HttpContext.User, Id.Value, HttpContext.RequestAborted) : null;
             Input ??= new() { Id = category?.Id, Name = category?.Name ?? "", IsArchived = category?.IsArchived ?? false };
         }
         catch (Exception exception)

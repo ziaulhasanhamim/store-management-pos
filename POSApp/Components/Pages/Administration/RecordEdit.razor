@@ -67,13 +67,13 @@ else
             <p class="mb-5 text-sm text-slate-500">
                 @(Kind == "product" ? "Hide this product from the catalog. Existing stock remains in the valuation report and history is retained." : "Reverse this transaction’s stock and account balances. The original record, payments and audit history are retained.")
             </p>
-            @if (Data.Total is { } transactionTotal)
+            @if (Data.Total is not null)
             {
                 <dl class="mb-4 grid grid-cols-2 gap-2 text-sm">
                     <dt>Date & time</dt>
                     <dd>@Data.At.ToBusinessTime(Configuration).ToString("dd MMM yyyy, HH:mm")</dd>
                     <dt>Transaction value</dt>
-                    <dd class="tabular-nums">@(Configuration["CurrencyCode"] ?? "BDT") @transactionTotal.ToString("N2")</dd>
+                    <dd class="tabular-nums">@(Configuration["CurrencyCode"] ?? "BDT") @Data.Total.Value.ToString("N2")</dd>
                     <dt>Payments to reverse</dt>
                     <dd class="tabular-nums">@(Configuration["CurrencyCode"] ?? "BDT") @(Data.Paid?.ToString("N2") ?? "0.00")</dd>
                 </dl>

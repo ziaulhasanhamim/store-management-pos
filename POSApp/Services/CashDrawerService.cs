@@ -105,7 +105,7 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
                 {
                     throw new UnauthorizedAccessException();
                 }
-                if ((input.StockLocationId is { } requestedLocation && previous.StockLocationId != requestedLocation)
+                if ((input.StockLocationId is not null && previous.StockLocationId != input.StockLocationId.Value)
                     || (input.OpeningCash != 0 && previous.OpeningCash != input.OpeningCash))
                 {
                     throw new ValidationException("This drawer opening was already saved with different values. Review the existing drawer.");
@@ -212,7 +212,7 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
             {
                 throw new ValidationException("Select this location before closing its drawer.");
             }
-            if (input.ExpectedCash is { } reviewed && reviewed != session.ExpectedCash)
+            if (input.ExpectedCash is not null && input.ExpectedCash.Value != session.ExpectedCash)
             {
                 throw new ValidationException("Cash movements changed after review. Count and review the drawer again.");
             }
@@ -454,10 +454,10 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
     private static async Task<int> ResolveLocationAsync(AppDbContext db, int actorId, CancellationToken ct)
     {
         var selected = await db.Users.Where(user => user.Id == actorId).Select(user => user.CashLocationId).SingleAsync(ct);
-        if (selected is { } id)
+        if (selected is not null)
         {
-            await ValidateLocationAsync(db, id, ct);
-            return id;
+            await ValidateLocationAsync(db, selected.Value, ct);
+            return selected.Value;
         }
         var locations = await db.StockLocations.Where(location => location.CanSell && !location.IsDeleted)
             .Select(location => location.Id).Take(2).ToArrayAsync(ct);

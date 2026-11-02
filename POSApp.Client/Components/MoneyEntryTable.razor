@@ -31,9 +31,9 @@
                 <tr @key="row.Id">
                     <td>
                         <span>#@row.Id</span>
-                        @if (row.PurchaseId is { } purchaseId)
+                        @if (row.PurchaseId is not null)
                         {
-                            <a href="@($"/receiving/{purchaseId}")" class="mt-1 block text-xs text-blue-700">Receipt #@purchaseId</a>
+                            <a href="@($"/receiving/{row.PurchaseId.Value}")" class="mt-1 block text-xs text-blue-700">Receipt #@row.PurchaseId.Value</a>
                         }
                     </td>
                     <td>@(PartyLabel == "Category" ? row.Category : row.Party)</td>

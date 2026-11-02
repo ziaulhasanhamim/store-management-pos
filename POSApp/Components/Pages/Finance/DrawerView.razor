@@ -91,8 +91,9 @@
 }
 @if (View == "history")
 {
-    @if (Data?.Viewed is { } viewed)
+    @if (Data?.Viewed is not null)
     {
+        var viewed = Data.Viewed;
         <section class="panel mb-6">
             <div class="panel-heading">
                 <div>
@@ -196,8 +197,8 @@
                             <td>@Time(shift.OpenedAt)</td>
                             <td>@(shift.ClosedAt is null ? "Open" : "Closed")</td>
                             <td class="text-right">@Money(shift.Expected)</td>
-                            <td class="text-right">@(shift.Actual is { } actual ? Money(actual) : "—")</td>
-                            <td class="text-right">@(shift.Difference is { } difference ? Money(difference) : "—")</td>
+                            <td class="text-right">@(shift.Actual is not null ? Money(shift.Actual.Value) : "—")</td>
+                            <td class="text-right">@(shift.Difference is not null ? Money(shift.Difference.Value) : "—")</td>
                         </tr>
                     }
                 </tbody>

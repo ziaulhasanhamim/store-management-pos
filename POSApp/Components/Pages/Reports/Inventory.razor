@@ -72,8 +72,9 @@
             <strong class="text-2xl!">@Money(Data.TotalValue)</strong>
             <span class="metric-note">@Data.Count items · includes archived stock</span>
         </div>
-        @if (Data.SupplierDue is { } due)
+        @if (Data.SupplierDue is not null)
         {
+            var due = Data.SupplierDue.Value;
             <div class="metric">
                 <p>Supplier balance</p>
                 <strong class="text-2xl!">@Money(due)</strong>

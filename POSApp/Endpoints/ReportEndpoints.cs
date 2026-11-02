@@ -32,8 +32,8 @@ public static class ReportEndpoints
             count = await inventory.CountAsync(context.User, search, context.RequestAborted);
             rows.Add(["Item ID", "Item", "Category", "Supplier", "Barcode", "Unit", "Stock", "Selling price", "Average cost", "Stock value"]);
             rows.AddRange(result.Select(item => new[] { Number(item.Id), item.Name, item.Category ?? "", item.Supplier,
-                item.Barcode ?? "", item.Unit, Number(item.Stock), Number(item.Price), item.Cost is { } cost ? Number(cost) : "",
-                item.Cost is { } unitCost ? Number(item.Stock * unitCost) : "" }));
+                item.Barcode ?? "", item.Unit, Number(item.Stock), Number(item.Price), item.Cost is not null ? Number(item.Cost.Value) : "",
+                item.Cost is not null ? Number(item.Stock * item.Cost.Value) : "" }));
             rows.Add(["TOTAL", "", "", "", "", "", "", "", "", ""]);
         }
         else if (kind == "suppliers")
@@ -79,7 +79,7 @@ public static class ReportEndpoints
             count = data.Count;
             rows.Add(["Item ID", "Item", "Barcode", "Unit", "Net quantity", "Average cost", "Cost", "Subtotal", "Discount", "Sales", "Profit"]);
             rows.AddRange(data.Rows.Select(row => new[] { Number(row.ProductId), row.Name, row.Barcode, row.Unit,
-                Number(row.Quantity), row.AverageCost is { } cost ? Number(cost) : "", Number(row.Cost), Number(row.Subtotal),
+                Number(row.Quantity), row.AverageCost is not null ? Number(row.AverageCost.Value) : "", Number(row.Cost), Number(row.Subtotal),
                 Number(row.Discount), Number(row.Total), Number(row.Profit) }));
             rows.Add(["TOTAL", "", "", "", "", "", Number(data.Cost), Number(data.Subtotal), Number(data.Discount), Number(data.Total), Number(data.Profit)]);
         }

@@ -156,8 +156,8 @@ public sealed partial class MoneyEntryService(IServiceScopeFactory scopes, IConf
         {
             throw new ValidationException("A category with that name already exists.");
         }
-        var category = input.Id is { } id
-            ? await db.ExpenseCategories.FindAsync([id], ct) ?? throw new ValidationException("Category not found.")
+        var category = input.Id is not null
+            ? await db.ExpenseCategories.FindAsync([input.Id.Value], ct) ?? throw new ValidationException("Category not found.")
             : new ExpenseCategoryDefinition
             {
                 Name = name,

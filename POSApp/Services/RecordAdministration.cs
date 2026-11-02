@@ -140,7 +140,7 @@ public sealed class RecordAdministration(IServiceScopeFactory scopes, IConfigura
                     }
                     before = new { sale.CustomerId, sale.SoldAt, sale.Status, sale.IsDeleted };
                     var targetCustomer = delete ? null : input.PartyId;
-                    if (targetCustomer is { } customerId && !await db.Customers.AnyAsync(customer => customer.Id == customerId && !customer.IsDeleted, ct))
+                    if (targetCustomer is not null && !await db.Customers.AnyAsync(customer => customer.Id == targetCustomer.Value && !customer.IsDeleted, ct))
                     {
                         throw new ValidationException("Choose an active customer.");
                     }

@@ -17,7 +17,7 @@ public sealed class DebtService(IServiceScopeFactory scopes, IConfiguration conf
         var lenderQuery = db.Lenders.AsNoTracking().OrderBy(lender => lender.Name).ThenBy(lender => lender.Id)
             .Select(lender => new LenderRow(lender.Id, lender.Name, lender.Phone,
                 lender.Balance!.OpeningBalance, lender.Balance.CurrentBalance));
-        var lenderPage = page is { } number ? await lenderQuery.ToPageAsync(number, pageSize, ct) : null;
+        var lenderPage = page is not null ? await lenderQuery.ToPageAsync(page.Value, pageSize, ct) : null;
         var lenders = lenderPage?.Items ?? await lenderQuery.ToArrayAsync(ct);
         var outstanding = await db.LenderBalances.Select(balance => (decimal?)balance.CurrentBalance).SumAsync(ct) ?? 0;
         if (lenderId is not null && !await db.Lenders.AnyAsync(lender => lender.Id == lenderId, ct))
@@ -39,8 +39,8 @@ public sealed class DebtService(IServiceScopeFactory scopes, IConfiguration conf
             .Select(entry => new DebtHistoryRow(entry.Id, entry.BusinessDate, entry.LenderBalance!.LenderId,
                 entry.LenderBalance.Lender!.Name, entry.Kind, entry.Amount, entry.BalanceAfter, entry.Method,
                 entry.CashLocation == null ? null : entry.CashLocation.Name, entry.Notes));
-        var historyResult = historyPage is { } historyNumber
-            ? await historyQuery.ToPageAsync(historyNumber, pageSize, ct) : null;
+        var historyResult = historyPage is not null
+            ? await historyQuery.ToPageAsync(historyPage.Value, pageSize, ct) : null;
         var history = historyResult?.Items ?? await historyQuery.Take(200).ToArrayAsync(ct);
         return new(date, !closed, lenders, locations,
             today.Where(entry => entry.Kind == DebtEntryKind.Borrowing).Sum(entry => entry.Amount),

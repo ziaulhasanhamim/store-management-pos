@@ -23,7 +23,7 @@ internal static class EmployeePayrollReader
         }
         var ordered = query.OrderBy(employee => employee.Name).ThenBy(employee => employee.Id)
             .Select(employee => new { employee.Id, employee.Name, employee.Phone, employee.MonthlySalary });
-        var selected = page is { } number ? await ordered.ToPageAsync(number, pageSize, ct) : null;
+        var selected = page is not null ? await ordered.ToPageAsync(page.Value, pageSize, ct) : null;
         var employees = selected?.Items ?? await ordered.ToArrayAsync(ct);
         var employeeIds = employees.Select(employee => employee.Id).ToArray();
         var salaries = await db.MonthlySalaries.AsNoTracking().Where(salary => salary.Month == month && employeeIds.Contains(salary.EmployeeId))

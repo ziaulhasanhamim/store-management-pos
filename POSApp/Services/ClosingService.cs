@@ -82,9 +82,9 @@ public sealed class ClosingService(IServiceScopeFactory scopes, IConfiguration c
             }
             if (!await db.DayFinances.AnyAsync(day => day.Date == date, ct))
             {
-                if (openingCash is { } amount)
+                if (openingCash is not null)
                 {
-                    StoreAccess.Money(amount, "Opening cash");
+                    StoreAccess.Money(openingCash.Value, "Opening cash");
                 }
                 if (openingCash is > 0)
                 {
@@ -410,8 +410,9 @@ public sealed class ClosingService(IServiceScopeFactory scopes, IConfiguration c
             saved.PurchaseTotal = totals.PurchaseTotal;
             saved.AdvancesPaid = totals.AdvancesPaid;
             saved.CashVariance = totals.CashVariance;
-            if (totals.Monthly is { } monthlyDetails)
+            if (totals.Monthly is not null)
             {
+                var monthlyDetails = totals.Monthly;
                 saved.OpeningStock = monthlyDetails.OpeningAssets.Stock;
                 saved.OpeningCash = monthlyDetails.OpeningAssets.Cash;
                 saved.OpeningBank = monthlyDetails.OpeningAssets.Bank;

@@ -214,8 +214,8 @@
                         <td>@location.Status</td>
                         <td class="text-right">@Money(location.Opening)</td>
                         <td class="text-right">@Money(location.Expected)</td>
-                        <td class="text-right">@(location.Counted is { } counted ? Money(counted) : "—")</td>
-                        <td class="text-right">@(location.Difference is { } difference ? Money(difference) : "—")</td>
+                        <td class="text-right">@(location.Counted is not null ? Money(location.Counted.Value) : "—")</td>
+                        <td class="text-right">@(location.Difference is not null ? Money(location.Difference.Value) : "—")</td>
                     </tr>
                 }
             </tbody>
@@ -501,12 +501,12 @@
                     <span class="rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700 border border-emerald-200">Locked</span>
                 </div>
                 <p class="mt-3 text-sm text-slate-500">Saved @Data.ClosedAt.Value.ToBusinessTime(Configuration).ToString("dd MMM yyyy, HH:mm"). New postings and corrections to this period are blocked.</p>
-                @if (Data.CountedCash is { } counted)
+                @if (Data.CountedCash is not null)
                 {
                     <div class="mt-3 rounded-xl border border-slate-100 bg-slate-50/60 p-3 text-xs space-y-1">
                         <div class="flex justify-between items-center text-slate-600">
                             <span>Counted cash:</span>
-                            <span class="font-semibold text-slate-900 tabular-nums">@Money(counted)</span>
+                            <span class="font-semibold text-slate-900 tabular-nums">@Money(Data.CountedCash.Value)</span>
                         </div>
                         <div class="flex justify-between items-center text-slate-600">
                             <span>Shortage / overage:</span>
@@ -601,14 +601,14 @@
     </div>
 </div>
 
-@if (Data.Daily is { } daily)
+@if (Data.Daily is not null)
 {
-    <DailyBreakdown Data="daily" Date="Data.Start" />
+    <DailyBreakdown Data="Data.Daily" Date="Data.Start" />
 }
 
-@if (Data.Monthly is { } monthly)
+@if (Data.Monthly is not null)
 {
-    <MonthlyBreakdown Data="monthly" MonthDate="Data.Start" />
+    <MonthlyBreakdown Data="Data.Monthly" MonthDate="Data.Start" />
 }
 
 @code {

@@ -61,11 +61,11 @@ else
                     </div>
                     <div>
                         <label class="field-label" for="salary-amount">Salary amount</label>
-                        <input id="salary-amount" name="SalaryForm.Amount" class="field" inputmode="decimal" value="@(SalaryForm!.Amount == 0 && SalaryForm.EmployeeId > 0 && Data!.Employees.FirstOrDefault(e => e.Id == SalaryForm.EmployeeId) is { } pre && pre.MonthlySalary > 0 ? pre.MonthlySalary : SalaryForm!.Amount)" data-select-on-focus="true" required />
+                        <input id="salary-amount" name="SalaryForm.Amount" class="field" inputmode="decimal" value="@ResolveSalaryAmount()" data-select-on-focus="true" required />
                     </div>
                 </div>
                 <label class="field-label mt-4" for="salary-notes">Notes (optional)</label>
-                <input id="salary-notes" name="SalaryForm.Notes" class="field" maxlength="2000" value="@SalaryForm.Notes" />
+                <input id="salary-notes" name="SalaryForm.Notes" class="field" maxlength="2000" value="@SalaryForm?.Notes" />
                 <p class="mt-3 text-xs text-slate-500">Any carried advance is applied automatically. Creating salary records the obligation; money is expensed when paid.</p>
                 <button class="btn-primary mt-4" data-pending-text="Creating…">Create salary</button>
             </form>
@@ -92,7 +92,7 @@ else
                     <tr>
                         <td>@employee.Name</td>
                         <td>@employee.Phone</td>
-                        <td class="text-right">@(employee.SalaryAmount is { } salary ? Money(salary) : "Not created")</td>
+                        <td class="text-right">@(employee.SalaryAmount is not null ? Money(employee.SalaryAmount.Value) : "Not created")</td>
                         <td class="text-right">@Money(employee.PriorAdvance)</td>
                         <td class="text-right">@Money(employee.BroughtForward)</td>
                         <td class="text-right">@Money(employee.Paid)</td>
@@ -186,8 +186,9 @@ else
         Data = await EmployeesService.ReadAsync(HttpContext.User, Month, HttpContext.RequestAborted, Page, PageSize);
         EmployeeForm ??= new();
         SalaryForm ??= new() { Month = WorkingMonth.ToDateTime(TimeOnly.MinValue) };
-        if (HttpMethods.IsGet(HttpContext.Request.Method) && EmployeeId is { } id)
+        if (HttpMethods.IsGet(HttpContext.Request.Method) && EmployeeId is not null)
         {
+            var id = EmployeeId.Value;
             var employee = Data.Employees.SingleOrDefault(employee => employee.Id == id);
             if (employee is not null)
             {
@@ -195,13 +196,28 @@ else
                 SalaryForm.EmployeeId = id;
                 SalaryForm.Amount = employee.MonthlySalary;
             }
-            else if (await EmployeesService.FindAsync(HttpContext.User, id, HttpContext.RequestAborted) is { } selected)
+            else
             {
-                EmployeeForm = selected;
-                SalaryForm.EmployeeId = id;
-                SalaryForm.Amount = selected.MonthlySalary;
+                var selected = await EmployeesService.FindAsync(HttpContext.User, id, HttpContext.RequestAborted);
+                if (selected is not null)
+                {
+                    EmployeeForm = selected;
+                    SalaryForm.EmployeeId = id;
+                    SalaryForm.Amount = selected.MonthlySalary;
+                }
             }
         }
+    }
+
+    private decimal ResolveSalaryAmount()
+    {
+        if (SalaryForm is null || SalaryForm.Amount != 0 || SalaryForm.EmployeeId <= 0)
+        {
+            return SalaryForm?.Amount ?? 0m;
+        }
+
+        var pre = Data?.Employees.FirstOrDefault(e => e.Id == SalaryForm.EmployeeId);
+        return pre is not null && pre.MonthlySalary > 0 ? pre.MonthlySalary : SalaryForm.Amount;
     }
 
     private Task SaveEmployeeAsync() => SaveAsync(async () => await EmployeesService.SaveAsync(HttpContext.User, EmployeeForm!, HttpContext.RequestAborted));

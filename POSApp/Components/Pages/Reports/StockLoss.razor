@@ -61,7 +61,7 @@ else if (Data is not null)
         <div class="metric">
             <p>Top Loss Category</p>
             <strong class="text-xl! text-slate-800">@(Data.Reasons.FirstOrDefault()?.Reason ?? "None")</strong>
-            <span class="metric-note">@(Data.Reasons.FirstOrDefault() is { } top ? Money(top.Amount) : "৳0.00")</span>
+            <span class="metric-note">@(Data.Reasons.FirstOrDefault() is not null ? Money(Data.Reasons.First().Amount) : "৳0.00")</span>
         </div>
     </div>
 

@@ -54,9 +54,9 @@
                         {
                             <tr @key="line.Input.RequestId">
                                 <td class="min-w-52">
-                                    @if (line.Input.Id is { } id)
+                                    @if (line.Input.Id is not null)
                                     {
-                                        <span class="mb-2 block text-xs font-semibold text-blue-700">Editing #@id</span>
+                                        <span class="mb-2 block text-xs font-semibold text-blue-700">Editing #@line.Input.Id.Value</span>
                                     }
                                     @if (IsExpense)
                                     {

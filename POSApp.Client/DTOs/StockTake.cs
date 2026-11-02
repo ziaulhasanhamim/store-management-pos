@@ -22,8 +22,8 @@ public sealed record StockTakeLine(int ProductId, string Name, string? Barcode, 
 {
     public int LastMovementId { get; init; }
     public decimal? Difference => Counted - Expected;
-    public decimal? Value => Difference is { } difference
-        ? decimal.Round(difference * UnitCost, 2, MidpointRounding.AwayFromZero) : null;
+    public decimal? Value => Difference is not null
+        ? decimal.Round(Difference.Value * UnitCost, 2, MidpointRounding.AwayFromZero) : null;
 }
 
 public sealed record StockTakePage(int Id, int LocationId, string Location, DateOnly Date,
