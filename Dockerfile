@@ -1,5 +1,5 @@
 # Stage 1: Build Tailwind CSS
-FROM node:22-slim AS css-build
+FROM node:22-alpine AS css-build
 WORKDIR /src
 COPY package*.json ./
 RUN npm ci || npm install
