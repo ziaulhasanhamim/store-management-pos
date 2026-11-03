@@ -99,6 +99,7 @@ public sealed record BillLine(
     decimal Total)
 {
     public string? Warranty { get; init; }
+    public decimal UnitDiscount { get; init; }
 }
 
 public sealed record class ProductFound(SalesProduct Product);
@@ -131,4 +132,7 @@ public sealed record SaleBill(
     public PaymentDetail[] Payments { get; init; } = [];
     public bool IsVoided { get; init; }
     public DateTimeOffset? VoidedAt { get; init; }
+    public string? CustomerPhone { get; init; }
+    public string? CustomerAddress { get; init; }
+    public decimal PreviousDue { get; init; }
 }

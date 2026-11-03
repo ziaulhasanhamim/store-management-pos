@@ -1,5 +1,21 @@
-.bill {
+/* Professional A4 Invoice and Multi-Page Print Styles */
+
+/* Screen layout: mimics crisp paper sheet */
+.invoice-sheet {
+    background: #ffffff;
+    max-width: 820px;
+    margin-left: auto;
+    margin-right: auto;
+    color: #1e293b;
+    box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.08), 0 2px 6px -1px rgba(0, 0, 0, 0.04);
+}
+
+.thermal-sheet {
+    background: #ffffff;
     max-width: 420px;
+    margin-left: auto;
+    margin-right: auto;
+    color: #000000;
 }
 
 .barcode-wrapper svg {
@@ -8,26 +24,96 @@
     display: block;
 }
 
+/* Print Rules - Critical for High-Quality Multi-Page Printing */
 @media print {
-    .no-print {
+    /* Hide non-printable UI elements */
+    .no-print,
+    nav,
+    aside,
+    header,
+    .sidebar,
+    .page-heading {
         display: none !important;
     }
 
+    /* Multi-page overflow fix: ensure ancestors do not trap scroll or clip overflow */
+    html,
+    body,
+    main,
+    .app-layout,
+    .content-area,
+    .page-container,
+    .invoice-sheet {
+        overflow: visible !important;
+        height: auto !important;
+        max-height: none !important;
+        box-shadow: none !important;
+        border: none !important;
+        border-radius: 0 !important;
+        background: #ffffff !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+
+    /* By default (or in A4 mode), format as A4 portrait with proper print margins */
     @page {
+        size: A4 portrait;
+        margin: 12mm 15mm 15mm 15mm;
+    }
+
+    body.print-mode-thermal @page {
         size: 80mm auto;
         margin: 0;
     }
 
-    .bill {
+    /* Multi-page table repeat & break controls */
+    .invoice-table {
+        width: 100% !important;
+        border-collapse: collapse !important;
+        page-break-inside: auto;
+        break-inside: auto;
+    }
+
+    .invoice-table thead {
+        display: table-header-group !important; /* Repeats table header at top of every printed page */
+    }
+
+    .invoice-table tr {
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+    }
+
+    .invoice-header,
+    .invoice-meta,
+    .invoice-summary-block {
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+    }
+
+    /* A4 invoice print width */
+    body:not(.print-mode-thermal) .invoice-sheet {
+        width: 100% !important;
+        max-width: 100% !important;
+        display: block !important;
+    }
+
+    body:not(.print-mode-thermal) .thermal-sheet {
+        display: none !important;
+    }
+
+    /* Thermal 80mm roll print width */
+    body.print-mode-thermal .invoice-sheet {
+        display: none !important;
+    }
+
+    body.print-mode-thermal .thermal-sheet {
+        display: block !important;
         width: 76mm !important;
         max-width: 76mm !important;
         margin: 0 auto !important;
-        padding: 3mm 2mm !important;
-        box-shadow: none !important;
-        border: none !important;
-        border-radius: 0 !important;
-        color: #000000 !important;
-        background: transparent !important;
+        padding: 2mm 1mm !important;
     }
 
     .barcode-wrapper svg {

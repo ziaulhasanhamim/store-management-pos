@@ -432,7 +432,7 @@ public sealed class SalesService(IServiceScopeFactory scopes, IConfiguration? co
             .AsSplitQuery()
             .Include(item => item.Items)
             .Include(item => item.Payments)
-            .Include(item => item.Customer)
+            .Include(item => item.Customer).ThenInclude(customer => customer!.Balance)
             .Include(item => item.StockLocation)
             .Include(item => item.Cashier)
             .SingleOrDefaultAsync(item => item.Id == id && (item.Status == SaleStatus.Completed || item.Status == SaleStatus.Voided || item.IsDeleted) && (canViewOthers || item.CashierId == actorId), ct);
@@ -451,21 +451,30 @@ public sealed class SalesService(IServiceScopeFactory scopes, IConfiguration? co
                 .Select(value => new { value.ProductId, Warranty = value.DisplayValue ?? value.Value })
                 .ToDictionaryAsync(x => x.ProductId, x => x.Warranty, ct);
 
+        var paidTotal = sale.Payments.Sum(payment => payment.Amount);
+        var currentCustomerBalance = sale.Customer?.Balance?.CurrentBalance ?? 0m;
+        var unpaidThisSale = Math.Max(0m, sale.TotalAmount - paidTotal);
+        var previousDue = Math.Max(0m, currentCustomerBalance - unpaidThisSale);
+
         return new(sale.Id, sale.ReceiptNumber, sale.SoldAt, sale.Customer?.Name,
             sale.StockLocation!.Name, sale.Cashier!.UserName!,
             sale.Items.Select(item => new BillLine(item.ProductName, item.ProductSku,
                 item.Unit, item.Quantity, item.UnitPrice,
-                decimal.Round(item.UnitPrice * item.Quantity, 2, MidpointRounding.AwayFromZero))
+                decimal.Round(item.UnitPrice * item.Quantity - (item.UnitDiscount * item.Quantity), 2, MidpointRounding.AwayFromZero))
             {
-                Warranty = warranties.GetValueOrDefault(item.ProductId)
+                Warranty = warranties.GetValueOrDefault(item.ProductId),
+                UnitDiscount = decimal.Round(item.UnitDiscount * item.Quantity, 2, MidpointRounding.AwayFromZero)
             }).ToArray(),
             sale.Subtotal, sale.DiscountAmount,
-            sale.TotalAmount, sale.Payments.Sum(payment => payment.Amount), sale.TenderedAmount, sale.Notes)
+            sale.TotalAmount, paidTotal, sale.TenderedAmount, sale.Notes)
         {
             Payments = sale.Payments.OrderBy(payment => payment.Id).Select(payment =>
                 new PaymentDetail(payment.Method, payment.Amount, payment.TenderedAmount == 0 ? payment.Amount : payment.TenderedAmount)).ToArray(),
             IsVoided = sale.Status == SaleStatus.Voided || sale.IsDeleted,
-            VoidedAt = sale.DeletedAt
+            VoidedAt = sale.DeletedAt,
+            CustomerPhone = sale.Customer?.Phone,
+            CustomerAddress = sale.Customer?.Address,
+            PreviousDue = previousDue
         };
     }
 }
