@@ -102,17 +102,23 @@ public sealed record BillLine(
     public decimal UnitDiscount { get; init; }
 }
 
-public sealed record class ProductFound(SalesProduct Product);
-public sealed record class BarcodeNotFound(string Code);
-public sealed record class AmbiguousMatches(IReadOnlyList<SalesProduct> Products);
+public abstract record BarcodeScanOutcome
+{
+    private protected BarcodeScanOutcome() { }
+}
 
-public union BarcodeScanOutcome(ProductFound, BarcodeNotFound, AmbiguousMatches);
+public sealed record ProductFound(SalesProduct Product) : BarcodeScanOutcome;
+public sealed record BarcodeNotFound(string Code) : BarcodeScanOutcome;
+public sealed record AmbiguousMatches(IReadOnlyList<SalesProduct> Products) : BarcodeScanOutcome;
 
-public sealed record class CheckoutSuccess(SalesResult Result);
-public sealed record class CheckoutValidationFailure(string Reason);
-public sealed record class CheckoutCreditExceeded(string CustomerName, decimal AmountDue);
+public abstract record CheckoutOutcome
+{
+    private protected CheckoutOutcome() { }
+}
 
-public union CheckoutOutcome(CheckoutSuccess, CheckoutValidationFailure, CheckoutCreditExceeded);
+public sealed record CheckoutSuccess(SalesResult Result) : CheckoutOutcome;
+public sealed record CheckoutValidationFailure(string Reason) : CheckoutOutcome;
+public sealed record CheckoutCreditExceeded(string CustomerName, decimal AmountDue) : CheckoutOutcome;
 
 public sealed record SaleBill(
     int Id,

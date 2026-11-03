@@ -342,7 +342,7 @@ public partial class SalesEditor
         }
         if (results.Count > 1)
         {
-            List<SalesProduct> matches = [with(capacity: results.Count), .. results];
+            List<SalesProduct> matches = results.ToList();
             return new AmbiguousMatches(matches);
         }
         return new BarcodeNotFound(code);
