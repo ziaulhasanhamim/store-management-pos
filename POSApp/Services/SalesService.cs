@@ -460,7 +460,7 @@ public sealed class SalesService(IServiceScopeFactory scopes, IConfiguration? co
             sale.StockLocation!.Name, sale.Cashier!.UserName!,
             sale.Items.Select(item => new BillLine(item.ProductName, item.ProductSku,
                 item.Unit, item.Quantity, item.UnitPrice,
-                decimal.Round(item.UnitPrice * item.Quantity - (item.UnitDiscount * item.Quantity), 2, MidpointRounding.AwayFromZero))
+                decimal.Round(item.UnitPrice * item.Quantity, 2, MidpointRounding.AwayFromZero))
             {
                 Warranty = warranties.GetValueOrDefault(item.ProductId),
                 UnitDiscount = decimal.Round(item.UnitDiscount * item.Quantity, 2, MidpointRounding.AwayFromZero)
