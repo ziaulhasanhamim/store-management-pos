@@ -27,16 +27,14 @@
 
 /* Print Rules - Critical for High-Quality Multi-Page Printing */
 @media print {
-    /* Hide non-printable UI elements (app shell, navigation, sidebar, page heading, layout footers) */
+    /* Hide non-printable UI elements */
     .no-print,
     nav,
     aside,
     .app-header,
     .sidebar,
     .page-heading,
-    body > * footer,
-    main > footer,
-    footer.no-print {
+    .layout-footer {
         display: none !important;
     }
 
@@ -91,8 +89,14 @@
     }
 
     .invoice-header,
-    .invoice-meta,
+    .invoice-meta {
+        page-break-inside: avoid !important;
+        break-inside: avoid !important;
+    }
+
     .invoice-summary-block {
+        display: flex !important;
+        visibility: visible !important;
         page-break-inside: avoid !important;
         break-inside: avoid !important;
     }

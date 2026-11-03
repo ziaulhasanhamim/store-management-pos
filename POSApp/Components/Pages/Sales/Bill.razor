@@ -98,7 +98,7 @@ else
                         @(Configuration["StoreName"] ?? "JAS INTERNATIONAL")
                     </h2>
                     <p class="text-xs font-bold text-sky-600 tracking-wider uppercase mt-1">
-                        @(Configuration["StoreSubtitle"] ?? "Quality with Perfection")
+                        @(Configuration["StoreSubtitle"] ?? "Store Management")
                     </p>
                 </div>
             </div>
@@ -145,6 +145,7 @@ else
                     <th class="py-2.5 px-3 text-left">DESCRIPTION</th>
                     <th class="py-2.5 px-3 text-center w-24">QUANTITY</th>
                     <th class="py-2.5 px-3 text-right w-28">UNIT PRICE</th>
+                    <th class="py-2.5 px-3 text-right w-24">DISCOUNT</th>
                     <th class="py-2.5 px-3 text-right w-28">TOTAL</th>
                 </tr>
             </thead>
@@ -167,6 +168,7 @@ else
                         </td>
                         <td class="py-2.5 px-3 text-center font-medium whitespace-nowrap">@line.Quantity.ToString("0.###")</td>
                         <td class="py-2.5 px-3 text-right font-medium whitespace-nowrap font-mono">@line.UnitPrice.ToString("N2")</td>
+                        <td class="py-2.5 px-3 text-right font-medium whitespace-nowrap font-mono text-slate-600">@line.UnitDiscount.ToString("N2")</td>
                         <td class="py-2.5 px-3 text-right font-bold text-slate-900 whitespace-nowrap font-mono">
                             @(line.Total < 0 ? $"-{Math.Abs(line.Total):N2}" : line.Total.ToString("N2"))
                         </td>
@@ -175,15 +177,17 @@ else
             </tbody>
             <tfoot>
                 <tr class="border-t-2 border-b-2 border-black font-bold text-slate-900">
-                    <td colspan="2" class="py-2 px-3 text-right text-xs uppercase tracking-wider font-bold">Total Qnty</td>
-                    <td class="py-2 px-3 text-center font-black text-sm">@totalQty.ToString("0.###")</td>
-                    <td colspan="2" class="py-2 px-3"></td>
+                    <td colspan="2" class="py-2.5 px-3 text-right text-xs uppercase tracking-wider font-bold">Total Qnty</td>
+                    <td class="py-2.5 px-3 text-center font-black text-sm">@totalQty.ToString("0.###")</td>
+                    <td class="py-2.5 px-3"></td>
+                    <td class="py-2.5 px-3 text-right font-black text-sm font-mono text-slate-700">@Data.Discount.ToString("N2")</td>
+                    <td class="py-2.5 px-3 text-right font-black text-sm font-mono text-slate-900">@Data.Total.ToString("N2")</td>
                 </tr>
             </tfoot>
         </table>
 
         <!-- Summary & Financial Breakdown (Bottom Section) -->
-        <footer class="invoice-summary-block mt-8 flex flex-col md:flex-row justify-between items-start gap-8 pt-4">
+        <div class="invoice-summary-block mt-8 flex flex-col md:flex-row justify-between items-start gap-8 pt-4">
             <!-- Left: Thank you & Policies & Signatures -->
             <div class="flex-1 flex flex-col justify-between">
                 <div>
@@ -216,13 +220,10 @@ else
                         <td class="py-1.5 text-left uppercase text-slate-600 font-semibold">SUB TOTAL</td>
                         <td class="py-1.5 text-right font-mono font-bold text-slate-900">@Data.Subtotal.ToString("N2")</td>
                     </tr>
-                    @if (Data.Discount > 0)
-                    {
-                        <tr class="border-b border-slate-200 text-rose-600">
-                            <td class="py-1.5 text-left uppercase font-semibold">ORDER DISCOUNT</td>
-                            <td class="py-1.5 text-right font-mono font-bold">-@Data.Discount.ToString("N2")</td>
-                        </tr>
-                    }
+                    <tr class="border-b border-slate-200 text-rose-600">
+                        <td class="py-1.5 text-left uppercase font-semibold">DISCOUNT</td>
+                        <td class="py-1.5 text-right font-mono font-bold">@(Data.Discount > 0 ? $"-{Data.Discount:N2}" : "0.00")</td>
+                    </tr>
                     <tr class="border-b border-slate-200">
                         <td class="py-1.5 text-left uppercase text-slate-600 font-semibold">INVOICE TOTAL</td>
                         <td class="py-1.5 text-right font-mono font-bold text-slate-900">@Data.Total.ToString("N2")</td>
@@ -272,7 +273,7 @@ else
                     }
                 </div>
             </div>
-        </footer>
+        </div>
     </article>
 
     <!-- ========================================== -->
@@ -334,13 +335,10 @@ else
                 <span>Sub Total</span>
                 <span>@Data.Subtotal.ToString("N2")</span>
             </div>
-            @if (Data.Discount > 0)
-            {
-                <div class="flex justify-between items-center text-xs text-rose-600">
-                    <span>Discount</span>
-                    <span>-@Data.Discount.ToString("N2")</span>
-                </div>
-            }
+            <div class="flex justify-between items-center text-xs text-rose-600">
+                <span>Discount</span>
+                <span>@(Data.Discount > 0 ? $"-{Data.Discount:N2}" : "0.00")</span>
+            </div>
             <div class="flex justify-between items-center text-sm font-black border-t border-dotted border-neutral-300 pt-1">
                 <span>Invoice Total</span>
                 <span>@Data.Total.ToString("N2")</span>
