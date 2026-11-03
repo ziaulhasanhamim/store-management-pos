@@ -14,13 +14,17 @@ public sealed class DebtService(IServiceScopeFactory scopes, IConfiguration conf
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var actorId = await StoreAccess.RequireAsync(db, actor, AppRoles.Admin, ct);
         var date = await AccountingCalendar.SelectedAsync(db, actorId, configuration, ct);
-        var lenderQuery = db.Lenders.AsNoTracking().OrderBy(lender => lender.Name).ThenBy(lender => lender.Id)
+        var lenderQuery = db.Lenders.AsNoTracking()
+            .Where(lender => !lender.IsDeleted)
+            .OrderBy(lender => lender.Name).ThenBy(lender => lender.Id)
             .Select(lender => new LenderRow(lender.Id, lender.Name, lender.Phone,
                 lender.Balance!.OpeningBalance, lender.Balance.CurrentBalance));
         var lenderPage = page is not null ? await lenderQuery.ToPageAsync(page.Value, pageSize, ct) : null;
         var lenders = lenderPage?.Items ?? await lenderQuery.ToArrayAsync(ct);
-        var outstanding = await db.LenderBalances.Select(balance => (decimal?)balance.CurrentBalance).SumAsync(ct) ?? 0;
-        if (lenderId is not null && !await db.Lenders.AnyAsync(lender => lender.Id == lenderId, ct))
+        var outstanding = await db.LenderBalances
+            .Where(balance => !balance.Lender!.IsDeleted)
+            .Select(balance => (decimal?)balance.CurrentBalance).SumAsync(ct) ?? 0;
+        if (lenderId is not null && !await db.Lenders.AnyAsync(lender => lender.Id == lenderId && !lender.IsDeleted, ct))
         {
             throw new ValidationException("Lender not found.");
         }
@@ -38,7 +42,7 @@ public sealed class DebtService(IServiceScopeFactory scopes, IConfiguration conf
             .OrderByDescending(entry => entry.BusinessDate).ThenByDescending(entry => entry.Id)
             .Select(entry => new DebtHistoryRow(entry.Id, entry.BusinessDate, entry.LenderBalance!.LenderId,
                 entry.LenderBalance.Lender!.Name, entry.Kind, entry.Amount, entry.BalanceAfter, entry.Method,
-                entry.CashLocation == null ? null : entry.CashLocation.Name, entry.Notes));
+                entry.CashLocation == null ? null : entry.CashLocation.Name, entry.Notes ?? ""));
         var historyResult = historyPage is not null
             ? await historyQuery.ToPageAsync(historyPage.Value, pageSize, ct) : null;
         var history = historyResult?.Items ?? await historyQuery.Take(200).ToArrayAsync(ct);
@@ -79,9 +83,11 @@ public sealed class DebtService(IServiceScopeFactory scopes, IConfiguration conf
                 return previous.Id;
             }
             var date = await RequireDayAsync(db, actorId, input.WorkingDate, ct);
+            var at = AccountingCalendar.At(date, configuration);
             var balance = new LenderBalance
             {
                 OpeningDate = date,
+                OpenedAt = at,
                 OpeningBalance = input.OpeningBalance,
                 CurrentBalance = input.OpeningBalance,
                 CreatedByUserId = actorId

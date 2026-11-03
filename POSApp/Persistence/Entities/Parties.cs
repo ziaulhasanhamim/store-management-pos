@@ -23,3 +23,12 @@ public sealed class Supplier : SoftDeletableEntity
     public ICollection<Purchase> Purchases { get; set; } = [];
     public SupplierBalance? Balance { get; set; }
 }
+
+public sealed class Lender : SoftDeletableEntity
+{
+    public Guid RequestId { get; set; }
+    public required string Name { get; set; }
+    public string NormalizedName { get; set; } = string.Empty;
+    public string? Phone { get; set; }
+    public LenderBalance? Balance { get; set; }
+}

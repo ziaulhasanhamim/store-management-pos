@@ -871,6 +871,10 @@ namespace POSApp.Persistence.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
 
+                    b.Property<string>("RequestHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
                     b.Property<Guid>("RequestId")
                         .HasColumnType("uuid");
 
@@ -1586,6 +1590,12 @@ namespace POSApp.Persistence.Migrations
                     b.Property<int?>("CreatedByUserId")
                         .HasColumnType("integer");
 
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -1639,6 +1649,9 @@ namespace POSApp.Persistence.Migrations
 
                     b.Property<int>("LenderId")
                         .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset?>("OpenedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<decimal>("OpeningBalance")
                         .HasPrecision(18, 2)

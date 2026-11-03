@@ -18,7 +18,8 @@ internal static class FinanceModelConfiguration
             entity.HasIndex(entry => entry.RequestId).IsUnique();
             entity.HasIndex(entry => new { entry.LenderBalanceId, entry.BusinessDate });
             entity.HasIndex(entry => entry.BusinessDate);
-            entity.Property(entry => entry.Notes).HasMaxLength(2000);
+            entity.Property(entry => entry.RequestId).IsRequired();
+            entity.Property(entry => entry.Notes).HasMaxLength(2000).IsRequired();
         });
         builder.Entity<CashMovement>().HasIndex(move => move.DebtEntryId).IsUnique();
         builder.Entity<BankMovement>().HasIndex(move => move.DebtEntryId).IsUnique();
