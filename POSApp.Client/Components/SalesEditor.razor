@@ -109,7 +109,7 @@
                         <tbody>
                             @foreach (var line in Lines)
                             {
-                                <tr @key="line.Key">
+                                <tr @key="line.Key" class="@(line.Key == LastScannedLineKey ? "bg-emerald-50/80 transition-colors" : "")">
                                     <td>
                                         <strong class="block min-w-32 text-slate-900">@line.Product.Name</strong>
                                         @if (line.Quantity < 0)

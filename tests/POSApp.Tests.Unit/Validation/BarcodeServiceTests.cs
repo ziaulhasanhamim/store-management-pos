@@ -64,4 +64,14 @@ public class BarcodeServiceTests
         await svg.Contains("class=\"barcode-code128\"").Should().BeEqualTo(true);
         await svg.Contains("</svg>").Should().BeEqualTo(true);
     }
+
+    [Test]
+    public async Task Svg_WhenGivenInvoiceNumber_GeneratesCode128Svg()
+    {
+        var svg = BarcodeService.Svg("POS 1574");
+
+        await svg.Should().NotBeNull();
+        await svg.Contains("class=\"barcode-code128\"").Should().BeEqualTo(true);
+        await svg.Contains("</svg>").Should().BeEqualTo(true);
+    }
 }

@@ -96,7 +96,22 @@ public sealed record BillLine(
     string Unit,
     decimal Quantity,
     decimal UnitPrice,
-    decimal Total);
+    decimal Total)
+{
+    public string? Warranty { get; init; }
+}
+
+public sealed record class ProductFound(SalesProduct Product);
+public sealed record class BarcodeNotFound(string Code);
+public sealed record class AmbiguousMatches(IReadOnlyList<SalesProduct> Products);
+
+public union BarcodeScanOutcome(ProductFound, BarcodeNotFound, AmbiguousMatches);
+
+public sealed record class CheckoutSuccess(SalesResult Result);
+public sealed record class CheckoutValidationFailure(string Reason);
+public sealed record class CheckoutCreditExceeded(string CustomerName, decimal AmountDue);
+
+public union CheckoutOutcome(CheckoutSuccess, CheckoutValidationFailure, CheckoutCreditExceeded);
 
 public sealed record SaleBill(
     int Id,

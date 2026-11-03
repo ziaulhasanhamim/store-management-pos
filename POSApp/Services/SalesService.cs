@@ -428,13 +428,38 @@ public sealed class SalesService(IServiceScopeFactory scopes, IConfiguration? co
         var actorId = await StoreAccess.RequireAsync(db, actor, AppRoles.SalesAssociate, ct);
         var canViewOthers = await db.UserRoles.AnyAsync(membership => membership.UserId == actorId && db.Roles.Any(role =>
             role.Id == membership.RoleId && (role.Name == AppRoles.Admin || role.Name == AppRoles.InventoryManager)), ct);
-        var sale = await db.Sales.AsNoTracking().Include(item => item.Items).Include(item => item.Payments)
-            .Include(item => item.Customer).Include(item => item.StockLocation).Include(item => item.Cashier)
+        var sale = await db.Sales.AsNoTracking()
+            .AsSplitQuery()
+            .Include(item => item.Items)
+            .Include(item => item.Payments)
+            .Include(item => item.Customer)
+            .Include(item => item.StockLocation)
+            .Include(item => item.Cashier)
             .SingleOrDefaultAsync(item => item.Id == id && (item.Status == SaleStatus.Completed || item.Status == SaleStatus.Voided || item.IsDeleted) && (canViewOthers || item.CashierId == actorId), ct);
-        return sale is null ? null : new(sale.Id, sale.ReceiptNumber, sale.SoldAt, sale.Customer?.Name,
-            sale.StockLocation!.Name, sale.Cashier!.UserName!, sale.Items.Select(item => new BillLine(item.ProductName, item.ProductSku,
+
+        if (sale is null)
+        {
+            return null;
+        }
+
+        var productIds = sale.Items.Select(item => item.ProductId).Distinct().ToArray();
+        var warranties = productIds.Length == 0
+            ? new Dictionary<int, string>()
+            : await db.ProductAttributeValues.AsNoTracking()
+                .Where(value => productIds.Contains(value.ProductId) && !value.Definition!.IsDeleted
+                    && (value.Definition.Key.ToLower() == "warranty" || value.Definition.DisplayName.ToLower().Contains("warranty")))
+                .Select(value => new { value.ProductId, Warranty = value.DisplayValue ?? value.Value })
+                .ToDictionaryAsync(x => x.ProductId, x => x.Warranty, ct);
+
+        return new(sale.Id, sale.ReceiptNumber, sale.SoldAt, sale.Customer?.Name,
+            sale.StockLocation!.Name, sale.Cashier!.UserName!,
+            sale.Items.Select(item => new BillLine(item.ProductName, item.ProductSku,
                 item.Unit, item.Quantity, item.UnitPrice,
-                decimal.Round(item.UnitPrice * item.Quantity, 2, MidpointRounding.AwayFromZero))).ToArray(), sale.Subtotal, sale.DiscountAmount,
+                decimal.Round(item.UnitPrice * item.Quantity, 2, MidpointRounding.AwayFromZero))
+            {
+                Warranty = warranties.GetValueOrDefault(item.ProductId)
+            }).ToArray(),
+            sale.Subtotal, sale.DiscountAmount,
             sale.TotalAmount, sale.Payments.Sum(payment => payment.Amount), sale.TenderedAmount, sale.Notes)
         {
             Payments = sale.Payments.OrderBy(payment => payment.Id).Select(payment =>

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="100%" height="100%">
+  <!-- Transparent Blue JAS International Monogram -->
+  <g fill="#2E7BEF" fill-rule="evenodd">
+    <!-- Left / Lower Loop -->
+    <path d="M 107 483 L 431 483 L 562 258 L 642 258 L 348 765 L 269 765 Z M 216 532 L 309 693 L 402 532 Z" />
+    <!-- Right / Upper Loop -->
+    <path d="M 917 541 L 593 541 L 462 766 L 382 766 L 676 259 L 755 259 Z M 808 492 L 715 331 L 622 492 Z" />
+  </g>
+</svg>

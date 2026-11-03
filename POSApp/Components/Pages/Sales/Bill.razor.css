@@ -1,0 +1,36 @@
+.bill {
+    max-width: 420px;
+}
+
+.barcode-wrapper svg {
+    width: 100%;
+    height: 48px;
+    display: block;
+}
+
+@media print {
+    .no-print {
+        display: none !important;
+    }
+
+    @page {
+        size: 80mm auto;
+        margin: 0;
+    }
+
+    .bill {
+        width: 76mm !important;
+        max-width: 76mm !important;
+        margin: 0 auto !important;
+        padding: 3mm 2mm !important;
+        box-shadow: none !important;
+        border: none !important;
+        border-radius: 0 !important;
+        color: #000000 !important;
+        background: transparent !important;
+    }
+
+    .barcode-wrapper svg {
+        height: 42px !important;
+    }
+}

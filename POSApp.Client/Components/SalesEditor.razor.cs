@@ -158,12 +158,30 @@ public partial class SalesEditor
 
     private string Money(decimal value) => $"{Currency} {value:N2}";
 
-    private void Add(SalesProduct product)
+    private Guid? LastScannedLineKey;
+
+    private async Task PlaySoundAsync(string type)
+    {
+        if (Scanner is not null)
+        {
+            try
+            {
+                await Scanner.InvokeVoidAsync("playBeep", type);
+            }
+            catch
+            {
+            }
+        }
+    }
+
+    private bool Add(SalesProduct product)
     {
         var line = Lines.FirstOrDefault(line => line.Product.Id == product.Id && (line.Quantity < 0) == ReturnMode);
+        bool isIncrement = line is not null;
         if (line is null)
         {
-            Lines.Insert(0, new CartLine { Product = product, Quantity = ReturnMode ? -1 : 1, Price = product.Price });
+            line = new CartLine { Product = product, Quantity = ReturnMode ? -1 : 1, Price = product.Price };
+            Lines.Insert(0, line);
         }
         else
         {
@@ -171,7 +189,9 @@ public partial class SalesEditor
             Lines.Remove(line);
             Lines.Insert(0, line);
         }
+        LastScannedLineKey = line.Key;
         Error = null;
+        return isIncrement;
     }
 
     private readonly Dictionary<string, IReadOnlyList<SalesProduct>> SearchCache = new(StringComparer.OrdinalIgnoreCase);
@@ -179,7 +199,8 @@ public partial class SalesEditor
     private async Task SelectProductAsync(SalesProduct product)
     {
         SearchCancellation?.Cancel();
-        Add(product);
+        var isIncrement = Add(product);
+        await PlaySoundAsync(isIncrement ? "duplicate" : "success");
         Search = "";
         Products = [];
         SelectedProductIndex = -1;
@@ -307,6 +328,26 @@ public partial class SalesEditor
         }
     }
 
+    private static BarcodeScanOutcome EvaluateScan(string code, IReadOnlyList<SalesProduct> results)
+    {
+        var exact = results.FirstOrDefault(product => !string.IsNullOrEmpty(product.Barcode)
+            && string.Equals(product.Barcode, code, StringComparison.OrdinalIgnoreCase));
+        if (exact is not null)
+        {
+            return new ProductFound(exact);
+        }
+        if (results.Count == 1)
+        {
+            return new ProductFound(results[0]);
+        }
+        if (results.Count > 1)
+        {
+            List<SalesProduct> matches = [with(capacity: results.Count), .. results];
+            return new AmbiguousMatches(matches);
+        }
+        return new BarcodeNotFound(code);
+    }
+
     private async Task ScanAsync(string code)
     {
         if (string.IsNullOrWhiteSpace(code))
@@ -320,25 +361,35 @@ public partial class SalesEditor
         try
         {
             var results = await Sales.SearchAsync(LocationId, code);
-            var product = results.FirstOrDefault(product => string.Equals(product.Barcode, code, StringComparison.OrdinalIgnoreCase));
-            if (product is null)
+            var outcome = EvaluateScan(code, results);
+            switch (outcome)
             {
-                Error = results.Count == 0 ? "No item matches that barcode or name." : null;
-                Products = results;
-                if (string.IsNullOrEmpty(Search))
-                {
-                    Search = code;
-                }
-            }
-            else
-            {
-                Add(product);
-                await SearchField.FocusAsync();
+                case ProductFound(var product):
+                    var isIncrement = Add(product);
+                    await PlaySoundAsync(isIncrement ? "duplicate" : "success");
+                    await SearchField.FocusAsync();
+                    break;
+                case AmbiguousMatches(var matches):
+                    Products = matches;
+                    SelectedProductIndex = 0;
+                    Error = null;
+                    if (string.IsNullOrEmpty(Search))
+                    {
+                        Search = code;
+                    }
+                    await PlaySoundAsync("duplicate");
+                    break;
+                case BarcodeNotFound:
+                    Error = $"Item with barcode \"{code}\" was not found.";
+                    Products = [];
+                    await PlaySoundAsync("error");
+                    break;
             }
         }
         catch (Exception exception)
         {
             Error = exception.Message;
+            await PlaySoundAsync("error");
         }
         finally
         {
