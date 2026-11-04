@@ -123,3 +123,18 @@ document.addEventListener('change', event => {
         checkboxes.forEach(cb => { cb.checked = checked; });
     }
 });
+
+// Bulk edit selected button click handler
+document.addEventListener('click', event => {
+    const btn = event.target?.closest?.('#bulk-edit-selected-btn');
+    if (!btn) return;
+    event.preventDefault();
+    const checked = Array.from(document.querySelectorAll('input[type="checkbox"][name="Input.ProductIds"]:checked, input[type="checkbox"][name="productIds"]:checked, input[type="checkbox"][name="ProductIds"]:checked'))
+        .map(cb => cb.value)
+        .filter(val => val && parseInt(val, 10) > 0);
+    if (checked.length > 0) {
+        window.location.href = '/items/bulk-edit?ids=' + checked.join(',');
+    } else {
+        window.location.href = '/items/bulk-edit';
+    }
+});

@@ -48,14 +48,13 @@
             <span class="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">Quick Reassign</span>
         </div>
 
-        <form method="post" action="/items/bulk-edit" data-enhance data-submit-indication="true">
+        <form method="post" action="/items/bulk-edit" @formname="reassign-supplier" data-enhance data-submit-indication="true">
             <AntiforgeryToken />
-            <input type="hidden" name="Action" value="reassign-supplier" />
             
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-5 items-start">
                 <div>
                     <label class="field-label" for="source-supplier">Current supplier (transfer from)</label>
-                    <select id="source-supplier" name="SourceSupplierId" class="field" required>
+                    <select id="source-supplier" name="ReassignInput.SourceSupplierId" class="field" required>
                         <option value="">Select current supplier…</option>
                         @foreach (var s in SupplierCounts)
                         {
@@ -67,7 +66,7 @@
 
                 <div>
                     <label class="field-label" for="target-supplier">New supplier (transfer to)</label>
-                    <select id="target-supplier" name="TargetSupplierId" class="field" required>
+                    <select id="target-supplier" name="ReassignInput.TargetSupplierId" class="field" required>
                         <option value="">Select target supplier…</option>
                         @foreach (var s in Suppliers)
                         {
@@ -112,18 +111,17 @@
         }
         else
         {
-            <form method="post" action="/items/bulk-edit" data-enhance data-submit-indication="true">
+            <form method="post" action="/items/bulk-edit" @formname="bulk-edit-selected" data-enhance data-submit-indication="true">
                 <AntiforgeryToken />
-                <input type="hidden" name="Action" value="update-selected" />
                 @foreach (var id in SelectedIds)
                 {
-                    <input type="hidden" name="ProductIds" value="@id" />
+                    <input type="hidden" name="SelectedInput.ProductIds" value="@id" />
                 }
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-6">
                     <div>
                         <label class="field-label" for="batch-target-supplier">Set default supplier</label>
-                        <select id="batch-target-supplier" name="TargetSupplierId" class="field">
+                        <select id="batch-target-supplier" name="SelectedInput.TargetSupplierId" class="field">
                             <option value="">— Keep existing supplier —</option>
                             @foreach (var s in Suppliers)
                             {
@@ -135,7 +133,7 @@
 
                     <div>
                         <label class="field-label" for="batch-target-category">Set category</label>
-                        <select id="batch-target-category" name="TargetCategoryId" class="field">
+                        <select id="batch-target-category" name="SelectedInput.TargetCategoryId" class="field">
                             <option value="">— Keep existing category —</option>
                             @foreach (var c in Categories)
                             {
@@ -193,8 +191,24 @@
     [SupplyParameterFromQuery]
     public string? Ids { get; set; }
 
-    [SupplyParameterFromForm]
-    private BulkEditFormModel? Form { get; set; }
+    [SupplyParameterFromForm(FormName = "reassign-supplier")]
+    private ReassignSupplierModel? ReassignInput { get; set; }
+
+    [SupplyParameterFromForm(FormName = "bulk-edit-selected")]
+    private BulkEditSelectedModel? SelectedInput { get; set; }
+
+    public sealed class ReassignSupplierModel
+    {
+        public int? SourceSupplierId { get; set; }
+        public int? TargetSupplierId { get; set; }
+    }
+
+    public sealed class BulkEditSelectedModel
+    {
+        public int? TargetSupplierId { get; set; }
+        public int? TargetCategoryId { get; set; }
+        public List<int> ProductIds { get; set; } = [];
+    }
 
     private IReadOnlyList<BulkSupplierCount> SupplierCounts = [];
     private IReadOnlyList<Lookup> Suppliers = [];
@@ -204,35 +218,26 @@
     private string? SuccessMessage;
     private string? ErrorMessage;
 
-    public sealed class BulkEditFormModel
-    {
-        public string? Action { get; set; }
-        public int? SourceSupplierId { get; set; }
-        public int? TargetSupplierId { get; set; }
-        public int? TargetCategoryId { get; set; }
-        public List<int> ProductIds { get; set; } = [];
-    }
-
     protected override async Task OnParametersSetAsync()
     {
         SuccessMessage = null;
         ErrorMessage = null;
 
-        if (HttpMethods.IsPost(HttpContext.Request.Method) && Form is not null)
+        if (HttpMethods.IsPost(HttpContext.Request.Method))
         {
-            try
+            if (ReassignInput is not null)
             {
-                if (Form.Action == "reassign-supplier")
+                try
                 {
-                    if (Form.SourceSupplierId is null || Form.SourceSupplierId <= 0)
+                    if (ReassignInput.SourceSupplierId is null || ReassignInput.SourceSupplierId <= 0)
                     {
                         ErrorMessage = "Please select the current supplier to transfer from.";
                     }
-                    else if (Form.TargetSupplierId is null || Form.TargetSupplierId <= 0)
+                    else if (ReassignInput.TargetSupplierId is null || ReassignInput.TargetSupplierId <= 0)
                     {
                         ErrorMessage = "Please select the new target supplier to transfer to.";
                     }
-                    else if (Form.SourceSupplierId == Form.TargetSupplierId)
+                    else if (ReassignInput.SourceSupplierId == ReassignInput.TargetSupplierId)
                     {
                         ErrorMessage = "Current supplier and new target supplier must be different.";
                     }
@@ -240,21 +245,29 @@
                     {
                         var updated = await Inventory.BulkUpdateProductsAsync(HttpContext.User, new BulkEditInput
                         {
-                            SourceSupplierId = Form.SourceSupplierId,
-                            TargetSupplierId = Form.TargetSupplierId
+                            SourceSupplierId = ReassignInput.SourceSupplierId,
+                            TargetSupplierId = ReassignInput.TargetSupplierId
                         }, HttpContext.RequestAborted);
 
                         SuccessMessage = $"Successfully reassigned {updated} {(updated == 1 ? "product" : "products")} to the new supplier.";
                     }
                 }
-                else if (Form.Action == "update-selected")
+                catch (Exception ex)
                 {
-                    if (Form.ProductIds.Count == 0)
+                    ErrorMessage = ex.Message;
+                    Logger.LogError(ex, "Bulk reassign supplier operation failed.");
+                }
+            }
+            else if (SelectedInput is not null)
+            {
+                try
+                {
+                    if (SelectedInput.ProductIds.Count == 0)
                     {
                         ErrorMessage = "No products were selected for update.";
                     }
-                    else if ((Form.TargetSupplierId is null || Form.TargetSupplierId <= 0) &&
-                             (Form.TargetCategoryId is null || Form.TargetCategoryId <= 0))
+                    else if ((SelectedInput.TargetSupplierId is null || SelectedInput.TargetSupplierId <= 0) &&
+                             (SelectedInput.TargetCategoryId is null || SelectedInput.TargetCategoryId <= 0))
                     {
                         ErrorMessage = "Please select a new supplier or category to apply.";
                     }
@@ -262,19 +275,19 @@
                     {
                         var updated = await Inventory.BulkUpdateProductsAsync(HttpContext.User, new BulkEditInput
                         {
-                            ProductIds = Form.ProductIds,
-                            TargetSupplierId = Form.TargetSupplierId > 0 ? Form.TargetSupplierId : null,
-                            TargetCategoryId = Form.TargetCategoryId > 0 ? Form.TargetCategoryId : null
+                            ProductIds = SelectedInput.ProductIds,
+                            TargetSupplierId = SelectedInput.TargetSupplierId > 0 ? SelectedInput.TargetSupplierId : null,
+                            TargetCategoryId = SelectedInput.TargetCategoryId > 0 ? SelectedInput.TargetCategoryId : null
                         }, HttpContext.RequestAborted);
 
                         SuccessMessage = $"Successfully updated {updated} {(updated == 1 ? "product" : "products")}.";
                     }
                 }
-            }
-            catch (Exception ex)
-            {
-                ErrorMessage = ex.Message;
-                Logger.LogError(ex, "Bulk edit operation failed.");
+                catch (Exception ex)
+                {
+                    ErrorMessage = ex.Message;
+                    Logger.LogError(ex, "Bulk edit selected operation failed.");
+                }
             }
         }
 
@@ -286,28 +299,11 @@
             Categories = await Inventory.CategoriesAsync(HttpContext.User, HttpContext.RequestAborted);
 
             SelectedIds.Clear();
-            if (Form?.ProductIds.Count > 0)
+            if (SelectedInput?.ProductIds.Count > 0)
             {
-                SelectedIds.AddRange(Form.ProductIds.Distinct());
+                SelectedIds.AddRange(SelectedInput.ProductIds.Distinct());
             }
-            else if (HttpMethods.IsPost(HttpContext.Request.Method) && HttpContext.Request.HasFormContentType)
-            {
-                var formValues = HttpContext.Request.Form["Input.ProductIds"];
-                if (formValues.Count == 0)
-                {
-                    formValues = HttpContext.Request.Form["ProductIds"];
-                }
-                foreach (var v in formValues)
-                {
-                    if (int.TryParse(v, out var id) && id > 0)
-                    {
-                        SelectedIds.Add(id);
-                    }
-                }
-                SelectedIds = SelectedIds.Distinct().ToList();
-            }
-            
-            if (SelectedIds.Count == 0 && !string.IsNullOrWhiteSpace(Ids))
+            else if (!string.IsNullOrWhiteSpace(Ids))
             {
                 var parsedIds = Ids.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                                    .Select(s => int.TryParse(s, out var id) ? id : 0)

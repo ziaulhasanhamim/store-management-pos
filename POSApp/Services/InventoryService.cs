@@ -110,7 +110,9 @@ public sealed class InventoryService(IServiceScopeFactory scopes, IConfiguration
             var normalizedTerm = NameNormalization.Normalize(term);
             _ = int.TryParse(term, out var productId);
             query = query.Where(p => p.NormalizedName.Contains(normalizedTerm)
-                || (p.Barcode != null && p.Barcode.ToLower().Contains(term.ToLower())) || p.Id == productId);
+                || (p.Barcode != null && p.Barcode.ToLower().Contains(term.ToLower()))
+                || (p.Supplier != null && p.Supplier.NormalizedName.Contains(normalizedTerm))
+                || p.Id == productId);
         }
         if (!costs && sort is "cost" or "cost-desc" or "value" or "value-desc")
         {
@@ -157,7 +159,8 @@ public sealed class InventoryService(IServiceScopeFactory scopes, IConfiguration
             var normalizedTerm = NameNormalization.Normalize(term);
             _ = int.TryParse(term, out var productId);
             query = query.Where(product => product.NormalizedName.Contains(normalizedTerm)
-                || product.Barcode != null && product.Barcode.ToLower().Contains(term.ToLower())
+                || (product.Barcode != null && product.Barcode.ToLower().Contains(term.ToLower()))
+                || (product.Supplier != null && product.Supplier.NormalizedName.Contains(normalizedTerm))
                 || product.Id == productId);
         }
         return await query.CountAsync(ct);
@@ -812,15 +815,21 @@ public sealed class InventoryService(IServiceScopeFactory scopes, IConfiguration
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         await RequireActor(db, actor, true, ct);
 
-        return await db.Suppliers.AsNoTracking()
+        var counts = await db.Products.AsNoTracking()
+            .Where(p => !p.IsDeleted)
+            .GroupBy(p => p.SupplierId)
+            .Select(g => new { SupplierId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.SupplierId, x => x.Count, ct);
+
+        var suppliers = await db.Suppliers.AsNoTracking()
             .Where(s => !s.IsDeleted)
             .OrderBy(s => s.Name)
-            .Select(s => new BulkSupplierCount(
-                s.Id,
-                s.Name,
-                db.Products.Count(p => p.SupplierId == s.Id && !p.IsDeleted)
-            ))
+            .Select(s => new { s.Id, s.Name })
             .ToListAsync(ct);
+
+        return suppliers
+            .Select(s => new BulkSupplierCount(s.Id, s.Name, counts.GetValueOrDefault(s.Id, 0)))
+            .ToList();
     }
 
     public async Task<IReadOnlyList<BulkEditItemSummary>> GetProductsSummaryByIdsAsync(ClaimsPrincipal actor, IReadOnlyList<int> ids, CancellationToken ct = default)

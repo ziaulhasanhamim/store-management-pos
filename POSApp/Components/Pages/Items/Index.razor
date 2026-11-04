@@ -56,12 +56,12 @@
         <form action="/items" method="get" class="flex w-full flex-wrap items-end gap-3" data-enhance data-auto-search="true">
             <input type="hidden" name="sort" value="@Sort" />
             <input type="hidden" name="locationId" value="@LocationId" />
-            <input type="hidden" name="pageSize" value="@PageSize" />
+            <input type="hidden" name="pageSize" value="@(PageSize <= 0 ? 30 : PageSize)" />
             <div class="w-full sm:max-w-lg">
                 <label for="items-search" class="field-label">Search items</label>
                 <div class="flex items-center gap-2 sm:gap-3">
                     <Icon Name="search" />
-                    <input id="items-search" name="search" value="@Search" class="field" placeholder="Search name, barcode or ID" data-auto-search="true" autocomplete="off" data-permanent />
+                    <input id="items-search" name="search" value="@Search" class="field" placeholder="Search name, barcode, ID or supplier" data-auto-search="true" autocomplete="off" data-permanent />
                 </div>
             </div>
         </form>
@@ -166,8 +166,8 @@
         <AuthorizeView Policy="@AppPolicies.ManageInventory">
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-slate-100 p-3 sm:p-4">
                 <div class="flex flex-wrap items-center gap-2">
-                    <button class="btn-secondary w-full sm:w-auto text-xs sm:text-sm" type="submit" formaction="/items/labels" disabled="@(Items is null || Items.Count == 0)" data-pending-text="Generating…">Generate selected labels</button>
-                    <button class="btn-primary w-full sm:w-auto text-xs sm:text-sm" type="submit" formaction="/items/bulk-edit" disabled="@(Items is null || Items.Count == 0)">
+                    <button class="btn-secondary w-full sm:w-auto text-xs sm:text-sm" type="submit" disabled="@(Items is null || Items.Count == 0)" data-pending-text="Generating…">Generate selected labels</button>
+                    <button class="btn-primary w-full sm:w-auto text-xs sm:text-sm" type="button" id="bulk-edit-selected-btn" disabled="@(Items is null || Items.Count == 0)">
                         <Icon Name="edit" />
                         Bulk edit selected
                     </button>
@@ -218,6 +218,10 @@
 
     protected override async Task OnParametersSetAsync()
     {
+        if (PageSize <= 0)
+        {
+            PageSize = 30;
+        }
         Sort = string.IsNullOrWhiteSpace(Sort) ? "id" : Sort;
         Items = null;
         Failed = false;

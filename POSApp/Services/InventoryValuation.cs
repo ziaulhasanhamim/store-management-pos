@@ -21,8 +21,11 @@ public sealed class InventoryValuation(IServiceScopeFactory scopes)
             {
                 var term = search.Trim();
                 var normalizedTerm = NameNormalization.Normalize(term);
+                _ = int.TryParse(term, out var productId);
                 products = products.Where(product => product.NormalizedName.Contains(normalizedTerm)
-                    || (product.Barcode != null && product.Barcode.ToLower().Contains(term.ToLower())));
+                    || (product.Barcode != null && product.Barcode.ToLower().Contains(term.ToLower()))
+                    || (product.Supplier != null && product.Supplier.NormalizedName.Contains(normalizedTerm))
+                    || product.Id == productId);
             }
             var query = products.Select(product => new ValueQuery
             {
