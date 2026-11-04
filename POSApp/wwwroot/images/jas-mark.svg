@@ -1,6 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="100%" height="100%">
+  <defs>
+    <linearGradient id="jas-mark-grad" x1="15%" y1="100%" x2="85%" y2="0%">
+      <stop offset="0%" stop-color="#1D4ED8" />
+      <stop offset="100%" stop-color="#3B82F6" />
+    </linearGradient>
+  </defs>
   <!-- Transparent Blue JAS International Monogram -->
-  <g fill="#2E7BEF" fill-rule="evenodd">
+  <g fill="url(#jas-mark-grad)" fill-rule="evenodd">
     <!-- Left / Lower Loop -->
     <path d="M 107 483 L 431 483 L 562 258 L 642 258 L 348 765 L 269 765 Z M 216 532 L 309 693 L 402 532 Z" />
     <!-- Right / Upper Loop -->
