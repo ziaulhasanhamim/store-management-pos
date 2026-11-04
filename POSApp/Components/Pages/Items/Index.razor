@@ -167,10 +167,10 @@
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-slate-100 p-3 sm:p-4">
                 <div class="flex flex-wrap items-center gap-2">
                     <button class="btn-secondary w-full sm:w-auto text-xs sm:text-sm" type="submit" disabled="@(Items is null || Items.Count == 0)" data-pending-text="Generating…">Generate selected labels</button>
-                    <button class="btn-primary w-full sm:w-auto text-xs sm:text-sm" type="button" id="bulk-edit-selected-btn" disabled="@(Items is null || Items.Count == 0)">
+                    <a href="/items/bulk-edit" class="btn-primary w-full sm:w-auto text-xs sm:text-sm inline-flex items-center justify-center gap-1.5 @(Items is null || Items.Count == 0 ? "pointer-events-none opacity-50" : "")" id="bulk-edit-selected-btn">
                         <Icon Name="edit" />
                         Bulk edit selected
-                    </button>
+                    </a>
                 </div>
                 <span class="text-xs text-slate-400">Missing barcodes will be generated from product IDs.</span>
             </div>

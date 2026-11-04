@@ -115,6 +115,17 @@ window.addEventListener('keydown', event => {
     }
 }, true); // Use capture phase so event.preventDefault() stops character insertion into inputs on Mac
 
+function updateBulkEditLinkHref() {
+    const link = document.getElementById('bulk-edit-selected-btn');
+    if (!link) return;
+    const checked = Array.from(document.querySelectorAll('input[type="checkbox"][name="Input.ProductIds"]:checked, input[type="checkbox"][name="productIds"]:checked, input[type="checkbox"][name="ProductIds"]:checked'))
+        .map(cb => cb.value)
+        .filter(val => val && parseInt(val, 10) > 0);
+    const targetUrl = checked.length > 0 ? ('/items/bulk-edit?ids=' + checked.join(',')) : '/items/bulk-edit';
+    link.setAttribute('href', targetUrl);
+    link.href = targetUrl;
+}
+
 // Master checkbox helper: toggle all row checkboxes in a table
 document.addEventListener('change', event => {
     if (event.target && event.target.id === 'select-all-items') {
@@ -122,19 +133,12 @@ document.addEventListener('change', event => {
         const checkboxes = document.querySelectorAll('input[type="checkbox"][name="Input.ProductIds"], input[type="checkbox"][name="productIds"], input[type="checkbox"][name="ProductIds"]');
         checkboxes.forEach(cb => { cb.checked = checked; });
     }
+    updateBulkEditLinkHref();
 });
 
-// Bulk edit selected button click handler
+// Bulk edit selected button click handler: ensures href is set in capture phase so Blazor enhanced navigation handles it smoothly
 document.addEventListener('click', event => {
-    const btn = event.target?.closest?.('#bulk-edit-selected-btn');
-    if (!btn) return;
-    event.preventDefault();
-    const checked = Array.from(document.querySelectorAll('input[type="checkbox"][name="Input.ProductIds"]:checked, input[type="checkbox"][name="productIds"]:checked, input[type="checkbox"][name="ProductIds"]:checked'))
-        .map(cb => cb.value)
-        .filter(val => val && parseInt(val, 10) > 0);
-    if (checked.length > 0) {
-        window.location.href = '/items/bulk-edit?ids=' + checked.join(',');
-    } else {
-        window.location.href = '/items/bulk-edit';
-    }
-});
+    const link = event.target?.closest?.('#bulk-edit-selected-btn');
+    if (!link) return;
+    updateBulkEditLinkHref();
+}, true);
