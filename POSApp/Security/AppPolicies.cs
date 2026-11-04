@@ -14,7 +14,7 @@ public static class AppPolicies
             options.AddPolicy(ManageStockAdjustment, policy => policy.RequireRole(AppRoles.Admin));
             options.AddPolicy(ManageUsers, policy => policy.RequireRole(AppRoles.Admin));
             options.AddPolicy(ManageInventory, policy => policy.RequireRole(AppRoles.Admin, AppRoles.InventoryManager));
-            options.AddPolicy(ViewCostPrice, policy => policy.RequireRole(AppRoles.Admin, AppRoles.InventoryManager));
+            options.AddPolicy(ViewCostPrice, policy => policy.RequireRole(AppRoles.Admin, AppRoles.InventoryManager, AppRoles.SalesAssociate, AppRoles.InventoryViewer));
             options.AddPolicy(MakeSales, policy => policy.RequireRole(AppRoles.Admin, AppRoles.InventoryManager, AppRoles.SalesAssociate));
         });
 }

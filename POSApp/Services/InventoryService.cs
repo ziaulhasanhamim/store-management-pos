@@ -34,8 +34,8 @@ public sealed class InventoryService(IServiceScopeFactory scopes, IConfiguration
             )
             .ToListAsync(ct);
 
-        var canSeeCost = roles.Any(r => r == AppRoles.Admin || r == AppRoles.InventoryManager);
-        if (!canSeeCost && (manage || !roles.Contains(AppRoles.SalesAssociate)))
+        var canSeeCost = roles.Any(r => r == AppRoles.Admin || r == AppRoles.InventoryManager || r == AppRoles.SalesAssociate || r == AppRoles.InventoryViewer);
+        if (manage && !roles.Any(r => r == AppRoles.Admin || r == AppRoles.InventoryManager))
         {
             throw new UnauthorizedAccessException();
         }
@@ -52,7 +52,7 @@ public sealed class InventoryService(IServiceScopeFactory scopes, IConfiguration
             role => role.Id,
             (userRole, role) => new { userRole, role }
         )
-        .Where(joined => joined.role.Name == AppRoles.Admin || joined.role.Name == AppRoles.InventoryManager)
+        .Where(joined => joined.role.Name == AppRoles.Admin || joined.role.Name == AppRoles.InventoryManager || joined.role.Name == AppRoles.SalesAssociate || joined.role.Name == AppRoles.InventoryViewer)
         .AnyAsync(ct);
 
     private static IQueryable<ItemRow> ItemQuery(IQueryable<Product> products, bool costs, int? locationId = null) => products

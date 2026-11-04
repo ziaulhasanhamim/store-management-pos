@@ -208,7 +208,7 @@
     private static readonly string[] ExportColumns = ["Item ID", "Item", "Category", "Supplier", "Barcode", "Unit", "Stock", "Selling price", "Average cost", "Stock value"];
 
     private int ColumnCount => 7
-        + (HttpContext.User.IsInRole(AppRoles.Admin) || HttpContext.User.IsInRole(AppRoles.InventoryManager) ? 3 : 0)
+        + (HttpContext.User.IsInRole(AppRoles.Admin) || HttpContext.User.IsInRole(AppRoles.InventoryManager) || HttpContext.User.IsInRole(AppRoles.SalesAssociate) || HttpContext.User.IsInRole(AppRoles.InventoryViewer) ? 3 : 0)
         + AttributeColumns.Count;
 
     private int CurrentPage => Math.Clamp(Page, 1, 100000);
