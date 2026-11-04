@@ -13,7 +13,7 @@
             Back to items
         </a>
         <h1>Bulk Edit Items</h1>
-        <p class="text-xs text-slate-500">Reassign suppliers or update categories across inventory products in bulk.</p>
+        <p class="text-xs text-slate-500">Update default supplier or category for selected products in bulk.</p>
     </div>
     <div class="flex items-center gap-2">
         <a href="/items" class="btn-secondary text-xs sm:text-sm px-3 sm:px-4 py-2 sm:py-2.5">Items catalog</a>
@@ -37,152 +37,100 @@
     </div>
 }
 
-<div class="space-y-8">
-    <!-- Card 1: Catalog-Wide Supplier Reassignment -->
-    <section class="panel p-5 sm:p-6">
-        <div class="flex items-center justify-between border-b border-slate-100 pb-4 mb-5">
-            <div>
-                <h2 class="text-lg font-semibold text-slate-900">Reassign Supplier (Catalog-Wide)</h2>
-                <p class="text-xs text-slate-500 mt-0.5">Transfer all products from one supplier to another in a single operation (e.g. from <em>nn watch gadget</em> to <em>nn gadget</em>).</p>
-            </div>
-            <span class="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">Quick Reassign</span>
+<section class="panel p-5 sm:p-6">
+    <div class="flex items-center justify-between border-b border-slate-100 pb-4 mb-5">
+        <div>
+            <h2 class="text-lg font-semibold text-slate-900">Bulk Edit Selected Products</h2>
+            <p class="text-xs text-slate-500 mt-0.5">Apply a new supplier or category to specific items chosen from the catalog.</p>
         </div>
+        <span class="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">@SelectedItems.Count items selected</span>
+    </div>
 
-        <form method="post" action="/items/bulk-edit" @formname="reassign-supplier" data-enhance data-submit-indication="true">
+    @if (SelectedItems.Count == 0)
+    {
+        <div class="empty-state">
+            <Icon Name="box" />
+            <p>No specific products currently selected.</p>
+            <div class="mt-3">
+                <a href="/items" class="btn-secondary text-xs">
+                    Go to Items catalog to select products →
+                </a>
+            </div>
+        </div>
+    }
+    else
+    {
+        <form method="post" action="/items/bulk-edit" @formname="bulk-edit-selected" data-enhance data-submit-indication="true">
             <AntiforgeryToken />
-            
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-5 items-start">
-                <div>
-                    <label class="field-label" for="source-supplier">Current supplier (transfer from)</label>
-                    <select id="source-supplier" name="ReassignInput.SourceSupplierId" class="field" required>
-                        <option value="">Select current supplier…</option>
-                        @foreach (var s in SupplierCounts)
-                        {
-                            <option value="@s.Id">@s.Name (@s.ProductCount @(s.ProductCount == 1 ? "item" : "items"))</option>
-                        }
-                    </select>
-                    <p class="text-xs text-slate-400 mt-1">Shows active products currently associated with each supplier.</p>
-                </div>
+            @foreach (var id in SelectedIds)
+            {
+                <input type="hidden" name="SelectedInput.ProductIds" value="@id" />
+            }
 
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-6">
                 <div>
-                    <label class="field-label" for="target-supplier">New supplier (transfer to)</label>
-                    <select id="target-supplier" name="ReassignInput.TargetSupplierId" class="field" required>
-                        <option value="">Select target supplier…</option>
+                    <label class="field-label" for="batch-target-supplier">Set default supplier</label>
+                    <select id="batch-target-supplier" name="SelectedInput.TargetSupplierId" class="field">
+                        <option value="">— Keep existing supplier —</option>
                         @foreach (var s in Suppliers)
                         {
                             <option value="@s.Id">@s.Name</option>
                         }
                     </select>
-                    <p class="text-xs text-slate-400 mt-1">All products matching the current supplier will be reassigned here.</p>
+                    <p class="text-xs text-slate-400 mt-1">Leave unselected to keep each item's current supplier.</p>
+                </div>
+
+                <div>
+                    <label class="field-label" for="batch-target-category">Set category</label>
+                    <select id="batch-target-category" name="SelectedInput.TargetCategoryId" class="field">
+                        <option value="">— Keep existing category —</option>
+                        @foreach (var c in Categories)
+                        {
+                            <option value="@c.Id">@c.Name</option>
+                        }
+                    </select>
+                    <p class="text-xs text-slate-400 mt-1">Leave unselected to keep each item's current category.</p>
                 </div>
             </div>
 
-            <div class="mt-6 flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-slate-100">
-                <span class="text-xs text-slate-500">Updates product catalog records immediately. Historical purchase records remain intact.</span>
-                <button type="submit" class="btn-primary text-xs sm:text-sm" data-pending-text="Reassigning…">
+            <div class="table-scroll mb-5">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Item</th>
+                            <th>Barcode</th>
+                            <th>Current supplier</th>
+                            <th>Current category</th>
+                            <th class="text-right">Price</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var item in SelectedItems)
+                        {
+                            <tr>
+                                <td class="font-semibold text-blue-700">@item.Id</td>
+                                <td class="font-semibold text-slate-900">@item.Name</td>
+                                <td class="font-mono text-xs text-slate-500">@(item.Barcode ?? "—")</td>
+                                <td class="text-xs">@item.Supplier</td>
+                                <td class="text-xs">@(item.Category ?? "Uncategorized")</td>
+                                <td class="text-right font-medium">@item.SellingPrice.ToString("N2") @(Configuration["CurrencyCode"] ?? "BDT")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-slate-100">
+                <a href="/items" class="btn-secondary text-xs sm:text-sm">Cancel</a>
+                <button type="submit" class="btn-primary text-xs sm:text-sm" data-pending-text="Updating…">
                     <Icon Name="check" />
-                    Reassign all matching products
+                    Apply changes to @SelectedItems.Count products
                 </button>
             </div>
         </form>
-    </section>
-
-    <!-- Card 2: Bulk Edit Specific Selected Products -->
-    <section class="panel p-5 sm:p-6">
-        <div class="flex items-center justify-between border-b border-slate-100 pb-4 mb-5">
-            <div>
-                <h2 class="text-lg font-semibold text-slate-900">Bulk Edit Selected Products</h2>
-                <p class="text-xs text-slate-500 mt-0.5">Apply a new supplier or category to specific items chosen from the catalog.</p>
-            </div>
-            <span class="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">@SelectedItems.Count items selected</span>
-        </div>
-
-        @if (SelectedItems.Count == 0)
-        {
-            <div class="empty-state">
-                <Icon Name="box" />
-                <p>No specific products currently selected.</p>
-                <div class="mt-3">
-                    <a href="/items" class="btn-secondary text-xs">
-                        Go to Items catalog to select products →
-                    </a>
-                </div>
-            </div>
-        }
-        else
-        {
-            <form method="post" action="/items/bulk-edit" @formname="bulk-edit-selected" data-enhance data-submit-indication="true">
-                <AntiforgeryToken />
-                @foreach (var id in SelectedIds)
-                {
-                    <input type="hidden" name="SelectedInput.ProductIds" value="@id" />
-                }
-
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-6">
-                    <div>
-                        <label class="field-label" for="batch-target-supplier">Set default supplier</label>
-                        <select id="batch-target-supplier" name="SelectedInput.TargetSupplierId" class="field">
-                            <option value="">— Keep existing supplier —</option>
-                            @foreach (var s in Suppliers)
-                            {
-                                <option value="@s.Id">@s.Name</option>
-                            }
-                        </select>
-                        <p class="text-xs text-slate-400 mt-1">Leave unselected to keep each item's current supplier.</p>
-                    </div>
-
-                    <div>
-                        <label class="field-label" for="batch-target-category">Set category</label>
-                        <select id="batch-target-category" name="SelectedInput.TargetCategoryId" class="field">
-                            <option value="">— Keep existing category —</option>
-                            @foreach (var c in Categories)
-                            {
-                                <option value="@c.Id">@c.Name</option>
-                            }
-                        </select>
-                        <p class="text-xs text-slate-400 mt-1">Leave unselected to keep each item's current category.</p>
-                    </div>
-                </div>
-
-                <div class="table-scroll mb-5">
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>Item</th>
-                                <th>Barcode</th>
-                                <th>Current supplier</th>
-                                <th>Current category</th>
-                                <th class="text-right">Price</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var item in SelectedItems)
-                            {
-                                <tr>
-                                    <td class="font-semibold text-blue-700">@item.Id</td>
-                                    <td class="font-semibold text-slate-900">@item.Name</td>
-                                    <td class="font-mono text-xs text-slate-500">@(item.Barcode ?? "—")</td>
-                                    <td class="text-xs">@item.Supplier</td>
-                                    <td class="text-xs">@(item.Category ?? "Uncategorized")</td>
-                                    <td class="text-right font-medium">@item.SellingPrice.ToString("N2") @(Configuration["CurrencyCode"] ?? "BDT")</td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
-
-                <div class="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-slate-100">
-                    <a href="/items" class="btn-secondary text-xs sm:text-sm">Cancel</a>
-                    <button type="submit" class="btn-primary text-xs sm:text-sm" data-pending-text="Updating…">
-                        <Icon Name="check" />
-                        Apply changes to @SelectedItems.Count products
-                    </button>
-                </div>
-            </form>
-        }
-    </section>
-</div>
+    }
+</section>
 
 @code {
     [CascadingParameter]
@@ -191,17 +139,8 @@
     [SupplyParameterFromQuery]
     public string? Ids { get; set; }
 
-    [SupplyParameterFromForm(FormName = "reassign-supplier")]
-    private ReassignSupplierModel? ReassignInput { get; set; }
-
     [SupplyParameterFromForm(FormName = "bulk-edit-selected")]
     private BulkEditSelectedModel? SelectedInput { get; set; }
-
-    public sealed class ReassignSupplierModel
-    {
-        public int? SourceSupplierId { get; set; }
-        public int? TargetSupplierId { get; set; }
-    }
 
     public sealed class BulkEditSelectedModel
     {
@@ -210,7 +149,6 @@
         public List<int> ProductIds { get; set; } = [];
     }
 
-    private IReadOnlyList<BulkSupplierCount> SupplierCounts = [];
     private IReadOnlyList<Lookup> Suppliers = [];
     private IReadOnlyList<Lookup> Categories = [];
     private IReadOnlyList<BulkEditItemSummary> SelectedItems = [];
@@ -223,77 +161,40 @@
         SuccessMessage = null;
         ErrorMessage = null;
 
-        if (HttpMethods.IsPost(HttpContext.Request.Method))
+        if (HttpMethods.IsPost(HttpContext.Request.Method) && SelectedInput is not null)
         {
-            if (ReassignInput is not null)
+            try
             {
-                try
+                if (SelectedInput.ProductIds.Count == 0)
                 {
-                    if (ReassignInput.SourceSupplierId is null || ReassignInput.SourceSupplierId <= 0)
-                    {
-                        ErrorMessage = "Please select the current supplier to transfer from.";
-                    }
-                    else if (ReassignInput.TargetSupplierId is null || ReassignInput.TargetSupplierId <= 0)
-                    {
-                        ErrorMessage = "Please select the new target supplier to transfer to.";
-                    }
-                    else if (ReassignInput.SourceSupplierId == ReassignInput.TargetSupplierId)
-                    {
-                        ErrorMessage = "Current supplier and new target supplier must be different.";
-                    }
-                    else
-                    {
-                        var updated = await Inventory.BulkUpdateProductsAsync(HttpContext.User, new BulkEditInput
-                        {
-                            SourceSupplierId = ReassignInput.SourceSupplierId,
-                            TargetSupplierId = ReassignInput.TargetSupplierId
-                        }, HttpContext.RequestAborted);
-
-                        SuccessMessage = $"Successfully reassigned {updated} {(updated == 1 ? "product" : "products")} to the new supplier.";
-                    }
+                    ErrorMessage = "No products were selected for update.";
                 }
-                catch (Exception ex)
+                else if ((SelectedInput.TargetSupplierId is null || SelectedInput.TargetSupplierId <= 0) &&
+                         (SelectedInput.TargetCategoryId is null || SelectedInput.TargetCategoryId <= 0))
                 {
-                    ErrorMessage = ex.Message;
-                    Logger.LogError(ex, "Bulk reassign supplier operation failed.");
+                    ErrorMessage = "Please select a new supplier or category to apply.";
+                }
+                else
+                {
+                    var updated = await Inventory.BulkUpdateProductsAsync(HttpContext.User, new BulkEditInput
+                    {
+                        ProductIds = SelectedInput.ProductIds,
+                        TargetSupplierId = SelectedInput.TargetSupplierId > 0 ? SelectedInput.TargetSupplierId : null,
+                        TargetCategoryId = SelectedInput.TargetCategoryId > 0 ? SelectedInput.TargetCategoryId : null
+                    }, HttpContext.RequestAborted);
+
+                    SuccessMessage = $"Successfully updated {updated} {(updated == 1 ? "product" : "products")}.";
                 }
             }
-            else if (SelectedInput is not null)
+            catch (Exception ex)
             {
-                try
-                {
-                    if (SelectedInput.ProductIds.Count == 0)
-                    {
-                        ErrorMessage = "No products were selected for update.";
-                    }
-                    else if ((SelectedInput.TargetSupplierId is null || SelectedInput.TargetSupplierId <= 0) &&
-                             (SelectedInput.TargetCategoryId is null || SelectedInput.TargetCategoryId <= 0))
-                    {
-                        ErrorMessage = "Please select a new supplier or category to apply.";
-                    }
-                    else
-                    {
-                        var updated = await Inventory.BulkUpdateProductsAsync(HttpContext.User, new BulkEditInput
-                        {
-                            ProductIds = SelectedInput.ProductIds,
-                            TargetSupplierId = SelectedInput.TargetSupplierId > 0 ? SelectedInput.TargetSupplierId : null,
-                            TargetCategoryId = SelectedInput.TargetCategoryId > 0 ? SelectedInput.TargetCategoryId : null
-                        }, HttpContext.RequestAborted);
-
-                        SuccessMessage = $"Successfully updated {updated} {(updated == 1 ? "product" : "products")}.";
-                    }
-                }
-                catch (Exception ex)
-                {
-                    ErrorMessage = ex.Message;
-                    Logger.LogError(ex, "Bulk edit selected operation failed.");
-                }
+                ErrorMessage = ex.Message;
+                Logger.LogError(ex, "Bulk edit selected operation failed.");
             }
         }
 
         try
         {
-            SupplierCounts = await Inventory.SupplierProductCountsAsync(HttpContext.User, HttpContext.RequestAborted);
             var options = await Inventory.OptionsAsync(HttpContext.User, HttpContext.RequestAborted);
             Suppliers = options.Suppliers.Select(s => new Lookup(s.Id, s.Name)).ToArray();
             Categories = await Inventory.CategoriesAsync(HttpContext.User, HttpContext.RequestAborted);

@@ -112,6 +112,7 @@ public sealed class InventoryService(IServiceScopeFactory scopes, IConfiguration
             query = query.Where(p => p.NormalizedName.Contains(normalizedTerm)
                 || (p.Barcode != null && p.Barcode.ToLower().Contains(term.ToLower()))
                 || (p.Supplier != null && p.Supplier.NormalizedName.Contains(normalizedTerm))
+                || (p.Category != null && p.Category.NormalizedName.Contains(normalizedTerm))
                 || p.Id == productId);
         }
         if (!costs && sort is "cost" or "cost-desc" or "value" or "value-desc")
@@ -161,6 +162,7 @@ public sealed class InventoryService(IServiceScopeFactory scopes, IConfiguration
             query = query.Where(product => product.NormalizedName.Contains(normalizedTerm)
                 || (product.Barcode != null && product.Barcode.ToLower().Contains(term.ToLower()))
                 || (product.Supplier != null && product.Supplier.NormalizedName.Contains(normalizedTerm))
+                || (product.Category != null && product.Category.NormalizedName.Contains(normalizedTerm))
                 || product.Id == productId);
         }
         return await query.CountAsync(ct);
