@@ -143,11 +143,15 @@ public partial class SalesEditor
         {
             return;
         }
-        if (args.Key == "F1" || args.Key == "?")
+        if (args.Key == "F1" || args.Key == "?" || (args.AltKey && args.Code == "Slash") || ((args.CtrlKey || args.MetaKey) && args.Code == "Slash"))
         {
             ShowShortcuts = !ShowShortcuts;
         }
-        else if (args.Key == "F2" || (args.AltKey && (args.Key == "s" || args.Key == "S")))
+        else if (args.Key == "Escape" && ShowShortcuts)
+        {
+            ShowShortcuts = false;
+        }
+        else if (args.Key == "F2" || (args.AltKey && (args.Code == "KeyS" || args.Key == "s" || args.Key == "S" || args.Key == "ß")) || ((args.CtrlKey || args.MetaKey) && args.ShiftKey && args.Code == "KeyS"))
         {
             await SearchField.FocusAsync();
         }

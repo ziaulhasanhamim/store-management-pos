@@ -17,6 +17,7 @@
         <div class="flex flex-wrap items-center gap-2">
             <a href="/items/categories" class="btn-secondary text-xs sm:text-sm px-3 sm:px-4 py-2 sm:py-2.5">Categories</a>
             <a href="/items/attributes" class="btn-secondary text-xs sm:text-sm px-3 sm:px-4 py-2 sm:py-2.5">Attributes</a>
+            <a href="/items/bulk-edit" class="btn-secondary text-xs sm:text-sm px-3 sm:px-4 py-2 sm:py-2.5">Bulk edit</a>
             <a href="/items/import" class="btn-secondary text-xs sm:text-sm px-3 sm:px-4 py-2 sm:py-2.5">Import JSON</a>
             <a href="/items/new" class="btn-primary text-xs sm:text-sm px-3 sm:px-5 py-2 sm:py-2.5">
                 <Icon Name="plus" />
@@ -75,7 +76,8 @@
                     <tr>
                         <AuthorizeView Policy="@AppPolicies.ManageInventory">
                             <th class="w-8 px-2 sm:px-4">
-                                <span class="sr-only">Select for labels</span>
+                                <input type="checkbox" id="select-all-items" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer" title="Select / deselect all items" />
+                                <span class="sr-only">Select all items</span>
                             </th>
                         </AuthorizeView>
                         <SortHeader Column="id" Label="ID" Sort="@Sort" Numeric="true" />
@@ -163,7 +165,13 @@
         </div>
         <AuthorizeView Policy="@AppPolicies.ManageInventory">
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-slate-100 p-3 sm:p-4">
-                <button class="btn-secondary w-full sm:w-auto text-xs sm:text-sm" type="submit" disabled="@(Items is null || Items.Count == 0)" data-pending-text="Generating…">Generate selected labels</button>
+                <div class="flex flex-wrap items-center gap-2">
+                    <button class="btn-secondary w-full sm:w-auto text-xs sm:text-sm" type="submit" formaction="/items/labels" disabled="@(Items is null || Items.Count == 0)" data-pending-text="Generating…">Generate selected labels</button>
+                    <button class="btn-primary w-full sm:w-auto text-xs sm:text-sm" type="submit" formaction="/items/bulk-edit" disabled="@(Items is null || Items.Count == 0)">
+                        <Icon Name="edit" />
+                        Bulk edit selected
+                    </button>
+                </div>
                 <span class="text-xs text-slate-400">Missing barcodes will be generated from product IDs.</span>
             </div>
         </AuthorizeView>

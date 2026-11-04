@@ -163,3 +163,22 @@ public sealed class BarcodeLabelInput
     public List<int> ProductIds { get; set; } = [];
     public int Copies { get; set; } = 1;
 }
+
+public sealed record BulkSupplierCount(int Id, string Name, int ProductCount);
+
+public sealed class BulkEditInput
+{
+    public List<int> ProductIds { get; set; } = [];
+    public int? SourceSupplierId { get; set; }
+    public int? TargetSupplierId { get; set; }
+    public int? TargetCategoryId { get; set; }
+}
+
+public sealed record BulkEditItemSummary(
+    int Id,
+    string Name,
+    string? Barcode,
+    string? Category,
+    string Supplier,
+    decimal SellingPrice
+);

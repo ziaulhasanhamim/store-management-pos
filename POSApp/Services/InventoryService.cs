@@ -806,6 +806,109 @@ public sealed class InventoryService(IServiceScopeFactory scopes, IConfiguration
         };
     }
 
+    public async Task<IReadOnlyList<BulkSupplierCount>> SupplierProductCountsAsync(ClaimsPrincipal actor, CancellationToken ct = default)
+    {
+        await using var scope = scopes.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await RequireActor(db, actor, true, ct);
+
+        return await db.Suppliers.AsNoTracking()
+            .Where(s => !s.IsDeleted)
+            .OrderBy(s => s.Name)
+            .Select(s => new BulkSupplierCount(
+                s.Id,
+                s.Name,
+                db.Products.Count(p => p.SupplierId == s.Id && !p.IsDeleted)
+            ))
+            .ToListAsync(ct);
+    }
+
+    public async Task<IReadOnlyList<BulkEditItemSummary>> GetProductsSummaryByIdsAsync(ClaimsPrincipal actor, IReadOnlyList<int> ids, CancellationToken ct = default)
+    {
+        if (ids.Count == 0) return [];
+        await using var scope = scopes.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await RequireActor(db, actor, false, ct);
+
+        return await db.Products.AsNoTracking()
+            .Where(p => ids.Contains(p.Id) && !p.IsDeleted)
+            .OrderBy(p => p.Name)
+            .Select(p => new BulkEditItemSummary(
+                p.Id,
+                p.Name,
+                p.Barcode,
+                p.Category == null ? null : p.Category.Name,
+                p.Supplier == null ? "—" : p.Supplier.Name,
+                p.SellingPrice
+            ))
+            .ToListAsync(ct);
+    }
+
+    public async Task<int> BulkUpdateProductsAsync(ClaimsPrincipal actor, BulkEditInput input, CancellationToken ct = default)
+    {
+        await using var scope = scopes.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var actorId = await RequireActor(db, actor, true, ct);
+
+        if ((input.TargetSupplierId is null || input.TargetSupplierId <= 0) &&
+            (input.TargetCategoryId is null || input.TargetCategoryId <= 0))
+        {
+            throw new ValidationException("Select a target supplier or target category to apply.");
+        }
+
+        Supplier? targetSupplier = null;
+        if (input.TargetSupplierId is not null && input.TargetSupplierId > 0)
+        {
+            targetSupplier = await db.Suppliers.SingleOrDefaultAsync(s => s.Id == input.TargetSupplierId.Value && !s.IsDeleted, ct)
+                ?? throw new ValidationException("Target supplier not found.");
+        }
+
+        Category? targetCategory = null;
+        if (input.TargetCategoryId is not null && input.TargetCategoryId > 0)
+        {
+            targetCategory = await db.Categories.SingleOrDefaultAsync(c => c.Id == input.TargetCategoryId.Value && !c.IsDeleted, ct)
+                ?? throw new ValidationException("Target category not found.");
+        }
+
+        IQueryable<Product> query = db.Products.Where(p => !p.IsDeleted);
+
+        if (input.SourceSupplierId is not null && input.SourceSupplierId > 0)
+        {
+            query = query.Where(p => p.SupplierId == input.SourceSupplierId.Value);
+        }
+        else if (input.ProductIds.Count > 0)
+        {
+            query = query.Where(p => input.ProductIds.Contains(p.Id));
+        }
+        else
+        {
+            throw new ValidationException("Select at least one product or choose a source supplier.");
+        }
+
+        var products = await query.ToListAsync(ct);
+        if (products.Count == 0)
+        {
+            return 0;
+        }
+
+        foreach (var product in products)
+        {
+            if (targetSupplier is not null)
+            {
+                product.SupplierId = targetSupplier.Id;
+            }
+            if (targetCategory is not null)
+            {
+                product.CategoryId = targetCategory.Id;
+            }
+            product.UpdatedAt = DateTimeOffset.UtcNow;
+            product.UpdatedByUserId = actorId;
+        }
+
+        await db.SaveChangesAsync(ct);
+        return products.Count;
+    }
+
     public async Task<int> AddLocationAsync(ClaimsPrincipal actor, string name, CancellationToken ct = default, bool canSell = true)
     {
         if (string.IsNullOrWhiteSpace(name) || name.Trim().Length > 200)
