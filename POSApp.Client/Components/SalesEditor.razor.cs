@@ -70,6 +70,7 @@ public partial class SalesEditor
     private bool CustomerDialog;
     private bool CameraDialog;
     private bool CameraPending;
+    private bool ShowShortcuts;
     private bool DiscountValid = true;
     private string CustomerName = "";
     private string? CustomerPhone;
@@ -142,7 +143,11 @@ public partial class SalesEditor
         {
             return;
         }
-        if (args.Key == "F2")
+        if (args.Key == "F1" || args.Key == "?")
+        {
+            ShowShortcuts = !ShowShortcuts;
+        }
+        else if (args.Key == "F2" || (args.AltKey && (args.Key == "s" || args.Key == "S")))
         {
             await SearchField.FocusAsync();
         }
@@ -150,7 +155,7 @@ public partial class SalesEditor
         {
             await SaveAsync(false);
         }
-        else if (args.CtrlKey && args.Key == "Enter" && !Invalid && !WalkInUnsettled)
+        else if ((args.Key == "F9" || ((args.CtrlKey || args.MetaKey) && args.Key == "Enter")) && !Invalid && !WalkInUnsettled)
         {
             await SaveAsync(true);
         }
@@ -159,20 +164,6 @@ public partial class SalesEditor
     private string Money(decimal value) => $"{Currency} {value:N2}";
 
     private Guid? LastScannedLineKey;
-
-    private async Task PlaySoundAsync(string type)
-    {
-        if (Scanner is not null)
-        {
-            try
-            {
-                await Scanner.InvokeVoidAsync("playBeep", type);
-            }
-            catch
-            {
-            }
-        }
-    }
 
     private bool Add(SalesProduct product)
     {
@@ -199,8 +190,7 @@ public partial class SalesEditor
     private async Task SelectProductAsync(SalesProduct product)
     {
         SearchCancellation?.Cancel();
-        var isIncrement = Add(product);
-        await PlaySoundAsync(isIncrement ? "duplicate" : "success");
+        Add(product);
         Search = "";
         Products = [];
         SelectedProductIndex = -1;
@@ -365,8 +355,7 @@ public partial class SalesEditor
             switch (outcome)
             {
                 case ProductFound(var product):
-                    var isIncrement = Add(product);
-                    await PlaySoundAsync(isIncrement ? "duplicate" : "success");
+                    Add(product);
                     await SearchField.FocusAsync();
                     break;
                 case AmbiguousMatches(var matches):
@@ -377,19 +366,16 @@ public partial class SalesEditor
                     {
                         Search = code;
                     }
-                    await PlaySoundAsync("duplicate");
                     break;
                 case BarcodeNotFound:
                     Error = $"Item with barcode \"{code}\" was not found.";
                     Products = [];
-                    await PlaySoundAsync("error");
                     break;
             }
         }
         catch (Exception exception)
         {
             Error = exception.Message;
-            await PlaySoundAsync("error");
         }
         finally
         {

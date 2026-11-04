@@ -59,6 +59,7 @@ public partial class ReceivingEditor
     private bool Searching;
     private bool ReturnMode;
     private bool DialogBusy;
+    private bool ShowShortcuts;
     private string? Error;
     private string? Dialog;
     private string? DialogError;

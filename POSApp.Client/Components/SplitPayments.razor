@@ -33,7 +33,7 @@
                 </label>
                 <label class="block">
                     <span class="field-label">@(Refund ? "Refund amount" : Method == PaymentMethod.Cash ? "Cash payment" : "Payment amount") (@Currency)</span>
-                    <DecimalField @key="Revision" class="field" @bind-Value="Amount" Maximum="@(AllowCashChange && Method == PaymentMethod.Cash ? 9999999999999999.99m : Remaining)" ValidityChanged="valid => AmountValid = valid" />
+                    <DecimalField id="@InputId" @key="Revision" class="field" @bind-Value="Amount" Maximum="@(AllowCashChange && Method == PaymentMethod.Cash ? 9999999999999999.99m : Remaining)" ValidityChanged="valid => AmountValid = valid" />
                 </label>
             </div>
             <div class="mt-3 flex flex-wrap gap-2">
@@ -85,6 +85,9 @@
 
     [Parameter]
     public bool AllowCashChange { get; set; }
+
+    [Parameter]
+    public string? InputId { get; set; } = "pos-payment-amount";
 
     [Parameter]
     public IReadOnlyList<PaymentInput> Payments { get; set; } = [];

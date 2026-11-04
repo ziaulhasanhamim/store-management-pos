@@ -4,7 +4,12 @@
 @inject IJSRuntime JS
 
 <div @onkeydown="HandleShortcutAsync">
-<p class="mb-3 text-xs text-slate-400">F2 search · F4 hold sale · Ctrl + Enter complete</p>
+<div class="mb-3 flex items-center justify-between">
+    <button type="button" id="pos-shortcuts-btn" @onclick="() => ShowShortcuts = true" class="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-800 transition-colors">
+        <kbd class="rounded border border-slate-300 bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-slate-700 shadow-xs">F1</kbd>
+        <span>Keyboard shortcuts</span>
+    </button>
+</div>
 
 <LocalDraft TState="SalesEditorState" Kind="sales" State="DraftState" Empty="@(Lines.Count == 0 && string.IsNullOrWhiteSpace(Notes) && Discount == 0)" Paused="Busy" Restore="RestoreDraft" Clear="NewSale" ReadyChanged="@(ready => DraftReady = ready)" @ref="Recovery" />
 
@@ -30,7 +35,7 @@
                     </select>
                 </div>
                 <div class="flex gap-2">
-                    <input class="field flex-1" aria-label="Search products or scan barcode"
+                    <input class="field flex-1" id="pos-search-input" aria-label="Search products or scan barcode"
                            placeholder="Scan barcode or search products…" autocomplete="off"
                            @bind="Search" @bind:event="oninput" @bind:after="SearchChangedAsync"
                            @onkeydown="SearchKeyAsync" @ref="SearchField" />
@@ -107,8 +112,10 @@
                             </tr>
                         </thead>
                         <tbody>
-                            @foreach (var line in Lines)
+                            @for (var index = 0; index < Lines.Count; index++)
                             {
+                                var line = Lines[index];
+                                var isLastItem = (index == 0);
                                 <tr @key="line.Key" class="@(line.Key == LastScannedLineKey ? "bg-emerald-50/80 transition-colors" : "")">
                                     <td>
                                         <strong class="block min-w-32 text-slate-900">@line.Product.Name</strong>
@@ -132,13 +139,13 @@
                                         }
                                     </td>
                                     <td>
-                                        <DecimalField class="field min-w-24" @bind-Value="line.Quantity"
+                                        <DecimalField id="@(isLastItem ? "pos-last-line-qty" : null)" class="field min-w-24" @bind-Value="line.Quantity"
                                                       Minimum="-999999999999999.999m"
                                                       Maximum="999999999999999.999m" DecimalPlaces="@(line.Product.AllowFractionUnit ? 3 : 0)"
                                                       ValidityChanged="valid => line.QuantityValid = valid" aria-label="@($"Quantity for {line.Product.Name}")" />
                                     </td>
                                     <td>
-                                        <DecimalField class="field min-w-28" @bind-Value="line.Price"
+                                        <DecimalField id="@(isLastItem ? "pos-last-line-price" : null)" class="field min-w-28" @bind-Value="line.Price"
                                                       ValidityChanged="valid => line.PriceValid = valid" aria-label="@($"Unit price for {line.Product.Name}")" />
                                     </td>
                                     <td class="text-right whitespace-nowrap font-semibold">@Money(line.Total)</td>
@@ -200,7 +207,7 @@
                 {
                     <p class="text-xs text-slate-500">Select a customer to leave a due or credit balance.</p>
                 }
-                <button type="button" class="btn-primary w-full" disabled="@(Invalid || (WalkInUnsettled))" @onclick="() => SaveAsync(true)">
+                <button type="button" id="pos-submit-btn" class="btn-primary w-full" disabled="@(Invalid || (WalkInUnsettled))" @onclick="() => SaveAsync(true)">
                     @if (Busy)
                     {
                         <span class="form-submit-spinner"></span>
@@ -273,6 +280,65 @@
         {
             <p class="error-panel mt-3" role="alert">@CameraError</p>
         }
+    </Modal>
+}
+
+@if (ShowShortcuts)
+{
+    <Modal Title="Keyboard Shortcuts (POS)" OnClose="() => ShowShortcuts = false">
+        <div class="space-y-3 text-sm">
+            <div class="flex items-center justify-between py-2 border-b border-slate-100">
+                <span class="text-slate-700">Search product / scan barcode</span>
+                <div class="flex items-center gap-1">
+                    <kbd class="px-2 py-0.5 rounded border border-slate-300 bg-slate-100 font-mono text-xs font-semibold">F2</kbd>
+                    <span class="text-xs text-slate-400">or</span>
+                    <kbd class="px-2 py-0.5 rounded border border-slate-300 bg-slate-100 font-mono text-xs font-semibold">Alt+S</kbd>
+                </div>
+            </div>
+            <div class="flex items-center justify-between py-2 border-b border-slate-100">
+                <span class="text-slate-700">Edit last item quantity</span>
+                <div class="flex items-center gap-1">
+                    <kbd class="px-2 py-0.5 rounded border border-slate-300 bg-slate-100 font-mono text-xs font-semibold">F3</kbd>
+                    <span class="text-xs text-slate-400">or</span>
+                    <kbd class="px-2 py-0.5 rounded border border-slate-300 bg-slate-100 font-mono text-xs font-semibold">Alt+Q</kbd>
+                </div>
+            </div>
+            <div class="flex items-center justify-between py-2 border-b border-slate-100">
+                <span class="text-slate-700">Edit last item unit price</span>
+                <div class="flex items-center gap-1">
+                    <kbd class="px-2 py-0.5 rounded border border-slate-300 bg-slate-100 font-mono text-xs font-semibold">F4</kbd>
+                    <span class="text-xs text-slate-400">or</span>
+                    <kbd class="px-2 py-0.5 rounded border border-slate-300 bg-slate-100 font-mono text-xs font-semibold">Alt+P</kbd>
+                </div>
+            </div>
+            <div class="flex items-center justify-between py-2 border-b border-slate-100">
+                <span class="text-slate-700">Jump to payment amount</span>
+                <div class="flex items-center gap-1">
+                    <kbd class="px-2 py-0.5 rounded border border-slate-300 bg-slate-100 font-mono text-xs font-semibold">F8</kbd>
+                    <span class="text-xs text-slate-400">or</span>
+                    <kbd class="px-2 py-0.5 rounded border border-slate-300 bg-slate-100 font-mono text-xs font-semibold">Alt+M</kbd>
+                </div>
+            </div>
+            <div class="flex items-center justify-between py-2 border-b border-slate-100">
+                <span class="text-slate-700">Complete sale</span>
+                <div class="flex items-center gap-1">
+                    <kbd class="px-2 py-0.5 rounded border border-slate-300 bg-slate-100 font-mono text-xs font-semibold">F9</kbd>
+                    <span class="text-xs text-slate-400">or</span>
+                    <kbd class="px-2 py-0.5 rounded border border-slate-300 bg-slate-100 font-mono text-xs font-semibold">Ctrl+Enter</kbd>
+                </div>
+            </div>
+            <div class="flex items-center justify-between py-2">
+                <span class="text-slate-700">Toggle shortcuts guide</span>
+                <div class="flex items-center gap-1">
+                    <kbd class="px-2 py-0.5 rounded border border-slate-300 bg-slate-100 font-mono text-xs font-semibold">F1</kbd>
+                    <span class="text-xs text-slate-400">or</span>
+                    <kbd class="px-2 py-0.5 rounded border border-slate-300 bg-slate-100 font-mono text-xs font-semibold">?</kbd>
+                </div>
+            </div>
+        </div>
+        <div class="mt-6 flex justify-end">
+            <button type="button" class="btn-primary" @onclick="() => ShowShortcuts = false">Got it</button>
+        </div>
     </Modal>
 }
 

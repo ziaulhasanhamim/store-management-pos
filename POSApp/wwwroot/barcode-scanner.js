@@ -64,56 +64,8 @@ function getAudioContext() {
     return audioCtx;
 }
 
-// Commercial POS audio feedback via Web Audio API (zero external sound files)
-export function playBeep(type = 'success') {
-    const ctx = getAudioContext();
-    if (!ctx) return;
-    try {
-        const now = ctx.currentTime;
-        if (type === 'success') {
-            // Clean high-frequency commercial POS beep: 1760 Hz (A6), 75ms duration
-            const osc = ctx.createOscillator();
-            const gain = ctx.createGain();
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(1760, now);
-            gain.gain.setValueAtTime(0.15, now);
-            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.075);
-            osc.connect(gain);
-            gain.connect(ctx.destination);
-            osc.start(now);
-            osc.stop(now + 0.075);
-        } else if (type === 'duplicate') {
-            // Upward 2-tone affirmative chime when incrementing an existing cart item
-            const osc = ctx.createOscillator();
-            const gain = ctx.createGain();
-            osc.type = 'triangle';
-            osc.frequency.setValueAtTime(1320, now);
-            osc.frequency.linearRampToValueAtTime(1760, now + 0.08);
-            gain.gain.setValueAtTime(0.15, now);
-            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
-            osc.connect(gain);
-            gain.connect(ctx.destination);
-            osc.start(now);
-            osc.stop(now + 0.09);
-        } else if (type === 'error') {
-            // Low double buzz for unknown barcode / error: 280 Hz, 80ms on, 40ms off, 80ms on
-            for (let i = 0; i < 2; i++) {
-                const start = now + (i * 0.12);
-                const osc = ctx.createOscillator();
-                const gain = ctx.createGain();
-                osc.type = 'sawtooth';
-                osc.frequency.setValueAtTime(280, start);
-                gain.gain.setValueAtTime(0.2, start);
-                gain.gain.exponentialRampToValueAtTime(0.001, start + 0.08);
-                osc.connect(gain);
-                gain.connect(ctx.destination);
-                osc.start(start);
-                osc.stop(start + 0.08);
-            }
-        }
-    } catch {
-        // Ignored if browser restricts audio autoplay before user interaction
-    }
+// Audio beep removed per user preference (silent operation)
+export function playBeep() {
 }
 
 const keyboardScanners = new WeakMap();

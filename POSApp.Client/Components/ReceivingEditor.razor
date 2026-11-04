@@ -8,7 +8,11 @@
 <div inert="@(Dialog is not null)">
     <ReceivingModePicker Disabled="Busy" />
 
-    <div class="mb-4 flex justify-end">
+    <div class="mb-4 flex items-center justify-between">
+        <button type="button" id="receiving-shortcuts-btn" @onclick="() => ShowShortcuts = true" class="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-800 transition-colors">
+            <kbd class="rounded border border-slate-300 bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-slate-700 shadow-xs">F1</kbd>
+            <span>Keyboard shortcuts</span>
+        </button>
         <button type="button" class="btn-secondary" @onclick="() => Recovery!.RequestResetAsync()" disabled="@(!RendererInfo.IsInteractive || !DraftReady || Busy)">
             <Icon Name="plus" />
             New receipt
@@ -116,7 +120,7 @@
                         </label>
                         <div class="flex items-center gap-3">
                             <Icon Name="search" />
-                            <input class="field" @bind="Search" @bind:event="oninput" @bind:after="SearchChanged"
+                            <input id="receiving-search-input" class="field" @bind="Search" @bind:event="oninput" @bind:after="SearchChanged"
                                    @onkeydown="SearchKeyDownAsync"
                                    placeholder="Search name, barcode or ID" aria-label="Search products to receive" autocomplete="off" />
                         </div>
@@ -204,8 +208,10 @@
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    @foreach (var line in Lines)
+                                    @for (var index = 0; index < Lines.Count; index++)
                                     {
+                                        var line = Lines[index];
+                                        var isLastItem = (index == 0);
                                         <tr @key="line.Key">
                                             <td class="min-w-40">
                                                 <a href="@($"/items/{line.Product.Id}")" target="_blank" rel="noopener" class="font-medium text-slate-900">
@@ -226,7 +232,8 @@
                                                 }
                                             </td>
                                             <td>
-                                                <DecimalField class="field min-w-24"
+                                                <DecimalField id="@(isLastItem ? "receiving-last-line-qty" : null)"
+                                                              class="field min-w-24"
                                                               @bind-Value="line.Quantity"
                                                               Minimum="-999999999999999.999m"
                                                               Maximum="999999999999999.999m"
@@ -235,7 +242,8 @@
                                                               aria-label="@($"Quantity for {line.Product.Name}")" />
                                             </td>
                                             <td>
-                                                <DecimalField class="field min-w-28"
+                                                <DecimalField id="@(isLastItem ? "receiving-last-line-cost" : null)"
+                                                              class="field min-w-28"
                                                               @bind-Value="line.Cost"
                                                               ValidityChanged="valid => line.CostValid = valid"
                                                               aria-label="@($"Unit cost for {line.Product.Name}")" />
@@ -268,7 +276,7 @@
                         <strong class="text-xl text-slate-900">@Money(Total)</strong>
                     </div>
 
-                    <SplitPayments @key="RequestId" Total="Total" Currency="@Currency" @bind-Payments="Payments" />
+                    <SplitPayments @key="RequestId" Total="Total" Currency="@Currency" @bind-Payments="Payments" InputId="receiving-payment-amount" />
 
                     <div class="space-y-3 rounded-xl bg-slate-50 p-4 text-sm">
                         @if (Total < 0)
@@ -284,7 +292,7 @@
                         </div>
                     </div>
 
-                    <button type="button" class="btn-primary w-full" @onclick="Receive" disabled="@ReceiveDisabled">
+                    <button type="button" id="receiving-submit-btn" class="btn-primary w-full" @onclick="Receive" disabled="@ReceiveDisabled">
                         @if (Busy)
                         {
                             <span class="form-submit-spinner"></span>
@@ -386,4 +394,63 @@
 
         <span tabindex="0" class="sr-only" @onfocus="FocusDialogFirstAsync"></span>
     </div>
+}
+
+@if (ShowShortcuts)
+{
+    <Modal Title="Keyboard Shortcuts (Receiving / Purchase)" OnClose="() => ShowShortcuts = false">
+        <div class="space-y-3 text-sm">
+            <div class="flex items-center justify-between py-2 border-b border-slate-100">
+                <span class="text-slate-700">Search product / scan barcode</span>
+                <div class="flex items-center gap-1">
+                    <kbd class="px-2 py-0.5 rounded border border-slate-300 bg-slate-100 font-mono text-xs font-semibold">F2</kbd>
+                    <span class="text-xs text-slate-400">or</span>
+                    <kbd class="px-2 py-0.5 rounded border border-slate-300 bg-slate-100 font-mono text-xs font-semibold">Alt+S</kbd>
+                </div>
+            </div>
+            <div class="flex items-center justify-between py-2 border-b border-slate-100">
+                <span class="text-slate-700">Edit last item quantity</span>
+                <div class="flex items-center gap-1">
+                    <kbd class="px-2 py-0.5 rounded border border-slate-300 bg-slate-100 font-mono text-xs font-semibold">F3</kbd>
+                    <span class="text-xs text-slate-400">or</span>
+                    <kbd class="px-2 py-0.5 rounded border border-slate-300 bg-slate-100 font-mono text-xs font-semibold">Alt+Q</kbd>
+                </div>
+            </div>
+            <div class="flex items-center justify-between py-2 border-b border-slate-100">
+                <span class="text-slate-700">Edit last item unit cost</span>
+                <div class="flex items-center gap-1">
+                    <kbd class="px-2 py-0.5 rounded border border-slate-300 bg-slate-100 font-mono text-xs font-semibold">F4</kbd>
+                    <span class="text-xs text-slate-400">or</span>
+                    <kbd class="px-2 py-0.5 rounded border border-slate-300 bg-slate-100 font-mono text-xs font-semibold">Alt+P</kbd>
+                </div>
+            </div>
+            <div class="flex items-center justify-between py-2 border-b border-slate-100">
+                <span class="text-slate-700">Jump to payment amount</span>
+                <div class="flex items-center gap-1">
+                    <kbd class="px-2 py-0.5 rounded border border-slate-300 bg-slate-100 font-mono text-xs font-semibold">F8</kbd>
+                    <span class="text-xs text-slate-400">or</span>
+                    <kbd class="px-2 py-0.5 rounded border border-slate-300 bg-slate-100 font-mono text-xs font-semibold">Alt+M</kbd>
+                </div>
+            </div>
+            <div class="flex items-center justify-between py-2 border-b border-slate-100">
+                <span class="text-slate-700">Record receipt / purchase</span>
+                <div class="flex items-center gap-1">
+                    <kbd class="px-2 py-0.5 rounded border border-slate-300 bg-slate-100 font-mono text-xs font-semibold">F9</kbd>
+                    <span class="text-xs text-slate-400">or</span>
+                    <kbd class="px-2 py-0.5 rounded border border-slate-300 bg-slate-100 font-mono text-xs font-semibold">Ctrl+Enter</kbd>
+                </div>
+            </div>
+            <div class="flex items-center justify-between py-2">
+                <span class="text-slate-700">Toggle shortcuts guide</span>
+                <div class="flex items-center gap-1">
+                    <kbd class="px-2 py-0.5 rounded border border-slate-300 bg-slate-100 font-mono text-xs font-semibold">F1</kbd>
+                    <span class="text-xs text-slate-400">or</span>
+                    <kbd class="px-2 py-0.5 rounded border border-slate-300 bg-slate-100 font-mono text-xs font-semibold">?</kbd>
+                </div>
+            </div>
+        </div>
+        <div class="mt-6 flex justify-end">
+            <button type="button" class="btn-primary" @onclick="() => ShowShortcuts = false">Got it</button>
+        </div>
+    </Modal>
 }

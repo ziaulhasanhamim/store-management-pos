@@ -18,11 +18,11 @@ document.addEventListener("click", event => {
         });
 
         if (mode === "thermal") {
-            if (a4Sheet) a4Sheet.style.setProperty("display", "none", "important");
-            if (thermalSheet) thermalSheet.style.setProperty("display", "block", "important");
+            if (a4Sheet) a4Sheet.classList.add("hidden");
+            if (thermalSheet) thermalSheet.classList.remove("hidden");
         } else {
-            if (a4Sheet) a4Sheet.style.setProperty("display", "block", "important");
-            if (thermalSheet) thermalSheet.style.setProperty("display", "none", "important");
+            if (a4Sheet) a4Sheet.classList.remove("hidden");
+            if (thermalSheet) thermalSheet.classList.add("hidden");
         }
     }
 
@@ -32,6 +32,15 @@ document.addEventListener("click", event => {
         const mode = printBtn.getAttribute("data-print") || "a4";
         document.body.classList.remove("print-mode-thermal", "print-mode-a4");
         document.body.classList.add(`print-mode-${mode}`);
+
+        if (mode === "thermal") {
+            const thermalTab = document.querySelector('[data-view-mode="thermal"]');
+            if (thermalTab) thermalTab.click();
+        } else {
+            const a4Tab = document.querySelector('[data-view-mode="a4"]');
+            if (a4Tab) a4Tab.click();
+        }
+
         window.print();
     }
 });
