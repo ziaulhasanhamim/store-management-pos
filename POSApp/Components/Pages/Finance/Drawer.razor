@@ -1,5 +1,5 @@
 @page "/cash-drawer"
-@attribute [Authorize(Policy = AppPolicies.MakeSales)]
+@attribute [Authorize(Policy = AppPolicies.ManageDrawer)]
 @using System.ComponentModel.DataAnnotations
 @inject CashDrawerService Drawers
 @inject FinanceService Finance

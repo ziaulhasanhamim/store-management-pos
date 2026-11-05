@@ -12,7 +12,7 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
     {
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var actorId = await StoreAccess.RequireAsync(db, actor, AppRoles.SalesAssociate, ct);
+        var actorId = await StoreAccess.RequireAsync(db, actor, AppRoles.InventoryManager, ct);
         var admin = await IsAdminAsync(db, actorId, ct);
         var date = await AccountingCalendar.SelectedAsync(db, actorId, configuration, ct);
         var locations = await db.StockLocations.Where(location => location.CanSell && !location.IsDeleted)
@@ -69,7 +69,7 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
     {
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var actorId = await StoreAccess.RequireAsync(db, actor, AppRoles.SalesAssociate, ct);
+        var actorId = await StoreAccess.RequireAsync(db, actor, AppRoles.InventoryManager, ct);
         await ValidateLocationAsync(db, locationId, ct);
         var user = await db.Users.SingleAsync(user => user.Id == actorId, ct);
         user.CashLocationId = locationId;
@@ -80,7 +80,7 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
     {
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var actorId = await StoreAccess.RequireAsync(db, actor, AppRoles.SalesAssociate, ct);
+        var actorId = await StoreAccess.RequireAsync(db, actor, AppRoles.InventoryManager, ct);
         return await db.Users.Where(user => user.Id == actorId && user.CashLocation != null && user.CashLocation.CanSell && !user.CashLocation.IsDeleted)
             .Select(user => user.CashLocation!.Name).SingleOrDefaultAsync(ct);
     }
@@ -96,7 +96,7 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
             }
             await using var scope = scopes.CreateAsyncScope();
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            var actorId = await StoreAccess.RequireAsync(db, actor, AppRoles.SalesAssociate, ct);
+            var actorId = await StoreAccess.RequireAsync(db, actor, AppRoles.InventoryManager, ct);
             await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
             var previous = await db.CashSessions.SingleOrDefaultAsync(session => session.RequestId == input.RequestId, ct);
             if (previous is not null)
@@ -191,7 +191,7 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
             }
             await using var scope = scopes.CreateAsyncScope();
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            var actorId = await StoreAccess.RequireAsync(db, actor, AppRoles.SalesAssociate, ct);
+            var actorId = await StoreAccess.RequireAsync(db, actor, AppRoles.InventoryManager, ct);
             await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
             var session = await db.CashSessions.Include(session => session.CashDrawer)
                 .SingleOrDefaultAsync(session => session.Id == input.SessionId, ct)

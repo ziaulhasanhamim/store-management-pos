@@ -11,7 +11,9 @@
 <WorkdayBoard />
 <div class="grid gap-4 md:grid-cols-2">
     <HubCard Href="/finance/payments" Title="Payments & collections" Hint="Expenses, supplier payments, customer dues and loans" IconName="wallet" />
-    <HubCard Href="/cash-drawer" Title="Location cash drawers" Hint="Open, count, reconcile and move cash" IconName="wallet" />
+    <AuthorizeView Policy="@AppPolicies.ManageDrawer">
+        <HubCard Href="/cash-drawer" Title="Location cash drawers" Hint="Open, count, reconcile and move cash" IconName="wallet" />
+    </AuthorizeView>
     <HubCard Href="/finance/people" Title="People & payroll" Hint="Customers, employees and salary payments" IconName="users" />
     <AuthorizeView Policy="@AppPolicies.ManageUsers">
         <HubCard Href="/finance/day" Title="Day finance" Hint="Review trading, payments and cash before closing" IconName="dashboard" />

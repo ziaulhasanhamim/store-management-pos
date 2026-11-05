@@ -32,7 +32,7 @@
                         Point of sale
                     </NavLink>
                 </AuthorizeView>
-                <AuthorizeView Policy="@AppPolicies.MakeSales" Context="drawerAuth">
+                <AuthorizeView Policy="@AppPolicies.ManageDrawer" Context="drawerAuth">
                     <SidebarGroup Title="Cash & drawer balances" IconName="wallet" Prefix="/cash-drawer" AlternatePrefix="/finance/bank">
                         <NavLink href="/cash-drawer?view=locations">Drawer balances</NavLink>
                         <AuthorizeView Policy="@AppPolicies.ManageUsers" Context="bankAuth">
@@ -138,7 +138,7 @@
                 <img src="/images/logo.svg" alt="@(Configuration["StoreName"] ?? "RetailPOS") logo" class="size-7 rounded-lg" />
                 <span class="text-sm font-bold text-slate-900 truncate max-w-[120px] sm:max-w-none">@(Configuration["StoreName"] ?? "RetailPOS")</span>
             </a>
-            <AuthorizeView>
+            <AuthorizeView Policy="@AppPolicies.MakeSales">
                 <Authorized>
                     <POSApp.Components.Pages.Finance.WorkingDateBadge />
                 </Authorized>

@@ -48,12 +48,16 @@ else if (Data is not null)
             }
             else if (day.OpenDrawers == 0 && day.ClosedDrawers == 0)
             {
-                <a href="/cash-drawer" class="btn-primary bg-linear-to-r from-blue-500 to-indigo-600 hover:from-blue-400 hover:to-indigo-500 shadow-md shadow-blue-900/30">Open location drawer</a>
+                <AuthorizeView Policy="@AppPolicies.ManageDrawer">
+                    <a href="/cash-drawer" class="btn-primary bg-linear-to-r from-blue-500 to-indigo-600 hover:from-blue-400 hover:to-indigo-500 shadow-md shadow-blue-900/30">Open location drawer</a>
+                </AuthorizeView>
             }
             else if (day.OpenDrawers > 0)
             {
                 <a href="/sales" class="btn-primary bg-linear-to-r from-blue-500 to-indigo-600 hover:from-blue-400 hover:to-indigo-500 shadow-md shadow-blue-900/30">Start / continue sales</a>
-                <a href="/cash-drawer" class="inline-flex items-center justify-center rounded-lg border border-white/20 bg-white/10 px-4 py-2.5 text-sm font-medium text-white hover:bg-white/20 transition">Location drawers</a>
+                <AuthorizeView Policy="@AppPolicies.ManageDrawer">
+                    <a href="/cash-drawer" class="inline-flex items-center justify-center rounded-lg border border-white/20 bg-white/10 px-4 py-2.5 text-sm font-medium text-white hover:bg-white/20 transition">Location drawers</a>
+                </AuthorizeView>
             }
             <AuthorizeView Policy="@AppPolicies.ManageUsers">
                 <a href="/finance/day" class="inline-flex items-center justify-center rounded-lg border border-white/20 bg-white/10 px-4 py-2.5 text-sm font-medium text-white hover:bg-white/20 transition">@(day.Closed ? "View day finance" : "Review day finance")</a>

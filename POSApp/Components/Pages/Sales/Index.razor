@@ -9,7 +9,9 @@
 <div class="page-heading">
     <h1>Sales</h1>
     <div class="flex gap-2">
-        <a href="/cash-drawer" class="btn-secondary">Cash drawer</a>
+        <AuthorizeView Policy="@AppPolicies.ManageDrawer">
+            <a href="/cash-drawer" class="btn-secondary">Cash drawer</a>
+        </AuthorizeView>
         <a href="/reports/sales" class="btn-secondary">Sales report</a>
     </div>
 </div>
