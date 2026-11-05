@@ -13,7 +13,13 @@
         <a href="/suppliers" class="text-sm text-slate-500">Suppliers</a>
         <h1>@(Detail?.Supplier.Name ?? "Supplier account")</h1>
     </div>
-    <a href="@($"/suppliers/payments?supplierId={Id}")" class="btn-primary">Make payment</a>
+    <div class="flex flex-wrap items-center gap-2">
+        <a href="@($"/suppliers/{Id}/ledger")" class="btn-secondary">
+            <Icon Name="history" />
+            Statement / Ledger
+        </a>
+        <a href="@($"/suppliers/payments?supplierId={Id}")" class="btn-primary">Make payment</a>
+    </div>
 </div>
 
 @if (Loading)

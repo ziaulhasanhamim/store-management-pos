@@ -35,6 +35,7 @@ public static class InventoryServiceExtensions
         services.AddScoped<InventoryValuation>();
         services.AddScoped<BarcodeService>();
         services.AddScoped<SupplierService>();
+        services.AddScoped<LedgerService>();
         services.AddScoped<SalesService>();
         services.AddScoped<ReportService>();
         services.AddScoped<ReceivingReportService>();

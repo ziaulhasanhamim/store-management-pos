@@ -21,7 +21,11 @@ else
 {
     <div class="page-heading">
         <h1>@Data.Customer.Name</h1>
-        <div class="flex gap-3">
+        <div class="flex flex-wrap items-center gap-2">
+            <a href="@($"/customers/{Id}/ledger")" class="btn-secondary">
+                <Icon Name="history" />
+                Statement / Ledger
+            </a>
             <AuthorizeView Policy="@AppPolicies.ManageUsers">
                 <a href="@($"/accounts/customers/adjust?partyId={Id}")" class="btn-secondary">Adjust balance / opening</a>
             </AuthorizeView>
