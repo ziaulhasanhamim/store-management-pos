@@ -94,6 +94,7 @@ public sealed record PartyPage(IReadOnlyList<PartyRow> Parties, IReadOnlyList<Pa
 {
     public PageInfo? Pagination { get; init; }
     public PageInfo? HistoryPagination { get; init; }
+    public IReadOnlyList<PartyRow>? AllParties { get; init; }
 }
 
 public sealed record ClosingDay(DateOnly Date, decimal CashIn, decimal CashOut, decimal BankIn, decimal BankOut);

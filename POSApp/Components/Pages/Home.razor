@@ -65,44 +65,48 @@ else if (Data is not null)
     <!-- Hero 4-Card KPI Grid -->
     <div class="grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
         <!-- Today's Sales Card -->
-        <a href="/reports/sales" class="metric-sales group">
-            <span class="metric-icon-emerald">
-                <Icon Name="cart" />
-            </span>
-            <p>Today's Sales</p>
-            <strong class="tabular-nums">@Money(Data.TodaySales)</strong>
-            <div class="mt-2.5 flex flex-wrap items-center justify-between gap-1 text-[11px]">
-                <span class="text-slate-500">@Data.TodayOrdersCount @(Data.TodayOrdersCount == 1 ? "order" : "orders") completed</span>
-                <AuthorizeView Policy="@AppPolicies.ManageUsers">
-                    @if (Data.TodayProfit is not null)
-                    {
-                        <span class="rounded-full bg-emerald-100/90 px-2 py-0.5 font-semibold text-emerald-800 tabular-nums ring-1 ring-emerald-600/20" title="Estimated gross margin">
-                            +@Money(Data.TodayProfit.Value) profit
-                        </span>
-                    }
-                </AuthorizeView>
-            </div>
-        </a>
+        <AuthorizeView Policy="@AppPolicies.MakeSales">
+            <a href="/reports/sales" class="metric-sales group">
+                <span class="metric-icon-emerald">
+                    <Icon Name="cart" />
+                </span>
+                <p>Today's Sales</p>
+                <strong class="tabular-nums">@Money(Data.TodaySales)</strong>
+                <div class="mt-2.5 flex flex-wrap items-center justify-between gap-1 text-[11px]">
+                    <span class="text-slate-500">@Data.TodayOrdersCount @(Data.TodayOrdersCount == 1 ? "order" : "orders") completed</span>
+                    <AuthorizeView Policy="@AppPolicies.ManageUsers" Context="profitAuth">
+                        @if (Data.TodayProfit is not null)
+                        {
+                            <span class="rounded-full bg-emerald-100/90 px-2 py-0.5 font-semibold text-emerald-800 tabular-nums ring-1 ring-emerald-600/20" title="Estimated gross margin">
+                                +@Money(Data.TodayProfit.Value) profit
+                            </span>
+                        }
+                    </AuthorizeView>
+                </div>
+            </a>
+        </AuthorizeView>
 
         <!-- Present Funds Card -->
-        <a href="/cash-drawer" class="metric-funds group">
-            <span class="metric-icon-blue">
-                <Icon Name="cash" />
-            </span>
-            <p>Present Funds</p>
-            <strong class="tabular-nums">@Money(Data.OfficeCash + (Data.BankBalance ?? 0m))</strong>
-            <div class="mt-2.5 flex flex-wrap items-center justify-between gap-1 text-[11px] text-slate-500">
-                <span>Cash: @Money(Data.OfficeCash)</span>
-                @if (Data.BankBalance is not null)
-                {
-                    <span>Bank: @Money(Data.BankBalance.Value)</span>
-                }
-            </div>
-            <span class="mt-2.5 flex items-center gap-1.5 text-[11px] text-blue-700/80 font-medium">
-                <span class="size-1.5 rounded-full @(Data.OpenDrawersCount > 0 ? "bg-emerald-500 animate-pulse" : "bg-slate-400")"></span>
-                @Data.OpenDrawersCount of @Data.TotalDrawersCount drawers open
-            </span>
-        </a>
+        <AuthorizeView Policy="@AppPolicies.ManageDrawer">
+            <a href="/cash-drawer" class="metric-funds group">
+                <span class="metric-icon-blue">
+                    <Icon Name="cash" />
+                </span>
+                <p>Present Funds</p>
+                <strong class="tabular-nums">@Money(Data.OfficeCash + (Data.BankBalance ?? 0m))</strong>
+                <div class="mt-2.5 flex flex-wrap items-center justify-between gap-1 text-[11px] text-slate-500">
+                    <span>Cash: @Money(Data.OfficeCash)</span>
+                    @if (Data.BankBalance is not null)
+                    {
+                        <span>Bank: @Money(Data.BankBalance.Value)</span>
+                    }
+                </div>
+                <span class="mt-2.5 flex items-center gap-1.5 text-[11px] text-blue-700/80 font-medium">
+                    <span class="size-1.5 rounded-full @(Data.OpenDrawersCount > 0 ? "bg-emerald-500 animate-pulse" : "bg-slate-400")"></span>
+                    @Data.OpenDrawersCount of @Data.TotalDrawersCount drawers open
+                </span>
+            </a>
+        </AuthorizeView>
 
         <!-- Units in Stock Card -->
         <a href="/items" class="metric-stock group">
@@ -135,16 +139,18 @@ else if (Data is not null)
                 <strong class="tabular-nums text-2xl!">@Money(Data.StockValue.Value)</strong>
                 <div class="mt-2.5 flex flex-wrap items-center justify-between gap-1 text-[11px]">
                     <span class="text-slate-500">At weighted cost</span>
-                    @if (Data.SupplierDue is not null && Data.SupplierDue.Value > 0)
-                    {
-                        <a href="/suppliers" class="rounded-full bg-red-100/90 px-2 py-0.5 font-semibold text-red-800 ring-1 ring-red-600/20 hover:underline" title="Outstanding supplier balance">
-                            Due: @Money(Data.SupplierDue.Value)
-                        </a>
-                    }
-                    else if (Data.SupplierDue is not null)
-                    {
-                        <span class="rounded-full bg-emerald-100/80 px-2 py-0.5 font-medium text-emerald-800">Dues clear</span>
-                    }
+                    <AuthorizeView Policy="@AppPolicies.ManageInventory">
+                        @if (Data.SupplierDue is not null && Data.SupplierDue.Value > 0)
+                        {
+                            <a href="/suppliers" class="rounded-full bg-red-100/90 px-2 py-0.5 font-semibold text-red-800 ring-1 ring-red-600/20 hover:underline" title="Outstanding supplier balance">
+                                Due: @Money(Data.SupplierDue.Value)
+                            </a>
+                        }
+                        else if (Data.SupplierDue is not null)
+                        {
+                            <span class="rounded-full bg-emerald-100/80 px-2 py-0.5 font-medium text-emerald-800">Dues clear</span>
+                        }
+                    </AuthorizeView>
                 </div>
             }
             else
@@ -163,20 +169,21 @@ else if (Data is not null)
             <div class="border-b border-slate-100 px-5 pt-4 pb-3">
                 <div class="flex flex-wrap items-center justify-between gap-3">
                     <div class="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
-                        <a href="@TabUrl("sales")" class="@TabChipClass("sales")">
-                            <Icon Name="cart" Class="size-4" />
-                            <span>Today's Sales</span>
-                            <span class="@TabBadgeClass("sales")">@Data.RecentSales.Count</span>
-                        </a>
+                        <AuthorizeView Policy="@AppPolicies.MakeSales">
+                            <a href="@TabUrl("sales")" class="@TabChipClass("sales")">
+                                <Icon Name="cart" Class="size-4" />
+                                <span>Today's Sales</span>
+                                <span class="@TabBadgeClass("sales")">@Data.RecentSales.Count</span>
+                            </a>
+                        </AuthorizeView>
 
-                        @if (Data.StockValue is not null)
-                        {
+                        <AuthorizeView Policy="@AppPolicies.ManageInventory">
                             <a href="@TabUrl("deliveries")" class="@TabChipClass("deliveries")">
                                 <Icon Name="receive" Class="size-4" />
                                 <span>Recent Deliveries</span>
                                 <span class="@TabBadgeClass("deliveries")">@Data.Receipts.Count</span>
                             </a>
-                        }
+                        </AuthorizeView>
 
                         <a href="@TabUrl("alerts")" class="@TabChipClass("alerts")">
                             <Icon Name="alert" Class="@(Data.StockAlerts.Count > 0 ? "size-4 text-amber-500" : "size-4")" />
@@ -195,10 +202,12 @@ else if (Data is not null)
                     <div>
                         @if (ResolvedTab == "sales")
                         {
-                            <a href="/reports/sales" class="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-700 hover:underline">
-                                All sales
-                                <Icon Name="arrow" Class="size-3" />
-                            </a>
+                            <AuthorizeView Policy="@AppPolicies.MakeSales">
+                                <a href="/reports/sales" class="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-700 hover:underline">
+                                    All sales
+                                    <Icon Name="arrow" Class="size-3" />
+                                </a>
+                            </AuthorizeView>
                         }
                         else if (ResolvedTab == "deliveries")
                         {
@@ -447,13 +456,15 @@ else if (Data is not null)
                         </a>
                     </AuthorizeView>
 
-                    <a href="/cash-drawer" class="launch-tile launch-tile-indigo">
-                        <div class="launch-badge launch-badge-indigo">
-                            <Icon Name="cash" Class="size-4" />
-                        </div>
-                        <span class="text-xs font-semibold text-slate-900">Cash Drawers</span>
-                        <span class="text-[10px] text-slate-500">Count / operate</span>
-                    </a>
+                    <AuthorizeView Policy="@AppPolicies.ManageDrawer">
+                        <a href="/cash-drawer" class="launch-tile launch-tile-indigo">
+                            <div class="launch-badge launch-badge-indigo">
+                                <Icon Name="cash" Class="size-4" />
+                            </div>
+                            <span class="text-xs font-semibold text-slate-900">Cash Drawers</span>
+                            <span class="text-[10px] text-slate-500">Count / operate</span>
+                        </a>
+                    </AuthorizeView>
 
                     <AuthorizeView Policy="@AppPolicies.ManageInventory">
                         <a href="/items/new" class="launch-tile launch-tile-purple">
@@ -476,7 +487,7 @@ else if (Data is not null)
                     </AuthorizeView>
 
                     <AuthorizeView Policy="@AppPolicies.ManageInventory">
-                        <a href="/stock/take" class="launch-tile launch-tile-teal">
+                        <a href="/stock/takes" class="launch-tile launch-tile-teal">
                             <div class="launch-badge launch-badge-teal">
                                 <Icon Name="dashboard" Class="size-4" />
                             </div>
@@ -487,20 +498,40 @@ else if (Data is not null)
 
                     <AuthorizeView Policy="@AppPolicies.ManageInventory">
                         <NotAuthorized>
-                            <a href="/customers" class="launch-tile launch-tile-purple">
-                                <div class="launch-badge launch-badge-purple">
-                                    <Icon Name="users" Class="size-4" />
-                                </div>
-                                <span class="text-xs font-semibold text-slate-900">Customers</span>
-                                <span class="text-[10px] text-slate-500">Balances & dues</span>
-                            </a>
-                            <a href="/reports/sales" class="launch-tile launch-tile-teal">
-                                <div class="launch-badge launch-badge-teal">
-                                    <Icon Name="history" Class="size-4" />
-                                </div>
-                                <span class="text-xs font-semibold text-slate-900">Sales History</span>
-                                <span class="text-[10px] text-slate-500">Order lookup</span>
-                            </a>
+                            <AuthorizeView Policy="@AppPolicies.MakeSales" Context="salesTiles">
+                                <Authorized>
+                                    <a href="/customers" class="launch-tile launch-tile-purple">
+                                        <div class="launch-badge launch-badge-purple">
+                                            <Icon Name="users" Class="size-4" />
+                                        </div>
+                                        <span class="text-xs font-semibold text-slate-900">Customers</span>
+                                        <span class="text-[10px] text-slate-500">Balances & dues</span>
+                                    </a>
+                                    <a href="/reports/sales" class="launch-tile launch-tile-teal">
+                                        <div class="launch-badge launch-badge-teal">
+                                            <Icon Name="history" Class="size-4" />
+                                        </div>
+                                        <span class="text-xs font-semibold text-slate-900">Sales History</span>
+                                        <span class="text-[10px] text-slate-500">Order lookup</span>
+                                    </a>
+                                </Authorized>
+                                <NotAuthorized>
+                                    <a href="/items" class="launch-tile launch-tile-purple">
+                                        <div class="launch-badge launch-badge-purple">
+                                            <Icon Name="box" Class="size-4" />
+                                        </div>
+                                        <span class="text-xs font-semibold text-slate-900">Items Catalog</span>
+                                        <span class="text-[10px] text-slate-500">Browse products</span>
+                                    </a>
+                                    <a href="/inventory" class="launch-tile launch-tile-teal">
+                                        <div class="launch-badge launch-badge-teal">
+                                            <Icon Name="dashboard" Class="size-4" />
+                                        </div>
+                                        <span class="text-xs font-semibold text-slate-900">Stock Balances</span>
+                                        <span class="text-[10px] text-slate-500">View quantities</span>
+                                    </a>
+                                </NotAuthorized>
+                            </AuthorizeView>
                         </NotAuthorized>
                     </AuthorizeView>
                 </div>
@@ -521,10 +552,12 @@ else if (Data is not null)
                         <span class="text-slate-500">Open Drawers</span>
                         <span class="font-medium text-slate-800">@Data.OpenDrawersCount of @Data.TotalDrawersCount</span>
                     </div>
-                    <div class="flex items-center justify-between text-xs">
-                        <span class="text-slate-500">Drawer Cash</span>
-                        <span class="font-medium tabular-nums text-slate-800">@Money(Data.OfficeCash)</span>
-                    </div>
+                    <AuthorizeView Policy="@AppPolicies.ManageDrawer">
+                        <div class="flex items-center justify-between text-xs">
+                            <span class="text-slate-500">Drawer Cash</span>
+                            <span class="font-medium tabular-nums text-slate-800">@Money(Data.OfficeCash)</span>
+                        </div>
+                    </AuthorizeView>
                     @if (Data.BankBalance is not null)
                     {
                         <div class="flex items-center justify-between text-xs">
@@ -532,20 +565,24 @@ else if (Data is not null)
                             <span class="font-medium tabular-nums text-slate-800">@Money(Data.BankBalance.Value)</span>
                         </div>
                     }
-                    @if (Data.SupplierDue is not null && Data.SupplierDue.Value > 0)
-                    {
-                        <div class="flex items-center justify-between border-t border-slate-100 pt-2.5 text-xs">
-                            <span class="text-slate-500">Supplier Dues</span>
-                            <a href="/suppliers" class="font-semibold tabular-nums text-red-600 hover:underline">@Money(Data.SupplierDue.Value)</a>
-                        </div>
-                    }
+                    <AuthorizeView Policy="@AppPolicies.ManageInventory">
+                        @if (Data.SupplierDue is not null && Data.SupplierDue.Value > 0)
+                        {
+                            <div class="flex items-center justify-between border-t border-slate-100 pt-2.5 text-xs">
+                                <span class="text-slate-500">Supplier Dues</span>
+                                <a href="/suppliers" class="font-semibold tabular-nums text-red-600 hover:underline">@Money(Data.SupplierDue.Value)</a>
+                            </div>
+                        }
+                    </AuthorizeView>
 
-                    <div class="pt-2">
-                        <a href="/cash-drawer" class="btn-secondary w-full text-xs py-2">
-                            <Icon Name="wallet" Class="size-3.5" />
-                            Manage Cash Drawers
-                        </a>
-                    </div>
+                    <AuthorizeView Policy="@AppPolicies.ManageDrawer">
+                        <div class="pt-2">
+                            <a href="/cash-drawer" class="btn-secondary w-full text-xs py-2">
+                                <Icon Name="wallet" Class="size-3.5" />
+                                Manage Cash Drawers
+                            </a>
+                        </div>
+                    </AuthorizeView>
                 </div>
             </section>
         </div>
@@ -566,8 +603,10 @@ else if (Data is not null)
     {
         get
         {
-            if (Tab == "deliveries" && Data?.StockValue is not null) return "deliveries";
-            if (Tab == "alerts") return "alerts";
+            var canManageInventory = HttpContext.User.IsInRole(AppRoles.Admin) || HttpContext.User.IsInRole(AppRoles.InventoryManager);
+            var canMakeSales = canManageInventory || HttpContext.User.IsInRole(AppRoles.SalesAssociate);
+            if (Tab == "deliveries" && canManageInventory) return "deliveries";
+            if (Tab == "alerts" || !canMakeSales) return "alerts";
             return "sales";
         }
     }

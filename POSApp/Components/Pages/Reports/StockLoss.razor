@@ -17,10 +17,12 @@
             <Icon Name="download" />
             Export CSV
         </a>
-        <a href="/stock/waste" class="btn-primary bg-rose-700! hover:bg-rose-800! border-rose-700!">
-            <Icon Name="plus" />
-            Record Damage & Waste
-        </a>
+        <AuthorizeView Policy="@AppPolicies.ManageStockAdjustment">
+            <a href="/stock/waste" class="btn-primary bg-rose-700! hover:bg-rose-800! border-rose-700!">
+                <Icon Name="plus" />
+                Record Damage & Waste
+            </a>
+        </AuthorizeView>
         <a href="/reports" class="btn-secondary">Reports</a>
     </div>
 </div>

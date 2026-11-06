@@ -141,6 +141,7 @@ public sealed class SalaryInput
 public sealed record PayrollSetup(IReadOnlyList<EmployeeRow> Employees, IReadOnlyList<SalaryRow> Salaries)
 {
     public PageInfo? Pagination { get; init; }
+    public IReadOnlyList<EmployeeRow>? AllEmployees { get; init; }
 }
 public sealed record FinancePage(ReportRange Range, IReadOnlyList<ExpenseRow> Expenses, decimal ExpenseTotal,
     int ExpenseCount, int Page, IReadOnlyList<PayrollRow> Payroll, IReadOnlyList<StaffRow> Staff,

@@ -24,7 +24,7 @@ public sealed class AnalyticsService(IServiceScopeFactory scopes, IConfiguration
     {
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        await StoreAccess.RequireAsync(db, actor, AppPolicies.MakeSales, ct);
+        await StoreAccess.RequireAsync(db, actor, AppRoles.SalesAssociate, ct);
 
         var fromUtc = Utc(startDate);
         var throughUtc = Utc(endDate.AddDays(1));
@@ -108,7 +108,7 @@ public sealed class AnalyticsService(IServiceScopeFactory scopes, IConfiguration
     {
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        await StoreAccess.RequireAsync(db, actor, AppPolicies.MakeSales, ct);
+        await StoreAccess.RequireAsync(db, actor, AppRoles.SalesAssociate, ct);
 
         var fromUtc = Utc(startDate);
         var throughUtc = Utc(endDate.AddDays(1));
@@ -210,7 +210,7 @@ public sealed class AnalyticsService(IServiceScopeFactory scopes, IConfiguration
     {
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        await StoreAccess.RequireAsync(db, actor, AppPolicies.ManageInventory, ct);
+        await StoreAccess.RequireAsync(db, actor, AppRoles.InventoryManager, ct);
 
         var threshold = Math.Clamp(daysThreshold, 14, 365);
         var now = DateTimeOffset.UtcNow;
@@ -350,7 +350,7 @@ public sealed class AnalyticsService(IServiceScopeFactory scopes, IConfiguration
     {
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        await StoreAccess.RequireAsync(db, actor, AppPolicies.MakeSales, ct);
+        await StoreAccess.RequireAsync(db, actor, AppRoles.SalesAssociate, ct);
 
         var fromUtc = Utc(startDate);
         var throughUtc = Utc(endDate.AddDays(1));
@@ -474,7 +474,7 @@ public sealed class AnalyticsService(IServiceScopeFactory scopes, IConfiguration
     {
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        await StoreAccess.RequireAsync(db, actor, AppPolicies.MakeSales, ct);
+        await StoreAccess.RequireAsync(db, actor, AppRoles.SalesAssociate, ct);
 
         var fromUtc = Utc(startDate);
         var throughUtc = Utc(endDate.AddDays(1));

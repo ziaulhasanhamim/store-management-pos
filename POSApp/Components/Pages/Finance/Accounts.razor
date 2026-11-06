@@ -51,7 +51,7 @@ else
                         <label class="field-label" for="collection-customer">Customer</label>
                         <select id="collection-customer" name="Collection.CustomerId" class="field" required>
                             <option value="">Select customer</option>
-                            @foreach (var party in Data!.Parties)
+                            @foreach (var party in Data!.AllParties ?? Data.Parties)
                             {
                                 <option value="@party.Id" selected="@(PartyId == party.Id)">@party.Name · @Money(party.Balance)</option>
                             }

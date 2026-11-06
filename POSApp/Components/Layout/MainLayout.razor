@@ -109,7 +109,9 @@
                         <NavLink href="/reports/sales">Sales report</NavLink>
                         <NavLink href="/reports/categories">Category performance</NavLink>
                         <NavLink href="/reports/suppliers-sales">Supplier sales</NavLink>
-                        <NavLink href="/reports/inventory-velocity">Dead stock & velocity</NavLink>
+                        <AuthorizeView Policy="@AppPolicies.ManageInventory" Context="velAuth">
+                            <NavLink href="/reports/inventory-velocity">Dead stock & velocity</NavLink>
+                        </AuthorizeView>
                         <NavLink href="/reports/margin-matrix">Profit margin matrix</NavLink>
                     </SidebarGroup>
                 </AuthorizeView>

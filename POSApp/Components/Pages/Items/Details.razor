@@ -163,7 +163,7 @@ else
                         @foreach (var change in Detail.History)
                         {
                             <tr>
-                                <td>@change.At.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</td>
+                                <td>@change.At.ToBusinessTime(Configuration).ToString("dd MMM yyyy, HH:mm")</td>
                                 <td>
                                     <span class="badge">@change.Type</span>
                                 </td>
@@ -224,7 +224,7 @@ else
                             @foreach (var entry in Detail.CostHistory)
                             {
                                 <tr>
-                                    <td>@entry.At.ToLocalTime().ToString("dd MMM yyyy, HH:mm")</td>
+                                    <td>@entry.At.ToBusinessTime(Configuration).ToString("dd MMM yyyy, HH:mm")</td>
                                     <td class="text-right">@Money(entry.OldCost)</td>
                                     <td class="text-right font-medium">@Money(entry.NewCost)</td>
                                     <td>@entry.Reason</td>

@@ -9,7 +9,7 @@
 <PageTitle>Employees & salaries · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
 <div class="page-heading">
     <h1>Employees & salaries</h1>
-    <a href="/finance" class="btn-secondary">Payroll payments</a>
+    <a href="/payroll" class="btn-secondary">Payroll payments</a>
 </div>
 @if (Error is not null)
 {
@@ -48,7 +48,7 @@ else
                 <select id="salary-employee" name="SalaryForm.EmployeeId" class="field" required
                         onchange="const opt = this.options[this.selectedIndex]; if (opt?.dataset?.defaultSalary) { const input = document.getElementById('salary-amount'); if (input) { input.value = opt.dataset.defaultSalary; input.dispatchEvent(new Event('input', { bubbles: true })); } }">
                     <option value="">Select employee</option>
-                    @foreach (var employee in Data!.Employees)
+                    @foreach (var employee in Data!.AllEmployees ?? Data.Employees)
                     {
                         <option value="@employee.Id" data-default-salary="@employee.MonthlySalary.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture)" selected="@(SalaryForm!.EmployeeId == employee.Id)">@employee.Name · @Money(employee.MonthlySalary)</option>
                     }
@@ -137,7 +137,7 @@ else
                         <td>@salary.Month.ToString("MMM yyyy")</td>
                         <td class="text-right">@Money(salary.Amount)</td>
                         <td class="text-right">@Money(salary.Settled)</td>
-                        <td class="text-right">@BalanceText(Data.Employees.Single(employee => employee.Id == salary.EmployeeId).Remaining)</td>
+                        <td class="text-right">@BalanceText((Data.AllEmployees ?? Data.Employees).Single(employee => employee.Id == salary.EmployeeId).Remaining)</td>
                         <td>
                             <a class="text-blue-700" href="@($"/payroll?employeeId={salary.EmployeeId}&salaryMonth={salary.Month:yyyy-MM-dd}")">Pay / bonus</a>
                         </td>

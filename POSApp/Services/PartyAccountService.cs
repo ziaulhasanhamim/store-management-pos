@@ -21,7 +21,8 @@ public sealed class PartyAccountService(IServiceScopeFactory scopes, IConfigurat
                 .Select(party => new PartyRow(party.Id, party.Name, party.Phone, party.Balance == null ? 0 : party.Balance.OpeningBalance,
                     party.Balance == null ? 0 : party.Balance.CurrentBalance));
         var result = page is not null ? await partiesQuery.ToPageAsync(page.Value, pageSize, ct) : null;
-        var parties = result?.Items ?? await partiesQuery.ToArrayAsync(ct);
+        var allParties = await partiesQuery.ToArrayAsync(ct);
+        var parties = result?.Items ?? allParties;
         IQueryable<PartyEntry> historyQuery = suppliers
             ? db.SupplierBalanceEntries.Where(entry => entry.SupplierBalance!.SupplierId == partyId).OrderByDescending(entry => entry.Id)
                 .Select(entry => new PartyEntry(entry.OccurredAt, entry.Type.ToString(), entry.Amount, entry.BalanceAfter, entry.Notes))
@@ -29,7 +30,7 @@ public sealed class PartyAccountService(IServiceScopeFactory scopes, IConfigurat
                 .Select(entry => new PartyEntry(entry.OccurredAt, entry.Type.ToString(), entry.Amount, entry.BalanceAfter, entry.Notes));
         var historyResult = historyPage is not null ? await historyQuery.ToPageAsync(historyPage.Value, pageSize, ct) : null;
         var history = historyResult?.Items ?? await historyQuery.Take(100).ToArrayAsync(ct);
-        return new(parties, history) { Pagination = result?.Pagination, HistoryPagination = historyResult?.Pagination };
+        return new(parties, history) { Pagination = result?.Pagination, HistoryPagination = historyResult?.Pagination, AllParties = allParties };
     }
 
     public async Task ReceiveAsync(ClaimsPrincipal actor, CustomerPaymentInput input, CancellationToken ct = default)

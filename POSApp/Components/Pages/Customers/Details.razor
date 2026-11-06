@@ -70,6 +70,10 @@ else
                 }
             </tbody>
         </table>
+        @if (Data.Pagination is not null)
+        {
+            <PageNavigation Info="Data.Pagination" Label="entries" />
+        }
     </section>
 }
 

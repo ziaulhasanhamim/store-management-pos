@@ -1008,6 +1008,13 @@ public sealed class InventoryService(IServiceScopeFactory scopes, IConfiguration
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var (id, costs) = await RequireActorWithPermissions(db, actor, false, ct);
+        var userRoles = await db.UserRoles
+            .Where(userRole => userRole.UserId == id)
+            .Join(db.Roles, ur => ur.RoleId, r => r.Id, (ur, r) => r.Name)
+            .ToListAsync(ct);
+        var canManageInventory = userRoles.Any(r => r == AppRoles.Admin || r == AppRoles.InventoryManager);
+        var canMakeSales = canManageInventory || userRoles.Any(r => r == AppRoles.SalesAssociate);
+        var isAdmin = userRoles.Any(r => r == AppRoles.Admin);
         var zone = AccountingCalendar.Zone(configuration);
         DateTimeOffset Utc(DateOnly date) => new(TimeZoneInfo.ConvertTimeToUtc(
             date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Unspecified), zone), TimeSpan.Zero);
@@ -1031,8 +1038,8 @@ public sealed class InventoryService(IServiceScopeFactory scopes, IConfiguration
                 .SumAsync(balance => (decimal?)(balance.QuantityOnHand * balance.Product!.CostPrice), ct) ?? 0m
             : null;
 
-        decimal? due = costs ? (await db.SupplierBalances.SumAsync(b => (decimal?)b.CurrentBalance, ct) ?? 0m) : null;
-        var receipts = costs
+        decimal? due = canManageInventory ? (await db.SupplierBalances.SumAsync(b => (decimal?)b.CurrentBalance, ct) ?? 0m) : null;
+        var receipts = canManageInventory
             ? await ReceiptQuery(db.Purchases
                 .Where(purchase => !purchase.IsDeleted && purchase.Status == PurchaseStatus.Received)
                 .OrderByDescending(purchase => purchase.Id)
@@ -1043,11 +1050,11 @@ public sealed class InventoryService(IServiceScopeFactory scopes, IConfiguration
         var salesQuery = db.Sales.AsNoTracking()
             .Where(s => !s.IsDeleted && s.Status == SaleStatus.Completed && s.SoldAt >= from && s.SoldAt < through);
 
-        var todaySalesCount = await salesQuery.CountAsync(ct);
-        var todaySalesAmount = await salesQuery.SumAsync(s => (decimal?)s.TotalAmount, ct) ?? 0m;
+        var todaySalesCount = canMakeSales ? await salesQuery.CountAsync(ct) : 0;
+        var todaySalesAmount = canMakeSales ? (await salesQuery.SumAsync(s => (decimal?)s.TotalAmount, ct) ?? 0m) : 0m;
 
         decimal? todayProfit = null;
-        if (costs)
+        if (isAdmin)
         {
             var todayCogs = await db.SaleItems.AsNoTracking()
                 .Where(item => salesQuery.Any(s => s.Id == item.SaleId))
@@ -1055,25 +1062,27 @@ public sealed class InventoryService(IServiceScopeFactory scopes, IConfiguration
             todayProfit = todaySalesAmount - todayCogs;
         }
 
-        var recentSales = await db.Sales.AsNoTracking()
-            .Where(s => !s.IsDeleted && s.Status == SaleStatus.Completed)
-            .OrderByDescending(s => s.SoldAt)
-            .Take(6)
-            .Select(s => new RecentSaleRow(
-                s.Id,
-                s.ReceiptNumber,
-                s.SoldAt,
-                s.Cashier != null ? (s.Cashier.UserName ?? "Cashier") : "Cashier",
-                s.Customer != null ? s.Customer.Name : "Walk-in",
-                s.TotalAmount,
-                s.DraftPaymentMethod,
-                s.Items.Count))
-            .ToListAsync(ct);
+        var recentSales = canMakeSales
+            ? await db.Sales.AsNoTracking()
+                .Where(s => !s.IsDeleted && s.Status == SaleStatus.Completed)
+                .OrderByDescending(s => s.SoldAt)
+                .Take(6)
+                .Select(s => new RecentSaleRow(
+                    s.Id,
+                    s.ReceiptNumber,
+                    s.SoldAt,
+                    s.Cashier != null ? (s.Cashier.UserName ?? "Cashier") : "Cashier",
+                    s.Customer != null ? s.Customer.Name : "Walk-in",
+                    s.TotalAmount,
+                    s.DraftPaymentMethod,
+                    s.Items.Count))
+                .ToListAsync(ct)
+            : [];
 
         // Office cash & funds
-        var officeCash = await db.CashDrawers.SumAsync(d => (decimal?)d.CurrentCash, ct) ?? 0m;
+        var officeCash = canManageInventory ? (await db.CashDrawers.SumAsync(d => (decimal?)d.CurrentCash, ct) ?? 0m) : 0m;
         decimal? bankBalance = null;
-        if (actor.IsInRole(AppRoles.Admin))
+        if (isAdmin)
         {
             var account = await db.BankAccounts.AsNoTracking().SingleOrDefaultAsync(a => a.Code == "MAIN", ct);
             if (account != null)

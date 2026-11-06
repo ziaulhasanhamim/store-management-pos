@@ -24,8 +24,8 @@ internal static class EmployeePayrollReader
         var ordered = query.OrderBy(employee => employee.Name).ThenBy(employee => employee.Id)
             .Select(employee => new { employee.Id, employee.Name, employee.Phone, employee.MonthlySalary });
         var selected = page is not null ? await ordered.ToPageAsync(page.Value, pageSize, ct) : null;
-        var employees = selected?.Items ?? await ordered.ToArrayAsync(ct);
-        var employeeIds = employees.Select(employee => employee.Id).ToArray();
+        var allEmployees = await ordered.ToArrayAsync(ct);
+        var employeeIds = allEmployees.Select(employee => employee.Id).ToArray();
         var salaries = await db.MonthlySalaries.AsNoTracking().Where(salary => salary.Month == month && employeeIds.Contains(salary.EmployeeId))
             .Select(salary => new { salary.Id, salary.EmployeeId, salary.Amount, salary.BroughtForward, Name = salary.Employee!.Name }).ToArrayAsync(ct);
         var arrears = await db.MonthlySalaries.AsNoTracking()
@@ -44,7 +44,7 @@ internal static class EmployeePayrollReader
                 Bonus = group.Sum(entry => entry.OccurredAt >= start && entry.Kind == PayrollKind.Bonus ? entry.PaidAmount : 0),
                 Settled = group.Sum(entry => entry.MonthlySalary != null && entry.MonthlySalary.Month == month ? entry.Amount - entry.AdvanceCreated : 0)
             }).ToArrayAsync(ct);
-        var rows = employees.Select(employee =>
+        var allRows = allEmployees.Select(employee =>
         {
             var salary = salaries.SingleOrDefault(salary => salary.EmployeeId == employee.Id);
             var total = totals.SingleOrDefault(total => total.EmployeeId == employee.Id);
@@ -62,7 +62,9 @@ internal static class EmployeePayrollReader
                 Remaining = (salary?.Amount ?? employee.MonthlySalary + broughtForward) - settled - advance
             };
         }).ToArray();
+        var pageIds = selected?.Items.Select(item => item.Id).ToHashSet();
+        var rows = pageIds is not null ? allRows.Where(row => pageIds.Contains(row.Id)).ToArray() : allRows;
         return new(rows, salaries.Select(salary => new SalaryRow(salary.Id, salary.EmployeeId, salary.Name, month,
-            salary.Amount, rows.Single(employee => employee.Id == salary.EmployeeId).Settled)).ToArray()) { Pagination = selected?.Pagination };
+            salary.Amount, allRows.Single(employee => employee.Id == salary.EmployeeId).Settled)).ToArray()) { Pagination = selected?.Pagination, AllEmployees = allRows };
     }
 }

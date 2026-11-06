@@ -1,5 +1,5 @@
 @page "/reports"
-@attribute [Authorize]
+@attribute [Authorize(Policy = AppPolicies.MakeSales)]
 
 <PageTitle>Reports · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
 <div class="page-heading">

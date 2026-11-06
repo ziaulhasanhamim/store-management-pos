@@ -451,10 +451,20 @@ public sealed class SalesService(IServiceScopeFactory scopes, IConfiguration? co
                 .Select(value => new { value.ProductId, Warranty = value.DisplayValue ?? value.Value })
                 .ToDictionaryAsync(x => x.ProductId, x => x.Warranty, ct);
 
+        var invoiceEntry = sale.CustomerId is null
+            ? null
+            : await db.CustomerBalanceEntries.AsNoTracking()
+                .Where(entry => entry.SaleId == sale.Id && entry.Type == BalanceEntryType.Invoice)
+                .OrderBy(entry => entry.Id)
+                .Select(entry => new { entry.BalanceAfter, entry.Amount })
+                .FirstOrDefaultAsync(ct);
+
         var paidTotal = sale.Payments.Sum(payment => payment.Amount);
         var currentCustomerBalance = sale.Customer?.Balance?.CurrentBalance ?? 0m;
         var unpaidThisSale = Math.Max(0m, sale.TotalAmount - paidTotal);
-        var previousDue = Math.Max(0m, currentCustomerBalance - unpaidThisSale);
+        var previousDue = invoiceEntry is not null
+            ? Math.Max(0m, invoiceEntry.BalanceAfter - invoiceEntry.Amount)
+            : Math.Max(0m, currentCustomerBalance - unpaidThisSale);
 
         return new(sale.Id, sale.ReceiptNumber, sale.SoldAt, sale.Customer?.Name,
             sale.StockLocation!.Name, sale.Cashier!.UserName!,

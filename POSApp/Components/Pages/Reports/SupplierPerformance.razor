@@ -29,10 +29,12 @@
             <Icon Name="history" Class="size-4 mr-1.5" />
             Export CSV
         </a>
-        <a href="/reports/inventory" class="btn-secondary">
-            <Icon Name="box" Class="size-4 mr-1.5" />
-            Stock valuation
-        </a>
+        <AuthorizeView Policy="@AppPolicies.ManageInventory">
+            <a href="/reports/inventory" class="btn-secondary">
+                <Icon Name="box" Class="size-4 mr-1.5" />
+                Stock valuation
+            </a>
+        </AuthorizeView>
     </div>
 </div>
 
