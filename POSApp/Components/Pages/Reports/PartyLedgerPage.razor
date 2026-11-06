@@ -88,24 +88,24 @@ else
     <!-- A4 PRINTABLE LEDGER STATEMENT SHEET        -->
     <!-- ========================================== -->
     <article id="invoice-a4-sheet" class="invoice-sheet rounded-xl p-8 sm:p-10 border border-slate-200 bg-white relative block shadow-sm">
-        <!-- Sheet Header -->
-        <div class="invoice-header flex flex-col sm:flex-row justify-between items-start gap-4 pb-4 border-b-2 border-sky-400">
+        <!-- Top Brand Header -->
+        <div class="invoice-header flex flex-col sm:flex-row justify-between items-start gap-4">
             <div class="flex items-center gap-3.5">
-                <img src="/images/jas-logo-icon.png" alt="Logo" class="h-16 w-16 object-contain shrink-0" />
+                <img src="/images/jas-logo-icon.png" alt="Logo" class="h-14 w-14 object-contain shrink-0" />
                 <div>
-                    <h2 class="text-2xl sm:text-3xl font-black tracking-tight text-slate-900 uppercase font-sans leading-none">
+                    <h2 class="text-2xl font-black tracking-tight text-slate-900 uppercase font-sans leading-none">
                         @(Configuration["StoreName"] ?? "JAS INTERNATIONAL")
                     </h2>
-                    <p class="text-xs font-bold text-sky-600 tracking-wider uppercase mt-1">
+                    <p class="text-[11px] font-bold text-sky-600 tracking-wider uppercase mt-1">
                         @(Configuration["StoreSubtitle"] ?? "Store Management")
                     </p>
-                    <span class="inline-block mt-2 rounded bg-slate-900 px-2 py-0.5 text-[11px] font-bold tracking-wider text-white uppercase">
+                    <span class="inline-block mt-1.5 rounded bg-slate-900 px-2 py-0.5 text-[10px] font-bold tracking-wider text-white uppercase">
                         @(IsSupplier ? "SUPPLIER STATEMENT OF ACCOUNT" : "CUSTOMER STATEMENT OF ACCOUNT")
                     </span>
                 </div>
             </div>
 
-            <div class="text-left sm:text-right text-xs leading-relaxed text-slate-600">
+            <div class="text-left sm:text-right text-xs leading-snug text-slate-600">
                 <strong class="text-sm font-bold text-slate-900 block">@(Configuration["StoreName"] ?? "JAS International")</strong>
                 <p>@(Configuration["Store:Address"] ?? "Khulna Shopping Complex, 41/42, 2nd Floor")</p>
                 <p>Khulna 9100, Bangladesh</p>
@@ -114,188 +114,199 @@ else
             </div>
         </div>
 
-        <!-- Meta Grid: Party Details (Left) & Statement Summary (Right) -->
-        <section class="invoice-meta grid grid-cols-1 sm:grid-cols-2 gap-6 items-start my-6">
+        <div class="my-4 border-b-2 border-sky-400"></div>
+
+        <!-- Meta Grid: Party Details (Left) & Statement Period (Right) -->
+        <section class="invoice-meta grid grid-cols-2 gap-4 items-start my-4">
             <div class="border-l-4 border-sky-600 pl-3">
-                <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">
-                    @(IsSupplier ? "Supplier Information" : "Customer Information")
+                <h3 class="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    @(IsSupplier ? "Supplier Account" : "Customer Account")
                 </h3>
-                <strong class="text-lg font-bold text-slate-900 block">@Report.PartyName</strong>
+                <strong class="text-base font-bold text-slate-900 block mt-0.5">@Report.PartyName</strong>
                 @if (!string.IsNullOrWhiteSpace(Report.Phone))
                 {
-                    <p class="text-xs text-slate-600 mt-0.5"><span class="font-medium text-slate-500">Phone:</span> @Report.Phone</p>
+                    <p class="text-xs text-slate-600"><span class="font-medium text-slate-500">Phone:</span> @Report.Phone</p>
                 }
                 @if (!string.IsNullOrWhiteSpace(Report.Address))
                 {
-                    <p class="text-xs text-slate-600 mt-0.5"><span class="font-medium text-slate-500">Address:</span> @Report.Address</p>
+                    <p class="text-xs text-slate-600"><span class="font-medium text-slate-500">Address:</span> @Report.Address</p>
                 }
-                <p class="text-[11px] text-slate-400 mt-1">Account ID: #@Report.PartyId</p>
+                <p class="text-[11px] text-slate-400 mt-0.5">Account ID: #@Report.PartyId</p>
             </div>
 
-            <div class="text-left sm:text-right text-xs leading-relaxed">
-                <div class="inline-block text-left sm:text-right">
-                    <p class="text-xs text-slate-700">Statement Period:</p>
-                    <p class="text-sm font-bold text-slate-900">
-                        @Report.Start.ToString("dd MMM yyyy") &mdash; @Report.End.ToString("dd MMM yyyy")
-                    </p>
-                    <p class="text-xs text-slate-500 mt-1">
-                        Generated on: <span class="font-medium text-slate-800">@DateTimeOffset.UtcNow.ToBusinessTime(Configuration).ToString("dd MMM yyyy, HH:mm")</span>
-                    </p>
-                    <p class="text-xs text-slate-500 mt-0.5">
-                        Currency: <span class="font-bold text-slate-800">@(Configuration["CurrencyCode"] ?? "BDT")</span>
-                    </p>
-                </div>
+            <div class="text-right text-xs leading-snug">
+                <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Statement Period</p>
+                <p class="text-sm font-bold text-slate-900 mt-0.5">
+                    @Report.Start.ToString("dd MMM yyyy") &mdash; @Report.End.ToString("dd MMM yyyy")
+                </p>
+                <p class="text-[11px] text-slate-500 mt-1">
+                    Issued: <span class="font-medium text-slate-800">@DateTimeOffset.UtcNow.ToBusinessTime(Configuration).ToString("dd MMM yyyy")</span>
+                </p>
+                <p class="text-[11px] text-slate-500">
+                    Currency: <span class="font-bold text-slate-800">@CurrencyCode</span>
+                </p>
             </div>
         </section>
 
-        <!-- KPI Balance Summary Cards -->
-        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 my-6">
-            <div class="rounded-lg bg-slate-50 border border-slate-200 p-3 text-center">
-                <span class="block text-[11px] font-semibold uppercase tracking-wider text-slate-500">Opening Balance</span>
-                <strong class="text-base sm:text-lg font-bold tabular-nums text-slate-800 mt-1 block">
+        <!-- Compact Formal Accounting Summary Bar -->
+        <div class="grid grid-cols-4 border-y-2 border-black bg-slate-50/70 divide-x divide-slate-200 my-4 text-center">
+            <div class="py-2 px-2">
+                <span class="block text-[9px] font-bold uppercase tracking-wider text-slate-500">Opening Balance</span>
+                <strong class="text-xs sm:text-sm font-bold font-mono text-slate-900 mt-0.5 block">
                     @Money(Report.OpeningBalance)
                 </strong>
-                <span class="text-[10px] text-slate-400">As of @Report.Start.ToString("dd MMM")</span>
             </div>
 
-            <div class="rounded-lg bg-blue-50/60 border border-blue-200 p-3 text-center">
-                <span class="block text-[11px] font-semibold uppercase tracking-wider text-blue-700">
+            <div class="py-2 px-2">
+                <span class="block text-[9px] font-bold uppercase tracking-wider text-slate-600">
                     @(IsSupplier ? "Total In / Billed (+)" : "Total In / Invoiced (+)")
                 </span>
-                <strong class="text-base sm:text-lg font-bold tabular-nums text-blue-900 mt-1 block">
+                <strong class="text-xs sm:text-sm font-bold font-mono text-slate-900 mt-0.5 block">
                     @Money(Report.TotalDebit)
                 </strong>
-                <span class="text-[10px] text-blue-600">Period additions</span>
             </div>
 
-            <div class="rounded-lg bg-emerald-50/60 border border-emerald-200 p-3 text-center">
-                <span class="block text-[11px] font-semibold uppercase tracking-wider text-emerald-700">
+            <div class="py-2 px-2">
+                <span class="block text-[9px] font-bold uppercase tracking-wider text-slate-600">
                     Total Out / Paid (-)
                 </span>
-                <strong class="text-base sm:text-lg font-bold tabular-nums text-emerald-900 mt-1 block">
+                <strong class="text-xs sm:text-sm font-bold font-mono text-slate-900 mt-0.5 block">
                     @Money(Report.TotalCredit)
                 </strong>
-                <span class="text-[10px] text-emerald-600">Payments cleared</span>
             </div>
 
-            <div class="rounded-lg bg-slate-900 border border-slate-900 p-3 text-center text-white">
-                <span class="block text-[11px] font-semibold uppercase tracking-wider text-slate-300">Closing Balance</span>
-                <strong class="text-base sm:text-lg font-bold tabular-nums text-white mt-1 block">
+            <div class="py-2 px-2 bg-slate-900 text-white">
+                <span class="block text-[9px] font-bold uppercase tracking-wider text-slate-300">
+                    Closing (@(Report.ClosingBalance >= 0 ? "Due" : (IsSupplier ? "Advance" : "Credit")))
+                </span>
+                <strong class="text-xs sm:text-sm font-black font-mono text-white mt-0.5 block">
                     @Money(Report.ClosingBalance)
                 </strong>
-                <span class="text-[10px] text-sky-300 font-medium">
-                    @(Report.ClosingBalance >= 0 ? (IsSupplier ? "Payable Due" : "Receivable Due") : (IsSupplier ? "Advance" : "Customer Credit"))
-                </span>
             </div>
         </div>
 
-        <!-- Ledger Table -->
-        <div class="table-scroll my-6">
-            <table class="data-table w-full text-xs">
-                <thead>
-                    <tr class="border-y border-slate-200 bg-slate-50 text-slate-700 font-semibold">
-                        <th class="py-2.5 px-3 text-left w-32">Date</th>
-                        <th class="py-2.5 px-3 text-left">Subject / Description</th>
-                        <th class="py-2.5 px-3 text-right w-28">Debit (+) / In</th>
-                        <th class="py-2.5 px-3 text-right w-28">Credit (-) / Out</th>
-                        <th class="py-2.5 px-3 text-right w-32">Balance</th>
-                        <th class="py-2.5 px-3 text-left w-40">Remarks</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100">
-                    <!-- Opening Balance Row -->
-                    <tr class="bg-slate-50/80 font-medium text-slate-700">
-                        <td class="py-2.5 px-3 tabular-nums text-slate-500">@Report.Start.ToString("dd MMM yyyy")</td>
-                        <td class="py-2.5 px-3 font-semibold text-slate-900">
-                            Opening Balance as of @Report.Start.ToString("dd MMM yyyy")
+        <!-- Formal Fixed-Layout Ledger Table (No Horizontal Overflow in Print) -->
+        <table class="invoice-table ledger-table w-full mt-4">
+            <colgroup>
+                <col style="width: 12%;" />
+                <col style="width: 28%;" />
+                <col style="width: 12%;" />
+                <col style="width: 12%;" />
+                <col style="width: 14%;" />
+                <col style="width: 22%;" />
+            </colgroup>
+            <thead>
+                <tr class="border-y-2 border-black bg-slate-100/80 font-bold text-slate-900 uppercase tracking-wider text-[10px]">
+                    <th class="text-left">Date</th>
+                    <th class="text-left">Subject</th>
+                    <th class="text-right">In (+)</th>
+                    <th class="text-right">Out (-)</th>
+                    <th class="text-right">Balance</th>
+                    <th class="text-left">Remarks</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-200">
+                @if (Report.Period != "all" || Report.OpeningBalance != 0m || Report.Entries.Count == 0)
+                {
+                    <!-- Opening Balance Brought Forward Row -->
+                    <tr class="bg-slate-50/70 text-slate-800">
+                        <td class="font-medium text-slate-600 whitespace-nowrap">
+                            @Report.Start.ToString("dd MMM yyyy")
                         </td>
-                        <td class="py-2.5 px-3 text-right tabular-nums text-slate-400">&mdash;</td>
-                        <td class="py-2.5 px-3 text-right tabular-nums text-slate-400">&mdash;</td>
-                        <td class="py-2.5 px-3 text-right font-bold tabular-nums text-slate-900">@Money(Report.OpeningBalance)</td>
-                        <td class="py-2.5 px-3 text-slate-500 italic">Brought forward</td>
+                        <td class="ledger-subject font-semibold text-slate-900">
+                            Opening balance
+                        </td>
+                        <td class="text-right font-mono text-slate-400">&mdash;</td>
+                        <td class="text-right font-mono text-slate-400">&mdash;</td>
+                        <td class="text-right font-mono font-bold text-slate-900 whitespace-nowrap">
+                            @Amount(Report.OpeningBalance)
+                        </td>
+                        <td class="ledger-remarks text-slate-500 italic">
+                            Brought forward
+                        </td>
                     </tr>
+                }
 
-                    @if (Report.Entries.Count == 0)
+                @if (Report.Entries.Count == 0)
+                {
+                    <tr>
+                        <td colspan="6" class="py-6 text-center text-slate-400 italic">
+                            No transactions recorded during this period.
+                        </td>
+                    </tr>
+                }
+                else
+                {
+                    @foreach (var entry in Report.Entries)
                     {
-                        <tr>
-                            <td colspan="6" class="py-6 text-center text-slate-400 italic">
-                                No transactions recorded during this period.
+                        <tr class="text-slate-800">
+                            <td class="font-medium text-slate-600 whitespace-nowrap">
+                                @entry.Date.ToBusinessTime(Configuration).ToString("dd MMM yyyy")
+                            </td>
+                            <td class="ledger-subject font-semibold text-slate-900">
+                                @entry.Subject
+                            </td>
+                            <td class="text-right font-mono font-medium text-slate-900 whitespace-nowrap">
+                                @(entry.Debit.HasValue ? Amount(entry.Debit.Value) : "—")
+                            </td>
+                            <td class="text-right font-mono font-medium text-slate-900 whitespace-nowrap">
+                                @(entry.Credit.HasValue ? Amount(entry.Credit.Value) : "—")
+                            </td>
+                            <td class="text-right font-mono font-bold text-slate-950 whitespace-nowrap">
+                                @Amount(entry.Balance)
+                            </td>
+                            <td class="ledger-remarks text-slate-600">
+                                @(entry.Remarks ?? "—")
                             </td>
                         </tr>
                     }
-                    else
-                    {
-                        @foreach (var entry in Report.Entries)
-                        {
-                            <tr class="hover:bg-slate-50/50">
-                                <td class="py-2 px-3 tabular-nums text-slate-600 whitespace-nowrap">
-                                    @entry.Date.ToBusinessTime(Configuration).ToString("dd MMM yyyy, HH:mm")
-                                </td>
-                                <td class="py-2 px-3 text-slate-800">
-                                    <span class="font-medium text-slate-900">@entry.Subject</span>
-                                </td>
-                                <td class="py-2 px-3 text-right tabular-nums font-medium text-blue-700">
-                                    @(entry.Debit.HasValue ? Money(entry.Debit.Value) : "—")
-                                </td>
-                                <td class="py-2 px-3 text-right tabular-nums font-medium text-emerald-700">
-                                    @(entry.Credit.HasValue ? Money(entry.Credit.Value) : "—")
-                                </td>
-                                <td class="py-2 px-3 text-right tabular-nums font-bold text-slate-900">
-                                    @Money(entry.Balance)
-                                </td>
-                                <td class="py-2 px-3 text-slate-600 truncate max-w-xs" title="@entry.Remarks">
-                                    @(entry.Remarks ?? "—")
-                                </td>
-                            </tr>
-                        }
-                    }
-                </tbody>
-                <tfoot>
-                    <tr class="border-t-2 border-slate-300 bg-slate-50/90 font-bold text-slate-900">
-                        <td colspan="2" class="py-3 px-3 uppercase tracking-wider text-[11px] text-slate-600">
-                            Total Period Activity & Closing Balance
-                        </td>
-                        <td class="py-3 px-3 text-right tabular-nums text-blue-800">
-                            @Money(Report.TotalDebit)
-                        </td>
-                        <td class="py-3 px-3 text-right tabular-nums text-emerald-800">
-                            @Money(Report.TotalCredit)
-                        </td>
-                        <td class="py-3 px-3 text-right tabular-nums text-base text-slate-950 font-black">
-                            @Money(Report.ClosingBalance)
-                        </td>
-                        <td class="py-3 px-3 text-xs font-semibold text-sky-700">
-                            @(Report.ClosingBalance >= 0 ? (IsSupplier ? "Total Due" : "Total Due") : (IsSupplier ? "Advance" : "Credit Balance"))
-                        </td>
-                    </tr>
-                </tfoot>
-            </table>
-        </div>
+                }
+            </tbody>
+            <tfoot>
+                <tr class="border-y-2 border-black bg-slate-50 font-bold text-slate-900">
+                    <td colspan="2" class="uppercase tracking-wider text-[10px] text-slate-800">
+                        Total &amp; Closing Balance (@CurrencyCode)
+                    </td>
+                    <td class="text-right font-mono text-slate-900 whitespace-nowrap">
+                        @Amount(Report.TotalDebit)
+                    </td>
+                    <td class="text-right font-mono text-slate-900 whitespace-nowrap">
+                        @Amount(Report.TotalCredit)
+                    </td>
+                    <td class="text-right font-mono font-black text-slate-950 whitespace-nowrap">
+                        @Amount(Report.ClosingBalance)
+                    </td>
+                    <td class="text-[10px] font-bold uppercase text-sky-800">
+                        @(Report.ClosingBalance >= 0 ? (IsSupplier ? "Payable Due" : "Receivable Due") : (IsSupplier ? "Advance" : "Credit"))
+                    </td>
+                </tr>
+            </tfoot>
+        </table>
 
         <!-- Verification & Signature Section -->
-        <div class="mt-14 pt-6 border-t border-slate-200">
-            <div class="grid grid-cols-3 gap-6 text-center text-xs">
+        <div class="invoice-closing-section mt-10 pt-4 border-t border-slate-200 break-inside-avoid">
+            <div class="grid grid-cols-3 gap-6 text-center text-xs mt-6">
                 <div>
-                    <div class="border-b border-slate-300 pb-8"></div>
-                    <p class="font-semibold text-slate-700 mt-2">Prepared By</p>
-                    <p class="text-[10px] text-slate-400">Accounts Department</p>
+                    <div class="border-b border-slate-400 pb-6"></div>
+                    <p class="font-bold text-slate-800 mt-1.5 text-[11px]">Prepared By</p>
+                    <p class="text-[10px] text-slate-500">Accounts Department</p>
                 </div>
                 <div>
-                    <div class="border-b border-slate-300 pb-8"></div>
-                    <p class="font-semibold text-slate-700 mt-2">Authorized Officer</p>
-                    <p class="text-[10px] text-slate-400">Store Management</p>
+                    <div class="border-b border-slate-400 pb-6"></div>
+                    <p class="font-bold text-slate-800 mt-1.5 text-[11px]">Authorized Officer</p>
+                    <p class="text-[10px] text-slate-500">Store Management</p>
                 </div>
                 <div>
-                    <div class="border-b border-slate-300 pb-8"></div>
-                    <p class="font-semibold text-slate-700 mt-2">
+                    <div class="border-b border-slate-400 pb-6"></div>
+                    <p class="font-bold text-slate-800 mt-1.5 text-[11px]">
                         @(IsSupplier ? "Supplier Acknowledgment" : "Customer Acknowledgment")
                     </p>
-                    <p class="text-[10px] text-slate-400">Signature & Date</p>
+                    <p class="text-[10px] text-slate-500">Signature &amp; Date</p>
                 </div>
             </div>
 
-            <div class="mt-8 text-center text-[10px] text-slate-400">
-                <p>This is a computer-generated statement of account issued by @(Configuration["StoreName"] ?? "JAS International"). All records are electronically tracked.</p>
+            <div class="mt-5 text-center text-[10px] text-slate-400">
+                <p>Computer-generated statement of account issued by @(Configuration["StoreName"] ?? "JAS International"). All amounts in @CurrencyCode.</p>
             </div>
         </div>
     </article>
@@ -324,6 +335,7 @@ else
 
     private bool IsSupplier => Navigation.Uri.Contains("/suppliers/", StringComparison.OrdinalIgnoreCase);
     private string BasePath => IsSupplier ? $"/suppliers/{Id}/ledger" : $"/customers/{Id}/ledger";
+    private string CurrencyCode => Configuration["CurrencyCode"] ?? "BDT";
 
     protected override async Task OnParametersSetAsync()
     {
@@ -373,7 +385,8 @@ else
         }
     }
 
-    private string Money(decimal amount) => $"{Configuration["CurrencyCode"] ?? "BDT"} {amount:N2}";
+    private string Money(decimal amount) => $"{CurrencyCode} {amount:N2}";
+    private static string Amount(decimal amount) => amount.ToString("N2");
 
     private string PeriodUrl(string period) => $"{BasePath}?period={period}";
 

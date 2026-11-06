@@ -65,13 +65,28 @@ public class LedgerServiceTests
     }
 
     [Test]
+    public async Task FormatShortReference_WhenCodeHasGuid_ReturnsIntIdAndLastFourHexChars()
+    {
+        var purchaseRef = LedgerService.FormatShortReference("REC-88a4344748034a27931fabdad8c8a8e9", 5);
+        var paymentRef = LedgerService.FormatShortReference("PAY-cc31a9e4a05444e0871d58ef3910f150", 12);
+        var salePayRef = LedgerService.FormatShortReference("SALE-PAY-106309d327a140fc9eb0bae738951108-1", 21);
+
+        await purchaseRef.Should().BeEqualTo("#5-A8E9");
+        await paymentRef.Should().BeEqualTo("#12-F150");
+        await salePayRef.Should().BeEqualTo("#21-1108");
+    }
+
+    [Test]
+    public async Task FormatShortReference_WhenCodeIsShortHumanString_PreservesShortCode()
+    {
+        var customRef = LedgerService.FormatShortReference("INV-2040", 9);
+
+        await customRef.Should().BeEqualTo("#INV-2040");
+    }
+
+    [Test]
     public async Task PartyLedgerReport_CalculatesReconciledBalancesCorrectly()
     {
-        // Opening balance: 1,000
-        // Sale 1: +500 (debit) -> Balance 1,500
-        // Payment 1: -300 (credit) -> Balance 1,200
-        // Sale 2: +200 (debit) -> Balance 1,400
-        // Expected Closing Balance: 1,000 + 700 - 300 = 1,400
         var opening = 1000m;
         var debits = 700m;
         var credits = 300m;

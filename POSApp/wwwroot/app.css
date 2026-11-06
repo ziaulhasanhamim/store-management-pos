@@ -8,6 +8,32 @@ h1:focus { outline: none; }
 .blazor-error-boundary { background: #b91c1c; padding: 1rem; color: white; }
 .blazor-error-boundary::after { content: "An unexpected error occurred."; }
 
+/* Statement & Ledger Table Formatting */
+.ledger-table {
+    width: 100%;
+    table-layout: fixed;
+    border-collapse: collapse;
+    font-size: 11px;
+}
+
+.ledger-table th,
+.ledger-table td {
+    padding: 6px 8px;
+    vertical-align: top;
+}
+
+.ledger-table td.ledger-subject,
+.ledger-table td.ledger-remarks {
+    white-space: normal !important;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    line-height: 1.35;
+}
+
+.ledger-table tr {
+    break-inside: avoid;
+}
+
 /* Print Rules - Critical for High-Quality Multi-Page Printing & Thermal Roll */
 @media print {
     .no-print,

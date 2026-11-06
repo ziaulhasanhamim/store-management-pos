@@ -56,6 +56,59 @@ public sealed class LedgerService(IServiceScopeFactory scopes, IConfiguration co
         };
     }
 
+    /// <summary>
+    /// Formats auto-generated GUID codes (e.g. REC-88a4...a8e9, PAY-cc31...f150, SAL-...)
+    /// into a compact identifier combining the integer ID and last 4 characters of the GUID (e.g. #5-A8E9).
+    /// Preserves short human-entered references as-is.
+    /// </summary>
+    public static string FormatShortReference(string? rawCode, int? id)
+    {
+        if (string.IsNullOrWhiteSpace(rawCode))
+        {
+            return id.HasValue ? $"#{id.Value}" : "";
+        }
+
+        var trimmed = rawCode.Trim();
+        var isAutoGuid = trimmed.Length > 18 && (
+            trimmed.StartsWith("REC-", StringComparison.OrdinalIgnoreCase) ||
+            trimmed.StartsWith("SAL-", StringComparison.OrdinalIgnoreCase) ||
+            trimmed.StartsWith("PAY-", StringComparison.OrdinalIgnoreCase) ||
+            trimmed.StartsWith("CUSTOMER-PAY-", StringComparison.OrdinalIgnoreCase) ||
+            trimmed.StartsWith("SALE-PAY-", StringComparison.OrdinalIgnoreCase) ||
+            HasLongHexSegment(trimmed));
+
+        if (!isAutoGuid)
+        {
+            var clean = trimmed.StartsWith('#') ? trimmed : $"#{trimmed}";
+            return clean.Length > 22 ? clean[..22] + "…" : clean;
+        }
+
+        var parts = trimmed.Split('-', StringSplitOptions.RemoveEmptyEntries);
+        var hexPart = parts.FirstOrDefault(p => p.Length >= 20 && p.All(Uri.IsHexDigit))
+                      ?? parts.LastOrDefault()
+                      ?? trimmed;
+        var last4 = hexPart.Length >= 4 ? hexPart[^4..].ToUpperInvariant() : hexPart.ToUpperInvariant();
+
+        return id.HasValue ? $"#{id.Value}-{last4}" : $"#{last4}";
+    }
+
+    public static string? FormatRemarks(string? rawRemarks, int maxLength = 350)
+    {
+        if (string.IsNullOrWhiteSpace(rawRemarks))
+        {
+            return null;
+        }
+
+        var cleaned = rawRemarks.Trim();
+        return cleaned.Length <= maxLength ? cleaned : cleaned[..maxLength].TrimEnd() + "…";
+    }
+
+    private static bool HasLongHexSegment(string value)
+    {
+        var parts = value.Split('-', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Any(p => p.Length >= 20 && p.All(Uri.IsHexDigit));
+    }
+
     public async Task<PartyLedgerReport> ReadCustomerLedgerAsync(
         ClaimsPrincipal actor, int customerId, string? period, DateOnly? start, DateOnly? end, CancellationToken ct = default)
     {
@@ -81,7 +134,6 @@ public sealed class LedgerService(IServiceScopeFactory scopes, IConfiguration co
         var throughUtc = new DateTimeOffset(TimeZoneInfo.ConvertTimeToUtc(
             effectiveEnd.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Unspecified), zone), TimeSpan.Zero);
 
-        // Calculate opening balance as of effectiveStart:
         var priorEntry = await db.CustomerBalanceEntries.AsNoTracking()
             .Where(e => e.CustomerBalance!.CustomerId == customerId && e.OccurredAt < fromUtc)
             .OrderByDescending(e => e.OccurredAt)
@@ -121,6 +173,10 @@ public sealed class LedgerService(IServiceScopeFactory scopes, IConfiguration co
             .ThenBy(e => e.Id)
             .ToListAsync(ct);
 
+        var displayStart = resolvedPeriod == "all" && periodEntries.Count > 0
+            ? DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(periodEntries[0].OccurredAt, zone).DateTime)
+            : (resolvedPeriod == "all" ? effectiveEnd : effectiveStart);
+
         var rows = new List<PartyLedgerRow>();
         decimal runningBalance = openingBalance;
         decimal totalDebit = 0m;
@@ -128,6 +184,12 @@ public sealed class LedgerService(IServiceScopeFactory scopes, IConfiguration co
 
         foreach (var entry in periodEntries)
         {
+            // Skip auto-generated empty 0-amount opening balance placeholders
+            if (entry.Type == BalanceEntryType.OpeningBalance && entry.Amount == 0m && string.IsNullOrWhiteSpace(entry.Notes))
+            {
+                continue;
+            }
+
             decimal? debit = null;
             decimal? credit = null;
 
@@ -150,20 +212,22 @@ public sealed class LedgerService(IServiceScopeFactory scopes, IConfiguration co
             switch (entry.Type)
             {
                 case BalanceEntryType.Invoice:
-                    var receiptNo = entry.Sale?.ReceiptNumber ?? (entry.SaleId.HasValue ? $"#{entry.SaleId}" : "N/A");
-                    subject = $"Sale invoice #{receiptNo}";
-                    reference = receiptNo;
+                    var saleCode = FormatShortReference(entry.Sale?.ReceiptNumber, entry.SaleId ?? entry.Id);
+                    subject = $"Sale invoice {saleCode}";
+                    reference = saleCode;
                     break;
 
                 case BalanceEntryType.Payment:
                     var method = entry.Payment?.Method.ToString() ?? "Cash";
-                    var payRef = entry.Payment?.Reference;
-                    subject = $"Payment received ({method})" + (!string.IsNullOrWhiteSpace(payRef) ? $" · Ref: {payRef}" : "");
-                    reference = payRef;
+                    var payCode = FormatShortReference(entry.Payment?.Reference, entry.PaymentId ?? entry.Id);
+                    subject = !string.IsNullOrEmpty(payCode)
+                        ? $"Payment ({method}) · {payCode}"
+                        : $"Payment ({method})";
+                    reference = payCode;
                     break;
 
                 case BalanceEntryType.Adjustment:
-                    subject = "Balance adjustment";
+                    subject = $"Adjustment #{entry.Id}";
                     break;
 
                 case BalanceEntryType.OpeningBalance:
@@ -171,11 +235,11 @@ public sealed class LedgerService(IServiceScopeFactory scopes, IConfiguration co
                     break;
 
                 default:
-                    subject = entry.Notes ?? "Transaction";
+                    subject = $"Transaction #{entry.Id}";
                     break;
             }
 
-            var remarks = !string.IsNullOrWhiteSpace(entry.Notes)
+            var rawNote = !string.IsNullOrWhiteSpace(entry.Notes)
                 ? entry.Notes
                 : (!string.IsNullOrWhiteSpace(entry.Payment?.Notes) ? entry.Payment.Notes : null);
 
@@ -186,7 +250,7 @@ public sealed class LedgerService(IServiceScopeFactory scopes, IConfiguration co
                 Debit: debit,
                 Credit: credit,
                 Balance: runningBalance,
-                Remarks: remarks
+                Remarks: FormatRemarks(rawNote)
             ));
         }
 
@@ -196,7 +260,7 @@ public sealed class LedgerService(IServiceScopeFactory scopes, IConfiguration co
             Phone: customer.Phone,
             Address: customer.Address,
             IsSupplier: false,
-            Start: effectiveStart,
+            Start: displayStart,
             End: effectiveEnd,
             Period: resolvedPeriod,
             OpeningBalance: openingBalance,
@@ -232,7 +296,6 @@ public sealed class LedgerService(IServiceScopeFactory scopes, IConfiguration co
         var throughUtc = new DateTimeOffset(TimeZoneInfo.ConvertTimeToUtc(
             effectiveEnd.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Unspecified), zone), TimeSpan.Zero);
 
-        // Calculate opening balance as of effectiveStart:
         var priorEntry = await db.SupplierBalanceEntries.AsNoTracking()
             .Where(e => e.SupplierBalance!.SupplierId == supplierId && e.OccurredAt < fromUtc)
             .OrderByDescending(e => e.OccurredAt)
@@ -272,6 +335,10 @@ public sealed class LedgerService(IServiceScopeFactory scopes, IConfiguration co
             .ThenBy(e => e.Id)
             .ToListAsync(ct);
 
+        var displayStart = resolvedPeriod == "all" && periodEntries.Count > 0
+            ? DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(periodEntries[0].OccurredAt, zone).DateTime)
+            : (resolvedPeriod == "all" ? effectiveEnd : effectiveStart);
+
         var rows = new List<PartyLedgerRow>();
         decimal runningBalance = openingBalance;
         decimal totalDebit = 0m;
@@ -279,6 +346,12 @@ public sealed class LedgerService(IServiceScopeFactory scopes, IConfiguration co
 
         foreach (var entry in periodEntries)
         {
+            // Skip auto-generated empty 0-amount opening balance placeholders
+            if (entry.Type == BalanceEntryType.OpeningBalance && entry.Amount == 0m && string.IsNullOrWhiteSpace(entry.Notes))
+            {
+                continue;
+            }
+
             decimal? debit = null;
             decimal? credit = null;
 
@@ -301,21 +374,23 @@ public sealed class LedgerService(IServiceScopeFactory scopes, IConfiguration co
             switch (entry.Type)
             {
                 case BalanceEntryType.Invoice:
-                    var purchaseNo = entry.Purchase?.PurchaseNumber ?? (entry.PurchaseId.HasValue ? $"#{entry.PurchaseId}" : "N/A");
-                    var billNo = entry.Purchase?.SupplierInvoiceNumber;
-                    subject = $"Stock purchase #{purchaseNo}" + (!string.IsNullOrWhiteSpace(billNo) ? $" (Bill: {billNo})" : "");
-                    reference = billNo ?? purchaseNo;
+                    var purchaseCode = FormatShortReference(entry.Purchase?.PurchaseNumber, entry.PurchaseId ?? entry.Id);
+                    var billNo = entry.Purchase?.SupplierInvoiceNumber?.Trim();
+                    subject = $"Purchase {purchaseCode}" + (!string.IsNullOrWhiteSpace(billNo) ? $" (Bill: {billNo})" : "");
+                    reference = billNo ?? purchaseCode;
                     break;
 
                 case BalanceEntryType.Payment:
                     var method = entry.SupplierPayment?.Method.ToString() ?? "Cash";
-                    var payRef = entry.SupplierPayment?.Reference;
-                    subject = $"Supplier payment ({method})" + (!string.IsNullOrWhiteSpace(payRef) ? $" · Ref: {payRef}" : "");
-                    reference = payRef;
+                    var payCode = FormatShortReference(entry.SupplierPayment?.Reference, entry.SupplierPaymentId ?? entry.Id);
+                    subject = !string.IsNullOrEmpty(payCode)
+                        ? $"Payment ({method}) · {payCode}"
+                        : $"Payment ({method})";
+                    reference = payCode;
                     break;
 
                 case BalanceEntryType.Adjustment:
-                    subject = "Balance adjustment";
+                    subject = $"Adjustment #{entry.Id}";
                     break;
 
                 case BalanceEntryType.OpeningBalance:
@@ -323,11 +398,11 @@ public sealed class LedgerService(IServiceScopeFactory scopes, IConfiguration co
                     break;
 
                 default:
-                    subject = entry.Notes ?? "Transaction";
+                    subject = $"Transaction #{entry.Id}";
                     break;
             }
 
-            var remarks = !string.IsNullOrWhiteSpace(entry.Notes)
+            var rawNote = !string.IsNullOrWhiteSpace(entry.Notes)
                 ? entry.Notes
                 : (!string.IsNullOrWhiteSpace(entry.SupplierPayment?.Notes)
                     ? entry.SupplierPayment.Notes
@@ -340,7 +415,7 @@ public sealed class LedgerService(IServiceScopeFactory scopes, IConfiguration co
                 Debit: debit,
                 Credit: credit,
                 Balance: runningBalance,
-                Remarks: remarks
+                Remarks: FormatRemarks(rawNote)
             ));
         }
 
@@ -350,7 +425,7 @@ public sealed class LedgerService(IServiceScopeFactory scopes, IConfiguration co
             Phone: supplier.Phone,
             Address: supplier.Address,
             IsSupplier: true,
-            Start: effectiveStart,
+            Start: displayStart,
             End: effectiveEnd,
             Period: resolvedPeriod,
             OpeningBalance: openingBalance,
