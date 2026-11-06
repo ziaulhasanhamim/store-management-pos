@@ -2,6 +2,7 @@
 @page "/users/{Id:int}/edit"
 @attribute [Authorize(Policy = AppPolicies.ManageUsers)]
 @using Microsoft.AspNetCore.Identity
+@using POSApp.Client.DTOs
 @using POSApp.Persistence.Entities
 @using POSApp.Services
 @inject UserAdministration Administration
@@ -39,13 +40,13 @@
             var id = Id.Value;
             <UserEditLoader UserId="id">
                 <Found Context="user">
-                    <UserEditorForm Input="@InputFor(user)" IsNew="false" OnValidSubmit="SaveAsync" OnInvalidSubmit="ClearPassword" />
+                    <UserEditorForm Input="@InputFor(user)" Locations="Locations" IsNew="false" OnValidSubmit="SaveAsync" OnInvalidSubmit="ClearPassword" />
                 </Found>
             </UserEditLoader>
         }
         else
         {
-            <UserEditorForm Input="Input!" IsNew="IsNew" OnValidSubmit="SaveAsync" OnInvalidSubmit="ClearPassword" />
+            <UserEditorForm Input="Input!" Locations="Locations" IsNew="IsNew" OnValidSubmit="SaveAsync" OnInvalidSubmit="ClearPassword" />
         }
     </div>
 </div>
@@ -63,21 +64,25 @@
     private bool IsNew => Id is null;
     private bool IsGet => HttpMethods.IsGet(HttpContext.Request.Method);
     private string[] Errors = [];
+    private IReadOnlyList<Lookup> Locations = [];
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
-        Input ??= new();
+        Input ??= new() { MustChangePassword = IsNew };
+        Locations = await Administration.SellingLocationsAsync(HttpContext.User);
     }
 
     private UserEditorInput InputFor(UserListItem user) => Input = new()
     {
         Username = user.Username,
-        Role = user.Roles.FirstOrDefault() ?? AppRoles.SalesAssociate
+        Role = user.Roles.FirstOrDefault() ?? AppRoles.SalesAssociate,
+        MustChangePassword = user.MustChangePassword,
+        CashLocationId = user.CashLocationId
     };
 
     private async Task SaveAsync()
     {
-        var result = await Administration.SaveAsync(HttpContext.User, Id, Input!.Username, Input.Password, Input.Role);
+        var result = await Administration.SaveAsync(HttpContext.User, Id, Input!.Username, Input.Password, Input.Role, Input.MustChangePassword, Input.CashLocationId);
         Input.Password = string.Empty;
 
         if (!result.Succeeded)

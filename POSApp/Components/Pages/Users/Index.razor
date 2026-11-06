@@ -3,14 +3,15 @@
 @attribute [Authorize(Policy = AppPolicies.ManageUsers)]
 @using POSApp.Services
 @inject UserAdministration Administration
+@inject NavigationManager Navigation
 @inject ILogger<Index> Logger
 
-<PageTitle>Users · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
+<PageTitle>Users & Role Permissions · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
 
 <div class="mb-8 flex flex-wrap items-center justify-between gap-4">
     <div>
         <p class="text-sm font-medium text-indigo-600">Administration</p>
-        <h1 class="mt-1 text-3xl font-semibold tracking-tight text-slate-900">Your team</h1>
+        <h1 class="mt-1 text-3xl font-semibold tracking-tight text-slate-900">Team & Role Permissions</h1>
     </div>
     <a href="/users/new" class="btn-primary">
         <Icon Name="plus" />
@@ -24,8 +25,20 @@
         User saved successfully.
     </div>
 }
+@if (PermissionsSaved)
+{
+    <div role="status" class="mb-5 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
+        Role permissions updated. Changes apply immediately across navigation and store operations.
+    </div>
+}
+@if (ErrorMessage is not null)
+{
+    <div role="alert" class="mb-5 rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+        @ErrorMessage
+    </div>
+}
 
-<div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+<div class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm mb-8">
     <div class="flex items-center justify-between border-b border-slate-200 px-6 py-4">
         <h2 class="font-semibold text-slate-900">
             All users
@@ -34,73 +47,162 @@
         <span class="text-xs text-slate-500">Username accounts</span>
     </div>
 
-        <div class="overflow-x-auto">
-            <table class="w-full text-left text-sm">
-                <caption class="sr-only">Store user accounts and assigned roles</caption>
-                <thead class="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
-                    <tr>
-                        <th scope="col" class="px-6 py-3">Username</th>
-                        <th scope="col" class="px-6 py-3">Role</th>
-                        <th scope="col" class="px-6 py-3 text-right">Actions</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100">
-                @if (Users is null)
+    <div class="overflow-x-auto">
+        <table class="w-full text-left text-sm">
+            <caption class="sr-only">Store user accounts and assigned roles</caption>
+            <thead class="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+                <tr>
+                    <th scope="col" class="px-6 py-3">Username</th>
+                    <th scope="col" class="px-6 py-3">Role & Security</th>
+                    <th scope="col" class="px-6 py-3 text-right">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+            @if (Users is null)
+            {
+                <tr>
+                    <td colspan="3">
+                        <LoadingPanel Message="Loading users…" />
+                    </td>
+                </tr>
+            }
+            else if (Failed)
+            {
+                <tr>
+                    <td colspan="3" role="alert" class="px-6 py-4 text-rose-700">We couldn't load the team. Refresh to try again.</td>
+                </tr>
+            }
+            else if (Users.Count == 0)
+            {
+                <TableStatusRow Columns="3" Message="No users found." />
+            }
+            else
+            {
+                @foreach (var user in Users)
                 {
-                    <tr>
-                        <td colspan="3">
-                            <LoadingPanel Message="Loading users…" />
+                    <tr class="hover:bg-slate-50">
+                        <td class="px-6 py-5 font-medium text-slate-900">@user.Username</td>
+                        <td class="px-6 py-5">
+                            @foreach (var role in user.Roles)
+                            {
+                                <span class="mr-2 inline-flex rounded-full bg-indigo-50 px-3 py-1 text-xs font-medium text-indigo-700">
+                                    @AppRoles.DisplayName(role)
+                                </span>
+                            }
+                            @if (user.Roles.Length == 0)
+                            {
+                                <span class="text-slate-500">No role assigned</span>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(user.CashLocationName))
+                            {
+                                <span class="mr-2 inline-flex rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700 border border-slate-200">
+                                    @user.CashLocationName
+                                </span>
+                            }
+                            @if (user.MustChangePassword)
+                            {
+                                <span class="ml-1 inline-flex items-center rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-800 border border-amber-200">
+                                    Password change required
+                                </span>
+                            }
+                        </td>
+                        <td class="px-6 py-5 text-right">
+                            <a href="@($"/users/{user.Id}/edit")" class="font-medium text-indigo-700 hover:text-indigo-900" aria-label="@($"Edit {user.Username}")">
+                                <Icon Name="edit" />
+                            </a>
                         </td>
                     </tr>
                 }
-                else
-                {
+            }
+            </tbody>
+        </table>
+    </div>
+    @if (Pagination is not null)
+    {
+        <PageNavigation Info="Pagination" Label="users" />
+    }
+</div>
 
-                    @if (Failed)
-                    {
+<section class="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <div class="border-b border-slate-200 px-6 py-5">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+            <div>
+                <h2 class="text-lg font-semibold text-slate-900">Dynamic Role Permissions</h2>
+                <p class="mt-1 text-sm text-slate-500">
+                    Customize which capabilities each role can access. <strong>Admin</strong> always has full access to all capabilities.
+                </p>
+            </div>
+            <span class="rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700">Live Policy Engine</span>
+        </div>
+    </div>
+
+    @if (Matrix is not null)
+    {
+        <form method="post" @formname="role-permissions" @onsubmit="SavePermissionsAsync" data-enhance data-submit-indication="true">
+            <AntiforgeryToken />
+            <input type="hidden" name="Submitted" value="true" />
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm">
+                    <thead class="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
                         <tr>
-                            <td colspan="3" role="alert">We couldn't load the team. Refresh to try again.</td>
+                            <th scope="col" class="px-6 py-3.5">Capability / Policy</th>
+                            <th scope="col" class="px-4 py-3.5 text-center">Admin</th>
+                            <th scope="col" class="px-4 py-3.5 text-center">@AppRoles.DisplayName(AppRoles.InventoryManager)</th>
+                            <th scope="col" class="px-4 py-3.5 text-center">@AppRoles.DisplayName(AppRoles.SalesAssociate)</th>
+                            <th scope="col" class="px-4 py-3.5 text-center">@AppRoles.DisplayName(AppRoles.InventoryViewer)</th>
                         </tr>
-                    }
-                    else if (Users!.Count == 0)
-                    {
-                        <TableStatusRow Columns="3" Message="No users found." />
-                    }
-                    else
-                    {
-                        @foreach (var user in Users!)
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                        @foreach (var row in Matrix)
                         {
-                            <tr class="hover:bg-slate-50">
-                                <td class="px-6 py-5 font-medium text-slate-900">@user.Username</td>
-                                <td class="px-6 py-5">
-                                    @foreach (var role in user.Roles)
-                                    {
-                                        <span class="mr-2 inline-flex rounded-full bg-indigo-50 px-3 py-1 text-xs font-medium text-indigo-700">
-                                            @AppRoles.DisplayName(role)
-                                        </span>
-                                    }
-                                    @if (user.Roles.Length == 0)
-                                    {
-                                        <span class="text-slate-500">No role assigned</span>
-                                    }
+                            <tr class="hover:bg-slate-50/70">
+                                <td class="px-6 py-4">
+                                    <div class="font-medium text-slate-900">@row.Title</div>
+                                    <div class="mt-0.5 text-xs text-slate-500">@row.Description</div>
                                 </td>
-                                <td class="px-6 py-5 text-right">
-                                    <a href="@($"/users/{user.Id}/edit")" class="font-medium text-indigo-700 hover:text-indigo-900" aria-label="@($"Edit {user.Username}")">
-                                        <Icon Name="edit" />
-                                    </a>
+                                <td class="px-4 py-4 text-center">
+                                    <input type="checkbox" checked disabled class="size-4 rounded border-slate-300 text-slate-400 cursor-not-allowed" title="Admin always has full access" />
+                                </td>
+                                <td class="px-4 py-4 text-center">
+                                    <input type="checkbox"
+                                           name="GrantedKeys"
+                                           value="@($"{AppRoles.InventoryManager}:{row.PolicyName}")"
+                                           checked="@row.CashierGranted"
+                                           class="size-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                                           aria-label="@($"{AppRoles.DisplayName(AppRoles.InventoryManager)} - {row.Title}")" />
+                                </td>
+                                <td class="px-4 py-4 text-center">
+                                    <input type="checkbox"
+                                           name="GrantedKeys"
+                                           value="@($"{AppRoles.SalesAssociate}:{row.PolicyName}")"
+                                           checked="@row.SalesAssociateGranted"
+                                           class="size-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                                           aria-label="@($"{AppRoles.DisplayName(AppRoles.SalesAssociate)} - {row.Title}")" />
+                                </td>
+                                <td class="px-4 py-4 text-center">
+                                    <input type="checkbox"
+                                           name="GrantedKeys"
+                                           value="@($"{AppRoles.InventoryViewer}:{row.PolicyName}")"
+                                           checked="@row.InventoryViewerGranted"
+                                           class="size-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                                           aria-label="@($"{AppRoles.DisplayName(AppRoles.InventoryViewer)} - {row.Title}")" />
                                 </td>
                             </tr>
                         }
-                    }
-                                }
-            </tbody>
-            </table>
-        </div>
-        @if (Pagination is not null)
-        {
-            <PageNavigation Info="Pagination" Label="users" />
-        }
-</div>
+                    </tbody>
+                </table>
+            </div>
+            <div class="flex items-center justify-between border-t border-slate-200 bg-slate-50/60 px-6 py-4">
+                <p class="text-xs text-slate-500">
+                    For example, uncheck <strong>View cost prices &amp; margins</strong> for Sales Associate to hide item costs, or check <strong>Open &amp; count cash drawer</strong> to let Sales Associates manage drawer shifts.
+                </p>
+                <button type="submit" class="btn-primary shrink-0" data-pending-text="Saving permissions…">
+                    Save role permissions
+                </button>
+            </div>
+        </form>
+    }
+</section>
 
 @code {
     [CascadingParameter]
@@ -110,16 +212,20 @@
     public bool Saved { get; set; }
 
     [SupplyParameterFromQuery]
+    public bool PermissionsSaved { get; set; }
+
+    [SupplyParameterFromQuery]
     public int Page { get; set; } = 1;
 
     [SupplyParameterFromQuery]
     public int PageSize { get; set; } = 30;
 
     private PageInfo? Pagination;
-
     private IReadOnlyList<UserListItem>? Users;
+    private IReadOnlyList<RolePermissionMatrixRow>? Matrix;
     private bool Loading = true;
     private bool Failed;
+    private string? ErrorMessage;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -131,6 +237,7 @@
             var result = await Administration.PageAsync(HttpContext.User, Page, PageSize, HttpContext.RequestAborted);
             Users = result.Items;
             Pagination = result.Pagination;
+            Matrix = await Administration.GetRolePermissionsAsync(HttpContext.User, HttpContext.RequestAborted);
         }
         catch (OperationCanceledException) when (HttpContext.RequestAborted.IsCancellationRequested)
         {
@@ -144,6 +251,34 @@
         finally
         {
             Loading = false;
+        }
+    }
+
+    private async Task SavePermissionsAsync()
+    {
+        try
+        {
+            ErrorMessage = null;
+            var form = await HttpContext.Request.ReadFormAsync(HttpContext.RequestAborted);
+            var rawKeys = form["GrantedKeys"];
+            var granted = new HashSet<(string RoleName, string PolicyName)>();
+            foreach (var item in rawKeys)
+            {
+                if (string.IsNullOrWhiteSpace(item)) continue;
+                var parts = item.Split(':', 2);
+                if (parts.Length == 2)
+                {
+                    granted.Add((parts[0], parts[1]));
+                }
+            }
+
+            await Administration.SaveRolePermissionsAsync(HttpContext.User, granted, HttpContext.RequestAborted);
+            Navigation.NavigateTo("/users?permissionsSaved=true");
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Failed to save role permissions.");
+            ErrorMessage = "Unable to save role permissions. Please try again.";
         }
     }
 }

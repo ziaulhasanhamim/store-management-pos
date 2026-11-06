@@ -59,6 +59,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<SupplierBalance> SupplierBalances { get; set; } = null!;
     public DbSet<CustomerBalanceEntry> CustomerBalanceEntries { get; set; } = null!;
     public DbSet<SupplierBalanceEntry> SupplierBalanceEntries { get; set; } = null!;
+    public DbSet<RolePermission> RolePermissions { get; set; } = null!;
 
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {

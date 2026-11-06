@@ -283,6 +283,13 @@
                         <span class="font-semibold tabular-nums @(Data.StockVariance >= 0 ? "text-emerald-700" : "text-rose-600")">@Money(Data.StockVariance)</span>
                     </div>
                 }
+                @if (CashVarianceAmount != 0)
+                {
+                    <div class="flex justify-between items-center text-slate-600">
+                        <span>Cash @(CashVarianceAmount < 0 ? "shortage (loss)" : "overage (gain)")</span>
+                        <span class="font-semibold tabular-nums @(CashVarianceAmount >= 0 ? "text-emerald-700" : "text-rose-600")">@Money(CashVarianceAmount)</span>
+                    </div>
+                }
             </dl>
 
             <div class="mt-4 rounded-xl border border-emerald-100 bg-emerald-50/60 p-3 flex justify-between items-center">
@@ -625,7 +632,8 @@
     public EventCallback OnSave { get; set; }
 
     private decimal TotalClosingFunds => (Data.CountedCash ?? Data.ClosingCash) + Data.ClosingBank;
-    private decimal DayNetProfit => Data.Revenue - Data.Cogs - Data.Expenses - Data.Salaries + Data.StockVariance;
+    private decimal CashVarianceAmount => Data.Difference ?? (Data.CountedCash.HasValue ? Data.CountedCash.Value - Data.ClosingCash : Data.CashVariance);
+    private decimal DayNetProfit => Data.Revenue - Data.Cogs - Data.Expenses - Data.Salaries + Data.StockVariance + CashVarianceAmount;
     private string Currency => Configuration["CurrencyCode"] ?? "BDT";
     private string Money(decimal amount) => $"{Currency} {amount:N2}";
 

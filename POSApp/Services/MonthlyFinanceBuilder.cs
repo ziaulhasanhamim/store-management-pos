@@ -106,6 +106,25 @@ internal static class MonthlyFinanceBuilder
                     .OrderBy(category => category.Name ?? category.Category.ToString())
                     .ToArray());
 
+        var sessionVariances = await db.CashSessions.AsNoTracking()
+            .Where(session => session.BusinessDate >= totals.Start && session.BusinessDate <= totals.End
+                && session.ClosedAt != null && session.Difference != null
+                && (locationId == null || session.StockLocationId == locationId.Value || session.CashDrawer!.StockLocationId == locationId.Value))
+            .GroupBy(session => session.BusinessDate)
+            .Select(g => new { Date = g.Key, Variance = g.Sum(s => s.Difference!.Value) })
+            .ToDictionaryAsync(x => x.Date, x => x.Variance, ct);
+
+        if (locationId == null)
+        {
+            var dayFinances = await db.DayFinances.AsNoTracking()
+                .Where(day => day.Date >= totals.Start && day.Date <= totals.End && day.ClosedAt != null && day.Difference != null)
+                .ToDictionaryAsync(d => d.Date, d => d.Difference!.Value, ct);
+            foreach (var (dayDate, diff) in dayFinances)
+            {
+                sessionVariances.TryAdd(dayDate, diff);
+            }
+        }
+
         var workingDayDates = (await db.DayFinances.AsNoTracking()
             .Where(day => day.Date >= totals.Start && day.Date <= totals.End)
             .Select(day => day.Date)
@@ -123,6 +142,7 @@ internal static class MonthlyFinanceBuilder
             || dailySupplierPaid.ContainsKey(date)
             || dailyStockReceived.ContainsKey(date)
             || (dailyVariance.TryGetValue(date, out var variance) && variance != 0)
+            || (sessionVariances.TryGetValue(date, out var cashDiff) && cashDiff != 0)
         ).ToList();
 
         if (workingDates.Count == 0 && candidateDays.Count > 0)
@@ -137,6 +157,7 @@ internal static class MonthlyFinanceBuilder
                 dailyExpense.GetValueOrDefault(date), dailyPayroll.GetValueOrDefault(date))
             {
                 StockVariance = dailyVariance.GetValueOrDefault(date),
+                CashVariance = sessionVariances.GetValueOrDefault(date),
                 SupplierPaid = dailySupplierPaid.GetValueOrDefault(date),
                 StockReceived = dailyStockReceived.GetValueOrDefault(date),
                 ExpenseCategories = dayCategoriesByDate.GetValueOrDefault(date) ?? [],

@@ -1,4 +1,5 @@
 @using Microsoft.AspNetCore.Components.Forms
+@using POSApp.Client.DTOs
 
 <EditForm Model="Input"
           method="post"
@@ -32,12 +33,41 @@
             </p>
         </div>
 
+        @if (Locations.Count > 0)
+        {
+            <div>
+                <label for="cashLocationId" class="field-label">Assigned shop location</label>
+                <InputSelect id="cashLocationId" @bind-Value="Input.CashLocationId" class="field">
+                    <option value="">All locations / Select on cash drawer</option>
+                    @foreach (var loc in Locations)
+                    {
+                        <option value="@loc.Id">@loc.Name</option>
+                    }
+                </InputSelect>
+                <p class="mt-2 text-xs text-slate-500">
+                    Sets this team member's default shop branch, cash drawer, and location working date for sales, purchases, and financial entries.
+                </p>
+            </div>
+        }
+
         <div>
             <label for="password" class="field-label">@(IsNew ? "Password" : "New password (optional)")</label>
             <InputText id="password" @bind-Value="Input.Password" type="password" class="field" autocomplete="new-password" required="@IsNew" minlength="8" />
             <p class="mt-2 text-xs text-slate-500">
                 At least 8 characters, including a number.@(IsNew ? "" : " Leave blank to keep the current password.")
             </p>
+        </div>
+
+        <div class="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+            <label class="flex items-start gap-3 text-sm font-medium text-slate-800 cursor-pointer">
+                <InputCheckbox @bind-Value="Input.MustChangePassword" class="mt-0.5 size-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+                <span>
+                    Require password change on next sign-in
+                    <span class="mt-0.5 block text-xs font-normal text-slate-500">
+                        When enabled, this user will be prompted to set a new personal password before accessing the store workspace.
+                    </span>
+                </span>
+            </label>
         </div>
 
         <div class="flex items-center gap-3 border-t border-slate-100 pt-6">
@@ -53,6 +83,9 @@
 @code {
     [Parameter, EditorRequired]
     public UserEditorInput Input { get; set; } = default!;
+
+    [Parameter]
+    public IReadOnlyList<Lookup> Locations { get; set; } = [];
 
     [Parameter]
     public bool IsNew { get; set; }

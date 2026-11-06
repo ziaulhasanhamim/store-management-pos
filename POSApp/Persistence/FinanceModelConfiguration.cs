@@ -130,5 +130,11 @@ internal static class FinanceModelConfiguration
             entity.HasIndex(entry => new { entry.StaffAccountId, entry.OccurredAt });
             entity.Property(entry => entry.Notes).HasMaxLength(2000);
         });
+        builder.Entity<RolePermission>(entity =>
+        {
+            entity.HasIndex(permission => new { permission.RoleName, permission.PolicyName }).IsUnique();
+            entity.Property(permission => permission.RoleName).HasMaxLength(64).IsRequired();
+            entity.Property(permission => permission.PolicyName).HasMaxLength(64).IsRequired();
+        });
     }
 }

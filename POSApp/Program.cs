@@ -105,6 +105,41 @@ app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages:
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseAntiforgery();
+var passwordChangeCache = new System.Collections.Concurrent.ConcurrentDictionary<int, (bool MustChange, DateTimeOffset CachedAt)>();
+app.Use(async (context, next) =>
+{
+    if (HttpMethods.IsGet(context.Request.Method)
+        && context.User.Identity?.IsAuthenticated == true
+        && !context.Request.Path.StartsWithSegments("/account")
+        && !context.Request.Path.StartsWithSegments("/api")
+        && !context.Request.Path.StartsWithSegments("/_blazor")
+        && !context.Request.Path.StartsWithSegments("/_framework")
+        && !context.Request.Path.Value!.Contains('.'))
+    {
+        var userIdStr = context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (int.TryParse(userIdStr, out var uid))
+        {
+            var now = DateTimeOffset.UtcNow;
+            if (!passwordChangeCache.TryGetValue(uid, out var cached) || (now - cached.CachedAt).TotalSeconds > 60)
+            {
+                var db = context.RequestServices.GetRequiredService<AppDbContext>();
+                var mustChange = await db.Users.AsNoTracking()
+                    .Where(u => u.Id == uid)
+                    .Select(u => u.MustChangePassword)
+                    .FirstOrDefaultAsync(context.RequestAborted);
+                cached = (mustChange, now);
+                passwordChangeCache[uid] = cached;
+            }
+
+            if (cached.MustChange)
+            {
+                context.Response.Redirect("/account/change-password");
+                return;
+            }
+        }
+    }
+    await next(context);
+});
 app.Use(async (context, next) =>
 {
     var previous = WorkingDayRequest.Date;

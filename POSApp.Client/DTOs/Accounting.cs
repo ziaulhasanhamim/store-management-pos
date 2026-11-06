@@ -117,13 +117,16 @@ public sealed record LocationCashClosing(string Location, int? SessionId, string
 public sealed record DailyBusinessResult(DateOnly Date, decimal Sales, decimal Cogs, decimal Expenses, decimal Payroll)
 {
     public decimal StockVariance { get; init; }
+    public decimal CashVariance { get; init; }
+    public decimal CashShortage => CashVariance < 0 ? Math.Abs(CashVariance) : 0m;
+    public decimal CashOverage => CashVariance > 0 ? CashVariance : 0m;
     public decimal SupplierPaid { get; init; }
     public decimal StockReceived { get; init; }
     public IReadOnlyList<ExpenseCategoryTotal> ExpenseCategories { get; init; } = [];
     public bool IsWorkingDay { get; init; } = true;
     public decimal SalesProfit => Sales - Cogs;
     public decimal TotalSpend => Expenses + Payroll;
-    public decimal NetProfit => SalesProfit - TotalSpend + StockVariance;
+    public decimal NetProfit => SalesProfit - TotalSpend + StockVariance + CashVariance;
 }
 
 public sealed record ExpenseCategoryTotal(ExpenseCategory Category, decimal Amount)
@@ -161,6 +164,9 @@ public sealed record MonthlyFinanceDetails(IReadOnlyList<DailyBusinessResult> Da
     public IReadOnlyList<LocationFinanceSummary> LocationBreakdown { get; init; } = [];
 
     public decimal StockVariance => Days.Sum(day => day.StockVariance);
+    public decimal CashVariance => Days.Sum(day => day.CashVariance);
+    public decimal CashShortage => Days.Where(day => day.CashVariance < 0).Sum(day => Math.Abs(day.CashVariance));
+    public decimal CashOverage => Days.Where(day => day.CashVariance > 0).Sum(day => day.CashVariance);
     public decimal TotalSales => Days.Sum(day => day.Sales);
     public decimal SalesProfit => Days.Sum(day => day.SalesProfit);
     public decimal TotalSupplierPaid => Days.Sum(day => day.SupplierPaid);
@@ -168,7 +174,7 @@ public sealed record MonthlyFinanceDetails(IReadOnlyList<DailyBusinessResult> Da
     public decimal Expenses => Categories.Sum(category => category.Amount);
     public decimal Payroll => Employees.Sum(employee => employee.TotalPaid);
     public decimal TotalSpend => Expenses + Payroll;
-    public decimal NetProfit => SalesProfit - TotalSpend + StockVariance;
+    public decimal NetProfit => SalesProfit - TotalSpend + StockVariance + CashVariance;
     public decimal AssetGrowth => ClosingAssets.NetAssets - OpeningAssets.NetAssets;
 }
 
@@ -198,3 +204,4 @@ public sealed record ReopenTarget(int Id, string Kind, DateOnly Date, string Tit
     DateTimeOffset ClosedAt, string Revision);
 public sealed record OperatingDay(DateOnly Date, bool Opened, bool Closed,
     int OpenDrawers, int ClosedDrawers, int UnopenedDrawers, bool MonthClosed);
+
