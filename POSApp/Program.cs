@@ -166,6 +166,7 @@ app.MapHealthChecks("/health");
 app.MapGroup("/api/inventory").MapInventoryEndpoints();
 app.MapGroup("/api/sales").MapSalesEndpoints();
 app.MapGroup("/api/finance").MapFinanceEndpoints();
+app.MapGroup("/api/finance/clearing").MapPaymentClearingEndpoints();
 app.MapGroup("/api/entries").MapMoneyEntryEndpoints();
 app.MapGroup("/api/imports").MapImportEndpoints();
 app.MapGroup("/api/drafts").MapDraftEndpoints();

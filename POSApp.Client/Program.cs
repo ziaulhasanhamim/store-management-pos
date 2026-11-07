@@ -14,5 +14,6 @@ builder.Services.AddScoped<IMoneyEntryClient, HttpMoneyEntryClient>();
 builder.Services.AddScoped<IStockTakeClient, HttpStockTakeClient>();
 builder.Services.AddScoped<IStockAdjustmentClient, HttpStockAdjustmentClient>();
 builder.Services.AddScoped<IAttributeDefinitionClient, HttpAttributeDefinitionClient>();
+builder.Services.AddScoped<IPaymentClearingClient, HttpPaymentClearingClient>();
 
 await builder.Build().RunAsync();

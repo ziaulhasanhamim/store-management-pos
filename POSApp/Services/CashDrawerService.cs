@@ -50,11 +50,15 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
             Locations = locations.Select(location =>
             {
                 var drawer = drawers.SingleOrDefault(drawer => drawer.StockLocationId == location.Id);
-                var session = sessions.Where(session => session.CashDrawerId == drawer?.Id).OrderByDescending(session => session.Id).FirstOrDefault();
+                var activeSession = sessions.FirstOrDefault(session => session.CashDrawerId == drawer?.Id && session.ClosedAt == null);
+                var closedSession = sessions.Where(session => session.CashDrawerId == drawer?.Id && session.ClosedAt != null)
+                    .OrderByDescending(session => session.Id).FirstOrDefault();
+                var isOpenToday = activeSession != null;
+                var isClosedToday = !isOpenToday && closedSession != null;
                 return new CashLocationRow(location.Id, location.Name, drawer?.CurrentCash ?? 0,
-                    drawer?.OpeningDate != null, drawer?.CurrentSessionId, session?.ClosedAt != null)
+                    drawer?.OpeningDate != null, isOpenToday ? activeSession!.Id : null, isClosedToday)
                 {
-                    ClosedSessionId = session?.ClosedAt != null ? session.Id : null
+                    ClosedSessionId = closedSession?.Id
                 };
             }).ToArray(),
             Unassigned = admin ? drawers.Where(drawer => drawer.StockLocationId == null && (drawer.CurrentCash != 0 || drawer.CurrentSessionId != null))
@@ -162,6 +166,18 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
                 };
                 day.OpeningCash += input.OpeningCash;
                 db.CashDrawers.Add(drawer);
+                await db.SaveChangesAsync(ct);
+            }
+            else if (drawer.OpeningDate is null)
+            {
+                if (input.OpeningCash > 0 && await db.DayFinances.AnyAsync(day => day.ClosedAt != null, ct))
+                {
+                    throw new ValidationException("New locations start at zero after initial setup. Fund this drawer using a cash transfer or a recorded cash-in.");
+                }
+                drawer.OpeningBalance = input.OpeningCash;
+                drawer.OpeningDate = date;
+                drawer.CurrentCash = input.OpeningCash;
+                day.OpeningCash += input.OpeningCash;
                 await db.SaveChangesAsync(ct);
             }
             day.ExpectedCash = day.OpeningCash;

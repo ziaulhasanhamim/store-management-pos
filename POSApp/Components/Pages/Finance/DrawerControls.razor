@@ -31,7 +31,20 @@
                 {
                     <tr>
                         <td>@location.Name</td>
-                        <td>@(location.SessionId != null ? "Open" : location.ClosedToday ? "Counted and closed" : "Not opened")</td>
+                        <td>
+                            @if (location.SessionId != null)
+                            {
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-emerald-100 text-emerald-800">Open</span>
+                            }
+                            else if (location.ClosedToday)
+                            {
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-slate-100 text-slate-700">Counted and closed</span>
+                            }
+                            else
+                            {
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-amber-50 text-amber-700">Not opened</span>
+                            }
+                        </td>
                         <td class="text-right">@Money(location.Balance)</td>
                     </tr>
                 }

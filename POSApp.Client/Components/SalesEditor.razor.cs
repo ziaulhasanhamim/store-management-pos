@@ -22,7 +22,14 @@ public partial class SalesEditor
         }
         SaleRevision = draft.Revision;
         RequestId = draft.RequestId;
-        LocationId = draft.LocationId;
+        if (draft.Lines.Length > 0 && draft.LocationId > 0 && Options.Locations.Any(l => l.Id == draft.LocationId))
+        {
+            LocationId = draft.LocationId;
+        }
+        else if (Options.DefaultLocationId.HasValue && Options.Locations.Any(l => l.Id == Options.DefaultLocationId.Value))
+        {
+            LocationId = Options.DefaultLocationId.Value;
+        }
         CustomerId = draft.CustomerId;
         if (draft.WorkingDate != Options.WorkingDate)
         {
@@ -507,6 +514,10 @@ public partial class SalesEditor
         DiscountRevision++;
         SaleRevision = 0;
         RequestId = Guid.NewGuid();
+        if (Options.DefaultLocationId.HasValue && Options.Locations.Any(l => l.Id == Options.DefaultLocationId.Value))
+        {
+            LocationId = Options.DefaultLocationId.Value;
+        }
         Lines.Clear();
         ReturnMode = false;
         CustomerId = null;

@@ -11,6 +11,55 @@ namespace POSApp.Services;
 
 public sealed class PaymentClearingService(IServiceScopeFactory scopes, IConfiguration configuration)
 {
+    public async Task<PaymentClearingPageData> GetPageDataAsync(
+        ClaimsPrincipal actor, int? locationId = null, PaymentMethod? method = null, CancellationToken ct = default)
+    {
+        await using var scope = scopes.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await StoreAccess.RequireAsync(db, actor, AppRoles.SalesAssociate, ct);
+
+        var locations = await db.StockLocations.AsNoTracking()
+            .Where(l => !l.IsDeleted && l.CanSell)
+            .OrderBy(l => l.Name)
+            .Select(l => new StockLocationOption(l.Id, l.Name))
+            .ToListAsync(ct);
+
+        var summary = await GetSummaryAsync(actor, locationId, ct);
+
+        var allPending = new List<ClearingSaleItemDto>();
+        var locsToQuery = locationId.HasValue && locationId.Value > 0
+            ? locations.Where(l => l.Id == locationId.Value)
+            : locations;
+
+        foreach (var loc in locsToQuery)
+        {
+            if (method == null || method == PaymentMethod.Card)
+            {
+                allPending.AddRange(await GetUnsettledSalesAsync(actor, loc.Id, PaymentMethod.Card, ct));
+            }
+            if (method == null || method == PaymentMethod.MobileWallet)
+            {
+                allPending.AddRange(await GetUnsettledSalesAsync(actor, loc.Id, PaymentMethod.MobileWallet, ct));
+            }
+        }
+        var pendingSales = allPending.OrderBy(s => s.BusinessDate).ThenBy(s => s.Id).ToList();
+        var history = await GetPayoutHistoryAsync(actor, locationId > 0 ? locationId : null, limit: 50, ct);
+        var ageing = await GetAgeingReportAsync(actor, ct);
+        var feeTrends = await GetFeeAnalyticsAsync(actor, ct: ct);
+        var workingDate = AccountingCalendar.Today(configuration);
+        var canManage = actor.IsInRole(AppRoles.Admin);
+
+        return new PaymentClearingPageData(
+            summary,
+            locations,
+            pendingSales,
+            history,
+            ageing,
+            feeTrends,
+            workingDate,
+            canManage);
+    }
+
     public async Task<ClearingSummaryDto> GetSummaryAsync(ClaimsPrincipal actor, int? locationId = null, CancellationToken ct = default)
     {
         await using var scope = scopes.CreateAsyncScope();

@@ -502,3 +502,4 @@ Library/
 .DS_Store
 .vscode/
 **/.local/
+.neon

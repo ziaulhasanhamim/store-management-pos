@@ -1,0 +1,916 @@
+@using POSApp.Client.DTOs
+@using POSApp.Client.Enums
+@inject IPaymentClearingClient ClearingClient
+
+<div class="flex flex-wrap items-center justify-between gap-3 mb-6 no-print">
+    <div class="flex items-center gap-2">
+        <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Settlement Hub</span>
+    </div>
+    <div class="flex flex-wrap items-center gap-2">
+        @if (CanManagePayouts)
+        {
+            <button type="button" class="btn-primary" @onclick="OpenPayoutModal">
+                <Icon Name="wallet" Class="size-4 mr-1.5" />
+                Record provider payout
+            </button>
+        }
+        <button type="button" class="btn-secondary" @onclick="LoadDataAsync" title="Refresh clearing data" disabled="@IsLoading">
+            <Icon Name="history" Class="size-4 mr-1.5" />
+            @(IsLoading ? "Refreshing…" : "Refresh")
+        </button>
+        <a href="/finance/day" class="btn-secondary">
+            Day finance
+        </a>
+    </div>
+</div>
+
+@if (Error is not null)
+{
+    <div class="error-panel mb-4 flex items-center justify-between" role="alert">
+        <span>@Error</span>
+        <button type="button" class="text-xs underline ml-2 cursor-pointer" @onclick="@(() => Error = null)">Dismiss</button>
+    </div>
+}
+@if (SuccessNotice is not null)
+{
+    <div class="success-panel mb-4 flex items-center justify-between" role="status">
+        <span>@SuccessNotice</span>
+        <button type="button" class="text-xs underline ml-2 cursor-pointer" @onclick="@(() => SuccessNotice = null)">Dismiss</button>
+    </div>
+}
+
+@if (Summary is null)
+{
+    <LoadingPanel Message="Loading clearing accounts and pending balances…" />
+}
+else
+{
+    <!-- Top KPI Summary Cards -->
+    <div class="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div class="metric rounded-2xl border border-indigo-100 bg-white p-5 shadow-xs">
+            <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Awaiting Payout</p>
+            <strong class="text-2xl! font-bold text-indigo-700 tabular-nums">@Money(Summary.TotalAwaiting)</strong>
+            <p class="mt-1 text-xs text-slate-500">@Summary.UnsettledCount pending sales waiting</p>
+        </div>
+        <div class="metric rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
+            <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Card Clearing Balance</p>
+            <strong class="text-2xl! font-bold text-slate-900 tabular-nums">@Money(Summary.CardAwaiting)</strong>
+            <p class="mt-1 text-xs text-slate-500">POS terminals & swipe machines</p>
+        </div>
+        <div class="metric rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
+            <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Mobile Wallet Balance</p>
+            <strong class="text-2xl! font-bold text-slate-900 tabular-nums">@Money(Summary.MobileWalletAwaiting)</strong>
+            <p class="mt-1 text-xs text-slate-500">bKash, Nagad & Rocket</p>
+        </div>
+        <div class="metric rounded-2xl border @(Summary.OverdueCount > 0 ? "border-rose-300 bg-rose-50/40" : "border-slate-200 bg-white") p-5 shadow-xs">
+            <p class="text-xs font-semibold @(Summary.OverdueCount > 0 ? "text-rose-700" : "text-slate-500") uppercase tracking-wider">Overdue (> 7 days)</p>
+            <strong class="text-2xl! font-bold @(Summary.OverdueCount > 0 ? "text-rose-700" : "text-slate-900") tabular-nums">@Money(Summary.OverdueAmount)</strong>
+            <p class="mt-1 text-xs @(Summary.OverdueCount > 0 ? "text-rose-600 font-semibold" : "text-slate-500")">
+                @(Summary.OverdueCount > 0 ? $"{Summary.OverdueCount} sales require provider follow-up" : "No stuck balances")
+            </p>
+        </div>
+    </div>
+
+    <!-- Tab navigation -->
+    <div class="mb-6 flex border-b border-slate-200 gap-6">
+        <button type="button" class="@(ActiveTab == "pending" ? "border-b-2 border-indigo-600 pb-3 font-bold text-indigo-700" : "pb-3 text-slate-500 hover:text-slate-800") cursor-pointer transition-colors"
+                @onclick="@(() => ActiveTab = "pending")">
+            Pending Sales (@Summary.UnsettledCount)
+        </button>
+        <button type="button" class="@(ActiveTab == "history" ? "border-b-2 border-indigo-600 pb-3 font-bold text-indigo-700" : "pb-3 text-slate-500 hover:text-slate-800") cursor-pointer transition-colors"
+                @onclick="@(() => ActiveTab = "history")">
+            Payout History
+        </button>
+        <button type="button" class="@(ActiveTab == "ageing" ? "border-b-2 border-indigo-600 pb-3 font-bold text-indigo-700" : "pb-3 text-slate-500 hover:text-slate-800") cursor-pointer transition-colors"
+                @onclick="@(() => ActiveTab = "ageing")">
+            Ageing & Fee Analytics
+        </button>
+    </div>
+
+    @if (ActiveTab == "pending")
+    {
+        <!-- Pending Sales Section -->
+        <section class="panel mb-6">
+            <div class="panel-heading flex flex-wrap items-center justify-between gap-3">
+                <div class="flex flex-wrap items-center gap-3">
+                    <select class="field text-sm" value="@FilterLocationId" @onchange="OnFilterLocationChanged">
+                        <option value="0">All store locations</option>
+                        @foreach (var loc in Locations)
+                        {
+                            <option value="@loc.Id">@loc.Name</option>
+                        }
+                    </select>
+                    <select class="field text-sm" value="@FilterMethod" @onchange="OnFilterMethodChanged">
+                        <option value="">All payment methods</option>
+                        <option value="@PaymentMethod.Card">Card</option>
+                        <option value="@PaymentMethod.MobileWallet">Mobile Wallet</option>
+                    </select>
+                    <div class="relative min-w-[220px]">
+                        <input type="text" class="field text-sm pl-8 pr-7" placeholder="Search sale #, store, amount..."
+                               value="@PendingSearchTerm" @oninput="OnPendingSearchInput" />
+                        <span class="absolute left-2.5 top-2.5 text-slate-400">
+                            <Icon Name="search" Class="size-4" />
+                        </span>
+                        @if (!string.IsNullOrWhiteSpace(PendingSearchTerm))
+                        {
+                            <button type="button" class="absolute right-2.5 top-2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                                    @onclick="@(() => PendingSearchTerm = "")">
+                                <Icon Name="x" Class="size-3.5" />
+                            </button>
+                        }
+                    </div>
+                </div>
+                <span class="text-xs text-slate-500">
+                    Filtered total: <strong class="text-slate-900 tabular-nums">@Money(FilteredPendingSales.Sum(s => s.GrossAmount))</strong>
+                    (@FilteredPendingSales.Count() sales)
+                </span>
+            </div>
+
+            <div class="table-scroll">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Sale #</th>
+                            <th>Business Date</th>
+                            <th>Store Location</th>
+                            <th>Payment Tender</th>
+                            <th class="text-right">Gross Amount</th>
+                            <th class="text-center">Age (Days)</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (!FilteredPendingSales.Any())
+                        {
+                            <tr>
+                                <td colspan="7" class="p-8 text-center text-slate-400">
+                                    No unsettled sales matching your filter criteria.
+                                </td>
+                            </tr>
+                        }
+                        else
+                        {
+                            @foreach (var sale in FilteredPendingSales)
+                            {
+                                <tr>
+                                    <td>
+                                        @if (sale.SaleId.HasValue)
+                                        {
+                                            <a href="@($"/sales?receipt={sale.SaleId.Value}")" class="font-semibold text-indigo-700 hover:underline">
+                                                #@sale.SaleId.Value
+                                            </a>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-slate-500 font-mono text-xs">Payment #@sale.PaymentId</span>
+                                        }
+                                    </td>
+                                    <td>@sale.BusinessDate.ToString("dd MMM yyyy")</td>
+                                    <td>
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-800">
+                                            @sale.StockLocationName
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span class="inline-flex items-center gap-1.5 text-xs font-semibold @(sale.Method == PaymentMethod.Card ? "text-blue-700" : "text-emerald-700")">
+                                            <span class="size-1.5 rounded-full @(sale.Method == PaymentMethod.Card ? "bg-blue-600" : "bg-emerald-600")"></span>
+                                            @sale.Method
+                                        </span>
+                                    </td>
+                                    <td class="text-right font-bold tabular-nums">@Money(sale.GrossAmount)</td>
+                                    <td class="text-center">
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold @(sale.DaysWaiting > 7 ? "bg-rose-100 text-rose-800" : (sale.DaysWaiting >= 3 ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-600"))">
+                                            @sale.DaysWaiting d
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
+                                            Awaiting settlement
+                                        </span>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    }
+    else if (ActiveTab == "history")
+    {
+        <!-- Payout History Section -->
+        <section class="panel mb-6">
+            <div class="panel-heading flex flex-wrap items-center justify-between gap-3">
+                <div class="flex flex-wrap items-center gap-3">
+                    <select class="field text-sm" value="@FilterLocationId" @onchange="OnFilterLocationChanged">
+                        <option value="0">All store locations</option>
+                        @foreach (var loc in Locations)
+                        {
+                            <option value="@loc.Id">@loc.Name</option>
+                        }
+                    </select>
+                    <div class="relative min-w-[220px]">
+                        <input type="text" class="field text-sm pl-8 pr-7" placeholder="Search reference, notes, user..."
+                               value="@HistorySearchTerm" @oninput="OnHistorySearchInput" />
+                        <span class="absolute left-2.5 top-2.5 text-slate-400">
+                            <Icon Name="search" Class="size-4" />
+                        </span>
+                        @if (!string.IsNullOrWhiteSpace(HistorySearchTerm))
+                        {
+                            <button type="button" class="absolute right-2.5 top-2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                                    @onclick="@(() => HistorySearchTerm = "")">
+                                <Icon Name="x" Class="size-3.5" />
+                            </button>
+                        }
+                    </div>
+                </div>
+                <span class="text-xs text-slate-500">
+                    Total settled: <strong class="text-slate-900 tabular-nums">@Money(FilteredPayoutHistory.Sum(p => p.NetAmount))</strong>
+                    (@FilteredPayoutHistory.Count() payouts)
+                </span>
+            </div>
+
+            <div class="table-scroll">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Payout #</th>
+                            <th>Settled At</th>
+                            <th>Store Location</th>
+                            <th>Method</th>
+                            <th class="text-right">Gross Cleared</th>
+                            <th class="text-right">Fee Deducted</th>
+                            <th class="text-right">Net Bank Deposit</th>
+                            <th>Bank Account</th>
+                            <th>Reference / Notes</th>
+                            <th>Recorded By</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (!FilteredPayoutHistory.Any())
+                        {
+                            <tr>
+                                <td colspan="10" class="p-8 text-center text-slate-400">
+                                    No payout settlement history found.
+                                </td>
+                            </tr>
+                        }
+                        else
+                        {
+                            @foreach (var payout in FilteredPayoutHistory)
+                            {
+                                <tr>
+                                    <td class="font-semibold text-slate-900">#@payout.Id</td>
+                                    <td class="text-xs text-slate-600">@payout.SettledAt.ToString("dd MMM yyyy HH:mm")</td>
+                                    <td>
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-800">
+                                            @payout.StockLocationName
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span class="inline-flex items-center gap-1 text-xs font-medium">
+                                            @payout.Method
+                                        </span>
+                                    </td>
+                                    <td class="text-right tabular-nums">@Money(payout.GrossAmount)</td>
+                                    <td class="text-right tabular-nums font-semibold text-amber-700">
+                                        @Money(payout.FeeAmount)
+                                        @if (payout.FeePercentage > 0)
+                                        {
+                                            <span class="text-[10px] text-slate-400 block font-normal">(@payout.FeePercentage.ToString("0.0"))%</span>
+                                        }
+                                    </td>
+                                    <td class="text-right tabular-nums font-bold text-emerald-700">@Money(payout.NetAmount)</td>
+                                    <td class="text-xs">@payout.BankAccountName</td>
+                                    <td class="text-xs max-w-xs">
+                                        @if (!string.IsNullOrEmpty(payout.Reference))
+                                        {
+                                            <span class="font-semibold text-slate-700 block">@payout.Reference</span>
+                                        }
+                                        <span class="text-slate-500 line-clamp-1">@payout.Notes</span>
+                                    </td>
+                                    <td class="text-xs text-slate-600">@payout.CreatedByName</td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    }
+    else if (ActiveTab == "ageing")
+    {
+        <!-- Ageing & Fee Analytics Section -->
+        <div class="grid gap-6 lg:grid-cols-2 mb-6">
+            <section class="panel p-5">
+                <h2 class="mb-3 font-semibold text-slate-900">Settlement Ageing by Location</h2>
+                <p class="text-xs text-slate-500 mb-4">Monitor how long card and mobile wallet funds remain un-deposited by store.</p>
+                <div class="table-scroll">
+                    <table class="data-table text-xs">
+                        <thead>
+                            <tr>
+                                <th>Location</th>
+                                <th>Method</th>
+                                <th class="text-right">&lt; 3 Days</th>
+                                <th class="text-right">3 - 7 Days</th>
+                                <th class="text-right text-rose-700">&gt; 7 Days</th>
+                                <th class="text-right font-bold">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (!AgeingRows.Any())
+                            {
+                                <tr>
+                                    <td colspan="6" class="p-4 text-center text-slate-400">No pending balances to age.</td>
+                                </tr>
+                            }
+                            else
+                            {
+                                @foreach (var row in AgeingRows)
+                                {
+                                    <tr>
+                                        <td class="font-medium">@row.LocationName</td>
+                                        <td>@row.Method</td>
+                                        <td class="text-right tabular-nums text-slate-600">@Money(row.Under3Days)</td>
+                                        <td class="text-right tabular-nums @(row.From3To7Days > 0 ? "text-amber-700 font-semibold" : "text-slate-400")">@Money(row.From3To7Days)</td>
+                                        <td class="text-right tabular-nums @(row.Over7Days > 0 ? "text-rose-700 font-bold" : "text-slate-400")">@Money(row.Over7Days)</td>
+                                        <td class="text-right tabular-nums font-bold text-slate-900">@Money(row.Total)</td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="panel p-5">
+                <h2 class="mb-3 font-semibold text-slate-900">Monthly Processing Fee Analytics</h2>
+                <p class="text-xs text-slate-500 mb-4">Effective gateway and card machine commission deductions over time.</p>
+                <div class="table-scroll">
+                    <table class="data-table text-xs">
+                        <thead>
+                            <tr>
+                                <th>Month</th>
+                                <th>Method</th>
+                                <th class="text-right">Gross Cleared</th>
+                                <th class="text-right">Fee Deducted</th>
+                                <th class="text-right">Effective Rate</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @if (!FeeTrends.Any())
+                            {
+                                <tr>
+                                    <td colspan="5" class="p-4 text-center text-slate-400">No monthly payout data available yet.</td>
+                                </tr>
+                            }
+                            else
+                            {
+                                @foreach (var trend in FeeTrends)
+                                {
+                                    <tr>
+                                        <td class="font-medium">@trend.Month.ToString("MMM yyyy")</td>
+                                        <td>@trend.Method</td>
+                                        <td class="text-right tabular-nums">@Money(trend.GrossAmount)</td>
+                                        <td class="text-right tabular-nums font-semibold text-amber-700">@Money(trend.FeeAmount)</td>
+                                        <td class="text-right tabular-nums font-bold text-indigo-700">@trend.EffectiveFeePercentage.ToString("0.00")%</td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+    }
+}
+
+<!-- Record Provider Payout Modal -->
+@if (ShowPayoutModal)
+{
+    <div class="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs no-print"
+         @onclick="ClosePayoutModal">
+        <div class="relative w-full max-w-lg max-h-[88vh] rounded-2xl bg-white shadow-2xl border border-slate-200 overflow-hidden flex flex-col my-auto"
+             @onclick:stopPropagation="true">
+            <!-- Modal Header -->
+            <div class="flex items-center justify-between border-b border-slate-100 px-5 py-3 bg-slate-50/50 shrink-0">
+                <div class="flex items-center gap-2">
+                    <span class="p-1.5 rounded-lg bg-indigo-100 text-indigo-700">
+                        <Icon Name="wallet" Class="size-4" />
+                    </span>
+                    <div>
+                        <h2 class="text-sm font-bold text-slate-900">Record Provider Payout</h2>
+                        <p class="text-[11px] text-slate-500">Settle card & wallet transactions into your bank account</p>
+                    </div>
+                </div>
+                <button type="button" class="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 cursor-pointer"
+                        @onclick="ClosePayoutModal" aria-label="Close modal">
+                    <Icon Name="x" Class="size-4" />
+                </button>
+            </div>
+
+            <!-- Modal Body -->
+            <div class="p-4 sm:p-5 space-y-3 overflow-y-auto flex-1 text-xs">
+                <!-- Location & Tender Selectors -->
+                <div class="grid gap-2.5 sm:grid-cols-2">
+                    <div>
+                        <label class="field-label text-[11px] mb-1 font-semibold" for="modal-location">Store Location</label>
+                        <select id="modal-location" class="field text-xs py-1" value="@ModalLocationId" @onchange="OnModalLocationChanged">
+                            @foreach (var loc in Locations)
+                            {
+                                <option value="@loc.Id">@loc.Name</option>
+                            }
+                        </select>
+                    </div>
+                    <div>
+                        <label class="field-label text-[11px] mb-1 font-semibold" for="modal-method">Payment Tender</label>
+                        <select id="modal-method" class="field text-xs py-1" value="@ModalMethod" @onchange="OnModalMethodChanged">
+                            <option value="@PaymentMethod.Card">Card (POS swipe / terminal)</option>
+                            <option value="@PaymentMethod.MobileWallet">Mobile Wallet (bKash / Nagad / Rocket)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Sales Checklist Table -->
+                <div>
+                    <div class="flex flex-wrap items-center justify-between mb-1 gap-1">
+                        <label class="field-label text-[11px] mb-0 font-semibold">
+                            Pending Sales (@SelectedSaleIds.Count/@ModalSales.Count selected)
+                        </label>
+                        <div class="flex items-center gap-1.5">
+                            <div class="relative w-28">
+                                <input type="text" class="field text-[11px] pl-5 pr-4 py-0.5" placeholder="Filter..."
+                                       value="@ModalSearchTerm" @oninput="OnModalSearchInput" />
+                                <span class="absolute left-1.5 top-1 text-slate-400">
+                                    <Icon Name="search" Class="size-2.5" />
+                                </span>
+                                @if (!string.IsNullOrWhiteSpace(ModalSearchTerm))
+                                {
+                                    <button type="button" class="absolute right-1 top-0.5 text-slate-400 hover:text-slate-600 cursor-pointer"
+                                            @onclick="@(() => ModalSearchTerm = "")">
+                                        <Icon Name="x" Class="size-2.5" />
+                                    </button>
+                                }
+                            </div>
+                            <button type="button" class="text-[11px] text-indigo-600 hover:underline cursor-pointer font-medium" @onclick="SelectAllModalSales">All</button>
+                            <span class="text-slate-300">|</span>
+                            <button type="button" class="text-[11px] text-slate-500 hover:underline cursor-pointer" @onclick="DeselectAllModalSales">Clear</button>
+                        </div>
+                    </div>
+                    <div class="max-h-28 overflow-y-auto border border-slate-200 rounded-lg">
+                        <table class="data-table text-xs">
+                            <thead class="sticky top-0 bg-slate-100 shadow-xs">
+                                <tr>
+                                    <th class="w-6 p-1 text-center"></th>
+                                    <th class="p-1">Date</th>
+                                    <th class="p-1">Ref</th>
+                                    <th class="p-1">Age</th>
+                                    <th class="p-1 text-right">Gross</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (!FilteredModalSales.Any())
+                                {
+                                    <tr>
+                                        <td colspan="5" class="p-2.5 text-center text-slate-400">
+                                            @(ModalSales.Count == 0 ? "No unsettled sales found for this store and tender." : $"No sales matching \"{ModalSearchTerm}\".")
+                                        </td>
+                                    </tr>
+                                }
+                                else
+                                {
+                                    @foreach (var sale in FilteredModalSales)
+                                    {
+                                        var isSelected = SelectedSaleIds.Contains(sale.Id);
+                                        <tr class="@(isSelected ? "bg-indigo-50/50" : "") hover:bg-slate-50 cursor-pointer"
+                                            @onclick="@(() => ToggleSaleSelection(sale.Id))">
+                                            <td class="p-1 text-center" @onclick:stopPropagation="true">
+                                                <input type="checkbox" checked="@isSelected"
+                                                       @onchange="@(() => ToggleSaleSelection(sale.Id))"
+                                                       class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer" />
+                                            </td>
+                                            <td class="p-1 font-medium">@sale.BusinessDate.ToString("dd MMM")</td>
+                                            <td class="p-1 text-slate-600">
+                                                @(sale.SaleId.HasValue ? $"#{sale.SaleId.Value}" : $"Pay #{sale.PaymentId}")
+                                            </td>
+                                            <td class="p-1">
+                                                <span class="text-[10px] @(sale.DaysWaiting > 7 ? "text-rose-600 font-bold" : "text-slate-500")">
+                                                    @sale.DaysWaiting d
+                                                </span>
+                                            </td>
+                                            <td class="p-1 text-right font-bold tabular-nums">@Money(sale.GrossAmount)</td>
+                                        </tr>
+                                    }
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 3-Column Financial Reconciliation Summary -->
+                <div class="grid grid-cols-3 gap-1.5 p-2.5 bg-slate-50 rounded-xl border border-slate-200 text-center">
+                    <div>
+                        <span class="text-[9px] font-semibold text-slate-500 uppercase tracking-wider block">Gross Cleared</span>
+                        <span class="text-xs font-bold text-slate-900 tabular-nums">@Money(SelectedGrossAmount)</span>
+                    </div>
+                    <div>
+                        <span class="text-[9px] font-semibold text-slate-500 uppercase tracking-wider block">Fee Deducted</span>
+                        <span class="text-xs font-bold @(ModalFeeAmount >= 0 ? "text-amber-700" : "text-rose-700") tabular-nums">
+                            @Money(ModalFeeAmount)
+                            @if (SelectedGrossAmount > 0 && ModalFeeAmount > 0)
+                            {
+                                <span class="text-[9px] block font-normal text-slate-400">@(((ModalFeeAmount / SelectedGrossAmount) * 100).ToString("0.0"))%</span>
+                            }
+                        </span>
+                    </div>
+                    <div>
+                        <span class="text-[9px] font-semibold text-slate-500 uppercase tracking-wider block">Net Deposit</span>
+                        <span class="text-xs font-bold text-emerald-700 tabular-nums">@Money(ModalNetAmount)</span>
+                    </div>
+                </div>
+
+                <!-- Net Amount Input with Fee Shortcuts -->
+                <div>
+                    <div class="flex items-center justify-between mb-1">
+                        <label class="field-label text-[11px] mb-0 font-semibold" for="net-amount">
+                            Net Bank Deposit Received (@Currency)
+                        </label>
+                        <div class="flex items-center gap-1.5 text-[11px]">
+                            <button type="button" class="text-indigo-600 hover:underline cursor-pointer font-medium"
+                                    @onclick="MatchGross">
+                                Full (0 fee)
+                            </button>
+                            <span class="text-slate-300">·</span>
+                            <button type="button" class="text-slate-500 hover:text-indigo-600 cursor-pointer"
+                                    @onclick="@(() => ApplyFeePercentage(1.5m))">
+                                -1.5%
+                            </button>
+                            <button type="button" class="text-slate-500 hover:text-indigo-600 cursor-pointer"
+                                    @onclick="@(() => ApplyFeePercentage(2.0m))">
+                                -2.0%
+                            </button>
+                        </div>
+                    </div>
+                    <input id="net-amount" type="text" inputmode="decimal" class="field text-sm font-bold tabular-nums py-1"
+                           value="@ModalNetInput" @oninput="OnNetDepositInput" placeholder="0.00" autocomplete="off" />
+                    <p class="text-[10px] text-slate-500 mt-1">
+                        Bank will be credited gross amount and provider fee recorded as an expense attributed to @SelectedLocationName.
+                    </p>
+                </div>
+
+                <!-- Reference & Date -->
+                <div class="grid gap-2 sm:grid-cols-2">
+                    <div>
+                        <label class="field-label text-[11px] mb-0.5" for="payout-ref">Bank Reference / Batch ID</label>
+                        <input id="payout-ref" class="field text-xs py-1" @bind="ModalReference" placeholder="e.g. BATCH-987654" />
+                    </div>
+                    <div>
+                        <label class="field-label text-[11px] mb-0.5" for="payout-date">Business Date</label>
+                        <input id="payout-date" type="date" class="field text-xs py-1" @bind="ModalBusinessDate" />
+                    </div>
+                </div>
+
+                <!-- Notes -->
+                <div>
+                    <label class="field-label text-[11px] mb-0.5" for="payout-notes">Notes (optional)</label>
+                    <input id="payout-notes" class="field text-xs py-1" @bind="ModalNotes" placeholder="Optional payout reference notes" />
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 px-5 py-2.5 bg-slate-50/70 shrink-0">
+                <span class="text-[11px]">
+                    @if (SelectedSaleIds.Count == 0)
+                    {
+                        <span class="text-amber-600 font-medium">Select at least 1 sale to settle.</span>
+                    }
+                    else if (ModalNetAmount <= 0)
+                    {
+                        <span class="text-amber-600 font-medium">Enter the net deposit amount.</span>
+                    }
+                    else if (ModalNetAmount > SelectedGrossAmount)
+                    {
+                        <span class="text-rose-600 font-medium">Net deposit cannot exceed gross sales.</span>
+                    }
+                </span>
+                <div class="flex gap-2">
+                    <button type="button" class="btn-secondary text-xs py-1 px-3 cursor-pointer" @onclick="ClosePayoutModal">Cancel</button>
+                    <button type="button" class="btn-primary text-xs py-1 px-3 cursor-pointer" @onclick="SubmitPayoutAsync" disabled="@(SubmitDisabled || IsSubmitting)">
+                        @(IsSubmitting ? "Recording…" : "Confirm & Record Payout")
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public PaymentClearingPageData InitialData { get; set; } = default!;
+
+    [Parameter]
+    public string Currency { get; set; } = "BDT";
+
+    private string ActiveTab = "pending";
+    private string? Error;
+    private string? SuccessNotice;
+    private bool IsLoading;
+
+    private ClearingSummaryDto? Summary;
+    private IReadOnlyList<StockLocationOption> Locations = [];
+    private IReadOnlyList<ClearingSaleItemDto> PendingSales = [];
+    private IReadOnlyList<PayoutHistoryRowDto> PayoutHistory = [];
+    private IReadOnlyList<ClearingAgeingDto> AgeingRows = [];
+    private IReadOnlyList<MonthlyFeeAnalyticsDto> FeeTrends = [];
+    private bool CanManagePayouts;
+
+    private int FilterLocationId = 0;
+    private PaymentMethod? FilterMethod = null;
+    private string PendingSearchTerm = "";
+    private string HistorySearchTerm = "";
+
+    // Modal state
+    private bool ShowPayoutModal;
+    private int ModalLocationId;
+    private PaymentMethod ModalMethod = PaymentMethod.Card;
+    private IReadOnlyList<ClearingSaleItemDto> ModalSales = [];
+    private HashSet<int> SelectedSaleIds = [];
+    private string ModalNetInput = "";
+    private decimal ModalNetAmount => decimal.TryParse(ModalNetInput, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var n)
+        ? n
+        : (decimal.TryParse(ModalNetInput, out var nLocal) ? nLocal : 0m);
+    private string ModalReference = "";
+    private DateOnly ModalBusinessDate;
+    private string ModalNotes = "";
+    private string ModalSearchTerm = "";
+    private bool IsSubmitting;
+
+    private string SelectedLocationName => Locations.FirstOrDefault(l => l.Id == ModalLocationId)?.Name ?? "Store";
+    private decimal SelectedGrossAmount => ModalSales.Where(s => SelectedSaleIds.Contains(s.Id)).Sum(s => s.GrossAmount);
+    private decimal ModalFeeAmount => SelectedGrossAmount - ModalNetAmount;
+    private bool SubmitDisabled => SelectedSaleIds.Count == 0 || ModalNetAmount <= 0 || ModalNetAmount > SelectedGrossAmount;
+
+    protected override void OnInitialized()
+    {
+        ApplyPageData(InitialData);
+    }
+
+    private void ApplyPageData(PaymentClearingPageData data)
+    {
+        Summary = data.Summary;
+        Locations = data.Locations;
+        PendingSales = data.PendingSales;
+        PayoutHistory = data.PayoutHistory;
+        AgeingRows = data.AgeingRows;
+        FeeTrends = data.FeeTrends;
+        CanManagePayouts = data.CanManagePayouts;
+        ModalBusinessDate = data.WorkingDate;
+
+        if (Locations.Count > 0 && ModalLocationId == 0)
+        {
+            ModalLocationId = Locations[0].Id;
+        }
+    }
+
+    private IEnumerable<ClearingSaleItemDto> FilteredPendingSales
+    {
+        get
+        {
+            var list = PendingSales.AsEnumerable();
+            if (!string.IsNullOrWhiteSpace(PendingSearchTerm))
+            {
+                var term = PendingSearchTerm.Trim();
+                list = list.Where(s =>
+                    (s.SaleId.HasValue && s.SaleId.Value.ToString().Contains(term, StringComparison.OrdinalIgnoreCase))
+                    || s.PaymentId.ToString().Contains(term, StringComparison.OrdinalIgnoreCase)
+                    || s.StockLocationName.Contains(term, StringComparison.OrdinalIgnoreCase)
+                    || s.Method.ToString().Contains(term, StringComparison.OrdinalIgnoreCase)
+                    || s.GrossAmount.ToString().Contains(term, StringComparison.OrdinalIgnoreCase)
+                    || s.BusinessDate.ToString("dd MMM yyyy").Contains(term, StringComparison.OrdinalIgnoreCase));
+            }
+            return list;
+        }
+    }
+
+    private IEnumerable<PayoutHistoryRowDto> FilteredPayoutHistory
+    {
+        get
+        {
+            var list = PayoutHistory.AsEnumerable();
+            if (!string.IsNullOrWhiteSpace(HistorySearchTerm))
+            {
+                var term = HistorySearchTerm.Trim();
+                list = list.Where(p =>
+                    (!string.IsNullOrEmpty(p.Reference) && p.Reference.Contains(term, StringComparison.OrdinalIgnoreCase))
+                    || p.StockLocationName.Contains(term, StringComparison.OrdinalIgnoreCase)
+                    || (!string.IsNullOrEmpty(p.Notes) && p.Notes.Contains(term, StringComparison.OrdinalIgnoreCase))
+                    || (!string.IsNullOrEmpty(p.CreatedByName) && p.CreatedByName.Contains(term, StringComparison.OrdinalIgnoreCase))
+                    || p.GrossAmount.ToString().Contains(term, StringComparison.OrdinalIgnoreCase)
+                    || p.NetAmount.ToString().Contains(term, StringComparison.OrdinalIgnoreCase)
+                    || p.FeeAmount.ToString().Contains(term, StringComparison.OrdinalIgnoreCase));
+            }
+            return list;
+        }
+    }
+
+    private IEnumerable<ClearingSaleItemDto> FilteredModalSales
+    {
+        get
+        {
+            var list = ModalSales.AsEnumerable();
+            if (!string.IsNullOrWhiteSpace(ModalSearchTerm))
+            {
+                var term = ModalSearchTerm.Trim();
+                list = list.Where(s =>
+                    (s.SaleId.HasValue && s.SaleId.Value.ToString().Contains(term, StringComparison.OrdinalIgnoreCase))
+                    || s.PaymentId.ToString().Contains(term, StringComparison.OrdinalIgnoreCase)
+                    || s.GrossAmount.ToString().Contains(term, StringComparison.OrdinalIgnoreCase)
+                    || s.BusinessDate.ToString("dd MMM yyyy").Contains(term, StringComparison.OrdinalIgnoreCase));
+            }
+            return list;
+        }
+    }
+
+    private async Task LoadDataAsync()
+    {
+        Error = null;
+        IsLoading = true;
+        try
+        {
+            var data = await ClearingClient.ReadAsync(FilterLocationId > 0 ? FilterLocationId : null, FilterMethod);
+            ApplyPageData(data);
+        }
+        catch (Exception ex)
+        {
+            Error = ex.Message;
+        }
+        finally
+        {
+            IsLoading = false;
+        }
+    }
+
+    private async Task OnFilterLocationChanged(ChangeEventArgs e)
+    {
+        FilterLocationId = int.TryParse(e.Value?.ToString(), out var id) ? id : 0;
+        await LoadDataAsync();
+    }
+
+    private async Task OnFilterMethodChanged(ChangeEventArgs e)
+    {
+        var val = e.Value?.ToString();
+        FilterMethod = Enum.TryParse<PaymentMethod>(val, out var method) ? method : null;
+        await LoadDataAsync();
+    }
+
+    private void OnPendingSearchInput(ChangeEventArgs e)
+    {
+        PendingSearchTerm = e.Value?.ToString() ?? "";
+    }
+
+    private void OnHistorySearchInput(ChangeEventArgs e)
+    {
+        HistorySearchTerm = e.Value?.ToString() ?? "";
+    }
+
+    private void OnModalSearchInput(ChangeEventArgs e)
+    {
+        ModalSearchTerm = e.Value?.ToString() ?? "";
+    }
+
+    private async Task OpenPayoutModal()
+    {
+        ShowPayoutModal = true;
+        SuccessNotice = null;
+        ModalSearchTerm = "";
+        if (FilterLocationId > 0)
+        {
+            ModalLocationId = FilterLocationId;
+        }
+        else if (Locations.Count > 0 && ModalLocationId == 0)
+        {
+            ModalLocationId = Locations[0].Id;
+        }
+        if (FilterMethod.HasValue)
+        {
+            ModalMethod = FilterMethod.Value;
+        }
+        await LoadModalSalesAsync();
+    }
+
+    private void ClosePayoutModal()
+    {
+        ShowPayoutModal = false;
+        ModalSearchTerm = "";
+    }
+
+    private async Task OnModalLocationChanged(ChangeEventArgs e)
+    {
+        ModalLocationId = int.TryParse(e.Value?.ToString(), out var id) ? id : 0;
+        await LoadModalSalesAsync();
+    }
+
+    private async Task OnModalMethodChanged(ChangeEventArgs e)
+    {
+        ModalMethod = Enum.TryParse<PaymentMethod>(e.Value?.ToString(), out var m) ? m : PaymentMethod.Card;
+        await LoadModalSalesAsync();
+    }
+
+    private void SyncNetInputWithGross()
+    {
+        ModalNetInput = SelectedGrossAmount > 0 ? SelectedGrossAmount.ToString("F2") : "";
+    }
+
+    private void MatchGross()
+    {
+        SyncNetInputWithGross();
+    }
+
+    private void OnNetDepositInput(ChangeEventArgs e)
+    {
+        ModalNetInput = e.Value?.ToString() ?? "";
+    }
+
+    private void ApplyFeePercentage(decimal pct)
+    {
+        if (SelectedGrossAmount <= 0) return;
+        var net = Math.Round(SelectedGrossAmount * (1m - (pct / 100m)), 2, MidpointRounding.AwayFromZero);
+        ModalNetInput = net > 0 ? net.ToString("F2") : "0.00";
+    }
+
+    private async Task LoadModalSalesAsync()
+    {
+        try
+        {
+            ModalSales = await ClearingClient.GetUnsettledSalesAsync(ModalLocationId, ModalMethod);
+            SelectedSaleIds = ModalSales.Select(s => s.Id).ToHashSet();
+            SyncNetInputWithGross();
+        }
+        catch (Exception ex)
+        {
+            Error = ex.Message;
+        }
+    }
+
+    private void ToggleSaleSelection(int id)
+    {
+        if (SelectedSaleIds.Contains(id))
+        {
+            SelectedSaleIds.Remove(id);
+        }
+        else
+        {
+            SelectedSaleIds.Add(id);
+        }
+        SyncNetInputWithGross();
+    }
+
+    private void SelectAllModalSales()
+    {
+        SelectedSaleIds = ModalSales.Select(s => s.Id).ToHashSet();
+        SyncNetInputWithGross();
+    }
+
+    private void DeselectAllModalSales()
+    {
+        SelectedSaleIds.Clear();
+        ModalNetInput = "";
+    }
+
+    private async Task SubmitPayoutAsync()
+    {
+        if (SubmitDisabled || IsSubmitting) return;
+
+        Error = null;
+        IsSubmitting = true;
+        try
+        {
+            var input = new RecordPayoutInput
+            {
+                StockLocationId = ModalLocationId,
+                Method = ModalMethod,
+                ClearingEntryIds = SelectedSaleIds.ToList(),
+                GrossAmount = SelectedGrossAmount,
+                NetAmount = ModalNetAmount,
+                BusinessDate = ModalBusinessDate,
+                Reference = ModalReference,
+                Notes = ModalNotes
+            };
+
+            var payoutId = await ClearingClient.RecordPayoutAsync(input);
+            ShowPayoutModal = false;
+            SuccessNotice = $"Successfully recorded payout #{payoutId} for {SelectedLocationName}. Gross: {Money(input.GrossAmount)}, Fee: {Money(ModalFeeAmount)}, Net deposited: {Money(input.NetAmount)}.";
+            await LoadDataAsync();
+        }
+        catch (Exception ex)
+        {
+            Error = ex.Message;
+        }
+        finally
+        {
+            IsSubmitting = false;
+        }
+    }
+
+    private string Money(decimal amount) => $"{amount:N2} {Currency}";
+}

@@ -45,7 +45,6 @@
                     <NavLink href="/items" Match="NavLinkMatch.All">All items</NavLink>
                     <AuthorizeView Policy="@AppPolicies.ManageInventory" Context="itemAuth">
                         <NavLink href="/items/new">Add item</NavLink>
-                        <NavLink href="/reports/inventory">Inventory valuation</NavLink>
                         <NavLink href="/stock/locations">Stock locations</NavLink>
                         <NavLink href="/stock/takes">Stock takes</NavLink>
                     </AuthorizeView>
@@ -57,7 +56,6 @@
                 <AuthorizeView Policy="@AppPolicies.ManageInventory" Context="inventoryAuth">
                     <SidebarGroup Title="Purchases & transfers" IconName="receive" Prefix="/receiving">
                         <NavLink href="/receiving" Match="NavLinkMatch.All">Receive / transfer stock</NavLink>
-                        <NavLink href="/reports/receiving">Receiving report</NavLink>
                     </SidebarGroup>
                     <SidebarGroup Title="Suppliers" IconName="users" Prefix="/suppliers">
                         <NavLink href="/suppliers" Match="NavLinkMatch.All">Supplier accounts</NavLink>
@@ -79,7 +77,6 @@
                 <AuthorizeView Policy="@AppPolicies.MakeSales" Context="expAuth">
                     <SidebarGroup Title="Expenses" IconName="wallet" Prefix="/expenses">
                         <NavLink href="/expenses" Match="NavLinkMatch.All">Daily expenses</NavLink>
-                        <NavLink href="/reports/expenses">Expense analysis</NavLink>
                         <AuthorizeView Policy="@AppPolicies.ManageUsers" Context="categoryAuth">
                             <NavLink href="/expenses/categories">Expense categories</NavLink>
                         </AuthorizeView>
@@ -117,7 +114,7 @@
                     </SidebarGroup>
                 </AuthorizeView>
                 <AuthorizeView Policy="@AppPolicies.ManageUsers" Context="admin">
-                    <NavLink href="/administration" class="@AreaClass("administration")">
+                    <NavLink href="/administration" class="nav-link">
                         <Icon Name="settings" />
                         Administration
                     </NavLink>

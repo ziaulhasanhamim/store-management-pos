@@ -118,4 +118,22 @@ public class PaymentClearingIntegrationTests : PosIntegrationTestBase
         await expense.CategoryDefinition!.Name.Should().BeEqualTo("Payment Processing Fees");
         await expense.Method.Should().BeEqualTo(PaymentMethod.BankTransfer);
     }
+
+    [Test]
+    public async Task GetClearingPage_PrerendersSuccessfully_WithStaticSsrAndInteractiveAuto()
+    {
+        var response = await AdminClient.GetAsync("/finance/clearing");
+        var content = await response.Content.ReadAsStringAsync();
+
+        await Assert.That(response.StatusCode).IsEqualTo(System.Net.HttpStatusCode.OK);
+        await Assert.That(content).Contains("Card & Wallet Clearing");
+        await Assert.That(content).Contains("Settlement Hub");
+    }
+
+    [Test]
+    public async Task GetClearingApi_ReturnsPageData_Successfully()
+    {
+        var response = await AdminClient.GetAsync("/api/finance/clearing");
+        await Assert.That(response.StatusCode).IsEqualTo(System.Net.HttpStatusCode.OK);
+    }
 }

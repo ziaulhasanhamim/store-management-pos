@@ -68,3 +68,14 @@ public sealed record MonthlyFeeAnalyticsDto(
     decimal GrossAmount,
     decimal FeeAmount,
     decimal EffectiveFeePercentage);
+
+public sealed record PaymentClearingPageData(
+    ClearingSummaryDto Summary,
+    IReadOnlyList<StockLocationOption> Locations,
+    IReadOnlyList<ClearingSaleItemDto> PendingSales,
+    IReadOnlyList<PayoutHistoryRowDto> PayoutHistory,
+    IReadOnlyList<ClearingAgeingDto> AgeingRows,
+    IReadOnlyList<MonthlyFeeAnalyticsDto> FeeTrends,
+    DateOnly WorkingDate,
+    bool CanManagePayouts);
+

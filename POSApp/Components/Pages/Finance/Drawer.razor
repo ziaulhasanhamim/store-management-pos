@@ -1,5 +1,6 @@
 @page "/cash-drawer"
 @attribute [Authorize(Policy = AppPolicies.ManageDrawer)]
+@attribute [StreamRendering]
 @using System.ComponentModel.DataAnnotations
 @inject CashDrawerService Drawers
 @inject FinanceService Finance
@@ -55,17 +56,13 @@
         </form>
     </section>
 }
-else if (HttpMethods.IsGet(HttpContext.Request.Method))
-{
-    <FinanceLoad TData="CashDrawerPage" Load="LoadAsync" Message="Loading cash drawer…">
-        <ChildContent Context="loaded">
-            <DrawerView View="@View" Data="loaded" Open="Open!" Close="Close!" Adjustment="Adjustment!" Location="Location!" Transfer="Transfer!" Assignment="Assignment!" SelectLocationAsync="SelectLocationAsync" TransferAsync="TransferAsync" AssignAsync="AssignAsync" OpenAsync="OpenAsync" CloseAsync="CloseAsync" AdjustAsync="AdjustAsync" />
-        </ChildContent>
-    </FinanceLoad>
-}
 else if (Data is not null)
 {
     <DrawerView View="@View" Data="Data" Open="Open!" Close="Close!" Adjustment="Adjustment!" Location="Location!" Transfer="Transfer!" Assignment="Assignment!" SelectLocationAsync="SelectLocationAsync" TransferAsync="TransferAsync" AssignAsync="AssignAsync" OpenAsync="OpenAsync" CloseAsync="CloseAsync" AdjustAsync="AdjustAsync" />
+}
+else
+{
+    <LoadingPanel Message="Loading cash drawer…" />
 }
 
 @code {
@@ -109,9 +106,18 @@ else if (Data is not null)
         Location ??= new();
         Transfer ??= new();
         Assignment ??= new();
-        if (!HttpMethods.IsGet(HttpContext.Request.Method))
+        try
         {
             Data = await LoadAsync();
+        }
+        catch (ValidationException ex)
+        {
+            Error = ex.Message;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load cash drawer page.");
+            Error = "Unable to load cash drawer data. Reload to try again.";
         }
     }
 

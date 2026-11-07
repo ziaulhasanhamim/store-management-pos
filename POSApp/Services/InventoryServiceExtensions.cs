@@ -46,6 +46,7 @@ public static class InventoryServiceExtensions
         services.AddScoped<IReceivingClient, ServerReceivingClient>();
         services.AddScoped<IAttributeDefinitionClient, ServerAttributeDefinitionClient>();
         services.AddScoped<IMoneyEntryClient, ServerMoneyEntryClient>();
+        services.AddScoped<IPaymentClearingClient, ServerPaymentClearingClient>();
         services.AddAntiforgery(options => options.HeaderName = "X-CSRF-TOKEN");
 
         return services;
