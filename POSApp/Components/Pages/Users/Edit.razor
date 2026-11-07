@@ -9,6 +9,7 @@
 @inject UserManager<User> UserManager
 @inject SignInManager<User> SignInManager
 @inject NavigationManager Navigation
+@inject ILogger<Edit> Logger
 
 <PageTitle>@(IsNew ? "Add user" : "Edit user") · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
 
@@ -35,18 +36,21 @@
             </div>
         }
 
-        @if (IsGet && Id is not null)
+        @if (LoadFailed)
         {
-            var id = Id.Value;
-            <UserEditLoader UserId="id">
-                <Found Context="user">
-                    <UserEditorForm Input="@InputFor(user)" Locations="Locations" IsNew="false" OnValidSubmit="SaveAsync" OnInvalidSubmit="ClearPassword" />
-                </Found>
-            </UserEditLoader>
+            <div role="alert" class="text-sm text-red-700">
+                We couldn't load this user.
+                <a href="@HttpContext.Request.Path" class="font-semibold underline">Try again</a>
+            </div>
         }
-        else
+        else if (UserNotFound)
         {
-            <UserEditorForm Input="Input!" Locations="Locations" IsNew="IsNew" OnValidSubmit="SaveAsync" OnInvalidSubmit="ClearPassword" />
+            <h2 class="text-lg font-semibold text-slate-900">User not found</h2>
+            <p class="mt-2 text-sm text-slate-500">This account no longer exists.</p>
+        }
+        else if (Input is not null)
+        {
+            <UserEditorForm Input="Input" Locations="Locations" IsNew="IsNew" OnValidSubmit="SaveAsync" OnInvalidSubmit="ClearPassword" />
         }
     </div>
 </div>
@@ -65,14 +69,43 @@
     private bool IsGet => HttpMethods.IsGet(HttpContext.Request.Method);
     private string[] Errors = [];
     private IReadOnlyList<Lookup> Locations = [];
+    private bool UserNotFound;
+    private bool LoadFailed;
 
     protected override async Task OnInitializedAsync()
     {
-        Input ??= new() { MustChangePassword = IsNew };
-        Locations = await Administration.SellingLocationsAsync(HttpContext.User);
+        try
+        {
+            Locations = await Administration.SellingLocationsAsync(HttpContext.User, HttpContext.RequestAborted);
+
+            if (Id is not null)
+            {
+                if (IsGet)
+                {
+                    var user = await Administration.FindAsync(HttpContext.User, Id.Value, HttpContext.RequestAborted);
+                    if (user is not null)
+                    {
+                        Input = InputFor(user);
+                    }
+                    else
+                    {
+                        UserNotFound = true;
+                    }
+                }
+            }
+            else
+            {
+                Input ??= new() { MustChangePassword = true };
+            }
+        }
+        catch (Exception exception) when (exception is not UnauthorizedAccessException)
+        {
+            LoadFailed = true;
+            Logger.LogError(exception, "Failed to load user editing view for user {UserId}.", Id);
+        }
     }
 
-    private UserEditorInput InputFor(UserListItem user) => Input = new()
+    private UserEditorInput InputFor(UserListItem user) => new()
     {
         Username = user.Username,
         Role = user.Roles.FirstOrDefault() ?? AppRoles.SalesAssociate,
@@ -105,6 +138,9 @@
 
     private void ClearPassword(EditContext _)
     {
-        Input!.Password = string.Empty;
+        if (Input is not null)
+        {
+            Input.Password = string.Empty;
+        }
     }
 }
