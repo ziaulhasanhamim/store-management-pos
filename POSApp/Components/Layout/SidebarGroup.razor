@@ -25,9 +25,26 @@
     public string? AlternatePrefix { get; set; }
 
     [Parameter]
+    public string? ExcludePrefix { get; set; }
+
+    [Parameter]
     public RenderFragment? ChildContent { get; set; }
 
-    private bool IsActive => Matches(Prefix) || (AlternatePrefix is not null && Matches(AlternatePrefix));
+    private bool IsActive
+    {
+        get
+        {
+            if (ExcludePrefix is not null)
+            {
+                var exclusions = ExcludePrefix.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                foreach (var exclusion in exclusions)
+                {
+                    if (Matches(exclusion)) return false;
+                }
+            }
+            return Matches(Prefix) || (AlternatePrefix is not null && Matches(AlternatePrefix));
+        }
+    }
 
     private bool Matches(string prefix)
     {

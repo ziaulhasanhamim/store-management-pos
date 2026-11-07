@@ -5,6 +5,16 @@
             <p class="mt-1 text-xs text-slate-500">Active payments only. Corrections replace the original posting; internal cash transfers are excluded.</p>
         </div>
     </div>
+    @if (Data.AwaitingPayout is not null && Data.AwaitingPayout.TotalAmount > 0)
+    {
+        <div class="my-3 mx-5 p-3 rounded-lg border border-indigo-200 bg-indigo-50/60 text-xs text-indigo-900 flex flex-wrap items-center justify-between gap-3">
+            <div class="flex items-center gap-2">
+                <span class="size-2 rounded-full bg-indigo-500 animate-pulse"></span>
+                <span><strong>Awaiting payout:</strong> Card @Money(Data.AwaitingPayout.CardAmount) · Mobile Wallet @Money(Data.AwaitingPayout.MobileWalletAmount) (@Data.AwaitingPayout.UnsettledCount pending)</span>
+            </div>
+            <a href="/finance/clearing" class="font-semibold text-indigo-700 underline hover:text-indigo-900">View clearing & record payout &rarr;</a>
+        </div>
+    }
     <div class="grid gap-6 p-5 lg:grid-cols-2">
         <div>
             <h3 class="mb-3 font-semibold">Expenses by category</h3>

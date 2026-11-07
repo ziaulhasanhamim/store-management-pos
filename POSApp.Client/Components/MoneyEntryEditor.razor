@@ -37,6 +37,10 @@
                     <thead>
                         <tr>
                             <th>@(IsExpense ? "Category" : IsSupplier ? "Supplier" : "Customer")</th>
+                            @if (IsExpense)
+                            {
+                                <th>Location</th>
+                            }
                             <th>Amount (@Currency)</th>
                             <th>Method</th>
                             <th>Notes (optional)</th>
@@ -79,6 +83,18 @@
                                         </select>
                                     }
                                 </td>
+                                @if (IsExpense)
+                                {
+                                    <td class="min-w-40">
+                                        <select class="field" @bind="line.Input.StockLocationId" aria-label="Store location">
+                                            <option value="">Corporate / All</option>
+                                            @foreach (var loc in Data.Locations)
+                                            {
+                                                <option value="@loc.Id">@loc.Name</option>
+                                            }
+                                        </select>
+                                    </td>
+                                }
                                 <td>
                                     <DecimalField class="field min-w-32" @bind-Value="line.Input.Amount"
                                                   ValidityChanged="valid => line.ValidAmount = valid" aria-label="Entry amount" />

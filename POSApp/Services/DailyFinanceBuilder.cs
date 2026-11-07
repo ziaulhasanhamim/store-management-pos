@@ -14,7 +14,8 @@ internal static class DailyFinanceBuilder
         var from = Utc(date);
         var through = Utc(date.AddDays(1));
         var expenses = await db.Expenses.AsNoTracking()
-            .Where(expense => expense.OccurredAt >= from && expense.OccurredAt < through)
+            .Where(expense => expense.OccurredAt >= from && expense.OccurredAt < through
+                && (locationId == null || expense.StockLocationId == locationId.Value))
             .Select(expense => new
             {
                 expense.Category,
@@ -25,12 +26,11 @@ internal static class DailyFinanceBuilder
         var categories = expenses.GroupBy(expense => new
             {
                 Id = expense.CategoryDefinitionId ?? -(int)expense.Category,
+                Name = expense.Name ?? (expense.Category == ExpenseCategory.Refreshments ? "Snacks / refreshments" : expense.Category.ToString()),
                 expense.Category
             })
-            .Select(group => new ExpenseCategoryTotal(group.Key.Category, group.Sum(expense => expense.Amount))
-            {
-                Name = group.First().Name
-            }).OrderBy(category => category.Name ?? category.Category.ToString()).ToArray();
+            .Select(group => new ExpenseCategoryTotal(group.Key.Id, group.Key.Name, group.Sum(expense => expense.Amount), group.Key.Category))
+            .OrderBy(category => category.Name).ToArray();
 
         // Use active ledger postings so corrections and deleted invoices are counted once.
         // Drawer-to-drawer transfers are internal and do not change business funds.
@@ -62,9 +62,22 @@ internal static class DailyFinanceBuilder
                         : move.DebtEntry != null ? move.DebtEntry.LenderBalance!.Lender!.Name : "",
                     "Bank / digital", move.Method, move.Amount, move.Notes)).ToArrayAsync(ct)
             : [];
-        return new(categories, cash.Concat(bank).OrderBy(row => row.At)
+        var clearingEntries = await db.PaymentClearingEntries.AsNoTracking()
+            .Where(e => e.Status == PaymentClearingStatus.Unsettled && (locationId == null || e.StockLocationId == locationId.Value))
+            .Select(e => new { e.Method, e.GrossAmount, e.BusinessDate })
+            .ToListAsync(ct);
+        var awaitingSummary = new AwaitingPayoutSummary(
+            clearingEntries.Where(e => e.Method == PaymentMethod.Card).Sum(e => e.GrossAmount),
+            clearingEntries.Where(e => e.Method == PaymentMethod.MobileWallet).Sum(e => e.GrossAmount),
+            clearingEntries.Count,
+            clearingEntries.Count > 0 ? clearingEntries.Min(e => e.BusinessDate) : null);
+
+        return new DailyFinanceDetails(categories, cash.Concat(bank).OrderBy(row => row.At)
             .Select(row => new DayPayment(row.At, Label(row.Kind, row.IsCollection), row.Party,
-                row.Account, row.Method, row.Amount, row.Notes)).ToArray());
+                row.Account, row.Method, row.Amount, row.Notes)).ToArray())
+        {
+            AwaitingPayout = awaitingSummary
+        };
     }
 
     private static string Label(CashMovementKind kind, bool collection) => collection ? "Customer collections" : kind switch

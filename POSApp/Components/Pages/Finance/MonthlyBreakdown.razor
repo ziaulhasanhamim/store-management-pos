@@ -313,7 +313,7 @@
                                         @foreach (var cat in day.ExpenseCategories)
                                         {
                                             <div class="flex justify-between gap-3">
-                                                <span class="text-slate-600">@(cat.Name ?? (cat.Category == ExpenseCategory.Refreshments ? "Snacks / refreshments" : cat.Category.ToString()))</span>
+                                                <span class="text-slate-600">@(string.IsNullOrWhiteSpace(cat.Name) ? (cat.Category == ExpenseCategory.Refreshments ? "Snacks / refreshments" : cat.Category.ToString()) : cat.Name)</span>
                                                 <span class="font-semibold tabular-nums">@Money(cat.Amount)</span>
                                             </div>
                                         }
@@ -419,7 +419,7 @@
                     @foreach (var category in Data.Categories)
                     {
                         <tr>
-                            <td>@(category.Name ?? (category.Category == ExpenseCategory.Refreshments ? "Snacks / refreshments" : category.Category.ToString()))</td>
+                            <td>@(string.IsNullOrWhiteSpace(category.Name) ? (category.Category == ExpenseCategory.Refreshments ? "Snacks / refreshments" : category.Category.ToString()) : category.Name)</td>
                             <td class="text-right tabular-nums">@Money(category.Amount)</td>
                         </tr>
                     }

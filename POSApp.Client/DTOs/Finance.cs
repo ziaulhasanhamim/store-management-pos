@@ -47,9 +47,13 @@ public sealed record CashDrawerPage(CashSessionRow? Current, CashSessionRow? Vie
     public int? SelectedLocationId { get; init; }
     public IReadOnlyList<CashLocationRow> Locations { get; init; } = [];
     public IReadOnlyList<LegacyCashDrawerRow> Unassigned { get; init; } = [];
+    public CashSessionRow? ClosedTodaySession { get; init; }
 }
 
-public sealed record CashLocationRow(int Id, string Name, decimal Balance, bool Initialized, int? SessionId, bool ClosedToday);
+public sealed record CashLocationRow(int Id, string Name, decimal Balance, bool Initialized, int? SessionId, bool ClosedToday)
+{
+    public int? ClosedSessionId { get; init; }
+}
 public sealed record LegacyCashDrawerRow(int Id, decimal Balance, int? SessionId);
 public sealed class CashLocationInput
 {
@@ -74,6 +78,7 @@ public sealed class ExpenseInput
     public Guid RequestId { get; set; } = Guid.NewGuid();
     public ExpenseCategory Category { get; set; } = ExpenseCategory.Other;
     public int? CategoryId { get; set; }
+    public int? StockLocationId { get; set; }
     public decimal Amount { get; set; }
     public PaymentMethod Method { get; set; } = PaymentMethod.Cash;
     public DateTime Date { get; set; } = DateTime.Today;
@@ -98,6 +103,8 @@ public sealed record ExpenseRow(int Id, DateTimeOffset At, ExpenseCategory Categ
     PaymentMethod Method, string Notes, string? Receipt, string Actor)
 {
     public string? CategoryName { get; init; }
+    public int? StockLocationId { get; init; }
+    public string? LocationName { get; init; }
 }
 public sealed record PayrollRow(int Id, DateTimeOffset At, string Employee, PayrollKind Kind, DateOnly Month,
     decimal Amount, decimal AdvanceApplied, decimal Paid, PaymentMethod Method, string Notes)

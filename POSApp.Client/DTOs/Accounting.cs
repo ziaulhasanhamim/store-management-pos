@@ -64,10 +64,23 @@ public sealed record ClosingTotals(DateOnly Start, DateOnly End, decimal Opening
     public decimal PurchaseTotal { get; init; }
     public decimal AdvancesPaid { get; init; }
     public decimal CashVariance { get; init; }
+    public AwaitingPayoutSummary? AwaitingPayout { get; init; }
+}
+
+public sealed record AwaitingPayoutSummary(
+    decimal CardAmount,
+    decimal MobileWalletAmount,
+    int UnsettledCount,
+    DateOnly? OldestDate)
+{
+    public decimal TotalAmount => CardAmount + MobileWalletAmount;
 }
 
 public sealed record DailyFinanceDetails(IReadOnlyList<ExpenseCategoryTotal> Categories,
-    IReadOnlyList<DayPayment> Payments);
+    IReadOnlyList<DayPayment> Payments)
+{
+    public AwaitingPayoutSummary? AwaitingPayout { get; init; }
+}
 
 public sealed record DayPayment(DateTimeOffset At, string Type, string Party, string Account,
     PaymentMethod Method, decimal Amount, string Notes);
@@ -129,9 +142,15 @@ public sealed record DailyBusinessResult(DateOnly Date, decimal Sales, decimal C
     public decimal NetProfit => SalesProfit - TotalSpend + StockVariance + CashVariance;
 }
 
-public sealed record ExpenseCategoryTotal(ExpenseCategory Category, decimal Amount)
+public sealed record ExpenseCategoryTotal(int CategoryId, string Name, decimal Amount, ExpenseCategory Category = ExpenseCategory.Other)
 {
-    public string? Name { get; init; }
+    public ExpenseCategory Category { get; init; } = Category;
+    public string Name { get; init; } = Name;
+
+    public ExpenseCategoryTotal(ExpenseCategory category, decimal amount)
+        : this(-(int)category, category == ExpenseCategory.Refreshments ? "Snacks / refreshments" : category.ToString(), amount, category)
+    {
+    }
 }
 
 public sealed record EmployeeMonthlyPaid(int EmployeeId, string Employee, decimal? Salary,

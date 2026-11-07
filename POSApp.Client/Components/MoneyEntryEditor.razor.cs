@@ -107,6 +107,7 @@ public partial class MoneyEntryEditor
             {
                 PartyId = last?.PartyId ?? 0,
                 CategoryId = Data.Categories.Any(category => category.Id == last?.CategoryId && !category.IsArchived) ? last!.CategoryId : 0,
+                StockLocationId = last?.StockLocationId ?? Data.UserDefaultLocationId,
                 Method = last?.Method ?? PaymentMethod.Cash
             }
         });
@@ -128,6 +129,7 @@ public partial class MoneyEntryEditor
                 Revision = row.Revision,
                 PartyId = row.PartyId,
                 CategoryId = row.CategoryId,
+                StockLocationId = row.StockLocationId,
                 Amount = row.Amount,
                 Method = row.Method,
                 Notes = row.Notes,

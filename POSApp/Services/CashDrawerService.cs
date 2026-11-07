@@ -27,8 +27,13 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
         }
         var currentId = drawers.SingleOrDefault(drawer => drawer.StockLocationId == selected && selected != null)?.CurrentSessionId;
         var current = currentId is null ? null : await Rows(db, db.CashSessions.Where(session => session.Id == currentId)).SingleOrDefaultAsync(ct);
+        var selectedDrawer = drawers.SingleOrDefault(drawer => drawer.StockLocationId == selected && selected != null);
+        var closedTodaySessionId = (current is null && selectedDrawer != null)
+            ? sessions.Where(s => s.CashDrawerId == selectedDrawer.Id && s.ClosedAt != null).OrderByDescending(s => s.Id).Select(s => (int?)s.Id).FirstOrDefault()
+            : null;
+        var closedTodaySession = closedTodaySessionId is null ? null : await Rows(db, db.CashSessions.Where(session => session.Id == closedTodaySessionId.Value)).SingleOrDefaultAsync(ct);
         var visible = db.CashSessions.Where(session => admin || session.CashDrawer!.StockLocationId == selected);
-        var viewed = sessionId is null ? current : await Rows(db, visible.Where(session => session.Id == sessionId)).SingleOrDefaultAsync(ct);
+        var viewed = sessionId is null ? (current ?? closedTodaySession) : await Rows(db, visible.Where(session => session.Id == sessionId)).SingleOrDefaultAsync(ct);
         var recent = await Rows(db, visible.OrderByDescending(session => session.Id)).ToPageAsync(sessionPage, pageSize, ct);
         var movements = viewed is null ? null : await db.CashMovements.Where(move => move.CashSessionId == viewed.Id)
             .OrderByDescending(move => move.Id)
@@ -41,12 +46,16 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
             MovementPagination = movements?.Pagination,
             SessionPagination = recent.Pagination,
             SelectedLocationId = selected,
+            ClosedTodaySession = closedTodaySession,
             Locations = locations.Select(location =>
             {
                 var drawer = drawers.SingleOrDefault(drawer => drawer.StockLocationId == location.Id);
                 var session = sessions.Where(session => session.CashDrawerId == drawer?.Id).OrderByDescending(session => session.Id).FirstOrDefault();
                 return new CashLocationRow(location.Id, location.Name, drawer?.CurrentCash ?? 0,
-                    drawer?.OpeningDate != null, drawer?.CurrentSessionId, session?.ClosedAt != null);
+                    drawer?.OpeningDate != null, drawer?.CurrentSessionId, session?.ClosedAt != null)
+                {
+                    ClosedSessionId = session?.ClosedAt != null ? session.Id : null
+                };
             }).ToArray(),
             Unassigned = admin ? drawers.Where(drawer => drawer.StockLocationId == null && (drawer.CurrentCash != 0 || drawer.CurrentSessionId != null))
                 .Select(drawer => new LegacyCashDrawerRow(drawer.Id, drawer.CurrentCash, drawer.CurrentSessionId)).ToArray() : []
@@ -477,7 +486,7 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
         var session = drawer?.CurrentSession;
         if (session is null || session.ClosedAt != null)
         {
-            throw new ValidationException("Open this selling location's cash drawer before recording cash payments or refunds.");
+            throw new ValidationException("Open this selling location's cash drawer before completing sales or recording cash.");
         }
         var working = await db.WorkingDays.Where(day => day.Id == 1).Select(day => (DateOnly?)day.Date).SingleOrDefaultAsync(ct);
         if (working != null && session.BusinessDate != working)

@@ -10,6 +10,7 @@ public sealed record MoneyEntryInput
     public long Revision { get; set; }
     public int PartyId { get; set; }
     public int CategoryId { get; set; }
+    public int? StockLocationId { get; set; }
     public decimal Amount { get; set; }
     public PaymentMethod Method { get; set; } = PaymentMethod.Cash;
     public string Notes { get; set; } = "";
@@ -32,6 +33,8 @@ public sealed record MoneyEntryRow(int Id, DateTimeOffset At, int PartyId, strin
     string? Receipt, long Revision, bool CanEdit, string? LockedReason)
 {
     public int? PurchaseId { get; init; }
+    public int? StockLocationId { get; init; }
+    public string? StockLocationName { get; init; }
 }
 public sealed record MoneyEntryPage(string Kind, DateOnly WorkingDate, DateOnly Date,
     bool CanCreate, bool CanManageCategories, decimal Total, int Count,
@@ -39,6 +42,8 @@ public sealed record MoneyEntryPage(string Kind, DateOnly WorkingDate, DateOnly 
     IReadOnlyList<MoneyEntryRow> Rows)
 {
     public PageInfo? Pagination { get; init; }
+    public IReadOnlyList<StockLocationOption> Locations { get; init; } = [];
+    public int? UserDefaultLocationId { get; init; }
 
     [JsonIgnore]
     public IReadOnlyList<DailyExpenseCategory> ExpenseCategories => Rows

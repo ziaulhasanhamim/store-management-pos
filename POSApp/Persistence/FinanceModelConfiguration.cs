@@ -27,13 +27,6 @@ internal static class FinanceModelConfiguration
         {
             entity.Property(category => category.Name).HasMaxLength(100);
             entity.HasIndex(category => category.Name).IsUnique();
-            entity.HasData(Enum.GetValues<ExpenseCategory>().Select(category => new ExpenseCategoryDefinition
-            {
-                Id = -(int)category,
-                Name = category == ExpenseCategory.Refreshments ? "Snacks / refreshments" : category.ToString(),
-                NormalizedName = NameNormalization.Normalize(category == ExpenseCategory.Refreshments ? "Snacks / refreshments" : category.ToString()),
-                BuiltInCategory = category
-            }));
         });
         builder.Entity<FinancialEntryBatch>(entity =>
         {
@@ -80,8 +73,60 @@ internal static class FinanceModelConfiguration
         {
             entity.HasIndex(expense => expense.RequestId).IsUnique();
             entity.HasIndex(expense => expense.OccurredAt);
+            entity.HasIndex(expense => new { expense.StockLocationId, expense.OccurredAt });
+            entity.HasIndex(expense => new { expense.CategoryDefinitionId, expense.OccurredAt });
             entity.Property(expense => expense.ReceiptReference).HasMaxLength(200);
             entity.Property(expense => expense.Notes).HasMaxLength(2000);
+            entity.HasOne(expense => expense.StockLocation)
+                .WithMany()
+                .HasForeignKey(expense => expense.StockLocationId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(expense => expense.CategoryDefinition)
+                .WithMany()
+                .HasForeignKey(expense => expense.CategoryDefinitionId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+        builder.Entity<PaymentClearingEntry>(entity =>
+        {
+            entity.HasIndex(entry => entry.RequestId).IsUnique();
+            entity.HasIndex(entry => new { entry.Status, entry.StockLocationId, entry.Method, entry.BusinessDate });
+            entity.HasIndex(entry => entry.PaymentId);
+            entity.Property(entry => entry.Notes).HasMaxLength(2000);
+            entity.HasOne(entry => entry.Payment)
+                .WithMany()
+                .HasForeignKey(entry => entry.PaymentId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(entry => entry.StockLocation)
+                .WithMany()
+                .HasForeignKey(entry => entry.StockLocationId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(entry => entry.Payout)
+                .WithMany(payout => payout.Entries)
+                .HasForeignKey(entry => entry.PayoutId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+        builder.Entity<PaymentPayout>(entity =>
+        {
+            entity.HasIndex(payout => payout.RequestId).IsUnique();
+            entity.HasIndex(payout => new { payout.StockLocationId, payout.BusinessDate });
+            entity.Property(payout => payout.Reference).HasMaxLength(100);
+            entity.Property(payout => payout.Notes).HasMaxLength(2000);
+            entity.HasOne(payout => payout.StockLocation)
+                .WithMany()
+                .HasForeignKey(payout => payout.StockLocationId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(payout => payout.BankAccount)
+                .WithMany()
+                .HasForeignKey(payout => payout.BankAccountId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(payout => payout.BankMovement)
+                .WithMany()
+                .HasForeignKey(payout => payout.BankMovementId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(payout => payout.Expense)
+                .WithMany()
+                .HasForeignKey(payout => payout.ExpenseId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
         builder.Entity<StaffAccount>().HasIndex(account => account.EmployeeId).IsUnique();
         builder.Entity<Employee>(entity =>

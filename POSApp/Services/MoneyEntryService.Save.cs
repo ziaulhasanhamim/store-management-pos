@@ -130,10 +130,14 @@ public sealed partial class MoneyEntryService
                 var before = entity is null ? null : Snapshot(entity);
                 var notes = row.Notes?.Trim() ?? "";
                 var oldEntity = entity;
-                int? locationId = null;
+                int? locationId = row.StockLocationId;
                 if (oldEntity is not null)
                 {
-                    locationId = await db.CashMovements.Where(move =>
+                    if (oldEntity is Expense oldExp)
+                    {
+                        locationId ??= oldExp.StockLocationId;
+                    }
+                    locationId ??= await db.CashMovements.Where(move =>
                             (kind == "expenses" ? move.ExpenseId == oldEntity.Id : kind == "supplier-payments" ? move.SupplierPaymentId == oldEntity.Id : move.PaymentId == oldEntity.Id)
                             && move.ReversesMovementId == null && !db.CashMovements.Any(reverse => reverse.ReversesMovementId == move.Id))
                         .Select(move => move.CashSession!.StockLocationId).FirstOrDefaultAsync(ct);
@@ -142,6 +146,7 @@ public sealed partial class MoneyEntryService
                         await ReversePostingsAsync(db, kind, oldEntity.Id, actorId, date, ct);
                     }
                 }
+                locationId ??= await db.Users.Where(u => u.Id == actorId).Select(u => u.CashLocationId).FirstOrDefaultAsync(ct);
                 if (kind == "expenses")
                 {
                     var category = db.ExpenseCategories.Local.SingleOrDefault(category => category.Id == row.CategoryId)
@@ -158,6 +163,7 @@ public sealed partial class MoneyEntryService
                     }
                     expense.CategoryDefinitionId = category.Id;
                     expense.Category = category.BuiltInCategory ?? ExpenseCategory.Other;
+                    expense.StockLocationId = locationId;
                     expense.Amount = row.Amount;
                     expense.Method = row.Method;
                     expense.Notes = notes;
@@ -313,7 +319,7 @@ public sealed partial class MoneyEntryService
 
     private static string Snapshot(AuditableEntity entity) => entity switch
     {
-        Expense expense => JsonSerializer.Serialize(new { expense.CategoryDefinitionId, expense.Amount, expense.Method, expense.Notes, expense.ReceiptReference }),
+        Expense expense => JsonSerializer.Serialize(new { expense.CategoryDefinitionId, expense.StockLocationId, expense.Amount, expense.Method, expense.Notes, expense.ReceiptReference }),
         SupplierPayment payment => JsonSerializer.Serialize(new { SupplierId = payment.SupplierBalance?.SupplierId, payment.Amount, payment.Method, payment.Notes }),
         Payment payment => JsonSerializer.Serialize(new { CustomerId = payment.CustomerBalance?.CustomerId, payment.Amount, payment.Method, payment.Notes }),
         _ => throw new ValidationException("Invalid entry.")

@@ -38,6 +38,8 @@ public sealed record SalesOptions(
 {
     public DateOnly? WorkingDate { get; init; }
     public bool CanSetOpeningBalance { get; init; }
+    public int? DefaultLocationId { get; init; }
+    public int[] OpenLocationIds { get; init; } = [];
 }
 
 public sealed record SalesLine(

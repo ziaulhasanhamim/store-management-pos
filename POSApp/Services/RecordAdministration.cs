@@ -168,6 +168,7 @@ public sealed class RecordAdministration(IServiceScopeFactory scopes, IConfigura
                         sale.Status = SaleStatus.Voided;
                         await CashDrawerService.ReverseAsync(db, "sale", id, actorId, note, activeDate, sale.StockLocationId, ct);
                         await FinancialPosting.ReverseBankAsync(db, "sale", id, actorId, note, activeDate, ct);
+                        await FinancialPosting.ReverseClearingAsync(db, id, actorId, note, activeDate, ct);
                         affectedProducts = sale.Items.Select(item => item.ProductId).Distinct().ToArray();
                         costReason = $"Reversal of sale #{id}";
                         costReferenceType = "SaleReversal";

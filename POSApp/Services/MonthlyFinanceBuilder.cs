@@ -24,7 +24,9 @@ internal static class MonthlyFinanceBuilder
                 && item.Sale.SoldAt >= from && item.Sale.SoldAt < through
                 && (locationId == null || item.Sale.StockLocationId == locationId.Value))
             .Select(item => new { item.SaleId, item.UnitCost, item.Quantity }).ToArrayAsync(ct);
-        var expenses = await db.Expenses.AsNoTracking().Where(expense => expense.OccurredAt >= from && expense.OccurredAt < through)
+        var expenses = await db.Expenses.AsNoTracking()
+            .Where(expense => expense.OccurredAt >= from && expense.OccurredAt < through
+                && (locationId == null || expense.StockLocationId == locationId.Value))
             .Select(expense => new
             {
                 expense.OccurredAt,
@@ -98,12 +100,14 @@ internal static class MonthlyFinanceBuilder
             .ToDictionary(
                 group => group.Key,
                 group => (IReadOnlyList<ExpenseCategoryTotal>)group
-                    .GroupBy(expense => new { Id = expense.CategoryDefinitionId ?? -(int)expense.Category, expense.Category })
-                    .Select(subgroup => new ExpenseCategoryTotal(subgroup.Key.Category, subgroup.Sum(expense => expense.Amount))
+                    .GroupBy(expense => new
                     {
-                        Name = subgroup.Select(expense => expense.Name).FirstOrDefault(name => name is not null)
+                        Id = expense.CategoryDefinitionId ?? -(int)expense.Category,
+                        Name = expense.Name ?? (expense.Category == ExpenseCategory.Refreshments ? "Snacks / refreshments" : expense.Category.ToString()),
+                        expense.Category
                     })
-                    .OrderBy(category => category.Name ?? category.Category.ToString())
+                    .Select(subgroup => new ExpenseCategoryTotal(subgroup.Key.Id, subgroup.Key.Name, subgroup.Sum(expense => expense.Amount), subgroup.Key.Category))
+                    .OrderBy(category => category.Name)
                     .ToArray());
 
         var sessionVariances = await db.CashSessions.AsNoTracking()
@@ -164,11 +168,14 @@ internal static class MonthlyFinanceBuilder
                 IsWorkingDay = true
             };
         }).ToArray();
-        var categories = expenses.GroupBy(expense => new { Id = expense.CategoryDefinitionId ?? -(int)expense.Category, expense.Category })
-            .Select(group => new ExpenseCategoryTotal(group.Key.Category, group.Sum(expense => expense.Amount))
+        var categories = expenses.GroupBy(expense => new
             {
-                Name = group.Select(expense => expense.Name).FirstOrDefault(name => name is not null)
-            }).OrderBy(category => category.Name ?? category.Category.ToString()).ToArray();
+                Id = expense.CategoryDefinitionId ?? -(int)expense.Category,
+                Name = expense.Name ?? (expense.Category == ExpenseCategory.Refreshments ? "Snacks / refreshments" : expense.Category.ToString()),
+                expense.Category
+            })
+            .Select(group => new ExpenseCategoryTotal(group.Key.Id, group.Key.Name, group.Sum(expense => expense.Amount), group.Key.Category))
+            .OrderBy(category => category.Name).ToArray();
         var employees = payroll.GroupBy(entry => entry.EmployeeId).OrderBy(group => group.First().Name)
             .Select(group => new EmployeeMonthlyPaid(group.Key, group.First().Name,
                 salaries.Where(salary => salary.EmployeeId == group.Key).Select(salary => (decimal?)salary.Amount).SingleOrDefault(),

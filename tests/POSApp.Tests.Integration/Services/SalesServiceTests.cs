@@ -199,4 +199,89 @@ public class SalesServiceTests : PosIntegrationTestBase
             .SingleOrDefaultAsync(b => b.ProductId == productId && b.StockLocationId == 1);
         await balance!.QuantityOnHand.Should().BeEqualTo(10m);
     }
+
+    [Test]
+    public async Task SaveAsync_CompleteSaleWithClosedDrawer_ThrowsValidationException_ForCashCardAndWallet()
+    {
+        var productId = await SetupProductWithStockAsync(cost: 50m, price: 100m, quantity: 10m);
+
+        await using var scope = CreateScope();
+        var drawerService = scope.ServiceProvider.GetRequiredService<CashDrawerService>();
+        var sales = scope.ServiceProvider.GetRequiredService<SalesService>();
+
+        // 1. Close drawer for location 1
+        var closeInput = new CloseCashInput
+        {
+            SessionId = 1,
+            ActualCash = 99500m,
+            Confirmed = true,
+            Notes = "Closing for test"
+        };
+        await drawerService.CloseAsync(AdminUser, closeInput);
+
+        // 2. Attempting to complete sale with Cash must fail
+        var cashSale = new SalesCommand(
+            RequestId: Guid.NewGuid(),
+            LocationId: 1,
+            CustomerId: 1,
+            Lines: [new SalesLine(productId, Quantity: 1, UnitPrice: 100m)],
+            Discount: 0m,
+            Payment: 100m,
+            Method: PaymentMethod.Cash,
+            Notes: "Should fail with closed drawer");
+        var cashEx = await Assert.ThrowsAsync<ValidationException>(() => sales.SaveAsync(SalesUser, cashSale, complete: true));
+        await cashEx!.Message.Should().Contain("cash drawer before completing sales");
+
+        // 3. Attempting to complete sale with Card must ALSO fail (previously a bug that bypassed checks)
+        var cardSale = cashSale with { RequestId = Guid.NewGuid(), Method = PaymentMethod.Card };
+        var cardEx = await Assert.ThrowsAsync<ValidationException>(() => sales.SaveAsync(SalesUser, cardSale, complete: true));
+        await cardEx!.Message.Should().Contain("cash drawer before completing sales");
+
+        // 4. Attempting to complete sale with MobileWallet must ALSO fail
+        var walletSale = cashSale with { RequestId = Guid.NewGuid(), Method = PaymentMethod.MobileWallet };
+        var walletEx = await Assert.ThrowsAsync<ValidationException>(() => sales.SaveAsync(SalesUser, walletSale, complete: true));
+        await walletEx!.Message.Should().Contain("cash drawer before completing sales");
+
+        // 5. Saving as draft (complete: false) must still succeed even with closed drawer
+        var draftSale = cashSale with { RequestId = Guid.NewGuid(), Notes = "Draft saved while drawer closed" };
+        var draftResult = await sales.SaveAsync(SalesUser, draftSale, complete: false);
+        await draftResult.Should().NotBeNull();
+    }
+
+    [Test]
+    public async Task OptionsAsync_ReturnsAssignedDefaultLocation_AndAccurateOpenLocationIds()
+    {
+        await using var scope = CreateScope();
+        var sales = scope.ServiceProvider.GetRequiredService<SalesService>();
+        var inventory = scope.ServiceProvider.GetRequiredService<InventoryService>();
+        var drawerService = scope.ServiceProvider.GetRequiredService<CashDrawerService>();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        // Add a second selling location (North Outlet)
+        var northId = await inventory.AddLocationAsync(AdminUser, "North Outlet Test", canSell: true);
+
+        // Assign SalesUser (Id 3) to North Outlet
+        var user = await db.Users.SingleAsync(u => u.Id == 3);
+        user.CashLocationId = northId;
+        await db.SaveChangesAsync();
+
+        // Check options: Location 1 drawer is open (seeded in DB), Location 2 (north) has no open drawer
+        var options = await sales.OptionsAsync(SalesUser);
+        await options.DefaultLocationId.Should().BeEqualTo(northId);
+        await options.OpenLocationIds.Should().Contain(1);
+        await options.OpenLocationIds.Should().NotContain(northId);
+
+        // Now open drawer for North Outlet
+        await drawerService.OpenAsync(AdminUser, new OpenCashInput
+        {
+            RequestId = Guid.NewGuid(),
+            StockLocationId = northId,
+            OpeningCash = 200m
+        });
+
+        // Re-check options: both location 1 and northId must be in OpenLocationIds
+        var optionsAfterOpen = await sales.OptionsAsync(SalesUser);
+        await optionsAfterOpen.OpenLocationIds.Should().Contain(1);
+        await optionsAfterOpen.OpenLocationIds.Should().Contain(northId);
+    }
 }

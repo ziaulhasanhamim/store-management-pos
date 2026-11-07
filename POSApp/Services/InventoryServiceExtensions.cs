@@ -27,6 +27,8 @@ public static class InventoryServiceExtensions
         services.AddScoped<DebtService>();
         services.AddScoped<PartyAccountService>();
         services.AddScoped<CashDrawerService>();
+        services.AddScoped<PaymentClearingService>();
+        services.AddScoped<ExpenseReportService>();
         services.AddScoped<FinanceService>();
         services.AddScoped<MoneyEntryService>();
         services.AddScoped<CustomerService>();

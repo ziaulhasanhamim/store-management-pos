@@ -30,7 +30,7 @@
                     <select class="field w-auto!" aria-label="Stock location" value="@LocationId" @onchange="ChangeLocationAsync" disabled="@(Lines.Count > 0)">
                         @foreach (var location in Options.Locations)
                         {
-                            <option value="@location.Id">@location.Name</option>
+                            <option value="@location.Id">@location.Name@(Options.OpenLocationIds.Contains(location.Id) ? "" : " (Drawer closed)")</option>
                         }
                     </select>
                 </div>
@@ -207,7 +207,14 @@
                 {
                     <p class="text-xs text-slate-500">Select a customer to leave a due or credit balance.</p>
                 }
-                <button type="button" id="pos-submit-btn" class="btn-primary w-full" disabled="@(Invalid || (WalkInUnsettled))" @onclick="() => SaveAsync(true)">
+                @if (!IsDrawerOpen)
+                {
+                    <div class="rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900" role="alert">
+                        <p class="font-semibold">Cash drawer is closed</p>
+                        <p class="mt-0.5">The drawer for <strong>@SelectedLocationName</strong> is not open for today. Open this location's cash drawer before completing sales.</p>
+                    </div>
+                }
+                <button type="button" id="pos-submit-btn" class="btn-primary w-full" disabled="@(Invalid || WalkInUnsettled || !IsDrawerOpen)" @onclick="() => SaveAsync(true)">
                     @if (Busy)
                     {
                         <span class="form-submit-spinner"></span>

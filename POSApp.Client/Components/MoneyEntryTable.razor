@@ -36,7 +36,13 @@
                             <a href="@($"/receiving/{row.PurchaseId.Value}")" class="mt-1 block text-xs text-blue-700">Receipt #@row.PurchaseId.Value</a>
                         }
                     </td>
-                    <td>@(PartyLabel == "Category" ? row.Category : row.Party)</td>
+                    <td>
+                        <div>@(PartyLabel == "Category" ? row.Category : row.Party)</div>
+                        @if (!string.IsNullOrWhiteSpace(row.StockLocationName))
+                        {
+                            <span class="inline-block mt-0.5 text-xs text-slate-500 font-normal">@row.StockLocationName</span>
+                        }
+                    </td>
                     <td>@SplitPayments.MethodName(row.Method)</td>
                     <td>
                         <span>@row.Notes</span>

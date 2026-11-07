@@ -31,6 +31,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<CashDrawer> CashDrawers { get; set; } = null!;
     public DbSet<CashSession> CashSessions { get; set; } = null!;
     public DbSet<CashMovement> CashMovements { get; set; } = null!;
+    public DbSet<PaymentClearingEntry> PaymentClearingEntries { get; set; } = null!;
+    public DbSet<PaymentPayout> PaymentPayouts { get; set; } = null!;
     public DbSet<Expense> Expenses { get; set; } = null!;
     public DbSet<ExpenseCategoryDefinition> ExpenseCategories { get; set; } = null!;
     public DbSet<FinancialEntryBatch> FinancialEntryBatches { get; set; } = null!;

@@ -67,6 +67,13 @@ public class CashDrawerAndFinanceServiceTests : PosIntegrationTestBase
         await closedSession.ClosedAt.HasValue.Should().BeTrue();
         await closedSession.ActualClosingCash.Should().BeEqualTo(700m);
         await closedSession.Difference.Should().BeEqualTo(0m);
+
+        // 4. Verify ReadAsync reflects "Counted and closed", NOT "Open" (SessionId must be null!)
+        var pageAfterClose = await drawerService.ReadAsync(AdminUser);
+        var locRow = pageAfterClose.Locations.Single(l => l.Id == locId);
+        await locRow.SessionId.Should().BeNull();
+        await locRow.ClosedToday.Should().BeTrue();
+        await locRow.ClosedSessionId.Should().BeEqualTo(sessionId);
     }
 
     [Test]

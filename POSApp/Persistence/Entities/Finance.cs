@@ -60,9 +60,11 @@ public sealed class Expense : AuditableEntity
 {
     public string? RequestHash { get; set; }
     public Guid RequestId { get; set; }
-    public ExpenseCategory Category { get; set; }
+    public ExpenseCategory Category { get; set; } = ExpenseCategory.Other;
     public int? CategoryDefinitionId { get; set; }
     public ExpenseCategoryDefinition? CategoryDefinition { get; set; }
+    public int? StockLocationId { get; set; }
+    public StockLocation? StockLocation { get; set; }
     public decimal Amount { get; set; }
     public PaymentMethod Method { get; set; }
     public DateTimeOffset OccurredAt { get; set; }

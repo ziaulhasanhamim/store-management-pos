@@ -57,13 +57,18 @@ public sealed partial class MoneyEntryService(IServiceScopeFactory scopes, IConf
             .Select(move => kind == "expenses" ? move.ExpenseId : kind == "supplier-payments" ? move.SupplierPaymentId : move.PaymentId)
             .Where(id => id != null).ToArrayAsync(ct);
         MoneyEntryRow Row(AuditableEntity entity, DateTimeOffset at, int partyId, string party,
-            int categoryId, string category, decimal amount, PaymentMethod method, string? notes, string? receipt, bool invoice)
+            int categoryId, string category, decimal amount, PaymentMethod method, string? notes, string? receipt, bool invoice,
+            int? locationId = null, string? locationName = null)
         {
             var reason = closed ? "Accounting period closed" : selected != working ? "Select this working day to edit"
                 : invoice ? "Linked receipt payment" : !admin && entity.CreatedByUserId != actorId ? "Only the creator or admin can edit"
                 : cashClosedIds.Contains(entity.Id) ? "Cash drawer already closed" : null;
             return new(entity.Id, at, partyId, party, categoryId, category, amount, method, notes ?? "", receipt,
-                (entity.UpdatedAt ?? entity.CreatedAt).UtcTicks, reason is null, reason);
+                (entity.UpdatedAt ?? entity.CreatedAt).UtcTicks, reason is null, reason)
+            {
+                StockLocationId = locationId,
+                StockLocationName = locationName
+            };
         }
         if (kind == "expenses")
         {
@@ -76,12 +81,14 @@ public sealed partial class MoneyEntryService(IServiceScopeFactory scopes, IConf
             pagination = categoryPage.Pagination;
             var categoryIds = categoryPage.Items.ToArray();
             var expenses = await query.Where(expense => categoryIds.Contains(expense.CategoryDefinitionId ?? -(int)expense.Category))
-                .Include(expense => expense.CategoryDefinition).OrderByDescending(expense => expense.Id).ToArrayAsync(ct);
+                .Include(expense => expense.CategoryDefinition)
+                .Include(expense => expense.StockLocation)
+                .OrderByDescending(expense => expense.Id).ToArrayAsync(ct);
             foreach (var expense in expenses)
             {
                 rows.Add(Row(expense, expense.OccurredAt, 0, "", expense.CategoryDefinitionId ?? -(int)expense.Category,
                     expense.CategoryDefinition?.Name ?? expense.Category.ToString(), expense.Amount, expense.Method,
-                    expense.Notes, expense.ReceiptReference, false));
+                    expense.Notes, expense.ReceiptReference, false, expense.StockLocationId, expense.StockLocation?.Name));
             }
         }
         else if (kind == "supplier-payments")
@@ -118,7 +125,16 @@ public sealed partial class MoneyEntryService(IServiceScopeFactory scopes, IConf
                     0, "", payment.Amount, payment.Method, payment.Notes, null, false));
             }
         }
-        return new(kind, working, selected, selected == working && !closed, admin, total, count, categories, parties, rows) { Pagination = pagination };
+        var activeLocations = await db.StockLocations.AsNoTracking().Where(l => !l.IsDeleted).OrderBy(l => l.Name)
+            .Select(l => new StockLocationOption(l.Id, l.Name)).ToListAsync(ct);
+        var userLocation = await db.Users.Where(u => u.Id == actorId).Select(u => u.CashLocationId).FirstOrDefaultAsync(ct);
+
+        return new(kind, working, selected, selected == working && !closed, admin, total, count, categories, parties, rows)
+        {
+            Pagination = pagination,
+            Locations = activeLocations,
+            UserDefaultLocationId = userLocation
+        };
     }
 
     public async Task<PagedResult<ExpenseCategoryOption>> CategoriesPageAsync(ClaimsPrincipal actor,

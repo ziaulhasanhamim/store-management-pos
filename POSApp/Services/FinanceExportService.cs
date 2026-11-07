@@ -657,7 +657,7 @@ public static class FinanceExportService
         var r = 2;
         foreach (var cat in categories)
         {
-            ws.Cell(r, 1).Value = cat.Name ?? (cat.Category == ExpenseCategory.Refreshments ? "Snacks / refreshments" : cat.Category.ToString());
+            ws.Cell(r, 1).Value = string.IsNullOrWhiteSpace(cat.Name) ? (cat.Category == ExpenseCategory.Refreshments ? "Snacks / refreshments" : cat.Category.ToString()) : cat.Name;
             ws.Cell(r, 2).Value = cat.Amount;
             ws.Cell(r, 2).Style.NumberFormat.Format = CurrencyFormat;
             r++;

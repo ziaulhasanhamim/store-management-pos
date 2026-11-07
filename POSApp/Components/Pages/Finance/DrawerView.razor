@@ -49,6 +49,70 @@
             </section>
         </div>
     }
+    else if (Data is not null && Data.SelectedLocationId is not null && Data.Locations.Any(location => location.Id == Data.SelectedLocationId && location.ClosedToday))
+    {
+        var loc = Data.Locations.First(location => location.Id == Data.SelectedLocationId);
+        var closedSession = Data.ClosedTodaySession;
+        var targetSessionId = closedSession?.Id ?? loc.ClosedSessionId;
+        <section class="panel mb-6 max-w-2xl p-6">
+            <div class="flex flex-wrap items-center justify-between pb-4 border-b border-slate-100 gap-3">
+                <div class="flex items-center gap-3">
+                    <span class="flex size-10 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 font-bold text-lg">✓</span>
+                    <div>
+                        <h2 class="text-xl font-semibold text-slate-900">Drawer closed for today</h2>
+                        <p class="text-xs text-slate-500">@loc.Name · Counted cash is finalized for the current working day.</p>
+                    </div>
+                </div>
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    Counted & closed
+                </span>
+            </div>
+
+            @if (closedSession is not null)
+            {
+                <dl class="my-5 grid gap-3 sm:grid-cols-4">
+                    <div class="p-3 bg-slate-50 rounded-xl">
+                        <dt class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Opening Float</dt>
+                        <dd class="mt-1 text-lg font-bold text-slate-900 tabular-nums">@Money(closedSession.Opening)</dd>
+                    </div>
+                    <div class="p-3 bg-slate-50 rounded-xl">
+                        <dt class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Expected Cash</dt>
+                        <dd class="mt-1 text-lg font-bold text-slate-900 tabular-nums">@Money(closedSession.Expected)</dd>
+                    </div>
+                    <div class="p-3 bg-slate-50 rounded-xl">
+                        <dt class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Counted Cash</dt>
+                        <dd class="mt-1 text-lg font-bold text-slate-900 tabular-nums">@Money(closedSession.Actual ?? closedSession.Expected)</dd>
+                    </div>
+                    <div class="p-3 @(closedSession.Difference != 0 ? "bg-amber-50 text-amber-900 border border-amber-200" : "bg-slate-50") rounded-xl">
+                        <dt class="text-xs font-semibold @(closedSession.Difference != 0 ? "text-amber-700" : "text-slate-500") uppercase tracking-wider">Over / Short</dt>
+                        <dd class="mt-1 text-lg font-bold tabular-nums">@Money(closedSession.Difference ?? 0)</dd>
+                    </div>
+                </dl>
+                @if (!string.IsNullOrWhiteSpace(closedSession.Notes))
+                {
+                    <div class="mb-5 p-3 rounded-xl bg-slate-50 text-xs text-slate-600 border border-slate-100">
+                        <span class="font-semibold text-slate-700">Closing notes:</span> @closedSession.Notes
+                    </div>
+                }
+            }
+
+            <p class="mb-4 text-xs text-slate-500">
+                A counted closing is final. No further sales or cash entries can be recorded for this location today.
+            </p>
+            <div class="flex flex-wrap gap-3">
+                <a href="@($"/cash-drawer?view=history{(targetSessionId.HasValue ? $"&sessionId={targetSessionId.Value}" : "")}")" class="btn-secondary">
+                    View drawer details & movements
+                </a>
+                <a href="/cash-drawer?view=locations" class="btn-secondary">Switch location</a>
+                @if (Data.Admin && targetSessionId.HasValue)
+                {
+                    <a href="@($"/administration/reopen?kind=drawer&id={targetSessionId.Value}")" class="btn-secondary text-amber-700 border-amber-300">
+                        Reopen drawer
+                    </a>
+                }
+            </div>
+        </section>
+    }
     else if (Data is not null && Data.SelectedLocationId is not null && !Data.Locations.Any(location => location.Id == Data.SelectedLocationId && location.ClosedToday))
     {
         <section class="panel mb-6 max-w-xl p-6">
@@ -65,9 +129,9 @@
                 }
                 else
                 {
-                    <p class="mb-4 text-sm">Opening cash is carried automatically from this location's previous count. Use a transfer or cash-in/out to change it.</p>
+                    <p class="mb-4 text-sm">Opening cash is carried automatically from the last closing.</p>
                 }
-                <button class="btn-primary mt-4" data-pending-text="Opening…">Open drawer</button>
+                <button class="btn-primary" data-pending-text="Opening…">Open drawer</button>
             </form>
         </section>
     }

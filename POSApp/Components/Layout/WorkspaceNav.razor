@@ -6,7 +6,7 @@
         @foreach (var link in Links)
         {
             <AuthorizeView Policy="@link.Policy" Context="sectionAuth">
-                <NavLink href="@link.Href" Match="NavLinkMatch.All" class="@(WorkspaceNavigation.Tab(Path) == link.Href ? "filter-chip active" : "filter-chip")">@link.Label</NavLink>
+                <a href="@link.Href" class="@(WorkspaceNavigation.Tab(Path) == link.Href ? "filter-chip active" : "filter-chip")">@link.Label</a>
             </AuthorizeView>
         }
     </nav>
@@ -19,6 +19,7 @@
         "reports" =>
         [
             ("/reports", "Reports", AppPolicies.MakeSales),
+            ("/reports/expenses", "Expense analysis", AppPolicies.MakeSales),
             ("/reports/sales", "Sales", AppPolicies.MakeSales),
             ("/reports/receiving", "Receiving", AppPolicies.ManageInventory),
             ("/reports/items", "Item performance", AppPolicies.ManageInventory)
@@ -32,6 +33,7 @@
         "finance" =>
         [
             ("/finance", "Working day", AppPolicies.MakeSales),
+            ("/finance/clearing", "Card & wallet clearing", AppPolicies.MakeSales),
             ("/finance/payments", "Payments", AppPolicies.MakeSales),
             ("/finance/people", "People & payroll", AppPolicies.MakeSales),
             ("/finance/accounts", "Balances & accounts", AppPolicies.ManageUsers)

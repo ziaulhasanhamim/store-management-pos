@@ -36,6 +36,28 @@ public static class FinancialPosting
                 CreatedByUserId = actorId
             });
         }
+        else if (kind == CashMovementKind.Sale && (method == PaymentMethod.Card || method == PaymentMethod.MobileWallet))
+        {
+            var locationId = cashLocationId
+                ?? payment?.Sale?.StockLocationId
+                ?? (payment?.SaleId != null ? await db.Sales.Where(s => s.Id == payment.SaleId).Select(s => (int?)s.StockLocationId).FirstOrDefaultAsync(ct) : null)
+                ?? await db.Users.Where(u => u.Id == actorId).Select(u => u.CashLocationId).FirstOrDefaultAsync(ct);
+
+            db.PaymentClearingEntries.Add(new PaymentClearingEntry
+            {
+                RequestId = Guid.NewGuid(),
+                Payment = payment,
+                PaymentId = payment?.Id ?? 0,
+                StockLocationId = locationId,
+                BusinessDate = date,
+                Method = method,
+                GrossAmount = amount,
+                SettledAmount = 0m,
+                Status = PaymentClearingStatus.Unsettled,
+                Notes = notes,
+                CreatedByUserId = actorId
+            });
+        }
         else
         {
             await BankAsync(db, new BankMovement
@@ -95,6 +117,20 @@ public static class FinancialPosting
                 ReversesMovementId = movement.Id,
                 CreatedByUserId = actorId
             }, ct);
+        }
+    }
+
+    public static async Task ReverseClearingAsync(AppDbContext db, int saleId, int actorId, string reason, DateOnly activeDate, CancellationToken ct)
+    {
+        var entries = await db.PaymentClearingEntries
+            .Where(entry => entry.Payment!.SaleId == saleId && entry.Status == PaymentClearingStatus.Unsettled)
+            .ToListAsync(ct);
+        foreach (var entry in entries)
+        {
+            entry.Status = PaymentClearingStatus.Reversed;
+            entry.Notes = string.IsNullOrWhiteSpace(entry.Notes) ? reason : $"{entry.Notes} | {reason}";
+            entry.UpdatedAt = DateTimeOffset.UtcNow;
+            entry.UpdatedByUserId = actorId;
         }
     }
 }

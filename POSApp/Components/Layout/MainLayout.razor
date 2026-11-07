@@ -33,11 +33,8 @@
                     </NavLink>
                 </AuthorizeView>
                 <AuthorizeView Policy="@AppPolicies.ManageDrawer" Context="drawerAuth">
-                    <SidebarGroup Title="Cash & drawer balances" IconName="wallet" Prefix="/cash-drawer" AlternatePrefix="/finance/bank">
+                    <SidebarGroup Title="Cash & drawer balances" IconName="wallet" Prefix="/cash-drawer">
                         <NavLink href="/cash-drawer?view=locations">Drawer balances</NavLink>
-                        <AuthorizeView Policy="@AppPolicies.ManageUsers" Context="bankAuth">
-                            <NavLink href="/finance/bank">Bank & digital balance</NavLink>
-                        </AuthorizeView>
                         <NavLink href="/cash-drawer" Match="NavLinkMatch.All">Open / count drawer</NavLink>
                         <AuthorizeView Policy="@AppPolicies.ManageUsers" Context="transferAuth">
                             <NavLink href="/cash-drawer?view=transfer">Move cash</NavLink>
@@ -82,6 +79,7 @@
                 <AuthorizeView Policy="@AppPolicies.MakeSales" Context="expAuth">
                     <SidebarGroup Title="Expenses" IconName="wallet" Prefix="/expenses">
                         <NavLink href="/expenses" Match="NavLinkMatch.All">Daily expenses</NavLink>
+                        <NavLink href="/reports/expenses">Expense analysis</NavLink>
                         <AuthorizeView Policy="@AppPolicies.ManageUsers" Context="categoryAuth">
                             <NavLink href="/expenses/categories">Expense categories</NavLink>
                         </AuthorizeView>
@@ -94,9 +92,11 @@
                     </SidebarGroup>
                 </AuthorizeView>
                 <AuthorizeView Policy="@AppPolicies.MakeSales" Context="finAuth">
-                    <SidebarGroup Title="Finance" IconName="history" Prefix="/finance">
+                    <SidebarGroup Title="Finance" IconName="history" Prefix="/finance" ExcludePrefix="/finance/debt">
                         <NavLink href="/finance" Match="NavLinkMatch.All">Working day overview</NavLink>
+                        <NavLink href="/finance/clearing">Card & wallet clearing</NavLink>
                         <AuthorizeView Policy="@AppPolicies.ManageUsers" Context="financeAuth">
+                            <NavLink href="/finance/bank">Bank & digital balance</NavLink>
                             <NavLink href="/finance/day">Day summary & closing</NavLink>
                             <NavLink href="/finance/month">Month summary & closing</NavLink>
                             <NavLink href="/finance/balance-checks">Balance checks</NavLink>
@@ -107,6 +107,7 @@
                     <SidebarGroup Title="Reports & Analytics" IconName="dashboard" Prefix="/reports">
                         <NavLink href="/reports" Match="NavLinkMatch.All">Reports hub</NavLink>
                         <NavLink href="/reports/sales">Sales report</NavLink>
+                        <NavLink href="/reports/expenses">Expense analysis</NavLink>
                         <NavLink href="/reports/categories">Category performance</NavLink>
                         <NavLink href="/reports/suppliers-sales">Supplier sales</NavLink>
                         <AuthorizeView Policy="@AppPolicies.ManageInventory" Context="velAuth">

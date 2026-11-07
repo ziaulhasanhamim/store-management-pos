@@ -1033,6 +1033,9 @@ namespace POSApp.Persistence.Migrations
                     b.Property<Guid>("RequestId")
                         .HasColumnType("uuid");
 
+                    b.Property<int?>("StockLocationId")
+                        .HasColumnType("integer");
+
                     b.Property<DateTimeOffset?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -1041,12 +1044,14 @@ namespace POSApp.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CategoryDefinitionId");
-
                     b.HasIndex("OccurredAt");
 
                     b.HasIndex("RequestId")
                         .IsUnique();
+
+                    b.HasIndex("CategoryDefinitionId", "OccurredAt");
+
+                    b.HasIndex("StockLocationId", "OccurredAt");
 
                     b.ToTable("Expenses");
                 });
@@ -1083,64 +1088,6 @@ namespace POSApp.Persistence.Migrations
                     b.HasIndex("NormalizedName");
 
                     b.ToTable("ExpenseCategories");
-
-                    b.HasData(
-                        new
-                        {
-                            Id = -1,
-                            BuiltInCategory = 1,
-                            IsArchived = false,
-                            Name = "Utilities",
-                            NormalizedName = "UTILITIES"
-                        },
-                        new
-                        {
-                            Id = -2,
-                            BuiltInCategory = 2,
-                            IsArchived = false,
-                            Name = "Snacks / refreshments",
-                            NormalizedName = "SNACKS / REFRESHMENTS"
-                        },
-                        new
-                        {
-                            Id = -3,
-                            BuiltInCategory = 3,
-                            IsArchived = false,
-                            Name = "Transport",
-                            NormalizedName = "TRANSPORT"
-                        },
-                        new
-                        {
-                            Id = -4,
-                            BuiltInCategory = 4,
-                            IsArchived = false,
-                            Name = "Packaging",
-                            NormalizedName = "PACKAGING"
-                        },
-                        new
-                        {
-                            Id = -5,
-                            BuiltInCategory = 5,
-                            IsArchived = false,
-                            Name = "Rent",
-                            NormalizedName = "RENT"
-                        },
-                        new
-                        {
-                            Id = -6,
-                            BuiltInCategory = 6,
-                            IsArchived = false,
-                            Name = "Maintenance",
-                            NormalizedName = "MAINTENANCE"
-                        },
-                        new
-                        {
-                            Id = -7,
-                            BuiltInCategory = 7,
-                            IsArchived = false,
-                            Name = "Other",
-                            NormalizedName = "OTHER"
-                        });
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.FinanceClosing", b =>
@@ -1799,6 +1746,167 @@ namespace POSApp.Persistence.Migrations
                     b.HasIndex("SaleId", "PaidAt");
 
                     b.ToTable("Payments");
+                });
+
+            modelBuilder.Entity("POSApp.Persistence.Entities.PaymentClearingEntry", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateOnly>("BusinessDate")
+                        .HasColumnType("date");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("CreatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("GrossAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<int>("Method")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<int>("PaymentId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("PayoutId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("RequestHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<Guid>("RequestId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("SettledAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<DateTimeOffset?>("SettledAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("StockLocationId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("UpdatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PaymentId");
+
+                    b.HasIndex("PayoutId");
+
+                    b.HasIndex("RequestId")
+                        .IsUnique();
+
+                    b.HasIndex("StockLocationId");
+
+                    b.HasIndex("Status", "StockLocationId", "Method", "BusinessDate");
+
+                    b.ToTable("PaymentClearingEntries");
+                });
+
+            modelBuilder.Entity("POSApp.Persistence.Entities.PaymentPayout", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("BankAccountId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("BankMovementId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateOnly>("BusinessDate")
+                        .HasColumnType("date");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("CreatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("ExpenseId")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("FeeAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal>("GrossAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<int>("Method")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("NetAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<string>("Notes")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("Reference")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("RequestHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<Guid>("RequestId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("SettledAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("StockLocationId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("UpdatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BankAccountId");
+
+                    b.HasIndex("BankMovementId");
+
+                    b.HasIndex("ExpenseId");
+
+                    b.HasIndex("RequestId")
+                        .IsUnique();
+
+                    b.HasIndex("StockLocationId", "BusinessDate");
+
+                    b.ToTable("PaymentPayouts");
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.PayrollEntry", b =>
@@ -3564,7 +3672,14 @@ namespace POSApp.Persistence.Migrations
                         .HasForeignKey("CategoryDefinitionId")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.HasOne("POSApp.Persistence.Entities.StockLocation", "StockLocation")
+                        .WithMany()
+                        .HasForeignKey("StockLocationId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.Navigation("CategoryDefinition");
+
+                    b.Navigation("StockLocation");
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.ImportJob", b =>
@@ -3688,6 +3803,64 @@ namespace POSApp.Persistence.Migrations
                     b.Navigation("CustomerBalance");
 
                     b.Navigation("Sale");
+                });
+
+            modelBuilder.Entity("POSApp.Persistence.Entities.PaymentClearingEntry", b =>
+                {
+                    b.HasOne("POSApp.Persistence.Entities.Payment", "Payment")
+                        .WithMany()
+                        .HasForeignKey("PaymentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("POSApp.Persistence.Entities.PaymentPayout", "Payout")
+                        .WithMany("Entries")
+                        .HasForeignKey("PayoutId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("POSApp.Persistence.Entities.StockLocation", "StockLocation")
+                        .WithMany()
+                        .HasForeignKey("StockLocationId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Payment");
+
+                    b.Navigation("Payout");
+
+                    b.Navigation("StockLocation");
+                });
+
+            modelBuilder.Entity("POSApp.Persistence.Entities.PaymentPayout", b =>
+                {
+                    b.HasOne("POSApp.Persistence.Entities.BankAccount", "BankAccount")
+                        .WithMany()
+                        .HasForeignKey("BankAccountId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("POSApp.Persistence.Entities.BankMovement", "BankMovement")
+                        .WithMany()
+                        .HasForeignKey("BankMovementId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("POSApp.Persistence.Entities.Expense", "Expense")
+                        .WithMany()
+                        .HasForeignKey("ExpenseId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("POSApp.Persistence.Entities.StockLocation", "StockLocation")
+                        .WithMany()
+                        .HasForeignKey("StockLocationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("BankAccount");
+
+                    b.Navigation("BankMovement");
+
+                    b.Navigation("Expense");
+
+                    b.Navigation("StockLocation");
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.PayrollEntry", b =>
@@ -4081,6 +4254,11 @@ namespace POSApp.Persistence.Migrations
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.LenderBalance", b =>
+                {
+                    b.Navigation("Entries");
+                });
+
+            modelBuilder.Entity("POSApp.Persistence.Entities.PaymentPayout", b =>
                 {
                     b.Navigation("Entries");
                 });

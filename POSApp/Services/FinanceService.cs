@@ -50,7 +50,10 @@ public sealed class FinanceService(IServiceScopeFactory scopes, IConfiguration c
             var date = await AccountingCalendar.SelectedAsync(db, actorId, configuration, ct);
             AccountingCalendar.ValidateExpected(date, WorkingDayRequest.Date);
             var at = AccountingCalendar.At(date, configuration);
+            var userLocationId = await db.Users.Where(u => u.Id == actorId).Select(u => u.CashLocationId).FirstOrDefaultAsync(ct);
+            var locationId = input.StockLocationId ?? userLocationId;
             var category = await db.ExpenseCategories.FindAsync([input.CategoryId ?? -(int)input.Category], ct)
+                ?? await db.ExpenseCategories.FirstOrDefaultAsync(c => !c.IsArchived, ct)
                 ?? throw new ValidationException("Select an expense category.");
             if (category.IsArchived)
             {
@@ -62,6 +65,7 @@ public sealed class FinanceService(IServiceScopeFactory scopes, IConfiguration c
                 RequestHash = hash,
                 Category = category.BuiltInCategory ?? ExpenseCategory.Other,
                 CategoryDefinitionId = category.Id,
+                StockLocationId = locationId,
                 Amount = input.Amount,
                 Method = input.Method,
                 OccurredAt = at,
@@ -71,7 +75,7 @@ public sealed class FinanceService(IServiceScopeFactory scopes, IConfiguration c
             };
             db.Expenses.Add(expense);
             await FinancialPosting.PostAsync(db, actorId, input.Method, -input.Amount, CashMovementKind.Expense,
-                input.Notes.Trim(), date, ct, expense: expense);
+                input.Notes.Trim(), date, ct, expense: expense, cashLocationId: locationId);
             await db.SaveChangesAsync(ct);
             await transaction.CommitAsync(ct);
             return expense.Id;
@@ -203,7 +207,9 @@ public sealed class FinanceService(IServiceScopeFactory scopes, IConfiguration c
                     expense.Notes, expense.ReceiptReference,
                     db.Users.Where(user => user.Id == expense.CreatedByUserId).Select(user => user.UserName!).FirstOrDefault() ?? "User")
                 {
-                    CategoryName = expense.CategoryDefinition == null ? null : expense.CategoryDefinition.Name
+                    CategoryName = expense.CategoryDefinition == null ? null : expense.CategoryDefinition.Name,
+                    StockLocationId = expense.StockLocationId,
+                    LocationName = expense.StockLocation == null ? null : expense.StockLocation.Name
                 })
                 .ToArrayAsync(ct);
         }

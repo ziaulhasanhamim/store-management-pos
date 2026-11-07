@@ -482,7 +482,8 @@ public sealed class ClosingService(IServiceScopeFactory scopes, IConfiguration c
                 && (locationId == null || item.Sale.StockLocationId == locationId.Value))
             .Select(item => new { item.UnitCost, item.Quantity }).ToListAsync(ct);
         var cogs = costs.Sum(item => decimal.Round(item.UnitCost * item.Quantity, 2, MidpointRounding.AwayFromZero));
-        var expenses = await db.Expenses.Where(expense => expense.OccurredAt >= from && expense.OccurredAt < through)
+        var expenses = await db.Expenses.Where(expense => expense.OccurredAt >= from && expense.OccurredAt < through
+                && (locationId == null || expense.StockLocationId == locationId.Value))
             .Select(expense => (decimal?)expense.Amount).SumAsync(ct) ?? 0;
         var salaries = await db.PayrollEntries.Where(entry => entry.OccurredAt >= from && entry.OccurredAt < through)
             .Select(entry => (decimal?)entry.PaidAmount).SumAsync(ct) ?? 0;
@@ -530,7 +531,12 @@ public sealed class ClosingService(IServiceScopeFactory scopes, IConfiguration c
                     && move.OccurredAt >= from && move.OccurredAt < through
                     && (locationId == null || move.StockLocationId == locationId.Value))
                 .Select(move => new { move.Quantity, move.UnitCost }).ToArrayAsync(ct))
-                .Sum(move => decimal.Round(move.Quantity * move.UnitCost, 2, MidpointRounding.AwayFromZero))
+                .Sum(move => decimal.Round(move.Quantity * move.UnitCost, 2, MidpointRounding.AwayFromZero)),
+            AwaitingPayout = new AwaitingPayoutSummary(
+                await db.PaymentClearingEntries.Where(e => e.Status == PaymentClearingStatus.Unsettled && (locationId == null || e.StockLocationId == locationId.Value) && e.Method == PaymentMethod.Card).Select(e => (decimal?)e.GrossAmount).SumAsync(ct) ?? 0,
+                await db.PaymentClearingEntries.Where(e => e.Status == PaymentClearingStatus.Unsettled && (locationId == null || e.StockLocationId == locationId.Value) && e.Method == PaymentMethod.MobileWallet).Select(e => (decimal?)e.GrossAmount).SumAsync(ct) ?? 0,
+                await db.PaymentClearingEntries.Where(e => e.Status == PaymentClearingStatus.Unsettled && (locationId == null || e.StockLocationId == locationId.Value)).CountAsync(ct),
+                await db.PaymentClearingEntries.Where(e => e.Status == PaymentClearingStatus.Unsettled && (locationId == null || e.StockLocationId == locationId.Value)).OrderBy(e => e.BusinessDate).Select(e => (DateOnly?)e.BusinessDate).FirstOrDefaultAsync(ct))
         };
         var locationBreakdown = locationId == null
             ? await MonthlyFinanceBuilder.BuildLocationBreakdownAsync(db, from, through, ct)

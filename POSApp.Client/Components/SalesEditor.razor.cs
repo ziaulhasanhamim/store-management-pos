@@ -98,10 +98,20 @@ public partial class SalesEditor
         || Math.Abs(Subtotal) > 9999999999999999.99m || Discount > DiscountLimit
         || Lines.Any(line => !line.QuantityValid || !line.PriceValid || !line.AmountValid);
 
+    private bool IsDrawerOpen => Options.OpenLocationIds.Contains(LocationId);
+    private string SelectedLocationName => Options.Locations.FirstOrDefault(l => l.Id == LocationId)?.Name ?? "this location";
+
     protected override void OnInitialized()
     {
         Options = InitialOptions;
-        LocationId = Options.Locations.FirstOrDefault()?.Id ?? 0;
+        if (Options.DefaultLocationId.HasValue && Options.Locations.Any(l => l.Id == Options.DefaultLocationId.Value))
+        {
+            LocationId = Options.DefaultLocationId.Value;
+        }
+        else
+        {
+            LocationId = Options.Locations.FirstOrDefault()?.Id ?? 0;
+        }
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)

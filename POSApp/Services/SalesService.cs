@@ -23,12 +23,21 @@ public sealed class SalesService(IServiceScopeFactory scopes, IConfiguration? co
             .OrderByDescending(sale => sale.Id).Take(30)
             .Select(sale => new { sale.ReceiptNumber, Customer = sale.Customer == null ? null : sale.Customer.Name, sale.TotalAmount })
             .ToListAsync(ct);
+        var workingDate = await AccountingCalendar.SelectedAsync(db, actorId, configuration, ct);
+        var userLocationId = await db.Users.Where(u => u.Id == actorId).Select(u => u.CashLocationId).SingleOrDefaultAsync(ct);
+        var openLocationIds = await db.CashDrawers.AsNoTracking()
+            .Where(d => d.StockLocationId != null && d.CurrentSessionId != null && d.CurrentSession!.ClosedAt == null && d.CurrentSession.BusinessDate == workingDate)
+            .Select(d => d.StockLocationId!.Value)
+            .ToArrayAsync(ct);
+
         return new(locations, customers, drafts.Select(draft => new SalesDraftRow(
             Guid.ParseExact(draft.ReceiptNumber[4..], "N"), draft.ReceiptNumber, draft.Customer, draft.TotalAmount)).ToArray())
         {
-            WorkingDate = await AccountingCalendar.SelectedAsync(db, actorId, configuration, ct),
+            WorkingDate = workingDate,
             CanSetOpeningBalance = await db.UserRoles.AnyAsync(membership => membership.UserId == actorId
-                && db.Roles.Any(role => role.Id == membership.RoleId && (role.Name == AppRoles.Admin || role.Name == AppRoles.InventoryManager)), ct)
+                && db.Roles.Any(role => role.Id == membership.RoleId && (role.Name == AppRoles.Admin || role.Name == AppRoles.InventoryManager)), ct),
+            DefaultLocationId = userLocationId,
+            OpenLocationIds = openLocationIds
         };
     }
 
@@ -205,6 +214,15 @@ public sealed class SalesService(IServiceScopeFactory scopes, IConfiguration? co
             }
             AccountingCalendar.ValidateExpected(businessDate, command.WorkingDate);
             await AccountingCalendar.EnsureOpenAsync(db, businessDate, ct);
+            CashSession? activeSession = null;
+            if (complete)
+            {
+                activeSession = await CashDrawerService.RequireOpenAsync(db, actorId, ct, command.LocationId);
+                if (activeSession.BusinessDate != businessDate)
+                {
+                    throw new ValidationException("This location's drawer belongs to another working day. Count and close it before continuing.");
+                }
+            }
             var effectiveAt = AccountingCalendar.At(businessDate, configuration);
             if (!await db.StockLocations.AnyAsync(location => location.Id == command.LocationId && !location.IsDeleted && location.CanSell, ct)
                 || (command.CustomerId is not null && !await db.Customers.AnyAsync(customer => customer.Id == command.CustomerId.Value && !customer.IsDeleted, ct)))
@@ -370,7 +388,7 @@ public sealed class SalesService(IServiceScopeFactory scopes, IConfiguration? co
                     sale.Payments.Add(payment);
                     db.Payments.Add(payment);
                     await FinancialPosting.PostAsync(db, actorId, allocation.Method, allocation.Amount,
-                        CashMovementKind.Sale, $"Sale · {number}", businessDate, ct, payment: payment, cashLocationId: command.LocationId);
+                        CashMovementKind.Sale, $"Sale · {number}", businessDate, ct, payment: payment, cashLocationId: command.LocationId, cashSession: activeSession);
                     if (balance is not null)
                     {
                         balance.CurrentBalance -= allocation.Amount;

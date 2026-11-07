@@ -28,12 +28,13 @@ public static class WorkspaceNavigation
 
     public static string Tab(string path) => Area(path) switch
     {
+        "finance" when path.StartsWith("/finance/clearing") => "/finance/clearing",
         "finance" when path.StartsWith("/expenses") || path.StartsWith("/suppliers/payments")
             || path.StartsWith("/customers/payments") || path.StartsWith("/finance/debt/payments") => "/finance/payments",
         "finance" when path.StartsWith("/employees") || path.StartsWith("/payroll") || path.StartsWith("/customers") => "/finance/people",
         "finance" when path.StartsWith("/accounts") || path.StartsWith("/finance/accounts")
             || path.StartsWith("/finance/bank") || path.StartsWith("/finance/debt") => "/finance/accounts",
-        "finance" => path == "/finance/payments" || path == "/finance/people" ? path : "/finance",
+        "finance" => "/finance",
         "inventory" when path.StartsWith("/stock/takes") => "/stock/takes",
         "inventory" when path.StartsWith("/items") => "/items",
         "inventory" when path.StartsWith("/receiving") || path.StartsWith("/stock/transfers") => "/receiving",
