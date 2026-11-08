@@ -142,3 +142,29 @@ document.addEventListener('click', event => {
     if (!link) return;
     updateBulkEditLinkHref();
 }, true);
+
+// Sidebar Single-Open Accordion: when a group is opened, close sibling groups
+document.addEventListener('toggle', event => {
+    const targetGroup = event.target;
+    if (targetGroup && targetGroup.matches && targetGroup.matches('.sidebar-group') && targetGroup.open) {
+        const allGroups = document.querySelectorAll('.sidebar-group[open]');
+        allGroups.forEach(group => {
+            if (group !== targetGroup) {
+                group.open = false;
+            }
+        });
+    }
+}, true); // Capture phase is required because 'toggle' event does not bubble
+
+// Mobile Drawer Auto-Close: dismiss drawer overlay upon selecting any navigation link
+document.addEventListener('click', event => {
+    const link = event.target?.closest?.('.sidebar nav a[href]');
+    if (!link) return;
+    if (window.innerWidth < 1024) {
+        const toggle = document.getElementById('mobile-nav-toggle');
+        if (toggle && toggle.checked) {
+            toggle.checked = false;
+        }
+    }
+});
+
