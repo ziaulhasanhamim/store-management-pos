@@ -4,7 +4,7 @@
     <summary class="nav-link sidebar-summary">
         @if (!string.IsNullOrWhiteSpace(Href))
         {
-            <NavLink href="@Href" Match="NavLinkMatch.All" class="sidebar-heading-link" onclick="event.stopPropagation()">
+            <NavLink href="@Href" Match="NavLinkMatch.All" class="sidebar-heading-link">
                 <Icon Name="@IconName" />
                 <span class="truncate">@Title</span>
             </NavLink>
