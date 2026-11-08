@@ -72,16 +72,16 @@ else
     </div>
 
     <!-- Tab navigation -->
-    <div class="mb-6 flex border-b border-slate-200 gap-6">
-        <button type="button" class="@(ActiveTab == "pending" ? "border-b-2 border-indigo-600 pb-3 font-bold text-indigo-700" : "pb-3 text-slate-500 hover:text-slate-800") cursor-pointer transition-colors"
+    <div class="mb-6 flex border-b border-slate-200 gap-4 sm:gap-6 overflow-x-auto pb-px">
+        <button type="button" class="@(ActiveTab == "pending" ? "border-b-2 border-indigo-600 pb-3 font-bold text-indigo-700" : "pb-3 text-slate-500 hover:text-slate-800") cursor-pointer transition-colors whitespace-nowrap text-sm"
                 @onclick="@(() => ActiveTab = "pending")">
             Pending Sales (@Summary.UnsettledCount)
         </button>
-        <button type="button" class="@(ActiveTab == "history" ? "border-b-2 border-indigo-600 pb-3 font-bold text-indigo-700" : "pb-3 text-slate-500 hover:text-slate-800") cursor-pointer transition-colors"
+        <button type="button" class="@(ActiveTab == "history" ? "border-b-2 border-indigo-600 pb-3 font-bold text-indigo-700" : "pb-3 text-slate-500 hover:text-slate-800") cursor-pointer transition-colors whitespace-nowrap text-sm"
                 @onclick="@(() => ActiveTab = "history")">
             Payout History
         </button>
-        <button type="button" class="@(ActiveTab == "ageing" ? "border-b-2 border-indigo-600 pb-3 font-bold text-indigo-700" : "pb-3 text-slate-500 hover:text-slate-800") cursor-pointer transition-colors"
+        <button type="button" class="@(ActiveTab == "ageing" ? "border-b-2 border-indigo-600 pb-3 font-bold text-indigo-700" : "pb-3 text-slate-500 hover:text-slate-800") cursor-pointer transition-colors whitespace-nowrap text-sm"
                 @onclick="@(() => ActiveTab = "ageing")">
             Ageing & Fee Analytics
         </button>
@@ -388,34 +388,35 @@ else
 <!-- Record Provider Payout Modal -->
 @if (ShowPayoutModal)
 {
-    <div class="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs no-print"
+    <div class="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-slate-900/60 backdrop-blur-xs no-print overscroll-contain"
          @onclick="ClosePayoutModal">
-        <div class="relative w-full max-w-lg max-h-[88vh] rounded-2xl bg-white shadow-2xl border border-slate-200 overflow-hidden flex flex-col my-auto"
+        <div class="relative w-full max-w-xl md:max-w-2xl lg:max-w-3xl max-h-[94vh] sm:max-h-[90vh] rounded-2xl bg-white shadow-2xl border border-slate-200 overflow-hidden flex flex-col my-auto"
              @onclick:stopPropagation="true">
             <!-- Modal Header -->
-            <div class="flex items-center justify-between border-b border-slate-100 px-5 py-3 bg-slate-50/50 shrink-0">
-                <div class="flex items-center gap-2">
-                    <span class="p-1.5 rounded-lg bg-indigo-100 text-indigo-700">
-                        <Icon Name="wallet" Class="size-4" />
+            <div class="flex items-center justify-between border-b border-slate-100 px-4 py-3 sm:px-6 sm:py-4 bg-slate-50/70 shrink-0">
+                <div class="flex items-center gap-3">
+                    <span class="size-9 rounded-xl bg-indigo-50 border border-indigo-100/80 text-indigo-600 flex items-center justify-center shrink-0">
+                        <Icon Name="wallet" Class="size-5" />
                     </span>
                     <div>
-                        <h2 class="text-sm font-bold text-slate-900">Record Provider Payout</h2>
-                        <p class="text-[11px] text-slate-500">Settle card & wallet transactions into your bank account</p>
+                        <h2 class="text-sm sm:text-base font-bold text-slate-900 tracking-tight">Record Provider Payout</h2>
+                        <p class="text-xs text-slate-500 hidden sm:block">Settle pending card & mobile wallet sales into your designated bank account</p>
                     </div>
                 </div>
-                <button type="button" class="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 cursor-pointer"
+                <button type="button" class="size-9 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100/80 flex items-center justify-center transition-colors cursor-pointer"
                         @onclick="ClosePayoutModal" aria-label="Close modal">
-                    <Icon Name="x" Class="size-4" />
+                    <Icon Name="x" Class="size-4.5" />
                 </button>
             </div>
 
             <!-- Modal Body -->
-            <div class="p-4 sm:p-5 space-y-3 overflow-y-auto flex-1 text-xs">
+            <div class="p-4 sm:p-6 space-y-4 overflow-y-auto min-h-0 flex-1 overscroll-contain text-xs sm:text-sm">
                 <!-- Location & Tender Selectors -->
-                <div class="grid gap-2.5 sm:grid-cols-2">
+                <div class="grid gap-3 sm:grid-cols-2">
                     <div>
-                        <label class="field-label text-[11px] mb-1 font-semibold" for="modal-location">Store Location</label>
-                        <select id="modal-location" class="field text-xs py-1" value="@ModalLocationId" @onchange="OnModalLocationChanged">
+                        <label class="field-label text-xs mb-1.5 font-semibold text-slate-700" for="modal-location">Store Location</label>
+                        <select id="modal-location" class="field text-xs sm:text-sm py-2 px-3 rounded-xl border border-slate-200 bg-white shadow-2xs focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                                value="@ModalLocationId" @onchange="OnModalLocationChanged">
                             @foreach (var loc in Locations)
                             {
                                 <option value="@loc.Id">@loc.Name</option>
@@ -423,56 +424,68 @@ else
                         </select>
                     </div>
                     <div>
-                        <label class="field-label text-[11px] mb-1 font-semibold" for="modal-method">Payment Tender</label>
-                        <select id="modal-method" class="field text-xs py-1" value="@ModalMethod" @onchange="OnModalMethodChanged">
+                        <label class="field-label text-xs mb-1.5 font-semibold text-slate-700" for="modal-method">Payment Tender</label>
+                        <select id="modal-method" class="field text-xs sm:text-sm py-2 px-3 rounded-xl border border-slate-200 bg-white shadow-2xs focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                                value="@ModalMethod" @onchange="OnModalMethodChanged">
                             <option value="@PaymentMethod.Card">Card (POS swipe / terminal)</option>
                             <option value="@PaymentMethod.MobileWallet">Mobile Wallet (bKash / Nagad / Rocket)</option>
                         </select>
                     </div>
                 </div>
 
-                <!-- Sales Checklist Table -->
+                <!-- Sales Checklist Section -->
                 <div>
-                    <div class="flex flex-wrap items-center justify-between mb-1 gap-1">
-                        <label class="field-label text-[11px] mb-0 font-semibold">
-                            Pending Sales (@SelectedSaleIds.Count/@ModalSales.Count selected)
-                        </label>
-                        <div class="flex items-center gap-1.5">
-                            <div class="relative w-28">
-                                <input type="text" class="field text-[11px] pl-5 pr-4 py-0.5" placeholder="Filter..."
+                    <div class="flex flex-wrap items-center justify-between mb-2 gap-2">
+                        <div class="flex items-center gap-2">
+                            <label class="field-label text-xs mb-0 font-semibold text-slate-800">
+                                Pending Sales
+                            </label>
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-100">
+                                @SelectedSaleIds.Count of @ModalSales.Count selected
+                            </span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <div class="relative w-32 sm:w-44">
+                                <input type="text" class="field text-xs pl-7 pr-6 py-1 rounded-lg border border-slate-200" placeholder="Filter sales…"
                                        value="@ModalSearchTerm" @oninput="OnModalSearchInput" />
-                                <span class="absolute left-1.5 top-1 text-slate-400">
-                                    <Icon Name="search" Class="size-2.5" />
+                                <span class="absolute left-2 top-1.5 text-slate-400">
+                                    <Icon Name="search" Class="size-3.5" />
                                 </span>
                                 @if (!string.IsNullOrWhiteSpace(ModalSearchTerm))
                                 {
-                                    <button type="button" class="absolute right-1 top-0.5 text-slate-400 hover:text-slate-600 cursor-pointer"
+                                    <button type="button" class="absolute right-1.5 top-1.5 text-slate-400 hover:text-slate-600 cursor-pointer"
                                             @onclick="@(() => ModalSearchTerm = "")">
-                                        <Icon Name="x" Class="size-2.5" />
+                                        <Icon Name="x" Class="size-3" />
                                     </button>
                                 }
                             </div>
-                            <button type="button" class="text-[11px] text-indigo-600 hover:underline cursor-pointer font-medium" @onclick="SelectAllModalSales">All</button>
-                            <span class="text-slate-300">|</span>
-                            <button type="button" class="text-[11px] text-slate-500 hover:underline cursor-pointer" @onclick="DeselectAllModalSales">Clear</button>
+                            <button type="button" class="px-2.5 py-1 text-xs font-medium rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 cursor-pointer transition-colors active:scale-96"
+                                    @onclick="SelectAllModalSales">
+                                Select All
+                            </button>
+                            <button type="button" class="px-2.5 py-1 text-xs font-medium rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 cursor-pointer transition-colors active:scale-96"
+                                    @onclick="DeselectAllModalSales">
+                                Clear
+                            </button>
                         </div>
                     </div>
-                    <div class="max-h-28 overflow-y-auto border border-slate-200 rounded-lg">
+
+                    <div class="max-h-52 sm:max-h-64 overflow-y-auto border border-slate-200 rounded-xl bg-white shadow-2xs overscroll-contain">
                         <table class="data-table text-xs">
-                            <thead class="sticky top-0 bg-slate-100 shadow-xs">
+                            <thead class="sticky top-0 bg-slate-100/95 backdrop-blur-xs shadow-2xs z-10">
                                 <tr>
-                                    <th class="w-6 p-1 text-center"></th>
-                                    <th class="p-1">Date</th>
-                                    <th class="p-1">Ref</th>
-                                    <th class="p-1">Age</th>
-                                    <th class="p-1 text-right">Gross</th>
+                                    <th class="w-8 p-2 sm:p-2.5 text-center"></th>
+                                    <th class="p-2 sm:p-2.5 font-semibold">Date</th>
+                                    <th class="p-2 sm:p-2.5 font-semibold">Receipt / Ref</th>
+                                    <th class="p-2 sm:p-2.5 font-semibold text-center">Age</th>
+                                    <th class="p-2 sm:p-2.5 font-semibold text-right">Gross Amount</th>
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody class="divide-y divide-slate-100">
                                 @if (!FilteredModalSales.Any())
                                 {
                                     <tr>
-                                        <td colspan="5" class="p-2.5 text-center text-slate-400">
+                                        <td colspan="5" class="p-6 text-center text-slate-400">
                                             @(ModalSales.Count == 0 ? "No unsettled sales found for this store and tender." : $"No sales matching \"{ModalSearchTerm}\".")
                                         </td>
                                     </tr>
@@ -482,23 +495,30 @@ else
                                     @foreach (var sale in FilteredModalSales)
                                     {
                                         var isSelected = SelectedSaleIds.Contains(sale.Id);
-                                        <tr class="@(isSelected ? "bg-indigo-50/50" : "") hover:bg-slate-50 cursor-pointer"
+                                        <tr class="@(isSelected ? "bg-indigo-50/70 text-indigo-950 font-medium" : "hover:bg-slate-50/80") transition-colors cursor-pointer select-none"
                                             @onclick="@(() => ToggleSaleSelection(sale.Id))">
-                                            <td class="p-1 text-center" @onclick:stopPropagation="true">
+                                            <td class="p-2 sm:p-2.5 text-center" @onclick:stopPropagation="true">
                                                 <input type="checkbox" checked="@isSelected"
                                                        @onchange="@(() => ToggleSaleSelection(sale.Id))"
-                                                       class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer" />
+                                                       class="size-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer" />
                                             </td>
-                                            <td class="p-1 font-medium">@sale.BusinessDate.ToString("dd MMM")</td>
-                                            <td class="p-1 text-slate-600">
-                                                @(sale.SaleId.HasValue ? $"#{sale.SaleId.Value}" : $"Pay #{sale.PaymentId}")
+                                            <td class="p-2 sm:p-2.5 whitespace-nowrap">@sale.BusinessDate.ToString("dd MMM yyyy")</td>
+                                            <td class="p-2 sm:p-2.5 whitespace-nowrap">
+                                                @if (sale.SaleId.HasValue)
+                                                {
+                                                    <span class="font-semibold text-indigo-700">Sale #@sale.SaleId.Value</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="text-slate-600 font-mono text-[11px]">Payment #@sale.PaymentId</span>
+                                                }
                                             </td>
-                                            <td class="p-1">
-                                                <span class="text-[10px] @(sale.DaysWaiting > 7 ? "text-rose-600 font-bold" : "text-slate-500")">
+                                            <td class="p-2 sm:p-2.5 text-center whitespace-nowrap">
+                                                <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[11px] font-semibold @(sale.DaysWaiting > 7 ? "bg-rose-100 text-rose-700" : (sale.DaysWaiting >= 3 ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-600"))">
                                                     @sale.DaysWaiting d
                                                 </span>
                                             </td>
-                                            <td class="p-1 text-right font-bold tabular-nums">@Money(sale.GrossAmount)</td>
+                                            <td class="p-2 sm:p-2.5 text-right font-bold tabular-nums text-slate-900 whitespace-nowrap">@Money(sale.GrossAmount)</td>
                                         </tr>
                                     }
                                 }
@@ -508,95 +528,142 @@ else
                 </div>
 
                 <!-- 3-Column Financial Reconciliation Summary -->
-                <div class="grid grid-cols-3 gap-1.5 p-2.5 bg-slate-50 rounded-xl border border-slate-200 text-center">
-                    <div>
-                        <span class="text-[9px] font-semibold text-slate-500 uppercase tracking-wider block">Gross Cleared</span>
-                        <span class="text-xs font-bold text-slate-900 tabular-nums">@Money(SelectedGrossAmount)</span>
+                <div class="grid grid-cols-3 gap-2 sm:gap-3 p-3 sm:p-4 bg-slate-50 rounded-xl border border-slate-200/90 text-center">
+                    <div class="flex flex-col justify-center">
+                        <span class="text-[10px] sm:text-xs font-semibold text-slate-500 uppercase tracking-wider block">Gross Cleared</span>
+                        <span class="text-xs sm:text-base font-bold text-slate-900 tabular-nums mt-0.5">@Money(SelectedGrossAmount)</span>
+                        <span class="text-[10px] sm:text-xs text-slate-400 mt-0.5 hidden xs:inline">@SelectedSaleIds.Count @(SelectedSaleIds.Count == 1 ? "sale" : "sales")</span>
                     </div>
-                    <div>
-                        <span class="text-[9px] font-semibold text-slate-500 uppercase tracking-wider block">Fee Deducted</span>
-                        <span class="text-xs font-bold @(ModalFeeAmount >= 0 ? "text-amber-700" : "text-rose-700") tabular-nums">
+                    <div class="flex flex-col justify-center border-x border-slate-200 px-1 sm:px-2">
+                        <span class="text-[10px] sm:text-xs font-semibold text-amber-700 uppercase tracking-wider block">Fee Deducted</span>
+                        <span class="text-xs sm:text-base font-bold @(ModalFeeAmount >= 0 ? "text-amber-700" : "text-rose-700") tabular-nums mt-0.5">
                             @Money(ModalFeeAmount)
-                            @if (SelectedGrossAmount > 0 && ModalFeeAmount > 0)
-                            {
-                                <span class="text-[9px] block font-normal text-slate-400">@(((ModalFeeAmount / SelectedGrossAmount) * 100).ToString("0.0"))%</span>
-                            }
                         </span>
+                        @if (SelectedGrossAmount > 0 && ModalFeeAmount > 0)
+                        {
+                            <span class="text-[10px] sm:text-xs font-semibold text-amber-600 mt-0.5">
+                                @(((ModalFeeAmount / SelectedGrossAmount) * 100).ToString("0.0"))% fee
+                            </span>
+                        }
+                        else
+                        {
+                            <span class="text-[10px] sm:text-xs text-slate-400 mt-0.5">0.0% fee</span>
+                        }
                     </div>
-                    <div>
-                        <span class="text-[9px] font-semibold text-slate-500 uppercase tracking-wider block">Net Deposit</span>
-                        <span class="text-xs font-bold text-emerald-700 tabular-nums">@Money(ModalNetAmount)</span>
+                    <div class="flex flex-col justify-center">
+                        <span class="text-[10px] sm:text-xs font-semibold text-emerald-700 uppercase tracking-wider block">Net Deposit</span>
+                        <span class="text-xs sm:text-base font-bold text-emerald-700 tabular-nums mt-0.5">@Money(ModalNetAmount)</span>
+                        <span class="text-[10px] sm:text-xs text-emerald-600 font-medium mt-0.5 hidden xs:inline">Bank credit</span>
                     </div>
                 </div>
 
                 <!-- Net Amount Input with Fee Shortcuts -->
                 <div>
-                    <div class="flex items-center justify-between mb-1">
-                        <label class="field-label text-[11px] mb-0 font-semibold" for="net-amount">
+                    <div class="flex flex-wrap items-center justify-between mb-1.5 gap-2">
+                        <label class="field-label text-xs mb-0 font-semibold text-slate-800" for="net-amount">
                             Net Bank Deposit Received (@Currency)
                         </label>
-                        <div class="flex items-center gap-1.5 text-[11px]">
-                            <button type="button" class="text-indigo-600 hover:underline cursor-pointer font-medium"
+                        <div class="flex flex-wrap items-center gap-1.5">
+                            <span class="text-[11px] text-slate-500 mr-1 hidden sm:inline">Shortcuts:</span>
+                            <button type="button" class="px-2.5 py-1 text-xs font-medium rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 active:scale-96 transition-all shadow-2xs cursor-pointer"
                                     @onclick="MatchGross">
                                 Full (0 fee)
                             </button>
-                            <span class="text-slate-300">·</span>
-                            <button type="button" class="text-slate-500 hover:text-indigo-600 cursor-pointer"
+                            <button type="button" class="px-2.5 py-1 text-xs font-medium rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 active:scale-96 transition-all shadow-2xs cursor-pointer"
                                     @onclick="@(() => ApplyFeePercentage(1.5m))">
                                 -1.5%
                             </button>
-                            <button type="button" class="text-slate-500 hover:text-indigo-600 cursor-pointer"
+                            <button type="button" class="px-2.5 py-1 text-xs font-medium rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 active:scale-96 transition-all shadow-2xs cursor-pointer"
                                     @onclick="@(() => ApplyFeePercentage(2.0m))">
                                 -2.0%
                             </button>
+                            <button type="button" class="px-2.5 py-1 text-xs font-medium rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 active:scale-96 transition-all shadow-2xs cursor-pointer"
+                                    @onclick="@(() => ApplyFeePercentage(2.5m))">
+                                -2.5%
+                            </button>
                         </div>
                     </div>
-                    <input id="net-amount" type="text" inputmode="decimal" class="field text-sm font-bold tabular-nums py-1"
-                           value="@ModalNetInput" @oninput="OnNetDepositInput" placeholder="0.00" autocomplete="off" />
-                    <p class="text-[10px] text-slate-500 mt-1">
-                        Bank will be credited gross amount and provider fee recorded as an expense attributed to @SelectedLocationName.
+                    <div class="relative">
+                        <input id="net-amount" type="text" inputmode="decimal"
+                               class="field text-base sm:text-lg font-bold tabular-nums py-2 sm:py-2.5 px-3 rounded-xl border border-slate-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 shadow-2xs"
+                               value="@ModalNetInput" @oninput="OnNetDepositInput" placeholder="0.00" autocomplete="off" />
+                        <span class="absolute right-3.5 top-2.5 sm:top-3 text-xs font-bold text-slate-400 select-none">
+                            @Currency
+                        </span>
+                    </div>
+                    <p class="text-xs text-slate-500 mt-1.5 flex items-center gap-1.5">
+                        <Icon Name="info" Class="size-3.5 text-slate-400 shrink-0" />
+                        <span>Bank will be credited gross amount and provider fee recorded as an expense attributed to <strong>@SelectedLocationName</strong>.</span>
                     </p>
                 </div>
 
                 <!-- Reference & Date -->
-                <div class="grid gap-2 sm:grid-cols-2">
+                <div class="grid gap-3 sm:grid-cols-2">
                     <div>
-                        <label class="field-label text-[11px] mb-0.5" for="payout-ref">Bank Reference / Batch ID</label>
-                        <input id="payout-ref" class="field text-xs py-1" @bind="ModalReference" placeholder="e.g. BATCH-987654" />
+                        <label class="field-label text-xs mb-1 font-semibold text-slate-700" for="payout-ref">Bank Reference / Batch ID</label>
+                        <input id="payout-ref" class="field text-xs sm:text-sm py-2 px-3 rounded-xl border border-slate-200" @bind="ModalReference" placeholder="e.g. BATCH-987654" />
                     </div>
                     <div>
-                        <label class="field-label text-[11px] mb-0.5" for="payout-date">Business Date</label>
-                        <input id="payout-date" type="date" class="field text-xs py-1" @bind="ModalBusinessDate" />
+                        <label class="field-label text-xs mb-1 font-semibold text-slate-700" for="payout-date">Business Date</label>
+                        <input id="payout-date" type="date" class="field text-xs sm:text-sm py-2 px-3 rounded-xl border border-slate-200" @bind="ModalBusinessDate" />
                     </div>
                 </div>
 
                 <!-- Notes -->
                 <div>
-                    <label class="field-label text-[11px] mb-0.5" for="payout-notes">Notes (optional)</label>
-                    <input id="payout-notes" class="field text-xs py-1" @bind="ModalNotes" placeholder="Optional payout reference notes" />
+                    <label class="field-label text-xs mb-1 font-semibold text-slate-700" for="payout-notes">Notes (optional)</label>
+                    <input id="payout-notes" class="field text-xs sm:text-sm py-2 px-3 rounded-xl border border-slate-200" @bind="ModalNotes" placeholder="Optional payout reference notes" />
                 </div>
             </div>
 
             <!-- Footer -->
-            <div class="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 px-5 py-2.5 bg-slate-50/70 shrink-0">
-                <span class="text-[11px]">
+            <div class="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-3 border-t border-slate-100 px-4 py-3 sm:px-6 sm:py-4 bg-slate-50/80 shrink-0">
+                <div class="text-xs">
                     @if (SelectedSaleIds.Count == 0)
                     {
-                        <span class="text-amber-600 font-medium">Select at least 1 sale to settle.</span>
+                        <span class="inline-flex items-center gap-1.5 text-amber-700 font-medium">
+                            <span class="size-1.5 rounded-full bg-amber-500"></span>
+                            Select at least 1 sale to settle.
+                        </span>
                     }
                     else if (ModalNetAmount <= 0)
                     {
-                        <span class="text-amber-600 font-medium">Enter the net deposit amount.</span>
+                        <span class="inline-flex items-center gap-1.5 text-amber-700 font-medium">
+                            <span class="size-1.5 rounded-full bg-amber-500"></span>
+                            Enter the net deposit amount.
+                        </span>
                     }
                     else if (ModalNetAmount > SelectedGrossAmount)
                     {
-                        <span class="text-rose-600 font-medium">Net deposit cannot exceed gross sales.</span>
+                        <span class="inline-flex items-center gap-1.5 text-rose-700 font-semibold">
+                            <span class="size-1.5 rounded-full bg-rose-500"></span>
+                            Net deposit cannot exceed gross sales.
+                        </span>
                     }
-                </span>
-                <div class="flex gap-2">
-                    <button type="button" class="btn-secondary text-xs py-1 px-3 cursor-pointer" @onclick="ClosePayoutModal">Cancel</button>
-                    <button type="button" class="btn-primary text-xs py-1 px-3 cursor-pointer" @onclick="SubmitPayoutAsync" disabled="@(SubmitDisabled || IsSubmitting)">
-                        @(IsSubmitting ? "Recording…" : "Confirm & Record Payout")
+                    else
+                    {
+                        <span class="inline-flex items-center gap-1.5 text-emerald-700 font-medium">
+                            <span class="size-1.5 rounded-full bg-emerald-500"></span>
+                            Ready to settle @SelectedSaleIds.Count @(SelectedSaleIds.Count == 1 ? "sale" : "sales").
+                        </span>
+                    }
+                </div>
+                <div class="flex items-center gap-2.5 w-full sm:w-auto">
+                    <button type="button" class="btn-secondary flex-1 sm:flex-initial text-xs sm:text-sm py-2 px-4 rounded-xl cursor-pointer" @onclick="ClosePayoutModal">
+                        Cancel
+                    </button>
+                    <button type="button" class="btn-primary flex-1 sm:flex-initial text-xs sm:text-sm py-2 px-5 rounded-xl cursor-pointer shadow-xs disabled:opacity-50 disabled:cursor-not-allowed"
+                            @onclick="SubmitPayoutAsync" disabled="@(SubmitDisabled || IsSubmitting)">
+                        @if (IsSubmitting)
+                        {
+                            <span class="inline-block animate-spin mr-1">⌛</span>
+                            <span>Recording…</span>
+                        }
+                        else
+                        {
+                            <Icon Name="wallet" Class="size-4 mr-1.5" />
+                            <span>Confirm & Record Payout</span>
+                        }
                     </button>
                 </div>
             </div>
