@@ -1,3 +1,6 @@
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using POSApp.Client.DTOs;
 using POSApp.Client.Enums;
 using TUnit.Assertions.Should;
@@ -71,5 +74,151 @@ public class ExpenseReportTests
         await report.Locations.Sum(l => l.TotalExpense).Should().BeEqualTo(report.TotalExpenses);
         await report.ProcessingFeesTotal.Should().BeEqualTo(700m);
         await report.TopLocationName.Should().BeEqualTo("Main Store");
+    }
+
+    [Test]
+    public async Task DeleteAsync_ExpenseOnDifferentWorkingDay_ThrowsValidationException()
+    {
+        var options = new Microsoft.EntityFrameworkCore.DbContextOptionsBuilder<POSApp.Persistence.AppDbContext>()
+            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+            .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.InMemoryEventId.TransactionIgnoredWarning))
+            .Options;
+        using var db = new POSApp.Persistence.AppDbContext(options);
+
+        var adminRole = new Microsoft.AspNetCore.Identity.IdentityRole<int> { Id = 1, Name = "Admin", NormalizedName = "ADMIN" };
+        var userRole = new Microsoft.AspNetCore.Identity.IdentityUserRole<int> { RoleId = 1, UserId = 1 };
+        db.Roles.Add(adminRole);
+        db.UserRoles.Add(userRole);
+
+        // Current working day is 2026-11-08
+        var today = new DateOnly(2026, 11, 8);
+        db.WorkingDays.Add(new POSApp.Persistence.Entities.WorkingDay { Id = 1, Date = today });
+
+        // Expense occurred on previous working day: 2026-11-07
+        var pastExpense = new POSApp.Persistence.Entities.Expense
+        {
+            Id = 50,
+            Amount = 100m,
+            Method = PaymentMethod.BankTransfer,
+            OccurredAt = new DateTimeOffset(2026, 11, 7, 10, 0, 0, TimeSpan.Zero),
+            Notes = "Past day expense",
+            CreatedByUserId = 1
+        };
+        db.Expenses.Add(pastExpense);
+        await db.SaveChangesAsync();
+
+        var services = new Microsoft.Extensions.DependencyInjection.ServiceCollection();
+        services.AddScoped(_ => db);
+        var provider = services.BuildServiceProvider();
+        var scopeFactory = provider.GetRequiredService<Microsoft.Extensions.DependencyInjection.IServiceScopeFactory>();
+
+        var config = new Microsoft.Extensions.Configuration.ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["BusinessTimeZone"] = "Asia/Dhaka"
+        }).Build();
+
+        var service = new POSApp.Services.MoneyEntryService(scopeFactory, config);
+        var principal = new System.Security.Claims.ClaimsPrincipal(
+            new System.Security.Claims.ClaimsIdentity(
+                new[]
+                {
+                    new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.NameIdentifier, "1"),
+                    new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.Role, "Admin")
+                }, "test"));
+
+        // Voiding an expense from another day must throw ValidationException
+        await Assert.ThrowsAsync<System.ComponentModel.DataAnnotations.ValidationException>(() => service.DeleteAsync(principal, kind: "expenses", id: 50));
+    }
+
+    [Test]
+    public async Task DeleteAsync_ExpenseOnSameWorkingDay_ReversesBankAndDeletesExpense()
+    {
+        var dbName = Guid.NewGuid().ToString();
+        var options = new Microsoft.EntityFrameworkCore.DbContextOptionsBuilder<POSApp.Persistence.AppDbContext>()
+            .UseInMemoryDatabase(databaseName: dbName)
+            .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.InMemoryEventId.TransactionIgnoredWarning))
+            .Options;
+
+        var today = new DateOnly(2026, 11, 8);
+        using (var setupDb = new POSApp.Persistence.AppDbContext(options))
+        {
+            var adminRole = new Microsoft.AspNetCore.Identity.IdentityRole<int> { Id = 1, Name = "Admin", NormalizedName = "ADMIN" };
+            var userRole = new Microsoft.AspNetCore.Identity.IdentityUserRole<int> { RoleId = 1, UserId = 1 };
+            setupDb.Roles.Add(adminRole);
+            setupDb.UserRoles.Add(userRole);
+
+            setupDb.WorkingDays.Add(new POSApp.Persistence.Entities.WorkingDay { Id = 1, Date = today });
+            setupDb.DayFinances.Add(new POSApp.Persistence.Entities.DayFinance { Date = today, ClosedAt = null });
+
+            var bankAccount = new POSApp.Persistence.Entities.BankAccount { Id = 1, Code = "MAIN", CurrentBalance = 5000m };
+            setupDb.BankAccounts.Add(bankAccount);
+
+            var expense = new POSApp.Persistence.Entities.Expense
+            {
+                Id = 60,
+                Amount = 250m,
+                Method = PaymentMethod.BankTransfer,
+                OccurredAt = new DateTimeOffset(2026, 11, 8, 11, 0, 0, TimeSpan.Zero),
+                Notes = "Office supplies",
+                CreatedByUserId = 1
+            };
+            var bankMovement = new POSApp.Persistence.Entities.BankMovement
+            {
+                Id = 1,
+                BankAccount = bankAccount,
+                BankAccountId = 1,
+                BusinessDate = today,
+                Kind = CashMovementKind.Expense,
+                Method = PaymentMethod.BankTransfer,
+                Amount = -250m,
+                Expense = expense,
+                ExpenseId = 60,
+                Notes = "Office supplies expense",
+                CreatedByUserId = 1
+            };
+            setupDb.Expenses.Add(expense);
+            setupDb.BankMovements.Add(bankMovement);
+            await setupDb.SaveChangesAsync();
+        }
+
+        var services = new Microsoft.Extensions.DependencyInjection.ServiceCollection();
+        services.AddDbContext<POSApp.Persistence.AppDbContext>(b =>
+            b.UseInMemoryDatabase(databaseName: dbName)
+             .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.InMemoryEventId.TransactionIgnoredWarning)));
+        var provider = services.BuildServiceProvider();
+        var scopeFactory = provider.GetRequiredService<Microsoft.Extensions.DependencyInjection.IServiceScopeFactory>();
+
+        var config = new Microsoft.Extensions.Configuration.ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            ["BusinessTimeZone"] = "Asia/Dhaka"
+        }).Build();
+
+        var service = new POSApp.Services.MoneyEntryService(scopeFactory, config);
+        var principal = new System.Security.Claims.ClaimsPrincipal(
+            new System.Security.Claims.ClaimsIdentity(
+                new[]
+                {
+                    new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.NameIdentifier, "1"),
+                    new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.Role, "Admin")
+                }, "test"));
+
+        // Void the expense
+        await service.DeleteAsync(principal, kind: "expenses", id: 60);
+
+        // Verification db context
+        using var verifyDb = new POSApp.Persistence.AppDbContext(options);
+
+        // Expense should be deleted
+        var remainingExpense = await verifyDb.Expenses.FindAsync(60);
+        await remainingExpense.Should().BeNull();
+
+        // Bank balance should be restored: 5000 + 250 = 5250
+        var updatedBank = await verifyDb.BankAccounts.FindAsync(1);
+        await updatedBank!.CurrentBalance.Should().BeEqualTo(5250m);
+
+        // Reversal bank movement should exist
+        var reversal = await verifyDb.BankMovements.SingleOrDefaultAsync(m => m.ReversesMovementId == 1);
+        await reversal.Should().NotBeNull();
+        await reversal!.Amount.Should().BeEqualTo(250m);
     }
 }

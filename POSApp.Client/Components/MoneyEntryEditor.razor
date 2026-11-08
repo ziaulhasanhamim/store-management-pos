@@ -191,6 +191,7 @@ else
                     <strong class="whitespace-nowrap">@Money(category.Amount)</strong>
                 </summary>
                 <MoneyEntryTable Loading="LoadingRows" Rows="category.Entries" Currency="@Currency"
+                                 AllowVoid="true" OnVoid="VoidEntryAsync"
                                  Disabled="@(!RendererInfo.IsInteractive || !DraftReady || Busy)"
                                  PendingIds="PendingIds" OnEdit="Edit" />
             </details>

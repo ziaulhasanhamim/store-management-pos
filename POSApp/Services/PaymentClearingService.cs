@@ -67,7 +67,9 @@ public sealed class PaymentClearingService(IServiceScopeFactory scopes, IConfigu
         await StoreAccess.RequireAsync(db, actor, AppRoles.SalesAssociate, ct);
 
         var query = db.PaymentClearingEntries.AsNoTracking()
-            .Where(e => e.Status == PaymentClearingStatus.Unsettled && (locationId == null || e.StockLocationId == locationId.Value));
+            .Where(e => e.Status == PaymentClearingStatus.Unsettled
+                && (locationId == null || e.StockLocationId == locationId.Value)
+                && (e.Payment == null || (!e.Payment.Sale!.IsDeleted && e.Payment.Sale.Status != SaleStatus.Voided)));
 
         var entries = await query.Select(e => new { e.Method, e.GrossAmount, e.BusinessDate }).ToListAsync(ct);
 
@@ -105,7 +107,8 @@ public sealed class PaymentClearingService(IServiceScopeFactory scopes, IConfigu
             .Include(e => e.StockLocation)
             .Where(e => e.Status == PaymentClearingStatus.Unsettled
                 && e.StockLocationId == locationId
-                && e.Method == method)
+                && e.Method == method
+                && (e.Payment == null || (!e.Payment.Sale!.IsDeleted && e.Payment.Sale.Status != SaleStatus.Voided)))
             .OrderBy(e => e.BusinessDate)
             .ThenBy(e => e.Id)
             .Select(e => new ClearingSaleItemDto(
@@ -155,10 +158,13 @@ public sealed class PaymentClearingService(IServiceScopeFactory scopes, IConfigu
             var location = await db.StockLocations.FindAsync([input.StockLocationId], ct)
                 ?? throw new ValidationException("Store location not found.");
 
-            await AccountingCalendar.EnsureOpenAsync(db, input.BusinessDate, ct);
+            var workingDate = await AccountingCalendar.SelectedAsync(db, actorId, configuration, ct);
+            AccountingCalendar.ValidateExpected(workingDate, WorkingDayRequest.Date);
+            await AccountingCalendar.EnsureOpenAsync(db, workingDate, ct);
 
             var entries = await db.PaymentClearingEntries
                 .Include(e => e.Payment)
+                    .ThenInclude(p => p!.Sale)
                 .Where(e => input.ClearingEntryIds.Contains(e.Id))
                 .ToListAsync(ct);
 
@@ -172,6 +178,10 @@ public sealed class PaymentClearingService(IServiceScopeFactory scopes, IConfigu
                 if (entry.Status != PaymentClearingStatus.Unsettled)
                 {
                     throw new ValidationException($"Transaction #{entry.Id} is already settled or reversed.");
+                }
+                if (entry.Payment?.Sale is not null && (entry.Payment.Sale.IsDeleted || entry.Payment.Sale.Status == SaleStatus.Voided))
+                {
+                    throw new ValidationException($"Transaction #{entry.Id} belongs to a voided sale and cannot be cleared.");
                 }
                 if (entry.StockLocationId != input.StockLocationId)
                 {
@@ -207,11 +217,11 @@ public sealed class PaymentClearingService(IServiceScopeFactory scopes, IConfigu
             var grossBankMovement = new BankMovement
             {
                 RequestId = Guid.NewGuid(),
-                BusinessDate = input.BusinessDate,
+                BusinessDate = workingDate,
                 Method = PaymentMethod.BankTransfer,
                 Kind = CashMovementKind.Payout,
                 Amount = input.GrossAmount,
-                Notes = $"Card/wallet settlement gross · {input.Method} at {location.Name} ref #{input.Reference?.Trim()}",
+                Notes = $"Card/wallet settlement gross · {input.Method} at {location.Name} ref #{input.Reference?.Trim()}".Trim(),
                 CreatedByUserId = actorId
             };
             await FinancialPosting.BankAsync(db, grossBankMovement, ct);
@@ -227,9 +237,9 @@ public sealed class PaymentClearingService(IServiceScopeFactory scopes, IConfigu
                     CategoryDefinitionId = feeCategory.Id,
                     Amount = fee,
                     Method = PaymentMethod.BankTransfer,
-                    OccurredAt = AccountingCalendar.At(input.BusinessDate, configuration),
+                    OccurredAt = AccountingCalendar.At(workingDate, configuration),
                     ReceiptReference = input.Reference?.Trim(),
-                    Notes = $"Payment processing fee · {input.Method} settlement ref #{input.Reference?.Trim()} (Gross: {input.GrossAmount:N2}, Fee: {fee:N2}, Net: {input.NetAmount:N2})",
+                    Notes = $"Payment processing fee · {input.Method} settlement ref #{input.Reference?.Trim()} (Gross: {input.GrossAmount:N2}, Fee: {fee:N2}, Net: {input.NetAmount:N2})".Trim(),
                     CreatedByUserId = actorId
                 };
                 db.Expenses.Add(feeExpense);
@@ -237,12 +247,12 @@ public sealed class PaymentClearingService(IServiceScopeFactory scopes, IConfigu
                 var feeBankMovement = new BankMovement
                 {
                     RequestId = Guid.NewGuid(),
-                    BusinessDate = input.BusinessDate,
+                    BusinessDate = workingDate,
                     Method = PaymentMethod.BankTransfer,
                     Kind = CashMovementKind.Expense,
                     Amount = -fee,
                     Expense = feeExpense,
-                    Notes = $"Payment processing fee · {input.Method} payout ref #{input.Reference?.Trim()}",
+                    Notes = $"Payment processing fee · {input.Method} payout ref #{input.Reference?.Trim()}".Trim(),
                     CreatedByUserId = actorId
                 };
                 await FinancialPosting.BankAsync(db, feeBankMovement, ct);
@@ -252,7 +262,7 @@ public sealed class PaymentClearingService(IServiceScopeFactory scopes, IConfigu
             var payout = new PaymentPayout
             {
                 RequestId = input.RequestId,
-                BusinessDate = input.BusinessDate,
+                BusinessDate = workingDate,
                 SettledAt = DateTimeOffset.UtcNow,
                 Method = input.Method,
                 StockLocationId = input.StockLocationId,

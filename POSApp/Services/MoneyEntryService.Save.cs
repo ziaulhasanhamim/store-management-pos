@@ -447,6 +447,59 @@ public sealed partial class MoneyEntryService
                 await db.SaveChangesAsync(ct);
                 await transaction.CommitAsync(ct);
             }
+            else if (kind == "expenses")
+            {
+                var expense = await db.Expenses.Include(e => e.CategoryDefinition)
+                    .SingleOrDefaultAsync(e => e.Id == id, ct)
+                    ?? throw new ValidationException("Expense not found or already deleted.");
+
+                if (!admin && expense.CreatedByUserId != actorId)
+                {
+                    throw new UnauthorizedAccessException("Only the creator or admin can void this expense.");
+                }
+
+                var occurred = expense.OccurredAt;
+                if (DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(occurred, AccountingCalendar.Zone(configuration)).DateTime) != date)
+                {
+                    throw new ValidationException("Only expenses in the current open working day can be voided.");
+                }
+
+                await ReversePostingsAsync(db, kind, expense.Id, actorId, date, ct);
+
+                var before = Snapshot(expense);
+                db.RecordChanges.Add(new RecordChange
+                {
+                    RequestId = Guid.NewGuid(),
+                    RecordType = "expense",
+                    RecordId = expense.Id,
+                    Action = "Delete",
+                    Reason = $"Voided expense #{expense.Id} of {expense.Amount:N2}",
+                    Before = before,
+                    After = "null",
+                    CreatedByUserId = actorId
+                });
+
+                var linkedCash = await db.CashMovements.Where(m => m.ExpenseId == expense.Id).ToArrayAsync(ct);
+                foreach (var m in linkedCash)
+                {
+                    m.ExpenseId = null;
+                }
+                var linkedBank = await db.BankMovements.Where(m => m.ExpenseId == expense.Id).ToArrayAsync(ct);
+                foreach (var m in linkedBank)
+                {
+                    m.ExpenseId = null;
+                }
+                var linkedPayouts = await db.PaymentPayouts.Where(p => p.ExpenseId == expense.Id).ToArrayAsync(ct);
+                foreach (var p in linkedPayouts)
+                {
+                    p.ExpenseId = null;
+                }
+
+                db.Expenses.Remove(expense);
+
+                await db.SaveChangesAsync(ct);
+                await transaction.CommitAsync(ct);
+            }
             else
             {
                 throw new NotSupportedException($"Voiding {kind} is not supported.");

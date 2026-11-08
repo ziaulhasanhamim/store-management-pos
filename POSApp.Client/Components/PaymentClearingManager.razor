@@ -604,8 +604,11 @@ else
                         <input id="payout-ref" class="field text-xs sm:text-sm py-2 px-3 rounded-xl border border-slate-200" @bind="ModalReference" placeholder="e.g. BATCH-987654" />
                     </div>
                     <div>
-                        <label class="field-label text-xs mb-1 font-semibold text-slate-700" for="payout-date">Business Date</label>
-                        <input id="payout-date" type="date" class="field text-xs sm:text-sm py-2 px-3 rounded-xl border border-slate-200" @bind="ModalBusinessDate" />
+                        <label class="field-label text-xs mb-1 font-semibold text-slate-700">Business Date</label>
+                        <div class="field text-xs sm:text-sm py-2 px-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 font-medium select-none flex items-center justify-between">
+                            <span>@ModalBusinessDate.ToString("dd MMM yyyy")</span>
+                            <span class="text-xs text-slate-400 font-normal">Current Working Day</span>
+                        </div>
                     </div>
                 </div>
 
