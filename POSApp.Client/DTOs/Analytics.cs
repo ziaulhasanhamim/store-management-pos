@@ -89,6 +89,16 @@ public enum MarginQuadrant
     Laggard
 }
 
+public enum ProductTrendStatus
+{
+    Stable = 0,
+    RisingToStar = 1,
+    ImprovingMargin = 2,
+    DecliningVolume = 3,
+    SlippingToLaggard = 4,
+    NewOrInsufficientData = 5
+}
+
 public record MarginMatrixRow(
     int ProductId,
     string ProductName,
@@ -98,7 +108,12 @@ public record MarginMatrixRow(
     decimal TotalCost,
     decimal TotalProfit,
     decimal MarginPercent,
-    MarginQuadrant Quadrant);
+    MarginQuadrant Quadrant,
+    decimal ForecastUnitsSold = 0m,
+    decimal ForecastMarginPercent = 0m,
+    ProductTrendStatus TrendStatus = ProductTrendStatus.Stable,
+    MarginQuadrant? ForecastQuadrant = null,
+    float ClusterDistance = 0f);
 
 public record MarginMatrixReportData(
     DateOnly StartDate,
@@ -111,7 +126,10 @@ public record MarginMatrixReportData(
     int OpportunitiesCount,
     int LaggardsCount,
     IReadOnlyList<StockLocationOption> Locations,
-    IReadOnlyList<MarginMatrixRow> Items);
+    IReadOnlyList<MarginMatrixRow> Items,
+    bool IsMlPowered = false,
+    bool IsFallback = false,
+    string AnalysisMode = "ai");
 
 public record SalesTimelinePoint(
     DateOnly Date,

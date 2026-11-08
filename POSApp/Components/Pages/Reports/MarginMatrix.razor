@@ -49,16 +49,45 @@ else
 {
     <!-- Filter Presets & Controls -->
     <div class="report-filters no-print mb-6">
-        <div class="mb-4 flex flex-wrap items-center gap-2">
-            @foreach (var preset in Presets)
-            {
-                <a href="@PresetLink(preset.Key)" class="@(Period == preset.Key ? "filter-chip active" : "filter-chip")">@preset.Value</a>
-            }
+        <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div class="flex flex-wrap items-center gap-2">
+                @foreach (var preset in Presets)
+                {
+                    <a href="@PresetLink(preset.Key)" class="@(Period == preset.Key ? "filter-chip active" : "filter-chip")">@preset.Value</a>
+                }
+            </div>
+
+            <div class="inline-flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200 text-xs font-semibold">
+                <a href="@ModeLink("ai")" class="@(Mode == "ai" ? "bg-white text-indigo-700 shadow-xs px-2.5 py-1 rounded-md" : "text-slate-600 hover:text-slate-900 px-2.5 py-1")">
+                    <Icon Name="sparkles" Class="size-3.5 inline mr-1" />
+                    AI Data-Driven
+                </a>
+                <a href="@ModeLink("classic")" class="@(Mode == "classic" ? "bg-white text-indigo-700 shadow-xs px-2.5 py-1 rounded-md" : "text-slate-600 hover:text-slate-900 px-2.5 py-1")">
+                    <Icon Name="filter" Class="size-3.5 inline mr-1" />
+                    Classic Rule-Based
+                </a>
+            </div>
         </div>
+
+        @if (Data.IsMlPowered)
+        {
+            <div class="mb-4 flex items-center gap-2 px-3.5 py-2 rounded-lg bg-indigo-50/80 border border-indigo-200 text-xs text-indigo-800">
+                <Icon Name="sparkles" Class="size-4 text-indigo-600 shrink-0" />
+                <span><strong>AI-Powered Clustering Active:</strong> Product quadrants are dynamically grouped by K-Means multi-dimensional performance patterns (volume, revenue, margin %, cost, price, and order frequency) with sales velocity forecasting.</span>
+            </div>
+        }
+        else if (Data.IsFallback)
+        {
+            <div class="mb-4 flex items-center gap-2 px-3.5 py-2 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-800">
+                <Icon Name="info" Class="size-4 text-amber-600 shrink-0" />
+                <span><strong>Median Fallback Active:</strong> Fewer than 10 products have sales in this period. Using classic rule-based median thresholds until more transaction history is available.</span>
+            </div>
+        }
 
         <form method="get" action="/reports/margin-matrix" class="grid items-end gap-3 sm:grid-cols-2 xl:grid-cols-4" data-enhance data-auto-search="false">
             <input type="hidden" name="period" value="custom" />
             <input type="hidden" name="quadrant" value="@QuadrantFilter" />
+            <input type="hidden" name="mode" value="@Mode" />
 
             <div class="sm:col-span-2">
                 <label class="field-label">Date range</label>
@@ -257,6 +286,7 @@ else
                         <th class="text-right">Gross Profit</th>
                         <th class="text-right">Margin %</th>
                         <th>Quadrant</th>
+                        <th>Forecast & Trend</th>
                         <th>Strategic Action</th>
                     </tr>
                 </thead>
@@ -264,7 +294,7 @@ else
                     @if (FilteredItems.Count == 0)
                     {
                         <tr>
-                            <td colspan="9" class="p-8 text-center text-slate-400">
+                            <td colspan="10" class="p-8 text-center text-slate-400">
                                 No products found matching your current quadrant filter.
                             </td>
                         </tr>
@@ -314,6 +344,39 @@ else
                                         break;
                                 }
                             </td>
+                            <td>
+                                @switch (item.TrendStatus)
+                                {
+                                    case ProductTrendStatus.RisingToStar:
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200" title="Projected: ~@item.ForecastUnitsSold.ToString("N0") units @@ @item.ForecastMarginPercent.ToString("0.0")% margin">
+                                            ↗ Rising to Star
+                                        </span>
+                                        break;
+                                    case ProductTrendStatus.SlippingToLaggard:
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200" title="Projected: ~@item.ForecastUnitsSold.ToString("N0") units @@ @item.ForecastMarginPercent.ToString("0.0")% margin">
+                                            ↘ Slipping Risk
+                                        </span>
+                                        break;
+                                    case ProductTrendStatus.ImprovingMargin:
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-teal-50 text-teal-700 border border-teal-200" title="Margin expanding">
+                                            ↑ Margin Expanding
+                                        </span>
+                                        break;
+                                    case ProductTrendStatus.DecliningVolume:
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200" title="Volume slowing">
+                                            ↓ Volume Slowing
+                                        </span>
+                                        break;
+                                    case ProductTrendStatus.NewOrInsufficientData:
+                                        <span class="text-xs text-slate-400">Baseline</span>
+                                        break;
+                                    default:
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs text-slate-600 bg-slate-100" title="Projected: ~@item.ForecastUnitsSold.ToString("N0") units">
+                                            → Stable
+                                        </span>
+                                        break;
+                                }
+                            </td>
                             <td class="text-xs text-slate-600 font-medium">
                                 @switch (item.Quadrant)
                                 {
@@ -343,7 +406,7 @@ else
                             <th class="text-right tabular-nums text-blue-700">@Money(FilteredItems.Sum(i => i.TotalRevenue))</th>
                             <th class="text-right tabular-nums text-slate-600">@Money(FilteredItems.Sum(i => i.TotalCost))</th>
                             <th class="text-right tabular-nums text-emerald-700">@Money(FilteredItems.Sum(i => i.TotalProfit))</th>
-                            <th colspan="3"></th>
+                            <th colspan="4"></th>
                         </tr>
                     </tfoot>
                 }
@@ -358,6 +421,9 @@ else
 
     [SupplyParameterFromQuery]
     public string Period { get; set; } = "month";
+
+    [SupplyParameterFromQuery]
+    public string Mode { get; set; } = "ai";
 
     [SupplyParameterFromQuery]
     public DateOnly? Start { get; set; }
@@ -398,7 +464,7 @@ else
     ).ToList() ?? [];
 
     private string ExportCsvUrl =>
-        $"/api/reports/export/margin-matrix?period={Period}&start={EffectiveStart:yyyy-MM-dd}&end={EffectiveEnd:yyyy-MM-dd}&locationId={LocationId}&search={Uri.EscapeDataString(QuadrantFilter ?? "")}";
+        $"/api/reports/export/margin-matrix?period={Period}&start={EffectiveStart:yyyy-MM-dd}&end={EffectiveEnd:yyyy-MM-dd}&locationId={LocationId}&mode={Mode}&search={Uri.EscapeDataString(QuadrantFilter ?? "")}";
 
     protected override async Task OnInitializedAsync()
     {
@@ -412,6 +478,7 @@ else
                 range.Start,
                 range.End,
                 LocationId,
+                Mode,
                 HttpContext.RequestAborted);
         }
         catch (ValidationException ex)
@@ -438,7 +505,7 @@ else
 
     private string PresetLink(string preset)
     {
-        var query = new List<string> { $"period={preset}" };
+        var query = new List<string> { $"period={preset}", $"mode={Mode}" };
         if (LocationId.HasValue) query.Add($"locationId={LocationId.Value}");
         if (!string.IsNullOrEmpty(QuadrantFilter)) query.Add($"quadrant={QuadrantFilter}");
         return $"/reports/margin-matrix?{string.Join("&", query)}";
@@ -446,11 +513,21 @@ else
 
     private string QuadrantLink(string? quadrant)
     {
-        var query = new List<string> { $"period={Period}" };
+        var query = new List<string> { $"period={Period}", $"mode={Mode}" };
         if (Start.HasValue) query.Add($"start={Start.Value:yyyy-MM-dd}");
         if (End.HasValue) query.Add($"end={End.Value:yyyy-MM-dd}");
         if (LocationId.HasValue) query.Add($"locationId={LocationId.Value}");
         if (!string.IsNullOrEmpty(quadrant)) query.Add($"quadrant={quadrant}");
+        return $"/reports/margin-matrix?{string.Join("&", query)}";
+    }
+
+    private string ModeLink(string mode)
+    {
+        var query = new List<string> { $"period={Period}", $"mode={mode}" };
+        if (Start.HasValue) query.Add($"start={Start.Value:yyyy-MM-dd}");
+        if (End.HasValue) query.Add($"end={End.Value:yyyy-MM-dd}");
+        if (LocationId.HasValue) query.Add($"locationId={LocationId.Value}");
+        if (!string.IsNullOrEmpty(QuadrantFilter)) query.Add($"quadrant={QuadrantFilter}");
         return $"/reports/margin-matrix?{string.Join("&", query)}";
     }
 

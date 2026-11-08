@@ -5,10 +5,11 @@ using POSApp.Client.Enums;
 using POSApp.Client.Security;
 using POSApp.Persistence;
 using POSApp.Security;
+using POSApp.Services.ML;
 
 namespace POSApp.Services;
 
-public sealed class AnalyticsService(IServiceScopeFactory scopes, IConfiguration configuration)
+public sealed class AnalyticsService(IServiceScopeFactory scopes, IConfiguration configuration, PortfolioMLService? portfolioMl = null)
 {
     private DateTimeOffset Utc(DateOnly date)
     {
@@ -349,6 +350,7 @@ public sealed class AnalyticsService(IServiceScopeFactory scopes, IConfiguration
         DateOnly startDate,
         DateOnly endDate,
         int? locationId = null,
+        string mode = "ai",
         CancellationToken ct = default)
     {
         await using var scope = scopes.CreateAsyncScope();
@@ -358,6 +360,7 @@ public sealed class AnalyticsService(IServiceScopeFactory scopes, IConfiguration
 
         var fromUtc = Utc(startDate);
         var throughUtc = Utc(endDate.AddDays(1));
+        var midUtc = fromUtc + (throughUtc - fromUtc) / 2;
 
         var locations = await db.StockLocations.AsNoTracking()
             .Where(l => !l.IsDeleted && l.CanSell)
@@ -376,6 +379,8 @@ public sealed class AnalyticsService(IServiceScopeFactory scopes, IConfiguration
                 i.Quantity,
                 i.UnitCost,
                 i.TotalAmount,
+                i.SaleId,
+                SoldAt = i.Sale.SoldAt,
                 CategoryName = i.Product != null && i.Product.Category != null ? i.Product.Category.Name : "Uncategorized"
             })
             .ToListAsync(ct);
@@ -391,82 +396,38 @@ public sealed class AnalyticsService(IServiceScopeFactory scopes, IConfiguration
                 var profit = canSeeCost ? rev - cost : 0m;
                 var margin = canSeeCost && rev > 0 ? (profit / rev * 100) : 0m;
 
-                return new
-                {
-                    ProductId = g.Key,
+                var sellingPrice = vol > 0 ? decimal.Round(rev / vol, 2, MidpointRounding.AwayFromZero) : 0m;
+                var unitCost = vol > 0 ? decimal.Round(cost / vol, 2, MidpointRounding.AwayFromZero) : 0m;
+                var orderCount = g.Select(x => x.SaleId).Distinct().Count();
+
+                var recentVol = g.Where(x => x.SoldAt >= midUtc).Sum(x => x.Quantity);
+                var previousVol = g.Where(x => x.SoldAt < midUtc).Sum(x => x.Quantity);
+                var recentRev = g.Where(x => x.SoldAt >= midUtc).Sum(x => x.TotalAmount);
+                var recentCost = canSeeCost ? g.Where(x => x.SoldAt >= midUtc).Sum(x => decimal.Round(x.UnitCost * x.Quantity, 2, MidpointRounding.AwayFromZero)) : 0m;
+                var recentMargin = canSeeCost && recentRev > 0 ? ((recentRev - recentCost) / recentRev * 100) : 0m;
+
+                return new ProductRawStat(
+                    first.ProductId,
                     first.ProductName,
                     first.CategoryName,
-                    Volume = vol,
-                    Revenue = rev,
-                    Cost = cost,
-                    Profit = profit,
-                    Margin = decimal.Round(margin, 1)
-                };
+                    vol,
+                    rev,
+                    cost,
+                    profit,
+                    decimal.Round(margin, 1),
+                    unitCost,
+                    sellingPrice,
+                    orderCount,
+                    RecentVolume: recentVol,
+                    PreviousVolume: previousVol,
+                    RecentMargin: decimal.Round(recentMargin, 1),
+                    PreviousMargin: 0m
+                );
             })
             .ToList();
 
-        if (productStats.Count == 0)
-        {
-            return new MarginMatrixReportData(
-                startDate, endDate, locationId, 0, 0, 0, 0, 0, 0, locations, []);
-        }
-
-        // Calculate medians for volume and margin
-        var sortedVols = productStats.Select(p => p.Volume).OrderBy(v => v).ToList();
-        var sortedMargins = productStats.Select(p => p.Margin).OrderBy(m => m).ToList();
-
-        var medianVol = sortedVols[sortedVols.Count / 2];
-        var medianMargin = Math.Max(15m, sortedMargins[sortedMargins.Count / 2]);
-
-        var items = productStats.Select(p =>
-        {
-            MarginQuadrant quadrant;
-            if (p.Volume >= medianVol && p.Margin >= medianMargin)
-            {
-                quadrant = MarginQuadrant.Star;
-            }
-            else if (p.Volume >= medianVol && p.Margin < medianMargin)
-            {
-                quadrant = MarginQuadrant.CashCow;
-            }
-            else if (p.Volume < medianVol && p.Margin >= medianMargin)
-            {
-                quadrant = MarginQuadrant.Opportunity;
-            }
-            else
-            {
-                quadrant = MarginQuadrant.Laggard;
-            }
-
-            return new MarginMatrixRow(
-                p.ProductId,
-                p.ProductName,
-                p.CategoryName,
-                p.Volume,
-                p.Revenue,
-                p.Cost,
-                p.Profit,
-                p.Margin,
-                quadrant
-            );
-        })
-        .OrderByDescending(x => x.Quadrant == MarginQuadrant.Star)
-        .ThenByDescending(x => x.TotalProfit)
-        .ToList();
-
-        return new MarginMatrixReportData(
-            startDate,
-            endDate,
-            locationId,
-            medianVol,
-            medianMargin,
-            items.Count(x => x.Quadrant == MarginQuadrant.Star),
-            items.Count(x => x.Quadrant == MarginQuadrant.CashCow),
-            items.Count(x => x.Quadrant == MarginQuadrant.Opportunity),
-            items.Count(x => x.Quadrant == MarginQuadrant.Laggard),
-            locations,
-            items
-        );
+        var mlService = portfolioMl ?? new PortfolioMLService();
+        return mlService.AnalyzePortfolio(startDate, endDate, locationId, locations, productStats, mode);
     }
 
     public async Task<SalesTimelineReportData> GetSalesTimelineAsync(

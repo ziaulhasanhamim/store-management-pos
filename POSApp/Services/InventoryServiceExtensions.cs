@@ -1,4 +1,5 @@
 using POSApp.Client.Services;
+using POSApp.Services.ML;
 
 namespace POSApp.Services;
 
@@ -46,6 +47,7 @@ public static class InventoryServiceExtensions
         services.AddScoped<SalesService>();
         services.AddScoped<ReportService>();
         services.AddScoped<ReceivingReportService>();
+        services.AddSingleton<PortfolioMLService>();
         services.AddScoped<AnalyticsService>();
         services.AddScoped<ISalesClient, ServerSalesClient>();
         services.AddScoped<IReceivingClient, ServerReceivingClient>();

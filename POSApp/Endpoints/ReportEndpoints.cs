@@ -223,11 +223,13 @@ public static class ReportEndpoints
             var config = context.RequestServices.GetRequiredService<IConfiguration>();
             var zone = AccountingCalendar.Zone(config);
             range = ReportService.ResolveRange(period, start, end, zone, DateTimeOffset.UtcNow);
-            var data = await analytics.GetMarginMatrixAsync(context.User, range.Start, range.End, locationId, context.RequestAborted);
+            var mode = context.Request.Query["mode"].ToString();
+            if (string.IsNullOrEmpty(mode)) mode = "ai";
+            var data = await analytics.GetMarginMatrixAsync(context.User, range.Start, range.End, locationId, mode, context.RequestAborted);
             var quadrant = search;
             var filtered = string.IsNullOrEmpty(quadrant) ? data.Items : data.Items.Where(i => i.Quadrant.ToString().Equals(quadrant, StringComparison.OrdinalIgnoreCase)).ToList();
             count = filtered.Count;
-            rows.Add(["Product ID", "Product Name", "Category", "Units Sold", "Total Revenue", "Total Cost", "Gross Profit", "Margin %", "Quadrant"]);
+            rows.Add(["Product ID", "Product Name", "Category", "Units Sold", "Total Revenue", "Total Cost", "Gross Profit", "Margin %", "Quadrant", "Forecast Units", "Forecast Margin %", "Trend Status"]);
             rows.AddRange(filtered.Select(item => new[] {
                 Number(item.ProductId),
                 item.ProductName,
@@ -237,7 +239,10 @@ public static class ReportEndpoints
                 Number(item.TotalCost),
                 Number(item.TotalProfit),
                 Number(item.MarginPercent),
-                item.Quadrant.ToString()
+                item.Quadrant.ToString(),
+                Number(item.ForecastUnitsSold),
+                Number(item.ForecastMarginPercent),
+                item.TrendStatus.ToString()
             }));
             rows.Add(["TOTAL", $"{filtered.Count} products", "",
                 Number(filtered.Sum(i => i.UnitsSold)),
@@ -245,7 +250,7 @@ public static class ReportEndpoints
                 Number(filtered.Sum(i => i.TotalCost)),
                 Number(filtered.Sum(i => i.TotalProfit)),
                 filtered.Sum(i => i.TotalRevenue) > 0 ? Number(decimal.Round(filtered.Sum(i => i.TotalProfit) / filtered.Sum(i => i.TotalRevenue) * 100, 1)) : "0",
-                ""]);
+                "", "", "", ""]);
         }
         else
         {
