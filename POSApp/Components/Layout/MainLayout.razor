@@ -24,48 +24,25 @@
             <nav aria-label="Main navigation" class="flex flex-col gap-1 px-3 pb-6">
                 <NavLink href="/" Match="NavLinkMatch.All" class="nav-link">
                     <Icon Name="dashboard" />
-                    Dashboard
+                    <span>Dashboard</span>
                 </NavLink>
 
-                <!-- 1. Counter & POS -->
+                <!-- 1. Point of Sale -->
                 <AuthorizeView Policy="@AppPolicies.MakeSales" Context="salesAuth">
-                    <SidebarGroup Title="Counter & POS" IconName="cart" Prefix="/sales">
-                        <NavLink href="/sales" Match="NavLinkMatch.All">Point of Sale</NavLink>
-                        <NavLink href="/sales?view=held">Held sales & drafts</NavLink>
-                        <NavLink href="/sales?view=return">Customer returns</NavLink>
-                    </SidebarGroup>
+                    <NavLink href="/sales" Match="NavLinkMatch.All" class="nav-link">
+                        <Icon Name="cart" />
+                        <span>Point of Sale</span>
+                    </NavLink>
                 </AuthorizeView>
 
-                <!-- 2. Cash & Day Close -->
-                <AuthorizeView Policy="@AppPolicies.ManageDrawer" Context="cashAuth">
-                    <SidebarGroup Title="Cash & Day Close" IconName="wallet" Prefix="/cash-drawer" AlternatePrefix="/finance/day,/finance/month,/finance/bank,/reports/statements/cash,/reports/statements/bank,/expenses">
-                        <NavLink href="/cash-drawer" Match="NavLinkMatch.All">Cash drawer & sessions</NavLink>
-                        <AuthorizeView Policy="@AppPolicies.ManageUsers" Context="transferAuth">
-                            <NavLink href="/cash-drawer?view=transfer">Move cash</NavLink>
-                        </AuthorizeView>
-                        <NavLink href="/expenses">Daily expenses</NavLink>
-                        <AuthorizeView Policy="@AppPolicies.ManageInventory" Context="closeAuth">
-                            <NavLink href="/finance/day">Day summary & close</NavLink>
-                            <NavLink href="/finance/month">Month summary & close</NavLink>
-                        </AuthorizeView>
-                        <AuthorizeView Policy="@AppPolicies.ManageUsers" Context="bankAuth">
-                            <NavLink href="/finance/bank">Bank accounts & digital</NavLink>
-                        </AuthorizeView>
-                        <NavLink href="/reports/statements/cash">Cash statement</NavLink>
-                        <NavLink href="/reports/statements/bank">Bank statement</NavLink>
-                    </SidebarGroup>
-                </AuthorizeView>
-
-                <!-- 3. Inventory & Receiving -->
-                <SidebarGroup Title="Inventory & Receiving" IconName="box" Prefix="/items" AlternatePrefix="/stock,/receiving,/reports/statements/stock">
+                <!-- 2. Items & Inventory -->
+                <SidebarGroup Title="Items & Inventory" IconName="box" Href="/items" Prefix="/items" AlternatePrefix="/stock,/reports/statements/stock">
                     <NavLink href="/items" Match="NavLinkMatch.All">Products & items</NavLink>
                     <AuthorizeView Policy="@AppPolicies.ManageInventory" Context="itemAddAuth">
                         <NavLink href="/items/new">Add new product</NavLink>
-                    </AuthorizeView>
-                    <AuthorizeView Policy="@AppPolicies.ManageInventory" Context="recvAuth">
-                        <NavLink href="/receiving">Stock receiving & transfers</NavLink>
-                    </AuthorizeView>
-                    <AuthorizeView Policy="@AppPolicies.ManageInventory" Context="takeAuth">
+                        <NavLink href="/items/categories">Categories</NavLink>
+                        <NavLink href="/items/attributes">Attributes</NavLink>
+                        <NavLink href="/items/bulk-edit">Bulk edit</NavLink>
                         <NavLink href="/stock/takes">Physical stock takes</NavLink>
                     </AuthorizeView>
                     <AuthorizeView Policy="@AppPolicies.ManageStockAdjustment" Context="adjAuth">
@@ -78,50 +55,88 @@
                     </AuthorizeView>
                 </SidebarGroup>
 
-                <!-- 4. Parties & Payroll -->
-                <SidebarGroup Title="Parties & Payroll" IconName="users" Prefix="/customers" AlternatePrefix="/suppliers,/finance/debt,/employees,/payroll">
-                    <AuthorizeView Policy="@AppPolicies.MakeSales" Context="custAuth">
-                        <NavLink href="/customers" Match="NavLinkMatch.All">Customers & dues</NavLink>
-                        <NavLink href="/customers/payments">Collect customer dues</NavLink>
-                    </AuthorizeView>
-                    <AuthorizeView Policy="@AppPolicies.ManageInventory" Context="suppAuth">
+                <!-- 3. Receiving & Purchases -->
+                <AuthorizeView Policy="@AppPolicies.ManageInventory" Context="recvAuth">
+                    <SidebarGroup Title="Receiving & Purchases" IconName="receive" Href="/receiving" Prefix="/receiving" AlternatePrefix="/suppliers">
+                        <NavLink href="/receiving" Match="NavLinkMatch.All">Stock receiving & transfers</NavLink>
                         <NavLink href="/suppliers" Match="NavLinkMatch.All">Suppliers & payables</NavLink>
                         <NavLink href="/suppliers/payments">Supplier payments</NavLink>
-                    </AuthorizeView>
-                    <AuthorizeView Policy="@AppPolicies.ManageUsers" Context="debtAuth">
-                        <NavLink href="/finance/debt" Match="NavLinkMatch.All">Lenders & borrowings</NavLink>
-                        <NavLink href="/finance/debt/payments">Borrow / repay loan</NavLink>
-                    </AuthorizeView>
-                    <AuthorizeView Policy="@AppPolicies.ManageUsers" Context="empAuth">
-                        <NavLink href="/employees">Employees & balances</NavLink>
-                        <NavLink href="/payroll">Staff salary & payroll</NavLink>
-                    </AuthorizeView>
-                </SidebarGroup>
+                        <NavLink href="/reports/suppliers-sales">Supplier sales</NavLink>
+                    </SidebarGroup>
+                </AuthorizeView>
 
-                <!-- 5. Reports & Ledgers -->
+                <!-- 4. Daily Expenses -->
+                <AuthorizeView Policy="@AppPolicies.ManageDrawer" Context="expAuth">
+                    <SidebarGroup Title="Expenses" IconName="receipt" Href="/expenses" Prefix="/expenses" AlternatePrefix="/reports/expenses">
+                        <NavLink href="/expenses" Match="NavLinkMatch.All">Daily expenses</NavLink>
+                        <NavLink href="/expenses/categories">Expense categories</NavLink>
+                        <NavLink href="/reports/expenses">Expense breakdown report</NavLink>
+                    </SidebarGroup>
+                </AuthorizeView>
+
+                <!-- 5. Salary & Payroll -->
+                <AuthorizeView Policy="@AppPolicies.ManageUsers" Context="payrollAuth">
+                    <SidebarGroup Title="Salary & Payroll" IconName="users" Href="/payroll" Prefix="/payroll" AlternatePrefix="/employees">
+                        <NavLink href="/payroll" Match="NavLinkMatch.All">Staff salary & payroll</NavLink>
+                        <NavLink href="/employees">Employees & balances</NavLink>
+                    </SidebarGroup>
+                </AuthorizeView>
+
+                <!-- 6. Customers & Dues -->
+                <AuthorizeView Policy="@AppPolicies.MakeSales" Context="custAuth">
+                    <SidebarGroup Title="Customers & Dues" IconName="users" Href="/customers" Prefix="/customers" AlternatePrefix="/finance/debt">
+                        <NavLink href="/customers" Match="NavLinkMatch.All">Customers & dues</NavLink>
+                        <NavLink href="/customers/payments">Collect customer dues</NavLink>
+                        <AuthorizeView Policy="@AppPolicies.ManageUsers" Context="debtAuth">
+                            <NavLink href="/finance/debt" Match="NavLinkMatch.All">Lenders & borrowings</NavLink>
+                            <NavLink href="/finance/debt/payments">Borrow / repay loan</NavLink>
+                        </AuthorizeView>
+                    </SidebarGroup>
+                </AuthorizeView>
+
+                <!-- 7. Finance & Cash -->
+                <AuthorizeView Policy="@AppPolicies.ManageDrawer" Context="financeAuth">
+                    <SidebarGroup Title="Finance & Cash" IconName="wallet" Href="/cash-drawer" Prefix="/cash-drawer" AlternatePrefix="/finance/day,/finance/month,/finance/bank,/reports/statements/cash,/reports/statements/bank,/finance/clearing,/finance/balance-checks">
+                        <NavLink href="/cash-drawer" Match="NavLinkMatch.All">Cash drawer & sessions</NavLink>
+                        <AuthorizeView Policy="@AppPolicies.ManageUsers" Context="transferAuth">
+                            <NavLink href="/cash-drawer?view=transfer">Move cash</NavLink>
+                        </AuthorizeView>
+                        <AuthorizeView Policy="@AppPolicies.ManageInventory" Context="closeAuth">
+                            <NavLink href="/finance/day">Day summary & close</NavLink>
+                            <NavLink href="/finance/month">Month summary & close</NavLink>
+                        </AuthorizeView>
+                        <AuthorizeView Policy="@AppPolicies.ManageUsers" Context="bankAuth">
+                            <NavLink href="/finance/bank">Bank accounts & digital</NavLink>
+                        </AuthorizeView>
+                        <NavLink href="/reports/statements/cash">Cash statement</NavLink>
+                        <NavLink href="/reports/statements/bank">Bank statement</NavLink>
+                        <NavLink href="/finance/clearing">Payment clearing & settlement</NavLink>
+                        <AuthorizeView Policy="@AppPolicies.ManageUsers" Context="checkAuth">
+                            <NavLink href="/finance/balance-checks">Balance integrity checks</NavLink>
+                        </AuthorizeView>
+                    </SidebarGroup>
+                </AuthorizeView>
+
+                <!-- 8. Reports & Analytics -->
                 <AuthorizeView Policy="@AppPolicies.MakeSales" Context="repAuth">
-                    <SidebarGroup Title="Reports & Ledgers" IconName="dashboard" Prefix="/reports" AlternatePrefix="/finance/clearing" ExcludePrefix="/reports/statements/cash,/reports/statements/bank,/reports/statements/stock">
+                    <SidebarGroup Title="Reports & Analytics" IconName="dashboard" Href="/reports" Prefix="/reports" ExcludePrefix="/reports/statements/cash,/reports/statements/bank,/reports/statements/stock,/reports/expenses,/reports/suppliers-sales">
                         <NavLink href="/reports" Match="NavLinkMatch.All">Reports hub</NavLink>
                         <NavLink href="/reports/sales">Sales report</NavLink>
                         <NavLink href="/finance/month">Profit & loss statement</NavLink>
-                        <NavLink href="/reports/expenses">Expense breakdown</NavLink>
                         <NavLink href="/reports/categories">Category performance</NavLink>
-                        <NavLink href="/reports/suppliers-sales">Supplier sales</NavLink>
                         <AuthorizeView Policy="@AppPolicies.ManageInventory" Context="velAuth">
                             <NavLink href="/reports/inventory-velocity">Velocity & dead stock</NavLink>
                         </AuthorizeView>
                         <NavLink href="/reports/margin-matrix">Profit margin matrix</NavLink>
-                        <NavLink href="/finance/clearing">Payment clearing & settlement</NavLink>
                     </SidebarGroup>
                 </AuthorizeView>
 
-                <!-- 6. Administration -->
+                <!-- 9. Administration -->
                 <AuthorizeView Policy="@AppPolicies.ManageUsers" Context="adminAuth">
-                    <SidebarGroup Title="Administration" IconName="settings" Prefix="/administration" AlternatePrefix="/users,/finance/balance-checks">
+                    <SidebarGroup Title="Administration" IconName="settings" Href="/administration" Prefix="/administration" AlternatePrefix="/users">
                         <NavLink href="/administration" Match="NavLinkMatch.All">Store setup & settings</NavLink>
                         <NavLink href="/users">Users & permissions</NavLink>
                         <NavLink href="/administration/audit">Record change audit</NavLink>
-                        <NavLink href="/finance/balance-checks">Balance integrity checks</NavLink>
                     </SidebarGroup>
                 </AuthorizeView>
             </nav>
