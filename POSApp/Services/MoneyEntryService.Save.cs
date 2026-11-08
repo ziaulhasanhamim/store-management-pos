@@ -107,6 +107,20 @@ public sealed partial class MoneyEntryService
                     {
                         throw new ValidationException("Entry not found. Linked invoice payments must be edited through their sale or receiving.");
                     }
+                    if (entity is Expense { IsVoided: true } or SupplierPayment { IsVoided: true } or Payment { IsVoided: true })
+                    {
+                        throw new ValidationException("Voided entries cannot be edited.");
+                    }
+                    if (entity is Expense existingExpense
+                        && (existingExpense.Amount <= 0 || await db.PaymentPayouts.AnyAsync(p => p.ExpenseId == existingExpense.Id, ct)))
+                    {
+                        throw new ValidationException("Clearing payout fee expenses cannot be edited directly.");
+                    }
+                    if (entity is Payment existingPayment
+                        && await db.PaymentClearingEntries.AnyAsync(e => e.PaymentId == existingPayment.Id && e.Status == PaymentClearingStatus.Settled, ct))
+                    {
+                        throw new ValidationException("This card or wallet collection has already been settled in a bank payout. Void it instead of editing.");
+                    }
                     if (!admin && entity.CreatedByUserId != actorId)
                     {
                         throw new UnauthorizedAccessException();
@@ -319,9 +333,9 @@ public sealed partial class MoneyEntryService
 
     private static string Snapshot(AuditableEntity entity) => entity switch
     {
-        Expense expense => JsonSerializer.Serialize(new { expense.CategoryDefinitionId, expense.StockLocationId, expense.Amount, expense.Method, expense.Notes, expense.ReceiptReference }),
-        SupplierPayment payment => JsonSerializer.Serialize(new { SupplierId = payment.SupplierBalance?.SupplierId, payment.Amount, payment.Method, payment.Notes }),
-        Payment payment => JsonSerializer.Serialize(new { CustomerId = payment.CustomerBalance?.CustomerId, payment.Amount, payment.Method, payment.Notes }),
+        Expense expense => JsonSerializer.Serialize(new { expense.CategoryDefinitionId, expense.StockLocationId, expense.Amount, expense.Method, expense.Notes, expense.ReceiptReference, expense.IsVoided, expense.VoidReason }),
+        SupplierPayment payment => JsonSerializer.Serialize(new { SupplierId = payment.SupplierBalance?.SupplierId, payment.Amount, payment.Method, payment.Notes, payment.IsVoided, payment.VoidReason }),
+        Payment payment => JsonSerializer.Serialize(new { CustomerId = payment.CustomerBalance?.CustomerId, payment.Amount, payment.Method, payment.Notes, payment.IsVoided, payment.VoidReason }),
         _ => throw new ValidationException("Invalid entry.")
     };
 
@@ -361,6 +375,25 @@ public sealed partial class MoneyEntryService
                 ReversesMovementId = move.Id, CreatedByUserId = actorId
             }, ct);
         }
+        if (kind == "customer-payments")
+        {
+            var clearing = await db.PaymentClearingEntries
+                .Where(entry => entry.Id > 0 && entry.PaymentId == id && entry.Status == PaymentClearingStatus.Unsettled)
+                .ToArrayAsync(ct);
+            foreach (var entry in clearing)
+            {
+                if (entry.BusinessDate != date)
+                {
+                    throw new ValidationException("This clearing entry belongs to another working day.");
+                }
+                entry.Status = PaymentClearingStatus.Reversed;
+                entry.Notes = string.IsNullOrWhiteSpace(entry.Notes)
+                    ? $"Reversal {kind} #{id}: previous clearing posting"
+                    : $"{entry.Notes} | Reversal {kind} #{id}: previous clearing posting";
+                entry.UpdatedAt = DateTimeOffset.UtcNow;
+                entry.UpdatedByUserId = actorId;
+            }
+        }
     }
 
     public async Task DeleteAsync(ClaimsPrincipal actor, string kind, int id, CancellationToken ct = default)
@@ -378,12 +411,18 @@ public sealed partial class MoneyEntryService
             AccountingCalendar.ValidateExpected(date, WorkingDayRequest.Date);
             await AccountingCalendar.EnsureOpenAsync(db, date, ct);
             var at = AccountingCalendar.At(date, configuration);
+            var utcNow = DateTimeOffset.UtcNow;
 
             if (kind == "supplier-payments")
             {
                 var payment = await db.SupplierPayments.Include(p => p.SupplierBalance).Include(p => p.Purchase)
-                    .SingleOrDefaultAsync(p => p.Id == id && (p.PurchaseId == null || !p.Purchase!.IsDeleted), ct)
-                    ?? throw new ValidationException("Supplier payment not found or already deleted.");
+                    .SingleOrDefaultAsync(p => p.Id == id && !p.IsVoided && (p.PurchaseId == null || !p.Purchase!.IsDeleted), ct)
+                    ?? throw new ValidationException("Supplier payment not found or already voided.");
+
+                if (payment.PurchaseId is not null)
+                {
+                    throw new ValidationException("Receipt-linked supplier payments must be voided or corrected through their receiving receipt.");
+                }
 
                 if (!admin && payment.CreatedByUserId != actorId)
                 {
@@ -396,12 +435,16 @@ public sealed partial class MoneyEntryService
                     throw new ValidationException("Only entries in the current open working day can be voided.");
                 }
 
+                var before = Snapshot(payment);
                 await ReversePostingsAsync(db, kind, payment.Id, actorId, date, ct);
 
                 var balance = payment.SupplierBalance ?? await db.SupplierBalances.SingleOrDefaultAsync(b => b.Id == payment.SupplierBalanceId, ct);
                 if (balance != null)
                 {
                     balance.CurrentBalance += payment.Amount;
+                    StoreAccess.Money(balance.CurrentBalance, "Supplier balance", negative: true);
+                    balance.UpdatedAt = utcNow;
+                    balance.UpdatedByUserId = actorId;
                     db.SupplierBalanceEntries.Add(new SupplierBalanceEntry
                     {
                         SupplierBalanceId = balance.Id,
@@ -414,35 +457,25 @@ public sealed partial class MoneyEntryService
                     });
                 }
 
-                var before = Snapshot(payment);
+                var voidReason = $"Voided supplier payment #{payment.Id} of {payment.Amount:N2}";
+                payment.IsVoided = true;
+                payment.VoidedAt = utcNow;
+                payment.VoidedByUserId = actorId;
+                payment.VoidReason = voidReason;
+                payment.UpdatedAt = utcNow;
+                payment.UpdatedByUserId = actorId;
+
                 db.RecordChanges.Add(new RecordChange
                 {
                     RequestId = Guid.NewGuid(),
                     RecordType = "supplierPayment",
                     RecordId = payment.Id,
-                    Action = "Delete",
-                    Reason = $"Voided supplier payment #{payment.Id} of {payment.Amount:N2}",
+                    Action = "Void",
+                    Reason = voidReason,
                     Before = before,
-                    After = "null"
+                    After = Snapshot(payment),
+                    CreatedByUserId = actorId
                 });
-
-                var linkedEntries = await db.SupplierBalanceEntries.Where(e => e.SupplierPaymentId == payment.Id).ToArrayAsync(ct);
-                foreach (var entry in linkedEntries)
-                {
-                    entry.SupplierPaymentId = null;
-                }
-                var linkedCash = await db.CashMovements.Where(m => m.SupplierPaymentId == payment.Id).ToArrayAsync(ct);
-                foreach (var m in linkedCash)
-                {
-                    m.SupplierPaymentId = null;
-                }
-                var linkedBank = await db.BankMovements.Where(m => m.SupplierPaymentId == payment.Id).ToArrayAsync(ct);
-                foreach (var m in linkedBank)
-                {
-                    m.SupplierPaymentId = null;
-                }
-
-                db.SupplierPayments.Remove(payment);
 
                 await db.SaveChangesAsync(ct);
                 await transaction.CommitAsync(ct);
@@ -450,8 +483,13 @@ public sealed partial class MoneyEntryService
             else if (kind == "expenses")
             {
                 var expense = await db.Expenses.Include(e => e.CategoryDefinition)
-                    .SingleOrDefaultAsync(e => e.Id == id, ct)
-                    ?? throw new ValidationException("Expense not found or already deleted.");
+                    .SingleOrDefaultAsync(e => e.Id == id && !e.IsVoided, ct)
+                    ?? throw new ValidationException("Expense not found or already voided.");
+
+                if (expense.Amount <= 0 || await db.PaymentPayouts.AnyAsync(p => p.ExpenseId == expense.Id, ct))
+                {
+                    throw new ValidationException("Clearing payout fee expenses cannot be voided directly.");
+                }
 
                 if (!admin && expense.CreatedByUserId != actorId)
                 {
@@ -464,38 +502,96 @@ public sealed partial class MoneyEntryService
                     throw new ValidationException("Only expenses in the current open working day can be voided.");
                 }
 
+                var before = Snapshot(expense);
                 await ReversePostingsAsync(db, kind, expense.Id, actorId, date, ct);
 
-                var before = Snapshot(expense);
+                var voidReason = $"Voided expense #{expense.Id} of {expense.Amount:N2}";
+                expense.IsVoided = true;
+                expense.VoidedAt = utcNow;
+                expense.VoidedByUserId = actorId;
+                expense.VoidReason = voidReason;
+                expense.UpdatedAt = utcNow;
+                expense.UpdatedByUserId = actorId;
+
                 db.RecordChanges.Add(new RecordChange
                 {
                     RequestId = Guid.NewGuid(),
                     RecordType = "expense",
                     RecordId = expense.Id,
-                    Action = "Delete",
-                    Reason = $"Voided expense #{expense.Id} of {expense.Amount:N2}",
+                    Action = "Void",
+                    Reason = voidReason,
                     Before = before,
-                    After = "null",
+                    After = Snapshot(expense),
                     CreatedByUserId = actorId
                 });
 
-                var linkedCash = await db.CashMovements.Where(m => m.ExpenseId == expense.Id).ToArrayAsync(ct);
-                foreach (var m in linkedCash)
+                await db.SaveChangesAsync(ct);
+                await transaction.CommitAsync(ct);
+            }
+            else if (kind == "customer-payments")
+            {
+                var payment = await db.Payments.Include(p => p.CustomerBalance)
+                    .SingleOrDefaultAsync(p => p.Id == id && p.SaleId == null && !p.IsVoided, ct)
+                    ?? throw new ValidationException("Customer collection not found or already voided.");
+
+                if (!admin && payment.CreatedByUserId != actorId)
                 {
-                    m.ExpenseId = null;
-                }
-                var linkedBank = await db.BankMovements.Where(m => m.ExpenseId == expense.Id).ToArrayAsync(ct);
-                foreach (var m in linkedBank)
-                {
-                    m.ExpenseId = null;
-                }
-                var linkedPayouts = await db.PaymentPayouts.Where(p => p.ExpenseId == expense.Id).ToArrayAsync(ct);
-                foreach (var p in linkedPayouts)
-                {
-                    p.ExpenseId = null;
+                    throw new UnauthorizedAccessException("Only the creator or admin can void this collection.");
                 }
 
-                db.Expenses.Remove(expense);
+                var occurred = payment.PaidAt;
+                if (DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(occurred, AccountingCalendar.Zone(configuration)).DateTime) != date)
+                {
+                    throw new ValidationException("Only entries in the current open working day can be voided.");
+                }
+
+                var before = Snapshot(payment);
+                var voidReason = $"Voided customer collection #{payment.Id} of {payment.Amount:N2}";
+
+                // Reverse settled clearing payouts too if this non-cash collection was already cleared
+                if (await db.PaymentClearingEntries.AnyAsync(e => e.PaymentId == payment.Id && e.Status == PaymentClearingStatus.Settled, ct))
+                {
+                    await FinancialPosting.ReverseClearingByPaymentAsync(db, payment.Id, actorId, voidReason, date, configuration, ct);
+                }
+                await ReversePostingsAsync(db, kind, payment.Id, actorId, date, ct);
+
+                var balance = payment.CustomerBalance ?? await db.CustomerBalances.SingleOrDefaultAsync(b => b.Id == payment.CustomerBalanceId, ct);
+                if (balance != null)
+                {
+                    balance.CurrentBalance += payment.Amount;
+                    StoreAccess.Money(balance.CurrentBalance, "Customer balance", negative: true);
+                    balance.UpdatedAt = utcNow;
+                    balance.UpdatedByUserId = actorId;
+                    db.CustomerBalanceEntries.Add(new CustomerBalanceEntry
+                    {
+                        CustomerBalanceId = balance.Id,
+                        OccurredAt = at,
+                        Type = BalanceEntryType.Adjustment,
+                        Amount = payment.Amount,
+                        BalanceAfter = balance.CurrentBalance,
+                        Notes = $"Void collection #{payment.Id}: {payment.Notes}".Trim(),
+                        CreatedByUserId = actorId
+                    });
+                }
+
+                payment.IsVoided = true;
+                payment.VoidedAt = utcNow;
+                payment.VoidedByUserId = actorId;
+                payment.VoidReason = voidReason;
+                payment.UpdatedAt = utcNow;
+                payment.UpdatedByUserId = actorId;
+
+                db.RecordChanges.Add(new RecordChange
+                {
+                    RequestId = Guid.NewGuid(),
+                    RecordType = "payment",
+                    RecordId = payment.Id,
+                    Action = "Void",
+                    Reason = voidReason,
+                    Before = before,
+                    After = Snapshot(payment),
+                    CreatedByUserId = actorId
+                });
 
                 await db.SaveChangesAsync(ct);
                 await transaction.CommitAsync(ct);

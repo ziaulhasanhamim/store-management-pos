@@ -25,4 +25,6 @@ public sealed class HttpStockTakeClient(HttpReceivingClient http) : IStockTakeCl
         http.WriteAsync<StockTakeRefresh, StockTakePage>($"api/inventory/stock-takes/{id}/refresh", input);
     public Task<StockTakePage> ApplyAsync(int id, StockTakeApply input) =>
         http.WriteAsync<StockTakeApply, StockTakePage>($"api/inventory/stock-takes/{id}/apply", input);
+    public Task DiscardDraftAsync(int id) =>
+        http.DeleteAsync($"api/inventory/stock-takes/{id}");
 }

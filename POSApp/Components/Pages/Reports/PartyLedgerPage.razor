@@ -6,7 +6,7 @@
 @inject NavigationManager Navigation
 @inject ILogger<PartyLedgerPage> Logger
 
-<PageTitle>@(IsSupplier ? "Supplier" : "Customer") Statement · @(Report?.PartyName ?? "Ledger") · @(Configuration["StoreName"] ?? "JAS International")</PageTitle>
+<PageTitle>@(IsSupplier ? "Supplier" : "Customer") Statement · @(Report?.PartyName ?? "Ledger") · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
 
 @if (AccessDenied)
 {
@@ -106,7 +106,7 @@ else
             </div>
 
             <div class="text-left sm:text-right text-xs leading-snug text-slate-600">
-                <strong class="text-sm font-bold text-slate-900 block">@(Configuration["StoreName"] ?? "JAS International")</strong>
+                <strong class="text-sm font-bold text-slate-900 block">@(Configuration["StoreName"] ?? "RetailPOS")</strong>
                 <p>@(Configuration["Store:Address"] ?? "Khulna Shopping Complex, 41/42, 2nd Floor")</p>
                 <p>Khulna 9100, Bangladesh</p>
                 <p class="font-bold text-slate-800">Phone: @(Configuration["Store:Phone"] ?? "01811-644447")</p>
@@ -306,7 +306,7 @@ else
             </div>
 
             <div class="mt-5 text-center text-[10px] text-slate-400">
-                <p>Computer-generated statement of account issued by @(Configuration["StoreName"] ?? "JAS International"). All amounts in @CurrencyCode.</p>
+                <p>Computer-generated statement of account issued by @(Configuration["StoreName"] ?? "RetailPOS"). All amounts in @CurrencyCode.</p>
             </div>
         </div>
     </article>

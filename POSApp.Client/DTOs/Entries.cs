@@ -35,6 +35,8 @@ public sealed record MoneyEntryRow(int Id, DateTimeOffset At, int PartyId, strin
     public int? PurchaseId { get; init; }
     public int? StockLocationId { get; init; }
     public string? StockLocationName { get; init; }
+    public bool IsVoided { get; init; }
+    public string? VoidReason { get; init; }
 }
 public sealed record MoneyEntryPage(string Kind, DateOnly WorkingDate, DateOnly Date,
     bool CanCreate, bool CanManageCategories, decimal Total, int Count,
@@ -49,7 +51,7 @@ public sealed record MoneyEntryPage(string Kind, DateOnly WorkingDate, DateOnly 
     public IReadOnlyList<DailyExpenseCategory> ExpenseCategories => Rows
         .GroupBy(row => row.CategoryId)
         .Select(group => new DailyExpenseCategory(group.Key, group.First().Category,
-            group.Sum(row => row.Amount), group.ToArray()))
+            group.Where(row => !row.IsVoided).Sum(row => row.Amount), group.ToArray()))
         .OrderBy(category => category.Name)
         .ToArray();
 }

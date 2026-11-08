@@ -293,7 +293,7 @@ else
                             @foreach (var item in Data.Items)
                             {
                                 <tr>
-                                    <td>@item.OccurredAt.ToString("dd MMM HH:mm")</td>
+                                    <td>@UserTime.Format(item.OccurredAt, "dd MMM HH:mm")</td>
                                     <td><strong class="text-slate-800">@item.LocationName</strong></td>
                                     <td>@item.CategoryName</td>
                                     <td>@item.Method</td>

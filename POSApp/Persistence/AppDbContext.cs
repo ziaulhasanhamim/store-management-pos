@@ -84,14 +84,14 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             .ToArray();
         foreach (var entry in corrections)
         {
-            var batchKind = entry.Entity switch
+            var (batchKind, singularKind) = entry.Entity switch
             {
-                Expense => "expenses",
-                SupplierPayment => "supplier-payments",
-                Payment => "customer-payments",
-                _ => "payroll"
+                Expense => ("expenses", "expense"),
+                SupplierPayment => ("supplier-payments", "supplierPayment"),
+                Payment => ("customer-payments", "payment"),
+                _ => ("payroll", "payroll")
             };
-            if (RecordChanges.Local.Any(change => change.RecordType == batchKind
+            if (RecordChanges.Local.Any(change => (change.RecordType == batchKind || change.RecordType == singularKind)
                 && change.RecordId == entry.Entity.Id && Entry(change).State == EntityState.Added))
             {
                 continue;
@@ -103,13 +103,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
             RecordChanges.Add(new RecordChange
             {
                 RequestId = Guid.NewGuid(),
-                RecordType = entry.Entity switch
-                {
-                    Expense => "expense",
-                    SupplierPayment => "supplierPayment",
-                    Payment => "payment",
-                    _ => "payroll"
-                },
+                RecordType = singularKind,
                 RecordId = entry.Entity.Id,
                 Action = entry.State == EntityState.Deleted ? "Remove" : "Correct",
                 Reason = "Financial entry correction; original and replacement movement history retained",

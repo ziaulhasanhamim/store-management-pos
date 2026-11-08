@@ -83,7 +83,10 @@ public static class FinanceExportService
         ws.Cell("A2").Style.Font.FontColor = BrandDark;
 
         var locationTag = totals.SelectedLocationName != null ? $"Location: {totals.SelectedLocationName} · " : "";
-        ws.Cell("A3").Value = $"{locationTag}Status: {(totals.ClosedAt is null ? "Provisional (Open)" : $"Closed at {totals.ClosedAt:yyyy-MM-dd HH:mm}")} · Currency: {currency}";
+        var closedText = totals.ClosedAt is { } closedAt
+            ? $"Closed at {TimeZoneInfo.ConvertTime(closedAt.ToUniversalTime(), BusinessTime.AmbientZone ?? TimeZoneInfo.Utc):yyyy-MM-dd HH:mm}"
+            : "Provisional (Open)";
+        ws.Cell("A3").Value = $"{locationTag}Status: {closedText} · Currency: {currency}";
         ws.Cell("A3").Style.Font.Italic = true;
         ws.Cell("A3").Style.Font.FontSize = 10;
         ws.Cell("A3").Style.Font.FontColor = XLColor.SlateGray;
@@ -288,10 +291,11 @@ public static class FinanceExportService
         header.Style.Fill.BackgroundColor = BrandDark;
         ws.Cell("F1").Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
 
+        var zone = BusinessTime.AmbientZone ?? TimeZoneInfo.Utc;
         var r = 2;
         foreach (var p in payments.OrderBy(p => p.At))
         {
-            ws.Cell(r, 1).Value = p.At.ToString("HH:mm:ss");
+            ws.Cell(r, 1).Value = TimeZoneInfo.ConvertTime(p.At.ToUniversalTime(), zone).ToString("HH:mm:ss", CultureInfo.InvariantCulture);
             ws.Cell(r, 2).Value = p.Type;
             ws.Cell(r, 3).Value = p.Party;
             ws.Cell(r, 4).Value = p.Account;
@@ -342,7 +346,10 @@ public static class FinanceExportService
         ws.Cell("A2").Style.Font.FontColor = BrandDark;
 
         var locationTag = totals.SelectedLocationName != null ? $"Location: {totals.SelectedLocationName} · " : "";
-        ws.Cell("A3").Value = $"{locationTag}Status: {(totals.ClosedAt is null ? "Provisional (Open)" : $"Closed at {totals.ClosedAt:yyyy-MM-dd HH:mm}")} · Currency: {currency}";
+        var closedText = totals.ClosedAt is { } closedAt
+            ? $"Closed at {TimeZoneInfo.ConvertTime(closedAt.ToUniversalTime(), BusinessTime.AmbientZone ?? TimeZoneInfo.Utc):yyyy-MM-dd HH:mm}"
+            : "Provisional (Open)";
+        ws.Cell("A3").Value = $"{locationTag}Status: {closedText} · Currency: {currency}";
         ws.Cell("A3").Style.Font.Italic = true;
         ws.Cell("A3").Style.Font.FontSize = 10;
         ws.Cell("A3").Style.Font.FontColor = XLColor.SlateGray;

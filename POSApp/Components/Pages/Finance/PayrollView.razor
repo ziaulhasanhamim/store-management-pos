@@ -32,7 +32,7 @@
                 </div>
                 <form method="post" @formname="payroll" data-draft-instance="@PayrollForm!.RequestId" data-draft-key="payroll" data-draft-success="@Saved" @onsubmit="AddPayrollAsync" data-enhance data-submit-indication="true">
                     <AntiforgeryToken />
-                    <input type="hidden" name="PayrollForm.WorkingDate" value="@DateOnly.FromDateTime(PayrollForm!.Date).ToString("yyyy-MM-dd")" />
+                    <input type="hidden" name="PayrollForm.WorkingDate" value="@PayrollForm!.Date.ToString("yyyy-MM-dd")" />
                     <input type="hidden" name="PayrollForm.RequestId" value="@PayrollForm!.RequestId" />
                     <PayrollFields
                         Employees="Data.Staff"

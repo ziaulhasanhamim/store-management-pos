@@ -131,10 +131,36 @@ public static class FinancialPosting
     {
         var entries = await db.PaymentClearingEntries
             .Include(entry => entry.Payout)
+                .ThenInclude(payout => payout!.Expense)
             .Where(entry => entry.Payment!.SaleId == saleId
                 && (entry.Status == PaymentClearingStatus.Unsettled || entry.Status == PaymentClearingStatus.Settled))
             .ToListAsync(ct);
 
+        await ReverseClearingEntriesAsync(db, entries, $"sale #{saleId}", actorId, reason, activeDate, configuration, ct);
+    }
+
+    public static async Task ReverseClearingByPaymentAsync(AppDbContext db, int paymentId, int actorId, string reason, DateOnly activeDate, IConfiguration? configuration, CancellationToken ct)
+    {
+        var entries = await db.PaymentClearingEntries
+            .Include(entry => entry.Payout)
+                .ThenInclude(payout => payout!.Expense)
+            .Where(entry => entry.PaymentId == paymentId
+                && (entry.Status == PaymentClearingStatus.Unsettled || entry.Status == PaymentClearingStatus.Settled))
+            .ToListAsync(ct);
+
+        await ReverseClearingEntriesAsync(db, entries, $"payment #{paymentId}", actorId, reason, activeDate, configuration, ct);
+    }
+
+    private static async Task ReverseClearingEntriesAsync(
+        AppDbContext db,
+        IReadOnlyList<PaymentClearingEntry> entries,
+        string sourceLabel,
+        int actorId,
+        string reason,
+        DateOnly activeDate,
+        IConfiguration? configuration,
+        CancellationToken ct)
+    {
         foreach (var entry in entries)
         {
             if (entry.Status == PaymentClearingStatus.Settled && entry.Payout is not null)
@@ -145,7 +171,10 @@ public static class FinancialPosting
                     : 0m;
                 var entryNet = entry.GrossAmount - entryFee;
 
-                // 1. Reverse gross amount from bank (-entry.GrossAmount)
+                // 1. Standalone gross reversal in bank (-entry.GrossAmount).
+                // Never set ReversesMovementId = payout.BankMovementId because a batch payout
+                // may contain multiple sales: hiding payout.BankMovementId would suppress the entire
+                // batch from DailyFinanceBuilder and crash on a 2nd void due to IX_BankMovements_ReversesMovementId.
                 var grossReversal = new BankMovement
                 {
                     RequestId = Guid.NewGuid(),
@@ -153,68 +182,63 @@ public static class FinancialPosting
                     Method = PaymentMethod.BankTransfer,
                     Kind = CashMovementKind.Payout,
                     Amount = -entry.GrossAmount,
-                    Notes = $"Reversal of clearing payout #{payout.Id} for voided sale #{saleId}: {reason}".Trim(),
-                    ReversesMovementId = payout.BankMovementId,
+                    Notes = $"Reversal of clearing payout #{payout.Id} for voided {sourceLabel}: {reason}".Trim(),
                     CreatedByUserId = actorId
                 };
                 await BankAsync(db, grossReversal, ct);
 
-                // 2. If fee was deducted, reverse the fee from bank (+entryFee)
+                // 2. If a processing fee was deducted, post a standalone fee reversal expense (-entryFee)
+                // and corresponding bank credit (+entryFee) without deleting or mutating the batch fee Expense.
+                Expense? feeReversalExpense = null;
                 if (entryFee > 0)
                 {
+                    var feeCategoryId = payout.Expense?.CategoryDefinitionId;
+                    if (feeCategoryId is null)
+                    {
+                        var feeCategory = await db.ExpenseCategories.FirstOrDefaultAsync(c => c.Name == "Payment Processing Fees", ct);
+                        if (feeCategory is null)
+                        {
+                            feeCategory = new ExpenseCategoryDefinition
+                            {
+                                Name = "Payment Processing Fees",
+                                NormalizedName = NameNormalization.Normalize("Payment Processing Fees"),
+                                IsArchived = false
+                            };
+                            db.ExpenseCategories.Add(feeCategory);
+                            await db.SaveChangesAsync(ct);
+                        }
+                        feeCategoryId = feeCategory.Id;
+                    }
+
+                    feeReversalExpense = new Expense
+                    {
+                        RequestId = Guid.NewGuid(),
+                        StockLocationId = entry.StockLocationId ?? payout.StockLocationId,
+                        CategoryDefinitionId = feeCategoryId,
+                        Amount = -entryFee,
+                        Method = PaymentMethod.BankTransfer,
+                        OccurredAt = AccountingCalendar.At(activeDate, configuration),
+                        ReceiptReference = $"REV-PAYOUT-{payout.Id}",
+                        Notes = $"Clearing fee credit for voided {sourceLabel} (payout #{payout.Id}): {reason}".Trim(),
+                        CreatedByUserId = actorId
+                    };
+                    db.Expenses.Add(feeReversalExpense);
+
                     var feeReversal = new BankMovement
                     {
                         RequestId = Guid.NewGuid(),
                         BusinessDate = activeDate,
                         Method = PaymentMethod.BankTransfer,
-                        Kind = CashMovementKind.Reversal,
+                        Kind = CashMovementKind.Expense,
                         Amount = entryFee,
-                        Notes = $"Reversal of clearing fee for voided sale #{saleId}: {reason}".Trim(),
+                        Expense = feeReversalExpense,
+                        Notes = $"Reversal of clearing fee for voided {sourceLabel}: {reason}".Trim(),
                         CreatedByUserId = actorId
                     };
                     await BankAsync(db, feeReversal, ct);
                 }
 
-                // 3. Void/adjust the fee Expense if it occurred in the same working day
-                if (payout.ExpenseId is not null)
-                {
-                    var expense = await db.Expenses.FindAsync([payout.ExpenseId.Value], ct);
-                    if (expense is not null)
-                    {
-                        var expDate = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(expense.OccurredAt, AccountingCalendar.Zone(configuration)).DateTime);
-                        if (expDate == activeDate)
-                        {
-                            if (entryFee >= expense.Amount)
-                            {
-                                var linkedBankMoves = await db.BankMovements.Where(m => m.ExpenseId == expense.Id).ToListAsync(ct);
-                                foreach (var m in linkedBankMoves)
-                                {
-                                    m.ExpenseId = null;
-                                }
-                                payout.ExpenseId = null;
-                                db.RecordChanges.Add(new RecordChange
-                                {
-                                    RequestId = Guid.NewGuid(),
-                                    RecordType = "expense",
-                                    RecordId = expense.Id,
-                                    Action = "Delete",
-                                    Reason = $"Voided fee expense #{expense.Id} due to voided sale #{saleId}",
-                                    Before = JsonSerializer.Serialize(new { expense.CategoryDefinitionId, expense.Amount, expense.Method, expense.Notes }),
-                                    After = "null",
-                                    CreatedByUserId = actorId
-                                });
-                                db.Expenses.Remove(expense);
-                            }
-                            else
-                            {
-                                expense.Amount -= entryFee;
-                                expense.Notes = $"{expense.Notes} | Reduced by {entryFee:N2} due to voided sale #{saleId}";
-                            }
-                        }
-                    }
-                }
-
-                // 4. Record reversal in PaymentPayouts history
+                // 3. Record standalone reversal in PaymentPayouts history
                 var reversalPayout = new PaymentPayout
                 {
                     RequestId = Guid.NewGuid(),
@@ -227,9 +251,9 @@ public static class FinancialPosting
                     FeeAmount = -entryFee,
                     BankAccountId = grossReversal.BankAccountId,
                     BankMovement = grossReversal,
-                    Expense = null,
+                    Expense = feeReversalExpense,
                     Reference = $"REV-PAYOUT-{payout.Id}",
-                    Notes = $"Reversal of payout #{payout.Id} for voided sale #{saleId}: {reason}".Trim(),
+                    Notes = $"Reversal of payout #{payout.Id} for voided {sourceLabel}: {reason}".Trim(),
                     CreatedByUserId = actorId
                 };
                 db.PaymentPayouts.Add(reversalPayout);

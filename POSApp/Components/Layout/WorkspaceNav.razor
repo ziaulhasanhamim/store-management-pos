@@ -18,11 +18,12 @@
     {
         "reports" =>
         [
-            ("/reports", "Reports", AppPolicies.MakeSales),
-            ("/reports/expenses", "Expense analysis", AppPolicies.MakeSales),
+            ("/reports", "Reports hub", AppPolicies.MakeSales),
             ("/reports/sales", "Sales", AppPolicies.MakeSales),
-            ("/reports/receiving", "Receiving", AppPolicies.ManageInventory),
-            ("/reports/items", "Item performance", AppPolicies.ManageInventory)
+            ("/reports/expenses", "Expense analysis", AppPolicies.MakeSales),
+            ("/reports/statements/stock", "Stock ledger", AppPolicies.ManageInventory),
+            ("/reports/statements/cash", "Cash ledger", AppPolicies.ManageUsers),
+            ("/reports/statements/bank", "Bank ledger", AppPolicies.ManageUsers)
         ],
         "administration" =>
         [

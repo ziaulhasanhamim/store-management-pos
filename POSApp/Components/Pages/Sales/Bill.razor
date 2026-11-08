@@ -4,7 +4,7 @@
 @attribute [StreamRendering]
 @inject SalesService Sales
 
-<PageTitle>Invoice #@Id · @(Configuration["StoreName"] ?? "JAS International")</PageTitle>
+<PageTitle>Invoice #@Id · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
 
 <div class="page-heading no-print">
     <div class="flex flex-wrap items-center justify-between gap-4 w-full">
@@ -104,7 +104,7 @@ else
             </div>
 
             <div class="text-left sm:text-right text-xs leading-relaxed text-slate-600">
-                <strong class="text-sm font-bold text-slate-900 block">@(Configuration["StoreName"] ?? "JAS International")</strong>
+                <strong class="text-sm font-bold text-slate-900 block">@(Configuration["StoreName"] ?? "RetailPOS")</strong>
                 <p>@(Configuration["Store:Address"] ?? "Khulna Shopping Complex, 41/42, 2nd Floor")</p>
                 <p>Khulna 9100, Bangladesh</p>
                 <p class="font-bold text-slate-800">@(Configuration["Store:Phone"] ?? "01811-644447")</p>

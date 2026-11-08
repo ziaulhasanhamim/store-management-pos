@@ -25,6 +25,9 @@ public sealed class ProductInput
     [Range(typeof(decimal), "0", "9999999999999999.99")]
     public decimal SellingPrice { get; set; }
 
+    [Range(0, 1000000, ErrorMessage = "Reorder level must be between 0 and 1,000,000.")]
+    public int ReorderLevel { get; set; } = 5;
+
     [StringLength(2000)]
     public string? Description { get; set; }
 
@@ -118,7 +121,8 @@ public sealed record ItemRow(
     bool AllowFractionUnit = false,
     int SupplierId = 0,
     string Supplier = "",
-    bool IsNonStocked = false)
+    bool IsNonStocked = false,
+    int ReorderLevel = 5)
 {
     public IReadOnlyList<ItemAttributeDisplay> Attributes { get; init; } = [];
 }

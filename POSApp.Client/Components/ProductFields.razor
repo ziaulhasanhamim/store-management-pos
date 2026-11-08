@@ -67,7 +67,7 @@
         Allow fractional quantities
     </label>
 
-    <div class="grid gap-4 sm:grid-cols-2">
+    <div class="grid gap-4 sm:grid-cols-3">
         <div>
             <label class="field-label" for="item-cost">Cost price (@Currency)</label>
             @if (Live)
@@ -92,6 +92,19 @@
                 <InputNumber id="item-price" class="field" @bind-Value="Input.SellingPrice" step="0.01" min="0" />
             }
             <ValidationMessage For="() => Input.SellingPrice" />
+        </div>
+
+        <div>
+            <label class="field-label" for="item-reorder-level">Low stock alert</label>
+            @if (Live)
+            {
+                <input id="item-reorder-level" type="number" class="field" @bind="Input.ReorderLevel" @bind:event="oninput" min="0" step="1" disabled="@Input.IsNonStocked" />
+            }
+            else
+            {
+                <InputNumber id="item-reorder-level" class="field" @bind-Value="Input.ReorderLevel" min="0" step="1" disabled="@Input.IsNonStocked" />
+            }
+            <ValidationMessage For="() => Input.ReorderLevel" />
         </div>
     </div>
 

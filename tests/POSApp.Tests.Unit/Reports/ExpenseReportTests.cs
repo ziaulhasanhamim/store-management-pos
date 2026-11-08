@@ -208,9 +208,11 @@ public class ExpenseReportTests
         // Verification db context
         using var verifyDb = new POSApp.Persistence.AppDbContext(options);
 
-        // Expense should be deleted
+        // Expense should be marked voided (not physically deleted) with intact FK history
         var remainingExpense = await verifyDb.Expenses.FindAsync(60);
-        await remainingExpense.Should().BeNull();
+        await remainingExpense.Should().NotBeNull();
+        await remainingExpense!.IsVoided.Should().BeTrue();
+        await remainingExpense.VoidedAt.HasValue.Should().BeTrue();
 
         // Bank balance should be restored: 5000 + 250 = 5250
         var updatedBank = await verifyDb.BankAccounts.FindAsync(1);

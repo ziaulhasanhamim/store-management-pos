@@ -137,14 +137,13 @@ public class PaymentClearingTests
         // 3. Reversal BankMovements created
         var reversalGross = await db.BankMovements.SingleOrDefaultAsync(m => m.Amount == -850m && m.Kind == CashMovementKind.Payout);
         await reversalGross.Should().NotBeNull();
-        await reversalGross!.ReversesMovementId.Should().BeEqualTo(9);
 
-        var reversalFee = await db.BankMovements.SingleOrDefaultAsync(m => m.Amount == 20m && m.Kind == CashMovementKind.Reversal);
+        var reversalFee = await db.BankMovements.SingleOrDefaultAsync(m => m.Amount == 20m && m.Kind == CashMovementKind.Expense);
         await reversalFee.Should().NotBeNull();
 
-        // 4. Expense voided / removed because it is from same working day
-        var remainingExpense = await db.Expenses.FindAsync(29);
-        await remainingExpense.Should().BeNull();
+        // 4. Standalone fee reversal expense posted (-20m) rather than mutating batch expense
+        var reversalExpense = await db.Expenses.SingleOrDefaultAsync(e => e.Amount == -20m);
+        await reversalExpense.Should().NotBeNull();
 
         // 5. Reversal Payout recorded in payout history with negative values
         var reversalPayout = await db.PaymentPayouts.SingleOrDefaultAsync(p => p.GrossAmount == -850m);

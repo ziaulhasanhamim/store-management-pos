@@ -25,7 +25,7 @@ internal static class MonthlyFinanceBuilder
                 && (locationId == null || item.Sale.StockLocationId == locationId.Value))
             .Select(item => new { item.SaleId, item.UnitCost, item.Quantity }).ToArrayAsync(ct);
         var expenses = await db.Expenses.AsNoTracking()
-            .Where(expense => expense.OccurredAt >= from && expense.OccurredAt < through
+            .Where(expense => !expense.IsVoided && expense.OccurredAt >= from && expense.OccurredAt < through
                 && (locationId == null || expense.StockLocationId == locationId.Value))
             .Select(expense => new
             {
@@ -35,7 +35,7 @@ internal static class MonthlyFinanceBuilder
                 Name = expense.CategoryDefinition == null ? null : expense.CategoryDefinition.Name,
                 expense.Amount
             }).ToArrayAsync(ct);
-        var payroll = await db.PayrollEntries.AsNoTracking().Where(entry => entry.OccurredAt >= from && entry.OccurredAt < through)
+        var payroll = await db.PayrollEntries.AsNoTracking().Where(entry => !entry.IsVoided && entry.OccurredAt >= from && entry.OccurredAt < through)
             .Select(entry => new
             {
                 entry.StaffAccount!.EmployeeId,
@@ -53,6 +53,8 @@ internal static class MonthlyFinanceBuilder
             group => (Sales: group.Sum(sale => sale.TotalAmount), Cogs: group.Sum(sale => costs.GetValueOrDefault(sale.Id))));
         var adjustments = await db.InventoryMovements.AsNoTracking()
             .Where(move => (move.StockTakeItemId != null || move.StockAdjustmentItemId != null || move.Type == InventoryMovementType.Adjustment)
+                && (move.StockAdjustmentItem == null || !move.StockAdjustmentItem.StockAdjustment!.IsVoided)
+                && (move.StockTakeItem == null || !move.StockTakeItem.StockTake!.IsVoided)
                 && move.OccurredAt >= from && move.OccurredAt < through
                 && (locationId == null || move.StockLocationId == locationId.Value))
             .Select(move => new { move.OccurredAt, move.Quantity, move.UnitCost }).ToArrayAsync(ct);

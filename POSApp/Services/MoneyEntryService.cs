@@ -58,24 +58,30 @@ public sealed partial class MoneyEntryService(IServiceScopeFactory scopes, IConf
             .Where(id => id != null).ToArrayAsync(ct);
         MoneyEntryRow Row(AuditableEntity entity, DateTimeOffset at, int partyId, string party,
             int categoryId, string category, decimal amount, PaymentMethod method, string? notes, string? receipt, bool invoice,
-            int? locationId = null, string? locationName = null)
+            int? locationId = null, string? locationName = null, bool isVoided = false, string? voidReason = null, bool payoutFee = false)
         {
-            var reason = closed ? "Accounting period closed" : selected != working ? "Select this working day to edit"
-                : invoice ? "Linked receipt payment" : !admin && entity.CreatedByUserId != actorId ? "Only the creator or admin can edit"
+            var reason = isVoided ? "Voided"
+                : payoutFee ? "Clearing payout fee"
+                : closed ? "Accounting period closed"
+                : selected != working ? "Select this working day to edit"
+                : invoice ? "Linked receipt payment"
+                : !admin && entity.CreatedByUserId != actorId ? "Only the creator or admin can edit"
                 : cashClosedIds.Contains(entity.Id) ? "Cash drawer already closed" : null;
             return new(entity.Id, at, partyId, party, categoryId, category, amount, method, notes ?? "", receipt,
                 (entity.UpdatedAt ?? entity.CreatedAt).UtcTicks, reason is null, reason)
             {
                 StockLocationId = locationId,
-                StockLocationName = locationName
+                StockLocationName = locationName,
+                IsVoided = isVoided,
+                VoidReason = voidReason
             };
         }
         if (kind == "expenses")
         {
             var query = db.Expenses.AsNoTracking().Where(expense => expense.OccurredAt >= from && expense.OccurredAt < through
                 && (admin || expense.CreatedByUserId == actorId));
-            total = await query.Select(expense => (decimal?)expense.Amount).SumAsync(ct) ?? 0;
-            count = await query.CountAsync(ct);
+            total = await query.Where(expense => !expense.IsVoided).Select(expense => (decimal?)expense.Amount).SumAsync(ct) ?? 0;
+            count = await query.Where(expense => !expense.IsVoided).CountAsync(ct);
             var categoryPage = await query.Select(expense => expense.CategoryDefinitionId ?? -(int)expense.Category)
                 .Distinct().OrderBy(id => id).ToPageAsync(page, pageSize, ct);
             pagination = categoryPage.Pagination;
@@ -84,19 +90,25 @@ public sealed partial class MoneyEntryService(IServiceScopeFactory scopes, IConf
                 .Include(expense => expense.CategoryDefinition)
                 .Include(expense => expense.StockLocation)
                 .OrderByDescending(expense => expense.Id).ToArrayAsync(ct);
+            var expenseIds = expenses.Select(e => e.Id).ToArray();
+            var payoutExpenseIds = (await db.PaymentPayouts.AsNoTracking()
+                .Where(p => p.ExpenseId != null && expenseIds.Contains(p.ExpenseId.Value))
+                .Select(p => p.ExpenseId!.Value)
+                .ToArrayAsync(ct)).ToHashSet();
             foreach (var expense in expenses)
             {
                 rows.Add(Row(expense, expense.OccurredAt, 0, "", expense.CategoryDefinitionId ?? -(int)expense.Category,
                     expense.CategoryDefinition?.Name ?? expense.Category.ToString(), expense.Amount, expense.Method,
-                    expense.Notes, expense.ReceiptReference, false, expense.StockLocationId, expense.StockLocation?.Name));
+                    expense.Notes, expense.ReceiptReference, false, expense.StockLocationId, expense.StockLocation?.Name,
+                    expense.IsVoided, expense.VoidReason, expense.Amount <= 0 || payoutExpenseIds.Contains(expense.Id)));
             }
         }
         else if (kind == "supplier-payments")
         {
             var query = db.SupplierPayments.AsNoTracking().Where(payment => payment.PaidAt >= from && payment.PaidAt < through
                 && (payment.PurchaseId == null || !payment.Purchase!.IsDeleted));
-            total = await query.Select(payment => (decimal?)payment.Amount).SumAsync(ct) ?? 0;
-            count = await query.CountAsync(ct);
+            total = await query.Where(payment => !payment.IsVoided).Select(payment => (decimal?)payment.Amount).SumAsync(ct) ?? 0;
+            count = await query.Where(payment => !payment.IsVoided).CountAsync(ct);
             var result = await query.Include(payment => payment.SupplierBalance!.Supplier).Include(payment => payment.Purchase)
                 .OrderByDescending(payment => payment.Id).ToPageAsync(page, pageSize, ct);
             pagination = result.Pagination;
@@ -104,7 +116,8 @@ public sealed partial class MoneyEntryService(IServiceScopeFactory scopes, IConf
             {
                 rows.Add(Row(payment, payment.PaidAt, payment.SupplierBalance!.SupplierId, payment.SupplierBalance.Supplier!.Name,
                     0, "", payment.Amount, payment.Method, payment.Notes, null,
-                    payment.PurchaseId != null && payment.Purchase!.SupplierId != payment.SupplierBalance.SupplierId) with
+                    payment.PurchaseId != null && payment.Purchase!.SupplierId != payment.SupplierBalance.SupplierId,
+                    isVoided: payment.IsVoided, voidReason: payment.VoidReason) with
                 {
                     PurchaseId = payment.PurchaseId
                 });
@@ -114,15 +127,16 @@ public sealed partial class MoneyEntryService(IServiceScopeFactory scopes, IConf
         {
             var query = db.Payments.AsNoTracking().Where(payment => payment.SaleId == null && payment.CustomerBalanceId != null
                 && payment.PaidAt >= from && payment.PaidAt < through);
-            total = await query.Select(payment => (decimal?)payment.Amount).SumAsync(ct) ?? 0;
-            count = await query.CountAsync(ct);
+            total = await query.Where(payment => !payment.IsVoided).Select(payment => (decimal?)payment.Amount).SumAsync(ct) ?? 0;
+            count = await query.Where(payment => !payment.IsVoided).CountAsync(ct);
             var result = await query.Include(payment => payment.CustomerBalance!.Customer)
                 .OrderByDescending(payment => payment.Id).ToPageAsync(page, pageSize, ct);
             pagination = result.Pagination;
             foreach (var payment in result.Items)
             {
                 rows.Add(Row(payment, payment.PaidAt, payment.CustomerBalance!.CustomerId, payment.CustomerBalance.Customer!.Name,
-                    0, "", payment.Amount, payment.Method, payment.Notes, null, false));
+                    0, "", payment.Amount, payment.Method, payment.Notes, null, false,
+                    isVoided: payment.IsVoided, voidReason: payment.VoidReason));
             }
         }
         var activeLocations = await db.StockLocations.AsNoTracking().Where(l => !l.IsDeleted).OrderBy(l => l.Name)

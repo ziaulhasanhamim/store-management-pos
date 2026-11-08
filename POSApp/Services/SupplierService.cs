@@ -71,7 +71,7 @@ public sealed class SupplierService(IServiceScopeFactory scopes, IConfiguration?
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         await StoreAccess.RequireAsync(db, actor, AppRoles.InventoryManager, ct);
-        return await db.SupplierPayments.AsNoTracking().Where(payment => payment.Purchase == null || !payment.Purchase.IsDeleted).OrderByDescending(payment => payment.Id).Take(100)
+        return await db.SupplierPayments.AsNoTracking().Where(payment => !payment.IsVoided && (payment.Purchase == null || !payment.Purchase.IsDeleted)).OrderByDescending(payment => payment.Id).Take(100)
             .Select(payment => new SupplierPaymentRow(payment.Id, payment.SupplierBalance!.Supplier!.Name,
                 payment.PaidAt, payment.Amount, payment.Method, payment.Reference)).ToListAsync(ct);
     }

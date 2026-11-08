@@ -41,6 +41,10 @@ public sealed class SupplierPayment : AuditableEntity
     public DateTimeOffset PaidAt { get; set; } = DateTimeOffset.UtcNow;
     public string? Reference { get; set; }
     public string? Notes { get; set; }
+    public bool IsVoided { get; set; }
+    public DateTimeOffset? VoidedAt { get; set; }
+    public int? VoidedByUserId { get; set; }
+    public string? VoidReason { get; set; }
 }
 
 public sealed class PurchaseItem : Entity

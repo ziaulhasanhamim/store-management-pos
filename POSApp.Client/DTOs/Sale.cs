@@ -60,6 +60,7 @@ public sealed record SalesCommand(
     public DateOnly? WorkingDate { get; init; }
     public long Revision { get; init; }
     public PaymentInput[]? Payments { get; init; }
+    public int? OriginalSaleId { get; init; }
 }
 
 public sealed record SalesResult(
@@ -90,6 +91,7 @@ public sealed record SalesDraft(
 {
     public long Revision { get; init; }
     public PaymentInput[]? Payments { get; init; }
+    public int? OriginalSaleId { get; init; }
 }
 
 public sealed record BillLine(
@@ -100,6 +102,7 @@ public sealed record BillLine(
     decimal UnitPrice,
     decimal Total)
 {
+    public int ProductId { get; init; }
     public string? Warranty { get; init; }
     public decimal UnitDiscount { get; init; }
 }

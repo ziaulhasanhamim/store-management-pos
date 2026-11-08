@@ -55,7 +55,7 @@ else if (Data is not null)
     public int? EmployeeId { get; set; }
 
     [SupplyParameterFromQuery]
-    public DateTime? SalaryMonth { get; set; }
+    public DateOnly? SalaryMonth { get; set; }
 
     [SupplyParameterFromForm(FormName = "payroll")]
     private PayrollInput? PayrollForm { get; set; }
@@ -66,11 +66,11 @@ else if (Data is not null)
 
     protected override async Task OnParametersSetAsync()
     {
-        var selected = (await Closings.SelectedAsync(HttpContext.User, HttpContext.RequestAborted)).ToDateTime(TimeOnly.MinValue);
+        var selected = await Closings.SelectedAsync(HttpContext.User, HttpContext.RequestAborted);
         if (string.IsNullOrWhiteSpace(Period))
         {
             Period = "custom";
-            Start = DateOnly.FromDateTime(selected);
+            Start = selected;
             End = Start;
         }
         PayrollForm ??= new() { Date = selected, Month = SalaryMonth ?? selected, EmployeeId = EmployeeId ?? 0 };

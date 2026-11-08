@@ -11,6 +11,7 @@ public static class StockTakeEndpoints
         group.MapPost("/{id:int}/counts", SaveAsync);
         group.MapPost("/{id:int}/refresh", RefreshAsync);
         group.MapPost("/{id:int}/apply", ApplyAsync);
+        group.MapDelete("/{id:int}", DiscardDraftAsync);
         return group;
     }
 
@@ -35,4 +36,10 @@ public static class StockTakeEndpoints
 
     public static Task<StockTakePage> ApplyAsync(int id, StockTakeApply input, HttpContext context, StockTakeService takes) =>
         takes.ApplyAsync(context.User, id, input, context.RequestAborted);
+
+    public static async Task<IResult> DiscardDraftAsync(int id, HttpContext context, StockTakeService takes)
+    {
+        await takes.DiscardDraftAsync(context.User, id, context.RequestAborted);
+        return Results.NoContent();
+    }
 }

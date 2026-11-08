@@ -124,7 +124,7 @@ else
             </form>
         }
     </section>
-    <AccountStatement Account="bank" Date="DateOnly.FromDateTime(Input!.Date)" />
+    <AccountStatement Account="bank" Date="Input!.Date" />
 }
 
 @code {
@@ -146,7 +146,7 @@ else
 
     protected override async Task OnParametersSetAsync()
     {
-        var selectedDate = (await Closings.SelectedAsync(HttpContext.User, HttpContext.RequestAborted)).ToDateTime(TimeOnly.MinValue);
+        var selectedDate = await Closings.SelectedAsync(HttpContext.User, HttpContext.RequestAborted);
         if (HttpContext.Request.Method != "POST" || Input is null)
         {
             var defaultAction = ActiveTab == "adjustment" ? "adjustment" : "deposit";

@@ -35,10 +35,10 @@ public sealed class DebtService(IServiceScopeFactory scopes, IConfiguration conf
         var closed = await db.FinanceClosings.AnyAsync(closing => closing.ClosedAt != null
             && (closing.Kind == ClosingKind.Day && closing.Date == date
                 || closing.Kind == ClosingKind.Month && closing.Date == month), ct);
-        var today = await db.DebtEntries.Where(entry => entry.BusinessDate == date)
+        var today = await db.DebtEntries.Where(entry => !entry.IsVoided && entry.BusinessDate == date)
             .Select(entry => new { entry.Kind, entry.Amount }).ToArrayAsync(ct);
         var historyQuery = db.DebtEntries.AsNoTracking()
-            .Where(entry => lenderId == null || entry.LenderBalance!.LenderId == lenderId)
+            .Where(entry => !entry.IsVoided && (lenderId == null || entry.LenderBalance!.LenderId == lenderId))
             .OrderByDescending(entry => entry.BusinessDate).ThenByDescending(entry => entry.Id)
             .Select(entry => new DebtHistoryRow(entry.Id, entry.BusinessDate, entry.LenderBalance!.LenderId,
                 entry.LenderBalance.Lender!.Name, entry.Kind, entry.Amount, entry.BalanceAfter, entry.Method,
@@ -187,7 +187,7 @@ public sealed class DebtService(IServiceScopeFactory scopes, IConfiguration conf
 
     internal static async Task<decimal> OutstandingBeforeAsync(AppDbContext db, DateOnly before, CancellationToken ct)
     {
-        return await db.DebtEntries.Where(entry => entry.BusinessDate < before)
+        return await db.DebtEntries.Where(entry => !entry.IsVoided && entry.BusinessDate < before)
             .Select(entry => (decimal?)entry.Amount).SumAsync(ct) ?? 0;
     }
 

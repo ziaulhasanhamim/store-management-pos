@@ -533,6 +533,9 @@ namespace POSApp.Persistence.Migrations
                     b.Property<int>("DestinationDrawerId")
                         .HasColumnType("integer");
 
+                    b.Property<bool>("IsVoided")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("Notes")
                         .IsRequired()
                         .HasMaxLength(2000)
@@ -548,6 +551,16 @@ namespace POSApp.Persistence.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<int?>("UpdatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("VoidReason")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<DateTimeOffset?>("VoidedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("VoidedByUserId")
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
@@ -857,6 +870,9 @@ namespace POSApp.Persistence.Migrations
                     b.Property<int?>("CreatedByUserId")
                         .HasColumnType("integer");
 
+                    b.Property<bool>("IsVoided")
+                        .HasColumnType("boolean");
+
                     b.Property<int>("Kind")
                         .HasColumnType("integer");
 
@@ -882,6 +898,16 @@ namespace POSApp.Persistence.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<int?>("UpdatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("VoidReason")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<DateTimeOffset?>("VoidedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("VoidedByUserId")
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
@@ -1011,6 +1037,9 @@ namespace POSApp.Persistence.Migrations
                     b.Property<int?>("CreatedByUserId")
                         .HasColumnType("integer");
 
+                    b.Property<bool>("IsVoided")
+                        .HasColumnType("boolean");
+
                     b.Property<int>("Method")
                         .HasColumnType("integer");
 
@@ -1040,6 +1069,16 @@ namespace POSApp.Persistence.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<int?>("UpdatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("VoidReason")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<DateTimeOffset?>("VoidedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("VoidedByUserId")
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
@@ -1705,6 +1744,9 @@ namespace POSApp.Persistence.Migrations
                     b.Property<int?>("CustomerBalanceId")
                         .HasColumnType("integer");
 
+                    b.Property<bool>("IsVoided")
+                        .HasColumnType("boolean");
+
                     b.Property<int>("Method")
                         .HasColumnType("integer");
 
@@ -1734,6 +1776,16 @@ namespace POSApp.Persistence.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<int?>("UpdatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("VoidReason")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<DateTimeOffset?>("VoidedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("VoidedByUserId")
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
@@ -1939,6 +1991,9 @@ namespace POSApp.Persistence.Migrations
                     b.Property<int?>("CreatedByUserId")
                         .HasColumnType("integer");
 
+                    b.Property<bool>("IsVoided")
+                        .HasColumnType("boolean");
+
                     b.Property<int>("Kind")
                         .HasColumnType("integer");
 
@@ -1977,6 +2032,16 @@ namespace POSApp.Persistence.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<int?>("UpdatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("VoidReason")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<DateTimeOffset?>("VoidedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("VoidedByUserId")
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
@@ -2043,6 +2108,11 @@ namespace POSApp.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)");
+
+                    b.Property<int>("ReorderLevel")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(5);
 
                     b.Property<decimal>("SellingPrice")
                         .HasPrecision(18, 2)
@@ -2529,6 +2599,9 @@ namespace POSApp.Persistence.Migrations
                     b.Property<string>("Notes")
                         .HasColumnType("text");
 
+                    b.Property<int?>("OriginalSaleId")
+                        .HasColumnType("integer");
+
                     b.Property<string>("ReceiptNumber")
                         .IsRequired()
                         .HasMaxLength(64)
@@ -2574,6 +2647,8 @@ namespace POSApp.Persistence.Migrations
                     b.HasIndex("CashierId");
 
                     b.HasIndex("CustomerId");
+
+                    b.HasIndex("OriginalSaleId");
 
                     b.HasIndex("ReceiptNumber")
                         .IsUnique();
@@ -2719,6 +2794,9 @@ namespace POSApp.Persistence.Migrations
                     b.Property<DateOnly>("Date")
                         .HasColumnType("date");
 
+                    b.Property<bool>("IsVoided")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("Notes")
                         .IsRequired()
                         .HasMaxLength(2000)
@@ -2734,6 +2812,16 @@ namespace POSApp.Persistence.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<int?>("UpdatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("VoidReason")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<DateTimeOffset?>("VoidedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("VoidedByUserId")
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
@@ -2879,6 +2967,9 @@ namespace POSApp.Persistence.Migrations
                     b.Property<int?>("CreatedByUserId")
                         .HasColumnType("integer");
 
+                    b.Property<bool>("IsVoided")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("Reason")
                         .IsRequired()
                         .HasMaxLength(2000)
@@ -2898,6 +2989,16 @@ namespace POSApp.Persistence.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<int?>("UpdatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("VoidReason")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<DateTimeOffset?>("VoidedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("VoidedByUserId")
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
@@ -2986,6 +3087,9 @@ namespace POSApp.Persistence.Migrations
                     b.Property<int>("DestinationLocationId")
                         .HasColumnType("integer");
 
+                    b.Property<bool>("IsVoided")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("Notes")
                         .IsRequired()
                         .HasMaxLength(2000)
@@ -3004,6 +3108,16 @@ namespace POSApp.Persistence.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<int?>("UpdatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("VoidReason")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<DateTimeOffset?>("VoidedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("VoidedByUserId")
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
@@ -3242,6 +3356,9 @@ namespace POSApp.Persistence.Migrations
                     b.Property<int?>("CreatedByUserId")
                         .HasColumnType("integer");
 
+                    b.Property<bool>("IsVoided")
+                        .HasColumnType("boolean");
+
                     b.Property<int>("Method")
                         .HasColumnType("integer");
 
@@ -3270,6 +3387,16 @@ namespace POSApp.Persistence.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<int?>("UpdatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("VoidReason")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<DateTimeOffset?>("VoidedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("VoidedByUserId")
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
@@ -3337,6 +3464,10 @@ namespace POSApp.Persistence.Migrations
 
                     b.Property<string>("SecurityStamp")
                         .HasColumnType("text");
+
+                    b.Property<string>("TimeZoneId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
 
                     b.Property<bool>("TwoFactorEnabled")
                         .HasColumnType("boolean");
@@ -3999,6 +4130,11 @@ namespace POSApp.Persistence.Migrations
                         .HasForeignKey("CustomerId")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.HasOne("POSApp.Persistence.Entities.Sale", "OriginalSale")
+                        .WithMany()
+                        .HasForeignKey("OriginalSaleId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("POSApp.Persistence.Entities.StockLocation", "StockLocation")
                         .WithMany()
                         .HasForeignKey("StockLocationId")
@@ -4008,6 +4144,8 @@ namespace POSApp.Persistence.Migrations
                     b.Navigation("Cashier");
 
                     b.Navigation("Customer");
+
+                    b.Navigation("OriginalSale");
 
                     b.Navigation("StockLocation");
                 });

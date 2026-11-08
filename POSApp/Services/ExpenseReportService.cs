@@ -4,11 +4,12 @@ using Microsoft.EntityFrameworkCore;
 using POSApp.Client.DTOs;
 using POSApp.Client.Enums;
 using POSApp.Client.Security;
+using POSApp.Client.Services;
 using POSApp.Persistence;
 
 namespace POSApp.Services;
 
-public sealed class ExpenseReportService(IServiceScopeFactory scopes, IConfiguration configuration)
+public sealed class ExpenseReportService(IServiceScopeFactory scopes, IConfiguration configuration, UserTimeZone userTime)
 {
     public async Task<ExpenseReportDto> GetExpenseReportAsync(
         ClaimsPrincipal actor, string? period, DateOnly? start, DateOnly? end,
@@ -24,7 +25,7 @@ public sealed class ExpenseReportService(IServiceScopeFactory scopes, IConfigura
         var query = db.Expenses.AsNoTracking()
             .Include(e => e.StockLocation)
             .Include(e => e.CategoryDefinition)
-            .Where(e => e.OccurredAt >= range.FromUtc && e.OccurredAt < range.ToUtc);
+            .Where(e => !e.IsVoided && e.OccurredAt >= range.FromUtc && e.OccurredAt < range.ToUtc);
 
         if (locationId.HasValue)
         {
@@ -173,7 +174,7 @@ public sealed class ExpenseReportService(IServiceScopeFactory scopes, IConfigura
         {
             var notesEscaped = $"\"{item.Notes.Replace("\"", "\"\"")}\"";
             var receiptEscaped = item.ReceiptReference != null ? $"\"{item.ReceiptReference.Replace("\"", "\"\"")}\"" : "";
-            sb.AppendLine($"{item.Id},{item.OccurredAt:yyyy-MM-dd HH:mm},{item.LocationName},{item.CategoryName},{item.Amount:F2},{item.Method},{receiptEscaped},{notesEscaped},{item.CreatedByUserName}");
+            sb.AppendLine($"{item.Id},{userTime.Format(item.OccurredAt, "yyyy-MM-dd HH:mm")},{item.LocationName},{item.CategoryName},{item.Amount:F2},{item.Method},{receiptEscaped},{notesEscaped},{item.CreatedByUserName}");
         }
 
         return sb.ToString();

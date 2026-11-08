@@ -385,8 +385,8 @@ else
         new("custom", "Custom")
     ];
 
-    private DateOnly EffectiveStart => Data?.StartDate ?? DateOnly.FromDateTime(DateTime.UtcNow);
-    private DateOnly EffectiveEnd => Data?.EndDate ?? DateOnly.FromDateTime(DateTime.UtcNow);
+    private DateOnly EffectiveStart => Data?.StartDate ?? UserTime.Today();
+    private DateOnly EffectiveEnd => Data?.EndDate ?? UserTime.Today();
     private string Currency => Configuration["CurrencyCode"] ?? "BDT";
 
     private IReadOnlyList<MarginMatrixRow> FilteredItems => Data?.Items.Where(i =>

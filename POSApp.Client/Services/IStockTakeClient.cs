@@ -10,4 +10,5 @@ public interface IStockTakeClient
     Task<StockTakePage> SaveAsync(int id, StockTakeSave input);
     Task<StockTakePage> RefreshAsync(int id, StockTakeRefresh input);
     Task<StockTakePage> ApplyAsync(int id, StockTakeApply input);
+    Task DiscardDraftAsync(int id);
 }

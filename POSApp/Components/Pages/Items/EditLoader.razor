@@ -64,6 +64,7 @@ else
                 Input.IsNonStocked = detail.Item.IsNonStocked;
                 Input.CostPrice = detail.Item.Cost ?? 0;
                 Input.SellingPrice = detail.Item.Price;
+                Input.ReorderLevel = detail.Item.ReorderLevel;
                 Input.Description = detail.Description;
                 Input.CategoryId = detail.CategoryId;
                 Input.Attributes = detail.Attributes.Select(value =>

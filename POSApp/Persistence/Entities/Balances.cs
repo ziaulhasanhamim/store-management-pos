@@ -84,4 +84,8 @@ public sealed class DebtEntry : BalanceEntry
     public PaymentMethod? Method { get; set; }
     public int? CashLocationId { get; set; }
     public StockLocation? CashLocation { get; set; }
+    public bool IsVoided { get; set; }
+    public DateTimeOffset? VoidedAt { get; set; }
+    public int? VoidedByUserId { get; set; }
+    public string? VoidReason { get; set; }
 }

@@ -4,6 +4,7 @@ using POSApp.Client.DTOs;
 using POSApp.Client.Enums;
 using POSApp.Client.Security;
 using POSApp.Persistence;
+using POSApp.Security;
 
 namespace POSApp.Services;
 
@@ -24,7 +25,8 @@ public sealed class AnalyticsService(IServiceScopeFactory scopes, IConfiguration
     {
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        await StoreAccess.RequireAsync(db, actor, AppRoles.SalesAssociate, ct);
+        var actorId = await StoreAccess.RequireAsync(db, actor, AppRoles.SalesAssociate, ct);
+        var canSeeCost = await RolePermissionService.HasPolicyAsync(db, actorId, AppPolicies.ViewCostPrice, ct);
 
         var fromUtc = Utc(startDate);
         var throughUtc = Utc(endDate.AddDays(1));
@@ -52,18 +54,18 @@ public sealed class AnalyticsService(IServiceScopeFactory scopes, IConfiguration
             .ToListAsync(ct);
 
         var overallRevenue = saleItems.Sum(i => i.TotalAmount);
-        var overallCost = saleItems.Sum(i => decimal.Round(i.UnitCost * i.Quantity, 2, MidpointRounding.AwayFromZero));
-        var overallProfit = overallRevenue - overallCost;
-        var overallMargin = overallRevenue > 0 ? (overallProfit / overallRevenue * 100) : 0m;
+        var overallCost = canSeeCost ? saleItems.Sum(i => decimal.Round(i.UnitCost * i.Quantity, 2, MidpointRounding.AwayFromZero)) : 0m;
+        var overallProfit = canSeeCost ? overallRevenue - overallCost : 0m;
+        var overallMargin = canSeeCost && overallRevenue > 0 ? (overallProfit / overallRevenue * 100) : 0m;
 
         var categories = saleItems
             .GroupBy(i => new { i.CategoryId, i.CategoryName })
             .Select(g =>
             {
                 var revenue = g.Sum(x => x.TotalAmount);
-                var cost = g.Sum(x => decimal.Round(x.UnitCost * x.Quantity, 2, MidpointRounding.AwayFromZero));
-                var profit = revenue - cost;
-                var margin = revenue > 0 ? (profit / revenue * 100) : 0m;
+                var cost = canSeeCost ? g.Sum(x => decimal.Round(x.UnitCost * x.Quantity, 2, MidpointRounding.AwayFromZero)) : 0m;
+                var profit = canSeeCost ? revenue - cost : 0m;
+                var margin = canSeeCost && revenue > 0 ? (profit / revenue * 100) : 0m;
                 var share = overallRevenue > 0 ? (revenue / overallRevenue * 100) : 0m;
                 var topProduct = g.GroupBy(x => x.ProductName)
                     .OrderByDescending(px => px.Sum(p => p.TotalAmount))
@@ -108,7 +110,8 @@ public sealed class AnalyticsService(IServiceScopeFactory scopes, IConfiguration
     {
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        await StoreAccess.RequireAsync(db, actor, AppRoles.SalesAssociate, ct);
+        var actorId = await StoreAccess.RequireAsync(db, actor, AppRoles.SalesAssociate, ct);
+        var canSeeCost = await RolePermissionService.HasPolicyAsync(db, actorId, AppPolicies.ViewCostPrice, ct);
 
         var fromUtc = Utc(startDate);
         var throughUtc = Utc(endDate.AddDays(1));
@@ -157,18 +160,18 @@ public sealed class AnalyticsService(IServiceScopeFactory scopes, IConfiguration
             .ToDictionaryAsync(s => s.Id, s => s.Name, ct);
 
         var overallRevenue = saleItems.Sum(i => i.TotalAmount);
-        var overallCost = saleItems.Sum(i => decimal.Round(i.UnitCost * i.Quantity, 2, MidpointRounding.AwayFromZero));
-        var overallProfit = overallRevenue - overallCost;
-        var overallStockVal = stockBySupplier.Values.Sum(s => s.Value);
+        var overallCost = canSeeCost ? saleItems.Sum(i => decimal.Round(i.UnitCost * i.Quantity, 2, MidpointRounding.AwayFromZero)) : 0m;
+        var overallProfit = canSeeCost ? overallRevenue - overallCost : 0m;
+        var overallStockVal = canSeeCost ? stockBySupplier.Values.Sum(s => s.Value) : 0m;
 
         var suppliers = allSupplierIds
             .Select(supId =>
             {
                 var items = saleItems.Where(x => x.SupplierId == supId).ToList();
                 var rev = items.Sum(x => x.TotalAmount);
-                var cost = items.Sum(x => decimal.Round(x.UnitCost * x.Quantity, 2, MidpointRounding.AwayFromZero));
-                var profit = rev - cost;
-                var margin = rev > 0 ? (profit / rev * 100) : 0m;
+                var cost = canSeeCost ? items.Sum(x => decimal.Round(x.UnitCost * x.Quantity, 2, MidpointRounding.AwayFromZero)) : 0m;
+                var profit = canSeeCost ? rev - cost : 0m;
+                var margin = canSeeCost && rev > 0 ? (profit / rev * 100) : 0m;
                 var stock = stockBySupplier.GetValueOrDefault(supId);
 
                 return new SupplierSalesRow(
@@ -181,7 +184,7 @@ public sealed class AnalyticsService(IServiceScopeFactory scopes, IConfiguration
                     profit,
                     decimal.Round(margin, 1),
                     stock?.Units ?? 0m,
-                    stock?.Value ?? 0m
+                    canSeeCost ? (stock?.Value ?? 0m) : 0m
                 );
             })
             .Where(s => s.TotalRevenue > 0 || s.CurrentStockUnits > 0)
@@ -350,7 +353,8 @@ public sealed class AnalyticsService(IServiceScopeFactory scopes, IConfiguration
     {
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        await StoreAccess.RequireAsync(db, actor, AppRoles.SalesAssociate, ct);
+        var actorId = await StoreAccess.RequireAsync(db, actor, AppRoles.SalesAssociate, ct);
+        var canSeeCost = await RolePermissionService.HasPolicyAsync(db, actorId, AppPolicies.ViewCostPrice, ct);
 
         var fromUtc = Utc(startDate);
         var throughUtc = Utc(endDate.AddDays(1));
@@ -383,9 +387,9 @@ public sealed class AnalyticsService(IServiceScopeFactory scopes, IConfiguration
                 var first = g.First();
                 var vol = g.Sum(x => x.Quantity);
                 var rev = g.Sum(x => x.TotalAmount);
-                var cost = g.Sum(x => decimal.Round(x.UnitCost * x.Quantity, 2, MidpointRounding.AwayFromZero));
-                var profit = rev - cost;
-                var margin = rev > 0 ? (profit / rev * 100) : 0m;
+                var cost = canSeeCost ? g.Sum(x => decimal.Round(x.UnitCost * x.Quantity, 2, MidpointRounding.AwayFromZero)) : 0m;
+                var profit = canSeeCost ? rev - cost : 0m;
+                var margin = canSeeCost && rev > 0 ? (profit / rev * 100) : 0m;
 
                 return new
                 {
@@ -474,7 +478,8 @@ public sealed class AnalyticsService(IServiceScopeFactory scopes, IConfiguration
     {
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        await StoreAccess.RequireAsync(db, actor, AppRoles.SalesAssociate, ct);
+        var actorId = await StoreAccess.RequireAsync(db, actor, AppRoles.SalesAssociate, ct);
+        var canSeeCost = await RolePermissionService.HasPolicyAsync(db, actorId, AppPolicies.ViewCostPrice, ct);
 
         var fromUtc = Utc(startDate);
         var throughUtc = Utc(endDate.AddDays(1));
@@ -512,7 +517,7 @@ public sealed class AnalyticsService(IServiceScopeFactory scopes, IConfiguration
             .ToDictionary(g => g.Key, g => new
             {
                 Revenue = g.Sum(x => x.TotalAmount),
-                Profit = g.Sum(x => x.TotalAmount - costBySale.GetValueOrDefault(x.Id)),
+                Profit = canSeeCost ? g.Sum(x => x.TotalAmount - costBySale.GetValueOrDefault(x.Id)) : 0m,
                 Orders = g.Count()
             });
 

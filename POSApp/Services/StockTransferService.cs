@@ -200,7 +200,7 @@ public sealed class StockTransferService(IServiceScopeFactory scopes, IConfigura
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         await StoreAccess.RequireAsync(db, actor, AppRoles.InventoryManager, ct);
-        return await db.StockTransferItems.OrderByDescending(item => item.StockTransferId).ThenBy(item => item.Id)
+        return await db.StockTransferItems.Where(item => !item.StockTransfer!.IsVoided).OrderByDescending(item => item.StockTransferId).ThenBy(item => item.Id)
             .Select(item => new TransferRow(item.StockTransferId, item.StockTransfer!.OccurredAt, item.Product!.Name,
                 item.StockTransfer.SourceLocation!.Name, item.StockTransfer.DestinationLocation!.Name,
                 item.Quantity, item.StockTransfer.Notes)).ToPageAsync(page, pageSize, ct);
@@ -210,7 +210,7 @@ public sealed class StockTransferService(IServiceScopeFactory scopes, IConfigura
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         await StoreAccess.RequireAsync(db, actor, AppRoles.InventoryManager, ct);
-        return await db.StockTransferItems.OrderByDescending(item => item.StockTransferId).ThenBy(item => item.Id).Take(100)
+        return await db.StockTransferItems.Where(item => !item.StockTransfer!.IsVoided).OrderByDescending(item => item.StockTransferId).ThenBy(item => item.Id).Take(100)
             .Select(item => new TransferRow(item.StockTransferId, item.StockTransfer!.OccurredAt, item.Product!.Name,
                 item.StockTransfer.SourceLocation!.Name, item.StockTransfer.DestinationLocation!.Name,
                 item.Quantity, item.StockTransfer.Notes)).ToArrayAsync(ct);

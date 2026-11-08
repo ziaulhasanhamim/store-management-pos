@@ -49,7 +49,38 @@
                 </label>
                 @if (ReturnMode)
                 {
-                    <p class="text-xs text-slate-500">Use the original net unit price for returns. Returns and new sales can share the same bill.</p>
+                    <div class="rounded-xl border border-amber-200 bg-amber-50/60 p-3 sm:p-4 space-y-2.5">
+                        <p class="text-xs text-amber-800">Use original unit prices for returns. You can also look up an original sale receipt to load its items automatically.</p>
+                        <div class="flex flex-col sm:flex-row sm:items-end gap-2">
+                            <div class="flex-1">
+                                <label class="field-label text-amber-900" for="return-receipt-search">Original Receipt Number</label>
+                                <input id="return-receipt-search" class="field bg-white" placeholder="e.g. SAL-1001" @bind="ReturnReceiptSearch" @onkeydown="ReturnReceiptKeyAsync" />
+                            </div>
+                            <button type="button" class="btn-secondary text-xs sm:text-sm px-4 py-2.5 whitespace-nowrap" disabled="@(string.IsNullOrWhiteSpace(ReturnReceiptSearch) || Busy)" @onclick="LookupReturnReceiptAsync">
+                                @(LookingUpReceipt ? "Looking up…" : "Lookup Receipt")
+                            </button>
+                        </div>
+                        @if (ReturnReceiptError is not null)
+                        {
+                            <p class="text-xs text-red-600">@ReturnReceiptError</p>
+                        }
+                        @if (LoadedReturnBill is not null)
+                        {
+                            <div class="rounded-lg border border-amber-300 bg-white p-2.5 text-xs text-slate-700 flex flex-wrap items-center justify-between gap-2">
+                                <div>
+                                    <strong class="text-slate-900">@LoadedReturnBill.Number</strong>
+                                    <span class="text-slate-500 ml-1">(@LoadedReturnBill.Lines.Length items · Total @Money(LoadedReturnBill.Total))</span>
+                                    @if (!string.IsNullOrWhiteSpace(LoadedReturnBill.Customer))
+                                    {
+                                        <span class="block text-slate-500 mt-0.5">Customer: @LoadedReturnBill.Customer</span>
+                                    }
+                                </div>
+                                <button type="button" class="btn-primary text-xs px-3 py-1.5" @onclick="LoadReturnLinesAsync" disabled="@Busy">
+                                    Load as Return Items
+                                </button>
+                            </div>
+                        }
+                    </div>
                 }
                 @if (Searching)
                 {
@@ -233,16 +264,24 @@
                 </div>
                 @if (Options.Drafts.Length > 0)
                 {
-                    <label class="block">
-                        <span class="field-label">Resume draft</span>
-                        <select class="field" value="" @onchange="ResumeAsync">
-                            <option value="">Choose draft…</option>
-                            @foreach (var draft in Options.Drafts)
+                    <div class="space-y-1.5">
+                        <span class="field-label">Drafts (@Options.Drafts.Length)</span>
+                        <div class="flex items-center gap-2">
+                            <select class="field flex-1" value="@(IsCurrentDraft ? RequestId.ToString() : "")" @onchange="ResumeAsync">
+                                <option value="">Choose draft to resume…</option>
+                                @foreach (var draft in Options.Drafts)
+                                {
+                                    <option value="@draft.RequestId">@draft.Number · @draft.Customer · @Money(draft.Total)</option>
+                                }
+                            </select>
+                            @if (IsCurrentDraft)
                             {
-                                <option value="@draft.RequestId">@draft.Number · @draft.Customer · @Money(draft.Total)</option>
+                                <button type="button" class="btn-secondary text-xs text-red-600 hover:text-red-700 hover:border-red-300 px-3 py-2.5 whitespace-nowrap" disabled="@Busy" @onclick="DiscardActiveDraftAsync" title="Discard this uncompleted draft">
+                                    Discard
+                                </button>
                             }
-                        </select>
-                    </label>
+                        </div>
+                    </div>
                 }
             </div>
         </section>

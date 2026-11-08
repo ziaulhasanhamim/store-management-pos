@@ -49,6 +49,14 @@
     private bool Matches(string prefix)
     {
         var path = new Uri(Navigation.Uri).AbsolutePath;
-        return path == prefix || path.StartsWith(prefix + "/", StringComparison.OrdinalIgnoreCase);
+        var parts = prefix.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        foreach (var p in parts)
+        {
+            if (path.Equals(p, StringComparison.OrdinalIgnoreCase) || path.StartsWith(p + "/", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+        return false;
     }
 }

@@ -28,6 +28,8 @@ public sealed class Sale : SoftDeletableEntity
     public decimal TenderedAmount { get; set; }
     public decimal DraftPaymentAmount { get; set; }
     public PaymentMethod DraftPaymentMethod { get; set; } = PaymentMethod.Cash;
+    public int? OriginalSaleId { get; set; }
+    public Sale? OriginalSale { get; set; }
     public string? Notes { get; set; }
     public ICollection<SaleDraftPayment> DraftPayments { get; set; } = [];
     public ICollection<SaleItem> Items { get; set; } = [];
@@ -68,6 +70,10 @@ public sealed class Payment : AuditableEntity
     public DateTimeOffset PaidAt { get; set; } = DateTimeOffset.UtcNow;
     public string? Reference { get; set; }
     public string? Notes { get; set; }
+    public bool IsVoided { get; set; }
+    public DateTimeOffset? VoidedAt { get; set; }
+    public int? VoidedByUserId { get; set; }
+    public string? VoidReason { get; set; }
 }
 
 public sealed class SaleDraftPayment : Entity

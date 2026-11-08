@@ -1,4 +1,5 @@
 @inject IStockTakeClient Takes
+@inject NavigationManager Navigation
 
 @if (RecoveryReady && Data.CanEdit)
 {
@@ -104,6 +105,17 @@ else if (ConfirmRefresh)
         <div class="flex gap-3">
             <button type="button" class="btn-secondary" @onclick="() => ConfirmRefresh = false" disabled="@Busy">Cancel</button>
             <button type="button" class="btn-primary" @onclick="RefreshAsync" disabled="@(Busy || HasInvalid)">Save & refresh</button>
+        </div>
+    </section>
+}
+else if (ConfirmDiscard)
+{
+    <section class="panel mb-6 border-rose-200 bg-rose-50/50 p-5">
+        <h2 class="mb-2 text-lg font-semibold text-rose-900">Discard this uncompleted count?</h2>
+        <p class="mb-4 text-sm text-rose-800">This uncompleted stock take draft will be discarded. No inventory adjustments will be made.</p>
+        <div class="flex gap-3">
+            <button type="button" class="btn-secondary" @onclick="() => ConfirmDiscard = false" disabled="@Busy">Keep counting</button>
+            <button type="button" class="btn-secondary text-white! bg-rose-600! hover:bg-rose-700! border-transparent" @onclick="DiscardDraftAsync" disabled="@Busy">@(Busy ? "Discarding…" : "Confirm discard")</button>
         </div>
     </section>
 }
@@ -368,6 +380,7 @@ else if (ConfirmRefresh)
         <div class="mt-4 flex flex-wrap items-center gap-3">
             <button type="button" class="btn-secondary" @onclick="SaveDraftAsync" disabled="@(!RendererInfo.IsInteractive || !RecoveryReady || !ServerRecoveryReady || Recovery is not null || Busy || HasInvalid)">@(Busy ? "Saving…" : "Save draft")</button>
             <button type="button" class="btn-primary" @onclick="ReviewAsync" disabled="@(!RendererInfo.IsInteractive || !RecoveryReady || !ServerRecoveryReady || Recovery is not null || Busy || HasInvalid || BatchRows.Count > 0 || !Rows.Any(row => row.Count.HasValue) || string.IsNullOrWhiteSpace(Reason))">Review adjustments</button>
+            <button type="button" class="btn-secondary text-rose-600! hover:text-rose-700! hover:border-rose-300!" @onclick="() => ConfirmDiscard = true" disabled="@(!RendererInfo.IsInteractive || Busy)">Discard count</button>
             <span class="text-xs text-slate-500">@SaveStatus</span>
         </div>
     }

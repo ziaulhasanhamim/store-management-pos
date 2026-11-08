@@ -213,7 +213,9 @@ public partial class MoneyEntryEditor
             await Entries.DeleteAsync(Data.Kind, row.Id);
             Notice = IsExpense
                 ? $"Expense #{row.Id} was successfully voided."
-                : $"Payment #{row.Id} was successfully voided. The supplier balance has been restored.";
+                : IsSupplier
+                    ? $"Payment #{row.Id} was successfully voided. The supplier balance has been restored."
+                    : $"Collection #{row.Id} was successfully voided. The customer balance has been restored.";
             Data = await Entries.ReadAsync(Data.Kind, Data.Date, Data.Pagination?.Number ?? 1, Data.Pagination?.Size ?? 30);
         }
         catch (Exception exception)

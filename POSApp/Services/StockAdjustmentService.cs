@@ -50,7 +50,7 @@ public sealed partial class StockAdjustmentService(IServiceScopeFactory scopes, 
                 return Result(previous);
             }
             await ValidateLocationAsync(db, input.LocationId, ct);
-            await AccountingCalendar.EnsureOpenAsync(db, input.Date, ct);
+            await AccountingCalendar.EnsureOpenAsync(db, input.Date, ct, requireDayOpened: false);
             var month = new DateOnly(input.Date.Year, input.Date.Month, 1);
             if (await db.FinanceClosings.AnyAsync(closing => closing.ClosedAt != null
                 && ((closing.Kind == ClosingKind.Day && closing.Date >= input.Date)
@@ -75,6 +75,7 @@ public sealed partial class StockAdjustmentService(IServiceScopeFactory scopes, 
                 CreatedByUserId = actorId
             };
             db.StockAdjustments.Add(adjustment);
+            var costHistories = new List<ProductCostHistory>();
             foreach (var entry in input.Items)
             {
                 var product = products[entry.ProductId];
@@ -100,17 +101,19 @@ public sealed partial class StockAdjustmentService(IServiceScopeFactory scopes, 
 
                     if (product.CostPrice != oldCost)
                     {
-                        db.ProductCostHistories.Add(new ProductCostHistory
+                        var history = new ProductCostHistory
                         {
                             ProductId = product.Id,
                             OldCostPrice = oldCost,
                             NewCostPrice = product.CostPrice,
-                            Reason = $"Stock adjustment #{adjustment.Id}",
+                            Reason = "Stock adjustment",
                             ReferenceType = "StockAdjustment",
-                            ReferenceId = adjustment.Id,
+                            ReferenceId = 0,
                             CreatedByUserId = actorId,
                             CreatedAt = DateTimeOffset.UtcNow
-                        });
+                        };
+                        costHistories.Add(history);
+                        db.ProductCostHistories.Add(history);
                     }
                 }
                 if (product.CostPrice != 0 && Math.Abs(resultingQuantity) > MaximumMoney / product.CostPrice)
@@ -171,6 +174,11 @@ public sealed partial class StockAdjustmentService(IServiceScopeFactory scopes, 
                 });
             }
             await db.SaveChangesAsync(ct);
+            foreach (var history in costHistories)
+            {
+                history.ReferenceId = adjustment.Id;
+                history.Reason = $"Stock adjustment #{adjustment.Id}";
+            }
             db.RecordChanges.Add(new RecordChange
             {
                 RequestId = input.RequestId,

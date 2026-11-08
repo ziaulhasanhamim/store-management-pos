@@ -7,6 +7,10 @@ public sealed class StockAdjustment : AuditableEntity
     public StockLocation? StockLocation { get; set; }
     public DateOnly Date { get; set; }
     public string Notes { get; set; } = "";
+    public bool IsVoided { get; set; }
+    public DateTimeOffset? VoidedAt { get; set; }
+    public int? VoidedByUserId { get; set; }
+    public string? VoidReason { get; set; }
     public ICollection<StockAdjustmentItem> Items { get; set; } = [];
 }
 

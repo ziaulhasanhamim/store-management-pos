@@ -58,12 +58,12 @@ public sealed class ReceivingReportService(IServiceScopeFactory scopes, IConfigu
                 Quantity = p.Items.Select(i => (decimal?)i.Quantity).Sum() ?? 0,
                 Value = p.TotalAmount,
                 Number = p.PurchaseNumber,
-                Paid = p.Payments.Select(pm => (decimal?)pm.Amount).Sum() ?? 0,
-                Unpaid = p.TotalAmount - (p.Payments.Select(pm => (decimal?)pm.Amount).Sum() ?? 0)
+                Paid = p.Payments.Where(pm => !pm.IsVoided).Select(pm => (decimal?)pm.Amount).Sum() ?? 0,
+                Unpaid = p.TotalAmount - (p.Payments.Where(pm => !pm.IsVoided).Select(pm => (decimal?)pm.Amount).Sum() ?? 0)
             });
 
             var transfersQuery = db.StockTransfers.AsNoTracking()
-                .Where(t => t.OccurredAt >= range.FromUtc && t.OccurredAt < range.ToUtc);
+                .Where(t => !t.IsVoided && t.OccurredAt >= range.FromUtc && t.OccurredAt < range.ToUtc);
 
             if (term.Length > 0)
             {

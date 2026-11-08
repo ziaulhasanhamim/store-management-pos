@@ -53,6 +53,9 @@ internal static class FinancePositionReader
             .Where(move => move.Type != InventoryMovementType.TransactionReversal
                 && (move.PurchaseItem == null || !move.PurchaseItem.Purchase!.IsDeleted)
                 && (move.SaleItem == null || !move.SaleItem.Sale!.IsDeleted)
+                && (move.StockAdjustmentItem == null || !move.StockAdjustmentItem.StockAdjustment!.IsVoided)
+                && (move.StockTakeItem == null || !move.StockTakeItem.StockTake!.IsVoided)
+                && (move.StockTransfer == null || !move.StockTransfer.IsVoided)
                 && (locationId == null || move.StockLocationId == locationId.Value));
         var revaluedIds = await activeMovements
             .Where(move => move.OccurredAt >= before && move.Quantity > 0

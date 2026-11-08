@@ -6,6 +6,11 @@ public static class InventoryServiceExtensions
 {
     public static IServiceCollection AddInventoryUi(this IServiceCollection services)
     {
+        services.AddHttpContextAccessor();
+        services.AddScoped<UserTimeZone>(sp =>
+            BusinessTime.ResolveUserTimeZone(
+                sp.GetService<IHttpContextAccessor>()?.HttpContext,
+                sp.GetRequiredService<IConfiguration>()));
         services.AddScoped<ImportActivity>();
         services.AddSingleton<IImportQueue, ImportQueue>();
         services.AddScoped<ImportService>();

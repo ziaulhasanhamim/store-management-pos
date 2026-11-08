@@ -35,6 +35,8 @@ public sealed class ServerStockTakeClient : IStockTakeClient, IDisposable
         await takes.RefreshAsync(await ActorAsync(), id, input);
     public async Task<StockTakePage> ApplyAsync(int id, StockTakeApply input) =>
         await takes.ApplyAsync(await ActorAsync(), id, input);
+    public async Task DiscardDraftAsync(int id) =>
+        await takes.DiscardDraftAsync(await ActorAsync(), id);
 
     public void Dispose() => authentication.AuthenticationStateChanged -= OnAuthenticationChanged;
 }

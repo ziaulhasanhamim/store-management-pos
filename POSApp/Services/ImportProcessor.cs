@@ -418,7 +418,7 @@ public sealed class ImportProcessor(IServiceScopeFactory scopes, IConfiguration 
                 throw new ValidationException("One or more old supplier IDs have already been imported. No suppliers were added.");
             }
             var date = input.Date ?? throw new ValidationException("The import has no accounting date. Upload the file again.");
-            await AccountingCalendar.EnsureOpenAsync(db, date, ct);
+            await AccountingCalendar.EnsureOpenAsync(db, date, ct, requireDayOpened: false);
             var occurredAt = AccountingCalendar.At(date, configuration);
             foreach (var row in rows)
             {

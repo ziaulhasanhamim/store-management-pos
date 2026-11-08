@@ -376,6 +376,12 @@ public static class DevelopmentDataSeeder
                 db.DayFinances.Add(dayFinance);
                 await db.SaveChangesAsync(cancellationToken);
             }
+            else
+            {
+                dayFinance.OpeningCash = drawer.CurrentCash;
+                dayFinance.ExpectedCash = drawer.CurrentCash;
+                await db.SaveChangesAsync(cancellationToken);
+            }
 
             // Ensure CashSession is open for active working day
             if (drawer.CurrentSession is null)

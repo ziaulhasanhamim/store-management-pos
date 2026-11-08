@@ -143,7 +143,7 @@ else if (Data is not null)
             }
             Selected = new(Selected.Year, Selected.Month, 1);
         }
-        Input ??= new() { Date = Selected.ToDateTime(TimeOnly.MinValue), Kind = Kind };
+        Input ??= new() { Date = Selected, Kind = Kind };
         Initialized = true;
         if (!HttpMethods.IsGet(HttpContext.Request.Method))
         {

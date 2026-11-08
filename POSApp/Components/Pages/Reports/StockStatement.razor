@@ -1,0 +1,243 @@
+@page "/reports/statements/stock"
+@attribute [Authorize(Policy = AppPolicies.ManageInventory)]
+@attribute [StreamRendering]
+@using System.ComponentModel.DataAnnotations
+@using POSApp.Client.DTOs
+@using POSApp.Client.Security
+@using StockStatementDto = POSApp.Client.DTOs.StockStatement
+@inject StatementService Statements
+@inject IConfiguration Configuration
+@inject ILogger<StockStatement> Logger
+
+<PageTitle>Item stock statement · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
+
+<div class="page-heading no-print">
+    <div>
+        <p class="eyebrow">Inventory ledger</p>
+        <h1>Item stock statement</h1>
+    </div>
+    <div class="flex gap-2">
+        <a href="/reports" class="btn-secondary">Reports</a>
+        <button type="button" class="btn-secondary" data-print>Print</button>
+    </div>
+</div>
+
+<div class="no-print mb-4 flex flex-wrap gap-2">
+    @foreach (var preset in Presets)
+    {
+        <a href="@Preset(preset.Key)" class="@(Period == preset.Key ? "filter-chip active" : "filter-chip")">@preset.Value</a>
+    }
+</div>
+
+<form method="get" action="/reports/statements/stock" class="no-print mb-6 flex flex-wrap items-end gap-3" data-enhance>
+    <input type="hidden" name="period" value="@Period" />
+    <div class="w-full sm:w-64">
+        <label for="stock-product" class="field-label">Product</label>
+        <select id="stock-product" name="productId" class="field">
+            @foreach (var p in Data?.AvailableProducts ?? [])
+            {
+                <option value="@p.Id" selected="@(Data?.ProductId == p.Id)">@p.Name</option>
+            }
+        </select>
+    </div>
+    <div class="w-full sm:w-52">
+        <label for="stock-location" class="field-label">Location</label>
+        <select id="stock-location" name="locationId" class="field">
+            <option value="" selected="@(Data?.LocationId == null)">All locations</option>
+            @foreach (var loc in Data?.AvailableLocations ?? [])
+            {
+                <option value="@loc.Id" selected="@(Data?.LocationId == loc.Id)">@loc.Name</option>
+            }
+        </select>
+    </div>
+    <div class="w-full sm:w-72">
+        <label class="field-label">Date range</label>
+        <DateRangePicker Id="stock-statement-date-range" Start="@(Data?.Range.Start ?? Start)" End="@(Data?.Range.End ?? End)" />
+    </div>
+    <button type="submit" class="btn-primary">View card</button>
+</form>
+
+@if (Error is not null)
+{
+    <p class="error-panel mb-6" role="alert">@Error</p>
+}
+
+@if (Data is not null)
+{
+    <div class="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        <div class="metric">
+            <p>Opening stock</p>
+            <strong>@Data.OpeningQuantity.ToString("0.###") @Data.Unit</strong>
+        </div>
+        <div class="metric">
+            <p>Total received / in</p>
+            <strong class="text-emerald-700">+@Data.InQuantity.ToString("0.###") @Data.Unit</strong>
+        </div>
+        <div class="metric">
+            <p>Total sold / out</p>
+            <strong class="text-rose-700">-@Data.OutQuantity.ToString("0.###") @Data.Unit</strong>
+        </div>
+        <div class="metric">
+            <p>Closing stock</p>
+            <strong>@Data.ClosingQuantity.ToString("0.###") @Data.Unit</strong>
+        </div>
+        <div class="metric">
+            <p>Current stock value</p>
+            <strong>@Money(Data.ClosingValue)</strong>
+            <span class="text-xs text-slate-500">@@ @Money(Data.CurrentCostPrice) / @Data.Unit</span>
+        </div>
+    </div>
+
+    <section class="panel table-scroll">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Date & Time</th>
+                    <th>Movement</th>
+                    <th>Reference</th>
+                    <th>Location</th>
+                    <th class="text-right">Change</th>
+                    <th class="text-right">Running balance</th>
+                    <th class="text-right">Unit cost</th>
+                    <th class="text-right">Value impact</th>
+                    <th>Notes</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (Data.Rows.Count == 0)
+                {
+                    <tr>
+                        <td colspan="9" class="p-6 text-center text-slate-500">No stock movements recorded in this period.</td>
+                    </tr>
+                }
+                @foreach (var row in Data.Rows)
+                {
+                    <tr>
+                        <td class="whitespace-nowrap">@UserTime.Format(row.OccurredAt, "dd MMM yyyy, HH:mm")</td>
+                        <td>
+                            <span class="badge @BadgeClass(row.QuantityChange)">@row.Type</span>
+                        </td>
+                        <td class="font-medium">
+                            @if (!string.IsNullOrEmpty(row.ReferenceUrl))
+                            {
+                                <a href="@row.ReferenceUrl" class="text-blue-600 hover:underline">@row.Reference</a>
+                            }
+                            else
+                            {
+                                <span>@row.Reference</span>
+                            }
+                        </td>
+                        <td>@row.LocationName</td>
+                        <td class="text-right font-semibold @(row.QuantityChange >= 0 ? "text-emerald-600" : "text-rose-600")">
+                            @(row.QuantityChange > 0 ? "+" : "")@row.QuantityChange.ToString("0.###") @Data.Unit
+                        </td>
+                        <td class="text-right font-medium">@row.RunningBalance.ToString("0.###") @Data.Unit</td>
+                        <td class="text-right">@Money(row.UnitCost)</td>
+                        <td class="text-right @(row.ValueChange >= 0 ? "text-emerald-600" : "text-rose-600")">
+                            @(row.ValueChange > 0 ? "+" : "")@Money(row.ValueChange)
+                        </td>
+                        <td class="max-w-xs truncate text-xs text-slate-500" title="@row.Notes">@(row.Notes ?? "—")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </section>
+
+    @if (TotalPages > 1)
+    {
+        <div class="no-print mt-4 flex items-center justify-between">
+            <p class="text-sm text-slate-500">Page @Data.CurrentPage of @TotalPages (@Data.TotalCount total movements)</p>
+            <div class="flex gap-2">
+                @if (Data.CurrentPage > 1)
+                {
+                    <a href="@PageUrl(Data.CurrentPage - 1)" class="btn-secondary text-sm">Previous</a>
+                }
+                @if (Data.CurrentPage < TotalPages)
+                {
+                    <a href="@PageUrl(Data.CurrentPage + 1)" class="btn-secondary text-sm">Next</a>
+                }
+            </div>
+        </div>
+    }
+}
+
+@code {
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromQuery]
+    public int? ProductId { get; set; }
+
+    [SupplyParameterFromQuery]
+    public int? LocationId { get; set; }
+
+    [SupplyParameterFromQuery]
+    public string Period { get; set; } = "month";
+
+    [SupplyParameterFromQuery]
+    public DateOnly? Start { get; set; }
+
+    [SupplyParameterFromQuery]
+    public DateOnly? End { get; set; }
+
+    [SupplyParameterFromQuery]
+    public int Page { get; set; } = 1;
+
+    private StockStatementDto? Data;
+    private string? Error;
+    private int TotalPages => Data is not null ? Math.Max(1, (Data.TotalCount + 49) / 50) : 1;
+
+    private static readonly IReadOnlyList<KeyValuePair<string, string>> Presets =
+    [
+        new("today", "Today"),
+        new("yesterday", "Yesterday"),
+        new("week", "This week"),
+        new("month", "This month"),
+        new("last-month", "Last month"),
+        new("year", "Year to date")
+    ];
+
+    private string Preset(string period)
+    {
+        var productPart = ProductId.HasValue ? $"&productId={ProductId}" : "";
+        var locationPart = LocationId.HasValue ? $"&locationId={LocationId}" : "";
+        return $"/reports/statements/stock?period={period}{productPart}{locationPart}";
+    }
+
+    private string PageUrl(int targetPage)
+    {
+        var productPart = ProductId.HasValue ? $"&productId={ProductId}" : "";
+        var locationPart = LocationId.HasValue ? $"&locationId={LocationId}" : "";
+        var datePart = Start.HasValue && End.HasValue ? $"&start={Start:yyyy-MM-dd}&end={End:yyyy-MM-dd}" : "";
+        return $"/reports/statements/stock?period={Period}&page={targetPage}{productPart}{locationPart}{datePart}";
+    }
+
+    private static string BadgeClass(decimal qtyChange) => qtyChange switch
+    {
+        > 0 => "bg-emerald-50 text-emerald-700 border-emerald-200",
+        < 0 => "bg-rose-50 text-rose-700 border-rose-200",
+        _ => "bg-slate-50 text-slate-700 border-slate-200"
+    };
+
+    private string Money(decimal amount) => $"{Configuration["CurrencyCode"] ?? "BDT"} {amount:N2}";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        Error = null;
+        Data = null;
+        try
+        {
+            Data = await Statements.StockAsync(HttpContext.User, ProductId, LocationId, Period, Start, End, Page, 50, HttpContext.RequestAborted);
+            ProductId = Data.ProductId;
+        }
+        catch (ValidationException ex)
+        {
+            Error = ex.Message;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Stock statement failed.");
+            Error = "Unable to load stock statement. Select a valid product and date range.";
+        }
+    }
+}

@@ -33,7 +33,7 @@ internal static class EmployeePayrollReader
             .GroupBy(salary => salary.EmployeeId)
             .Select(group => new { EmployeeId = group.Key, Amount = group.Sum(salary => salary.Amount - salary.SettledAmount) })
             .ToDictionaryAsync(row => row.EmployeeId, row => row.Amount, ct);
-        var totals = await db.PayrollEntries.AsNoTracking().Where(entry => entry.OccurredAt < end && employeeIds.Contains(entry.StaffAccount!.EmployeeId))
+        var totals = await db.PayrollEntries.AsNoTracking().Where(entry => !entry.IsVoided && entry.OccurredAt < end && employeeIds.Contains(entry.StaffAccount!.EmployeeId))
             .GroupBy(entry => entry.StaffAccount!.EmployeeId)
             .Select(group => new
             {
@@ -59,7 +59,7 @@ internal static class EmployeePayrollReader
                 Paid = total?.Paid ?? 0,
                 Bonus = total?.Bonus ?? 0,
                 PriorAdvance = total?.PriorAdvance ?? 0,
-                Remaining = (salary?.Amount ?? employee.MonthlySalary + broughtForward) - settled - advance
+                Remaining = Math.Max(0, (salary?.Amount ?? (employee.MonthlySalary + broughtForward)) - settled - Math.Max(0, advance))
             };
         }).ToArray();
         var pageIds = selected?.Items.Select(item => item.Id).ToHashSet();

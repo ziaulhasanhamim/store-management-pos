@@ -9,15 +9,15 @@ namespace POSApp.Services;
 public sealed class FinanceService(IServiceScopeFactory scopes, IConfiguration configuration)
 {
     public TimeZoneInfo Zone => TimeZoneInfo.FindSystemTimeZoneById(configuration["BusinessTimeZone"] ?? "Asia/Dhaka");
-    public DateTime Today => TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, Zone).Date;
+    public DateOnly Today => DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, Zone).DateTime);
 
-    public DateTimeOffset DateToUtc(DateTime date)
+    public DateTimeOffset DateToUtc(DateOnly date)
     {
-        if (date == default || date.Date > Today)
+        if (date == default || date > Today)
         {
             throw new ValidationException("Choose today or an earlier date.");
         }
-        var local = DateTime.SpecifyKind(date.Date, DateTimeKind.Unspecified);
+        var local = date.ToDateTime(TimeOnly.MinValue, DateTimeKind.Unspecified);
         return new DateTimeOffset(TimeZoneInfo.ConvertTimeToUtc(local, Zone), TimeSpan.Zero);
     }
 
@@ -194,7 +194,7 @@ public sealed class FinanceService(IServiceScopeFactory scopes, IConfiguration c
         ExpenseRow[] rows = [];
         if (!payrollOnly)
         {
-            var expenses = db.Expenses.AsNoTracking().Where(expense => expense.OccurredAt >= range.FromUtc
+            var expenses = db.Expenses.AsNoTracking().Where(expense => !expense.IsVoided && expense.OccurredAt >= range.FromUtc
                 && expense.OccurredAt < range.ToUtc && (admin || expense.CreatedByUserId == actorId));
             var summary = await expenses.GroupBy(expense => 1)
                 .Select(group => new { Total = group.Sum(expense => expense.Amount), Count = group.Count() }).SingleOrDefaultAsync(ct);
@@ -221,7 +221,7 @@ public sealed class FinanceService(IServiceScopeFactory scopes, IConfiguration c
         decimal outflow = 0;
         if (admin)
         {
-            var entries = db.PayrollEntries.AsNoTracking().Where(entry => entry.OccurredAt >= range.FromUtc && entry.OccurredAt < range.ToUtc);
+            var entries = db.PayrollEntries.AsNoTracking().Where(entry => !entry.IsVoided && entry.OccurredAt >= range.FromUtc && entry.OccurredAt < range.ToUtc);
             var payrollSummary = await entries.GroupBy(entry => 1).Select(group => new
             {
                 Advances = group.Sum(entry => entry.AdvanceCreated),
@@ -280,6 +280,8 @@ public sealed class FinanceService(IServiceScopeFactory scopes, IConfiguration c
                 }).ToListAsync(ct);
             var adjustments = await db.InventoryMovements.AsNoTracking()
                 .Where(move => (move.StockTakeItemId != null || move.StockAdjustmentItemId != null || move.Type == InventoryMovementType.Adjustment)
+                    && (move.StockAdjustmentItem == null || !move.StockAdjustmentItem.StockAdjustment!.IsVoided)
+                    && (move.StockTakeItem == null || !move.StockTakeItem.StockTake!.IsVoided)
                     && move.OccurredAt >= range.FromUtc && move.OccurredAt < range.ToUtc)
                 .Select(move => new { move.OccurredAt, move.Quantity, move.UnitCost }).ToArrayAsync(ct);
             var variance = adjustments.Select(move => new DatedAmount(move.OccurredAt,
@@ -299,9 +301,9 @@ public sealed class FinanceService(IServiceScopeFactory scopes, IConfiguration c
                     sale.Returns -= decimal.Round(line.UnitPrice * line.Quantity, 2, MidpointRounding.AwayFromZero);
                 }
             }
-            var expenses = await db.Expenses.AsNoTracking().Where(expense => expense.OccurredAt >= range.FromUtc && expense.OccurredAt < range.ToUtc)
+            var expenses = await db.Expenses.AsNoTracking().Where(expense => !expense.IsVoided && expense.OccurredAt >= range.FromUtc && expense.OccurredAt < range.ToUtc)
                 .Select(expense => new DatedAmount(expense.OccurredAt, expense.Amount)).ToListAsync(ct);
-            var payroll = await db.PayrollEntries.AsNoTracking().Where(entry => entry.OccurredAt >= range.FromUtc && entry.OccurredAt < range.ToUtc)
+            var payroll = await db.PayrollEntries.AsNoTracking().Where(entry => !entry.IsVoided && entry.OccurredAt >= range.FromUtc && entry.OccurredAt < range.ToUtc)
                 .Select(entry => new { entry.OccurredAt, entry.Kind, entry.Amount, entry.PaidAmount, entry.AdvanceCreated }).ToListAsync(ct);
             var accrued = payroll.Select(entry => new DatedAmount(entry.OccurredAt, entry.PaidAmount)).ToList();
             DateOnly Bucket(DateTimeOffset at)

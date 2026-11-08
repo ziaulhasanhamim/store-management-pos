@@ -4,6 +4,7 @@ using POSApp.Client.Services;
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
 
 builder.Services.AddScoped(_ => new HttpClient { BaseAddress = new Uri(builder.HostEnvironment.BaseAddress) });
+builder.Services.AddScoped(_ => new UserTimeZone(TimeZoneInfo.Local, TimeZoneInfo.Local.Id));
 builder.Services.AddScoped<HttpReceivingClient>();
 builder.Services.AddScoped<IReceivingClient>(provider => provider.GetRequiredService<HttpReceivingClient>());
 builder.Services.AddScoped<ISalesClient, HttpSalesClient>();

@@ -69,7 +69,7 @@ public sealed class PaymentClearingService(IServiceScopeFactory scopes, IConfigu
         var query = db.PaymentClearingEntries.AsNoTracking()
             .Where(e => e.Status == PaymentClearingStatus.Unsettled
                 && (locationId == null || e.StockLocationId == locationId.Value)
-                && (e.Payment == null || (!e.Payment.Sale!.IsDeleted && e.Payment.Sale.Status != SaleStatus.Voided)));
+                && (e.Payment == null || (!e.Payment.IsVoided && (e.Payment.SaleId == null || (!e.Payment.Sale!.IsDeleted && e.Payment.Sale.Status != SaleStatus.Voided)))));
 
         var entries = await query.Select(e => new { e.Method, e.GrossAmount, e.BusinessDate }).ToListAsync(ct);
 
@@ -108,7 +108,7 @@ public sealed class PaymentClearingService(IServiceScopeFactory scopes, IConfigu
             .Where(e => e.Status == PaymentClearingStatus.Unsettled
                 && e.StockLocationId == locationId
                 && e.Method == method
-                && (e.Payment == null || (!e.Payment.Sale!.IsDeleted && e.Payment.Sale.Status != SaleStatus.Voided)))
+                && (e.Payment == null || (!e.Payment.IsVoided && (e.Payment.SaleId == null || (!e.Payment.Sale!.IsDeleted && e.Payment.Sale.Status != SaleStatus.Voided)))))
             .OrderBy(e => e.BusinessDate)
             .ThenBy(e => e.Id)
             .Select(e => new ClearingSaleItemDto(
@@ -179,9 +179,9 @@ public sealed class PaymentClearingService(IServiceScopeFactory scopes, IConfigu
                 {
                     throw new ValidationException($"Transaction #{entry.Id} is already settled or reversed.");
                 }
-                if (entry.Payment?.Sale is not null && (entry.Payment.Sale.IsDeleted || entry.Payment.Sale.Status == SaleStatus.Voided))
+                if (entry.Payment is not null && (entry.Payment.IsVoided || (entry.Payment.Sale is not null && (entry.Payment.Sale.IsDeleted || entry.Payment.Sale.Status == SaleStatus.Voided))))
                 {
-                    throw new ValidationException($"Transaction #{entry.Id} belongs to a voided sale and cannot be cleared.");
+                    throw new ValidationException($"Transaction #{entry.Id} belongs to a voided payment or sale and cannot be cleared.");
                 }
                 if (entry.StockLocationId != input.StockLocationId)
                 {
@@ -343,7 +343,9 @@ public sealed class PaymentClearingService(IServiceScopeFactory scopes, IConfigu
 
         var unsettled = await db.PaymentClearingEntries.AsNoTracking()
             .Include(e => e.StockLocation)
-            .Where(e => e.Status == PaymentClearingStatus.Unsettled)
+            .Include(e => e.Payment).ThenInclude(p => p.Sale)
+            .Where(e => e.Status == PaymentClearingStatus.Unsettled
+                && (e.Payment == null || (!e.Payment.IsVoided && (e.Payment.SaleId == null || (!e.Payment.Sale!.IsDeleted && e.Payment.Sale.Status != SaleStatus.Voided)))))
             .ToListAsync(ct);
 
         return unsettled.GroupBy(e => new { e.StockLocationId, LocationName = e.StockLocation?.Name ?? "Store", e.Method })

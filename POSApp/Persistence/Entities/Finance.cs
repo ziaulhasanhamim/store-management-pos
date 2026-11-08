@@ -70,6 +70,10 @@ public sealed class Expense : AuditableEntity
     public DateTimeOffset OccurredAt { get; set; }
     public string? ReceiptReference { get; set; }
     public required string Notes { get; set; }
+    public bool IsVoided { get; set; }
+    public DateTimeOffset? VoidedAt { get; set; }
+    public int? VoidedByUserId { get; set; }
+    public string? VoidReason { get; set; }
 }
 
 public sealed class ExpenseCategoryDefinition : Entity
@@ -114,6 +118,10 @@ public sealed class PayrollEntry : AuditableEntity
     public decimal AdvanceBalanceAfter { get; set; }
     public PaymentMethod Method { get; set; }
     public required string Notes { get; set; }
+    public bool IsVoided { get; set; }
+    public DateTimeOffset? VoidedAt { get; set; }
+    public int? VoidedByUserId { get; set; }
+    public string? VoidReason { get; set; }
 }
 
 public sealed class Employee : SoftDeletableEntity
@@ -249,5 +257,9 @@ public sealed class CashTransfer : AuditableEntity
     public DateOnly BusinessDate { get; set; }
     public decimal Amount { get; set; }
     public required string Notes { get; set; }
+    public bool IsVoided { get; set; }
+    public DateTimeOffset? VoidedAt { get; set; }
+    public int? VoidedByUserId { get; set; }
+    public string? VoidReason { get; set; }
 }
 

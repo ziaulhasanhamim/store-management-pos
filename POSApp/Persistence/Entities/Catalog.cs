@@ -60,6 +60,7 @@ public sealed class Product : SoftDeletableEntity
     public string Unit { get; set; } = "piece";
     public bool AllowFractionUnit { get; set; }
     public bool IsNonStocked { get; set; }
+    public int ReorderLevel { get; set; } = 5;
     public decimal CostPrice { get; set; }
     public decimal SellingPrice { get; set; }
     public int SupplierId { get; set; }

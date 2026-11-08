@@ -1,33 +1,31 @@
 using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
-using Microsoft.EntityFrameworkCore;
 using POSApp.Persistence;
+using POSApp.Security;
 
 namespace POSApp.Services;
 
 public static class StoreAccess
 {
-    public static async Task<int> RequireAsync(AppDbContext db, ClaimsPrincipal actor, string role, CancellationToken ct = default)
+    public static async Task<int> RequireAsync(AppDbContext db, ClaimsPrincipal actor, string roleOrPolicy, CancellationToken ct = default)
     {
-        var effectiveRole = role switch
-        {
-            AppPolicies.ManageUsers or AppPolicies.ManageStockAdjustment => AppRoles.Admin,
-            AppPolicies.ManageInventory or AppPolicies.ManageDrawer => AppRoles.InventoryManager,
-            AppPolicies.MakeSales => AppRoles.SalesAssociate,
-            AppPolicies.ViewCostPrice => AppRoles.InventoryViewer,
-            _ => role
-        };
-
-        if (actor.Identity?.IsAuthenticated != true || !int.TryParse(actor.FindFirstValue(ClaimTypes.NameIdentifier), out var id)
-            || !await db.UserRoles.AnyAsync(membership => membership.UserId == id && db.Roles.Any(item => item.Id == membership.RoleId && (
-                item.Name == AppRoles.Admin ||
-                item.Name == effectiveRole ||
-                (effectiveRole == AppRoles.SalesAssociate && item.Name == AppRoles.InventoryManager) ||
-                (effectiveRole == AppRoles.InventoryViewer && (item.Name == AppRoles.InventoryManager || item.Name == AppRoles.SalesAssociate)))), ct))
+        if (actor.Identity?.IsAuthenticated != true
+            || !int.TryParse(actor.FindFirstValue(ClaimTypes.NameIdentifier), out var id)
+            || !await RolePermissionService.HasPolicyAsync(db, id, roleOrPolicy, ct))
         {
             throw new UnauthorizedAccessException("Your account no longer has access to this operation.");
         }
         return id;
+    }
+
+    public static async Task<bool> HasPolicyAsync(AppDbContext db, ClaimsPrincipal actor, string roleOrPolicy, CancellationToken ct = default)
+    {
+        if (actor.Identity?.IsAuthenticated != true
+            || !int.TryParse(actor.FindFirstValue(ClaimTypes.NameIdentifier), out var id))
+        {
+            return false;
+        }
+        return await RolePermissionService.HasPolicyAsync(db, id, roleOrPolicy, ct);
     }
 
     public static void Money(decimal amount, string label, bool negative = false)

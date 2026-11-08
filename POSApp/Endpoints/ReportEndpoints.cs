@@ -25,6 +25,7 @@ public static class ReportEndpoints
         var rows = new List<string[]>();
         ReportRange? range = null;
         int count;
+        var userTime = BusinessTime.ResolveUserTimeZone(context, context.RequestServices.GetRequiredService<IConfiguration>());
         if (kind == "products")
         {
             var result = await inventory.ListAsync(context.User, search, ct: context.RequestAborted,
@@ -61,11 +62,11 @@ public static class ReportEndpoints
             range = data.Range;
             count = data.Count;
             rows.Add(data.CanViewCosts
-                ? ["Sale ID", "Receipt", "Customer", "Date (UTC)", "Sales", "Paid", "Due", "Cost", "Profit"]
-                : ["Sale ID", "Receipt", "Customer", "Date (UTC)", "Sales", "Paid", "Due"]);
+                ? ["Sale ID", "Receipt", "Customer", "Date", "Sales", "Paid", "Due", "Cost", "Profit"]
+                : ["Sale ID", "Receipt", "Customer", "Date", "Sales", "Paid", "Due"]);
             foreach (var row in data.Rows)
             {
-                string[] values = [Number(row.Id), row.Number, row.Party, row.At.ToString("O"), Number(row.Total), Number(row.Paid), Number(row.Total - row.Paid)];
+                string[] values = [Number(row.Id), row.Number, row.Party, userTime.Format(row.At, "yyyy-MM-dd HH:mm:ss zzz"), Number(row.Total), Number(row.Paid), Number(row.Total - row.Paid)];
                 rows.Add(data.CanViewCosts ? [.. values, Number(row.Cost ?? 0), Number(row.Profit ?? 0)] : values);
             }
             string[] totals = ["TOTAL", "", "", "", Number(data.Total), Number(data.Paid), Number(data.Total - data.Paid)];
@@ -89,7 +90,7 @@ public static class ReportEndpoints
                 locationId, ct: context.RequestAborted, search: search, sort: sort, pageSize: limit);
             range = data.Range;
             count = data.Count;
-            rows.Add(["ID", "Type", "Date (UTC)", "Item", "Barcode", "From", "To", "Quantity", "Unit cost", "Value"]);
+            rows.Add(["ID", "Type", "Date", "Item", "Barcode", "From", "To", "Quantity", "Unit cost", "Value"]);
             foreach (var row in data.Rows)
             {
                 if (row.Items.Count > 0)
@@ -97,14 +98,14 @@ public static class ReportEndpoints
                     foreach (var item in row.Items)
                     {
                         rows.Add([Number(row.Id), row.IsTransfer ? "Transfer" : "Purchase",
-                            row.At.ToString("O"), item.Product, item.Barcode ?? "", row.Source, row.Destination,
+                            userTime.Format(row.At, "yyyy-MM-dd HH:mm:ss zzz"), item.Product, item.Barcode ?? "", row.Source, row.Destination,
                             Number(item.Quantity), Number(item.UnitCost), Number(item.Value)]);
                     }
                 }
                 else
                 {
                     rows.Add([Number(row.Id), row.IsTransfer ? "Transfer" : "Purchase",
-                        row.At.ToString("O"), row.Product, row.Barcode ?? "", row.Source, row.Destination,
+                        userTime.Format(row.At, "yyyy-MM-dd HH:mm:ss zzz"), row.Product, row.Barcode ?? "", row.Source, row.Destination,
                         Number(row.Quantity), Number(row.UnitCost), Number(row.Value)]);
                 }
             }
@@ -116,9 +117,9 @@ public static class ReportEndpoints
                 locationId, search: search, page: 1, pageSize: limit, ct: context.RequestAborted);
             range = data.Range;
             count = data.Rows.Count;
-            rows.Add(["Date (UTC)", "Location", "Item ID", "Item", "Barcode", "Unit", "Reason", "Quantity Lost", "Unit Cost", "Total Financial Loss", "Notes"]);
+            rows.Add(["Date", "Location", "Item ID", "Item", "Barcode", "Unit", "Reason", "Quantity Lost", "Unit Cost", "Total Financial Loss", "Notes"]);
             rows.AddRange(data.Rows.Select(row => new[] {
-                row.OccurredAt.ToString("O"), row.LocationName, Number(row.ProductId), row.ProductName,
+                userTime.Format(row.OccurredAt, "yyyy-MM-dd HH:mm:ss zzz"), row.LocationName, Number(row.ProductId), row.ProductName,
                 row.Barcode ?? "", row.Unit, row.Reason, Number(row.Quantity), Number(row.UnitCost),
                 Number(row.TotalLoss), row.Notes ?? ""
             }));
@@ -271,7 +272,7 @@ public static class ReportEndpoints
         }
         context.Response.Headers.CacheControl = "no-store";
         var csv = string.Join("\r\n", rows.Select(row => string.Join(',', row.Select(Escape))));
-        var fileDate = DateOnly.FromDateTime(DateTime.UtcNow).ToString("yyyy-MM-dd");
+        var fileDate = userTime.Today().ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
         var fileName = range is null
             ? $"pos-{kind}-{fileDate}.csv"
             : $"pos-{kind}-{range.Start:yyyy-MM-dd}-{range.End:yyyy-MM-dd}.csv";

@@ -11,6 +11,10 @@ public sealed class StockTake : AuditableEntity
     public DateTimeOffset? CompletedAt { get; set; }
     public int? CompletedByUserId { get; set; }
     public Guid? CompletionRequestId { get; set; }
+    public bool IsVoided { get; set; }
+    public DateTimeOffset? VoidedAt { get; set; }
+    public int? VoidedByUserId { get; set; }
+    public string? VoidReason { get; set; }
     public ICollection<StockTakeItem> Items { get; set; } = [];
 }
 

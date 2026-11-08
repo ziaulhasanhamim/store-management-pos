@@ -21,7 +21,9 @@ public sealed class BankService(IServiceScopeFactory scopes, IConfiguration conf
 
         decimal openingBeforeMonth = (account?.OpeningDate is not null && account.OpeningDate <= monthStart) ? account.OpeningBalance : 0m;
         decimal movementsBeforeMonth = await db.BankMovements.AsNoTracking()
-            .Where(move => move.BusinessDate < monthStart)
+            .Where(move => move.BusinessDate < monthStart && move.Kind != CashMovementKind.OpeningBalance
+                && move.ReversesMovementId == null
+                && !db.BankMovements.Any(r => r.ReversesMovementId == move.Id))
             .SumAsync(move => (decimal?)move.Amount, ct) ?? 0m;
         decimal monthOpening = openingBeforeMonth + movementsBeforeMonth;
 

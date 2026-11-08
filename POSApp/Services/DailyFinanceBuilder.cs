@@ -14,7 +14,7 @@ internal static class DailyFinanceBuilder
         var from = Utc(date);
         var through = Utc(date.AddDays(1));
         var expenses = await db.Expenses.AsNoTracking()
-            .Where(expense => expense.OccurredAt >= from && expense.OccurredAt < through
+            .Where(expense => !expense.IsVoided && expense.OccurredAt >= from && expense.OccurredAt < through
                 && (locationId == null || expense.StockLocationId == locationId.Value))
             .Select(expense => new
             {
@@ -63,7 +63,8 @@ internal static class DailyFinanceBuilder
                     "Bank / digital", move.Method, move.Amount, move.Notes)).ToArrayAsync(ct)
             : [];
         var clearingEntries = await db.PaymentClearingEntries.AsNoTracking()
-            .Where(e => e.Status == PaymentClearingStatus.Unsettled && (locationId == null || e.StockLocationId == locationId.Value))
+            .Where(e => e.Status == PaymentClearingStatus.Unsettled && (locationId == null || e.StockLocationId == locationId.Value)
+                && (e.Payment == null || (!e.Payment.IsVoided && (e.Payment.SaleId == null || (!e.Payment.Sale!.IsDeleted && e.Payment.Sale.Status != SaleStatus.Voided)))))
             .Select(e => new { e.Method, e.GrossAmount, e.BusinessDate })
             .ToListAsync(ct);
         var awaitingSummary = new AwaitingPayoutSummary(

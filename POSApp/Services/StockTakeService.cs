@@ -14,7 +14,7 @@ public sealed partial class StockTakeService(IServiceScopeFactory scopes, IConfi
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         await StoreAccess.RequireAsync(db, actor, AppRoles.InventoryManager, ct);
-        var takes = await db.StockTakes.AsNoTracking().Include(take => take.StockLocation)
+        var takes = await db.StockTakes.AsNoTracking().Where(take => !take.IsVoided).Include(take => take.StockLocation)
             .Include(take => take.Items.Where(item => item.IsIncluded || item.CountedQuantity != null)).OrderByDescending(take => take.Id).Take(100).ToArrayAsync(ct);
         return takes.Select(take => new StockTakeRow(take.Id, take.StockLocation!.Name, take.BusinessDate,
             take.Items.Count(item => item.CountedQuantity.HasValue), take.Items.Count,
@@ -28,7 +28,7 @@ public sealed partial class StockTakeService(IServiceScopeFactory scopes, IConfi
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         await StoreAccess.RequireAsync(db, actor, AppRoles.InventoryManager, ct);
-        var result = await db.StockTakes.AsNoTracking().Include(take => take.StockLocation)
+        var result = await db.StockTakes.AsNoTracking().Where(take => !take.IsVoided).Include(take => take.StockLocation)
             .Include(take => take.Items.Where(item => item.IsIncluded || item.CountedQuantity != null))
             .OrderByDescending(take => take.Id).ToPageAsync(page, pageSize, ct);
         return new(result.Items.Select(take => new StockTakeRow(take.Id, take.StockLocation!.Name, take.BusinessDate,
@@ -309,6 +309,10 @@ public sealed partial class StockTakeService(IServiceScopeFactory scopes, IConfi
                 {
                     throw new ValidationException($"Invalid count for {item.ProductName}. Review the count before confirming.");
                 }
+                if (stock.MovementId != item.LastMovementId || stock.Quantity != item.ExpectedQuantity)
+                {
+                    throw new ValidationException($"Stock changed for {item.ProductName} while this count was open (snapshot {item.ExpectedQuantity:0.###}, live {stock.Quantity:0.###}). Refresh expected stock before applying adjustments.");
+                }
             }
 
             var activeDate = await AccountingCalendar.SelectedAsync(db, actorId, configuration, ct);
@@ -371,8 +375,36 @@ public sealed partial class StockTakeService(IServiceScopeFactory scopes, IConfi
         }, ct);
     }
 
+    public async Task DiscardDraftAsync(ClaimsPrincipal actor, int id, CancellationToken ct = default)
+    {
+        await StoreOperation.RunAsync(async () =>
+        {
+            await using var scope = scopes.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            await StoreAccess.RequireAsync(db, actor, AppRoles.InventoryManager, ct);
+            await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
+            var take = await db.StockTakes.Include(item => item.Items).SingleOrDefaultAsync(item => item.Id == id, ct);
+            if (take is null)
+            {
+                return;
+            }
+            if (take.CompletedAt is not null || take.IsVoided)
+            {
+                throw new ValidationException("Completed stock takes cannot be deleted. Void the completed stock take to reverse its stock variances.");
+            }
+            db.StockTakeItems.RemoveRange(take.Items);
+            db.StockTakes.Remove(take);
+            await db.SaveChangesAsync(ct);
+            await transaction.CommitAsync(ct);
+        }, ct);
+    }
+
     private static Task EnsureEditableAsync(AppDbContext db, StockTake take, int actorId, CancellationToken ct)
     {
+        if (take.IsVoided)
+        {
+            throw new ValidationException("This stock take was voided.");
+        }
         if (take.CompletedAt is not null)
         {
             throw new ValidationException("This stock take is completed. Start a new stock take to record another count.");

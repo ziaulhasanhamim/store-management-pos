@@ -63,8 +63,7 @@ public sealed partial class ReportService
     }
 
     private static Task<bool> CanViewCostsAsync(AppDbContext db, int actorId, CancellationToken ct) =>
-        db.UserRoles.AnyAsync(membership => membership.UserId == actorId && db.Roles.Any(role => role.Id == membership.RoleId
-            && (role.Name == AppRoles.Admin || role.Name == AppRoles.InventoryManager)), ct);
+        POSApp.Security.RolePermissionService.HasPolicyAsync(db, actorId, POSApp.Security.AppPolicies.ViewCostPrice, ct);
 
     private static async Task<SaleLineSnapshot[]> ReadLinesAsync(IQueryable<Sale> sales, CancellationToken ct)
     {

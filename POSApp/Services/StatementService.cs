@@ -2,6 +2,8 @@ using System.ComponentModel.DataAnnotations;
 using System.Data;
 using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
+using POSApp.Client.DTOs;
+using POSApp.Client.Enums;
 using POSApp.Persistence;
 
 namespace POSApp.Services;
@@ -164,6 +166,158 @@ public sealed class StatementService(IServiceScopeFactory scopes, IConfiguration
             }).ToArray();
             return new(name, range, drawers, drawerId, opening, moneyIn, moneyOut, opening + moneyIn - moneyOut,
                 contributions, withdrawals, result, count, currentPage) { PageOpening = opening + prefix };
+        }, ct);
+    }
+
+    public async Task<StockStatement> StockAsync(ClaimsPrincipal actor, int? productId = null, int? locationId = null,
+        string? period = "month", DateOnly? start = null, DateOnly? end = null, int page = 1, int pageSize = 50, CancellationToken ct = default)
+    {
+        return await StoreOperation.RunAsync<StockStatement>(async () =>
+        {
+            await using var scope = scopes.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            await StoreAccess.RequireAsync(db, actor, AppRoles.InventoryManager, ct);
+
+            var availableProducts = await db.Products.AsNoTracking().Where(p => !p.IsDeleted && !p.IsNonStocked)
+                .OrderBy(p => p.Name)
+                .Select(p => new Lookup(p.Id, p.Name + (p.Barcode != null ? $" ({p.Barcode})" : "")))
+                .ToListAsync(ct);
+
+            var availableLocations = await db.StockLocations.AsNoTracking().Where(l => !l.IsDeleted)
+                .OrderBy(l => l.Name)
+                .Select(l => new Lookup(l.Id, l.Name))
+                .ToListAsync(ct);
+
+            productId ??= availableProducts.FirstOrDefault()?.Id;
+            if (productId is null)
+            {
+                throw new ValidationException("No stockable products found.");
+            }
+
+            var product = await db.Products.AsNoTracking().SingleOrDefaultAsync(p => p.Id == productId.Value && !p.IsDeleted, ct)
+                ?? throw new ValidationException("Product not found.");
+
+            var range = ReportService.ResolveRange(period, start, end, AccountingCalendar.Zone(configuration), DateTimeOffset.UtcNow);
+
+            var query = db.InventoryMovements.AsNoTracking()
+                .Include(m => m.StockLocation)
+                .Include(m => m.PurchaseItem).ThenInclude(pi => pi!.Purchase)
+                .Include(m => m.SaleItem).ThenInclude(si => si!.Sale)
+                .Include(m => m.StockAdjustmentItem).ThenInclude(ai => ai!.StockAdjustment)
+                .Include(m => m.StockTakeItem).ThenInclude(ti => ti!.StockTake)
+                .Include(m => m.StockTransfer)
+                .Where(m => m.ProductId == productId.Value
+                    && (locationId == null || m.StockLocationId == locationId.Value)
+                    && (m.PurchaseItem == null || !m.PurchaseItem.Purchase!.IsDeleted)
+                    && (m.SaleItem == null || (!m.SaleItem.Sale!.IsDeleted && m.SaleItem.Sale.Status != SaleStatus.Voided))
+                    && (m.StockAdjustmentItem == null || !m.StockAdjustmentItem.StockAdjustment!.IsVoided)
+                    && (m.StockTakeItem == null || !m.StockTakeItem.StockTake!.IsVoided)
+                    && (m.StockTransfer == null || !m.StockTransfer.IsVoided));
+
+            var zone = AccountingCalendar.Zone(configuration);
+            DateOnly ToDate(DateTimeOffset at) => DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(at, zone).DateTime);
+
+            var priorMovements = query.Where(m => m.OccurredAt < range.FromUtc);
+            var openingQty = await priorMovements.Select(m => (decimal?)m.Quantity).SumAsync(ct) ?? 0m;
+
+            var inRangeQuery = query.Where(m => m.OccurredAt >= range.FromUtc && m.OccurredAt < range.ToUtc);
+            var inQty = await inRangeQuery.Where(m => m.Quantity > 0).Select(m => (decimal?)m.Quantity).SumAsync(ct) ?? 0m;
+            var outQty = -(await inRangeQuery.Where(m => m.Quantity < 0).Select(m => (decimal?)m.Quantity).SumAsync(ct) ?? 0m);
+            var closingQty = openingQty + inQty - outQty;
+
+            var allRangeMovements = await inRangeQuery
+                .OrderBy(m => m.OccurredAt).ThenBy(m => m.Id)
+                .Select(m => new
+                {
+                    m.Id,
+                    m.OccurredAt,
+                    m.Type,
+                    m.Quantity,
+                    m.UnitCost,
+                    LocationName = m.StockLocation != null ? m.StockLocation.Name : "Default",
+                    m.Notes,
+                    PurchaseId = m.PurchaseItem != null ? (int?)m.PurchaseItem.PurchaseId : null,
+                    SaleId = m.SaleItem != null ? (int?)m.SaleItem.SaleId : null,
+                    AdjustmentId = m.StockAdjustmentItem != null ? (int?)m.StockAdjustmentItem.StockAdjustmentId : null,
+                    StockTransferId = m.StockTransferId
+                })
+                .ToListAsync(ct);
+
+            var totalCount = allRangeMovements.Count;
+            var currentRunning = openingQty;
+            var allRows = new List<StockStatementRow>();
+
+            foreach (var m in allRangeMovements)
+            {
+                currentRunning += m.Quantity;
+                string typeLabel = m.Type switch
+                {
+                    InventoryMovementType.Purchase => "Purchase Received",
+                    InventoryMovementType.PurchaseReturn => "Purchase Return",
+                    InventoryMovementType.Sale => "Sale",
+                    InventoryMovementType.SaleReturn => "Customer Return",
+                    InventoryMovementType.Adjustment => "Stock Adjustment",
+                    InventoryMovementType.TransferIn => "Transfer In",
+                    InventoryMovementType.TransferOut => "Transfer Out",
+                    InventoryMovementType.Opening => "Opening Stock",
+                    InventoryMovementType.TransactionReversal => "Reversal",
+                    _ => m.Type.ToString()
+                };
+
+                string reference = m.PurchaseId != null ? $"Purchase #{m.PurchaseId}"
+                    : m.SaleId != null ? $"Sale #{m.SaleId}"
+                    : m.AdjustmentId != null ? $"Adjustment #{m.AdjustmentId}"
+                    : m.StockTransferId != null ? $"Transfer #{m.StockTransferId}"
+                    : $"Movement #{m.Id}";
+
+                string? referenceUrl = m.PurchaseId != null ? $"/purchases"
+                    : m.SaleId != null ? $"/sales/{m.SaleId}"
+                    : m.AdjustmentId != null ? $"/inventory/adjustments/{m.AdjustmentId}"
+                    : m.StockTransferId != null ? $"/inventory/transfers"
+                    : null;
+
+                allRows.Add(new StockStatementRow(
+                    ToDate(m.OccurredAt),
+                    m.OccurredAt,
+                    typeLabel,
+                    reference,
+                    referenceUrl,
+                    m.LocationName,
+                    m.Quantity,
+                    currentRunning,
+                    m.UnitCost,
+                    decimal.Round(m.Quantity * m.UnitCost, 2, MidpointRounding.AwayFromZero),
+                    m.Notes));
+            }
+
+            var limit = Math.Clamp(pageSize, 1, 1000);
+            var totalPages = Math.Max(1, (totalCount + limit - 1) / limit);
+            var currentPage = Math.Clamp(page, 1, totalPages);
+            var pagedRows = allRows.Skip((currentPage - 1) * limit).Take(limit).ToList();
+
+            string? selectedLocationName = locationId.HasValue
+                ? availableLocations.FirstOrDefault(l => l.Id == locationId.Value)?.Name
+                : null;
+
+            return new StockStatement(
+                product.Id,
+                product.Name,
+                product.Barcode,
+                product.Unit,
+                locationId,
+                selectedLocationName,
+                range,
+                openingQty,
+                inQty,
+                outQty,
+                closingQty,
+                product.CostPrice,
+                decimal.Round(closingQty * product.CostPrice, 2, MidpointRounding.AwayFromZero),
+                pagedRows,
+                totalCount,
+                currentPage,
+                availableProducts,
+                availableLocations);
         }, ct);
     }
 

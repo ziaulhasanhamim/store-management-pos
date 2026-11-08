@@ -185,7 +185,7 @@ else
         Month = new(Month.Year, Month.Month, 1);
         Data = await EmployeesService.ReadAsync(HttpContext.User, Month, HttpContext.RequestAborted, Page, PageSize);
         EmployeeForm ??= new();
-        SalaryForm ??= new() { Month = WorkingMonth.ToDateTime(TimeOnly.MinValue) };
+        SalaryForm ??= new() { Month = WorkingMonth };
         if (HttpMethods.IsGet(HttpContext.Request.Method) && EmployeeId is not null)
         {
             var id = EmployeeId.Value;

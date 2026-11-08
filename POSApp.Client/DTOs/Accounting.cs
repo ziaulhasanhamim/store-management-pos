@@ -6,7 +6,7 @@ public sealed class BankInput
 {
     public Guid RequestId { get; set; } = Guid.NewGuid();
     public decimal Amount { get; set; }
-    public DateTime Date { get; set; }
+    public DateOnly Date { get; set; }
     public string Notes { get; set; } = "";
     public string Action { get; set; } = "opening";
 }
@@ -18,7 +18,7 @@ public sealed class ClosingInput
 {
     public bool Confirmed { get; set; }
     public string? ExpectedRevision { get; set; }
-    public DateTime Date { get; set; }
+    public DateOnly Date { get; set; }
     public decimal? CountedCash { get; set; }
     public ClosingKind Kind { get; set; } = ClosingKind.Day;
     public decimal OpeningCash { get; set; }

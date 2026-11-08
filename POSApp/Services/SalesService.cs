@@ -252,6 +252,7 @@ public sealed class SalesService(IServiceScopeFactory scopes, IConfiguration? co
             sale.RequestHash = hash;
             sale.StockLocationId = command.LocationId;
             sale.CustomerId = command.CustomerId;
+            sale.OriginalSaleId = command.OriginalSaleId;
             sale.Subtotal = subtotal;
             sale.TotalAmount = total;
             sale.Notes = command.Notes?.Trim();
@@ -433,10 +434,67 @@ public sealed class SalesService(IServiceScopeFactory scopes, IConfiguration? co
             sale.DiscountAmount, sale.DraftPayments.Count > 0 ? sale.DraftPayments.Sum(payment => payment.Amount) : sale.DraftPaymentAmount, sale.DraftPaymentMethod, sale.Notes)
         {
             Revision = sale.Revision,
+            OriginalSaleId = sale.OriginalSaleId,
             Payments = sale.DraftPayments.Count > 0
                 ? sale.DraftPayments.OrderBy(payment => payment.Id).Select(payment => new PaymentInput(payment.Method, payment.Amount)).ToArray()
                 : sale.DraftPaymentAmount > 0 ? [new(sale.DraftPaymentMethod, sale.DraftPaymentAmount)] : []
         };
+    }
+
+    public async Task<SaleBill?> FindReceiptAsync(ClaimsPrincipal actor, string receiptNumber, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(receiptNumber))
+        {
+            return null;
+        }
+
+        await using var scope = scopes.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var trimmed = receiptNumber.Trim();
+        var id = await db.Sales.AsNoTracking()
+            .Where(sale => sale.ReceiptNumber == trimmed && !sale.IsDeleted && sale.Status == SaleStatus.Completed)
+            .Select(sale => (int?)sale.Id)
+            .FirstOrDefaultAsync(ct);
+
+        return id.HasValue ? await BillAsync(actor, id.Value, ct) : null;
+    }
+
+    public async Task DiscardDraftAsync(ClaimsPrincipal actor, Guid requestId, CancellationToken ct = default)
+    {
+        await StoreOperation.RunAsync(async () =>
+        {
+            if (requestId == Guid.Empty)
+            {
+                throw new ValidationException("Choose a valid draft.");
+            }
+            await using var scope = scopes.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var actorId = await StoreAccess.RequireAsync(db, actor, AppRoles.SalesAssociate, ct);
+            var isAdmin = await CashDrawerService.IsAdminAsync(db, actorId, ct);
+            await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
+            var number = $"SAL-{requestId:N}";
+            var sale = await db.Sales
+                .Include(item => item.DraftPayments)
+                .Include(item => item.Items)
+                .SingleOrDefaultAsync(item => item.ReceiptNumber == number, ct);
+            if (sale is null)
+            {
+                return;
+            }
+            if (sale.Status != SaleStatus.Draft)
+            {
+                throw new ValidationException("Only uncompleted held sale drafts can be discarded. Completed sales must be voided.");
+            }
+            if (!isAdmin && sale.CashierId != actorId)
+            {
+                throw new UnauthorizedAccessException("Only the cashier who created this draft or an admin can discard it.");
+            }
+            db.SaleDraftPayments.RemoveRange(sale.DraftPayments);
+            db.SaleItems.RemoveRange(sale.Items);
+            db.Sales.Remove(sale);
+            await db.SaveChangesAsync(ct);
+            await transaction.CommitAsync(ct);
+        }, ct);
     }
 
     public async Task<SaleBill?> BillAsync(ClaimsPrincipal actor, int id, CancellationToken ct = default)
@@ -490,6 +548,7 @@ public sealed class SalesService(IServiceScopeFactory scopes, IConfiguration? co
                 item.Unit, item.Quantity, item.UnitPrice,
                 decimal.Round(item.UnitPrice * item.Quantity, 2, MidpointRounding.AwayFromZero))
             {
+                ProductId = item.ProductId,
                 Warranty = warranties.GetValueOrDefault(item.ProductId),
                 UnitDiscount = decimal.Round(item.UnitDiscount * item.Quantity, 2, MidpointRounding.AwayFromZero)
             }).ToArray(),

@@ -146,8 +146,14 @@
                                 }
                                 else
                                 {
-                                    <span class="font-medium @(item.Stock <= 0 ? "text-amber-600" : "text-slate-900")">@item.Stock.ToString("0.###")</span>
-                                    <span class="text-xs text-slate-400">@item.Unit</span>
+                                    <div class="flex items-center justify-end gap-1.5">
+                                        <span class="font-medium @(item.Stock <= 0 ? "text-amber-600 font-bold" : (item.Stock <= item.ReorderLevel ? "text-amber-700" : "text-slate-900"))">@item.Stock.ToString("0.###")</span>
+                                        <span class="text-xs text-slate-400">@item.Unit</span>
+                                        @if (item.Stock <= item.ReorderLevel)
+                                        {
+                                            <span class="inline-flex items-center rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 ring-1 ring-inset ring-amber-600/20" title="@($"Reorder threshold: {item.ReorderLevel}")">Low</span>
+                                        }
+                                    </div>
                                 }
                             </td>
                             <td class="text-right whitespace-nowrap font-medium text-slate-900">@Money(item.Price)</td>

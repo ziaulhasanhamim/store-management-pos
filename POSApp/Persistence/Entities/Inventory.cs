@@ -55,6 +55,10 @@ public sealed class StockTransfer : AuditableEntity
     public ICollection<StockTransferItem> Items { get; set; } = [];
     public DateTimeOffset OccurredAt { get; set; }
     public required string Notes { get; set; }
+    public bool IsVoided { get; set; }
+    public DateTimeOffset? VoidedAt { get; set; }
+    public int? VoidedByUserId { get; set; }
+    public string? VoidReason { get; set; }
 }
 
 public sealed class StockTransferItem : Entity

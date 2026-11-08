@@ -164,7 +164,7 @@ public class CashDrawerAndFinanceServiceTests : PosIntegrationTestBase
             Action = "adjustment",
             Amount = 250m,
             Notes = "Monthly bank interest earned",
-            Date = DateTime.UtcNow
+            Date = DateOnly.FromDateTime(DateTimeOffset.UtcNow.UtcDateTime)
         };
         await bankService.SaveAsync(AdminUser, adjustInput);
 
@@ -230,7 +230,9 @@ public class CashDrawerAndFinanceServiceTests : PosIntegrationTestBase
             await restoredBalance.Should().BeEqualTo(balanceBeforePayment);
 
             var paymentInDb = await db.SupplierPayments.SingleOrDefaultAsync(p => p.Id == paymentId);
-            await paymentInDb.Should().BeNull();
+            await paymentInDb.Should().NotBeNull();
+            await paymentInDb!.IsVoided.Should().BeTrue();
+            await paymentInDb.VoidedAt.HasValue.Should().BeTrue();
 
             // Verify audit entry exists
             var auditEntry = await db.SupplierBalanceEntries

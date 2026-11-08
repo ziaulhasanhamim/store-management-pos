@@ -8,5 +8,7 @@ public interface ISalesClient
     Task<SalesOptions> OptionsAsync();
     Task<SalesResult> SaveAsync(SalesCommand command, bool complete);
     Task<SalesDraft?> DraftAsync(Guid id);
+    Task DiscardDraftAsync(Guid id);
+    Task<SaleBill?> FindReceiptAsync(string receiptNumber);
     Task<int> AddCustomerAsync(CustomerInput input);
 }

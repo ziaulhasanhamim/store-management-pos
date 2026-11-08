@@ -28,9 +28,13 @@
             {
             @foreach (var row in Rows)
             {
-                <tr @key="row.Id">
+                <tr @key="row.Id" class="@(row.IsVoided ? "opacity-60" : "")">
                     <td>
                         <span>#@row.Id</span>
+                        @if (row.IsVoided)
+                        {
+                            <span class="ml-1.5 inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-medium bg-rose-50 text-rose-700 border border-rose-200">Voided</span>
+                        }
                         @if (row.PurchaseId is not null)
                         {
                             <a href="@($"/receiving/{row.PurchaseId.Value}")" class="mt-1 block text-xs text-blue-700">Receipt #@row.PurchaseId.Value</a>
@@ -50,8 +54,12 @@
                         {
                             <span class="mt-1 block text-xs text-slate-400">@row.Receipt</span>
                         }
+                        @if (row.IsVoided && !string.IsNullOrWhiteSpace(row.VoidReason))
+                        {
+                            <span class="mt-1 block text-xs text-rose-600">@row.VoidReason</span>
+                        }
                     </td>
-                    <td class="text-right whitespace-nowrap">@row.Amount.ToString("N2") @Currency</td>
+                    <td class="text-right whitespace-nowrap @(row.IsVoided ? "line-through text-slate-400" : "")">@row.Amount.ToString("N2") @Currency</td>
                     <td>
                         @if (row.CanEdit)
                         {
@@ -73,12 +81,12 @@
                                             disabled="@(Disabled || PendingIds.Contains(row.Id))">
                                         Edit
                                     </button>
-                                    @if (AllowVoid)
+                                    @if (AllowVoid && row.PurchaseId is null)
                                     {
                                         <button type="button" class="btn-secondary text-xs text-rose-600! hover:text-rose-700! hover:border-rose-300!"
                                                 @onclick="() => ConfirmingVoidId = row.Id"
                                                 disabled="@(Disabled || PendingIds.Contains(row.Id))"
-                                                title="Void payment and restore balance">
+                                                title="Void entry and reverse posting">
                                             Void
                                         </button>
                                     }

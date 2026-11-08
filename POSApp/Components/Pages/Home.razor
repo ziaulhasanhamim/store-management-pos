@@ -405,9 +405,9 @@ else if (Data is not null)
                                             }
                                             else
                                             {
-                                                <span class="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-700">
+                                                <span class="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-700" title="@($"Reorder threshold: {alert.ReorderLevel}")">
                                                     <span class="size-1.5 rounded-full bg-amber-600"></span>
-                                                    @alert.Stock.ToString("0.###") @alert.Unit left
+                                                    @alert.Stock.ToString("0.###") @alert.Unit left (threshold @alert.ReorderLevel)
                                                 </span>
                                             }
                                         </td>
@@ -615,8 +615,7 @@ else if (Data is not null)
     {
         get
         {
-            var zone = AccountingCalendar.Zone(Configuration);
-            var localHour = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, zone).Hour;
+            var localHour = UserTime.ToUserTime(DateTimeOffset.UtcNow).Hour;
             if (localHour < 12) return "Good morning";
             if (localHour < 17) return "Good afternoon";
             return "Good evening";

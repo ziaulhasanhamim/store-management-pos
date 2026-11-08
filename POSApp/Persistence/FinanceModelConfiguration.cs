@@ -20,6 +20,7 @@ internal static class FinanceModelConfiguration
             entity.HasIndex(entry => entry.BusinessDate);
             entity.Property(entry => entry.RequestId).IsRequired();
             entity.Property(entry => entry.Notes).HasMaxLength(2000).IsRequired();
+            entity.Property(entry => entry.VoidReason).HasMaxLength(2000);
         });
         builder.Entity<CashMovement>().HasIndex(move => move.DebtEntryId).IsUnique();
         builder.Entity<BankMovement>().HasIndex(move => move.DebtEntryId).IsUnique();
@@ -53,6 +54,7 @@ internal static class FinanceModelConfiguration
         {
             entity.HasIndex(transfer => transfer.RequestId).IsUnique();
             entity.Property(transfer => transfer.Notes).HasMaxLength(2000);
+            entity.Property(transfer => transfer.VoidReason).HasMaxLength(2000);
         });
         builder.Entity<CashSession>(entity =>
         {
@@ -77,6 +79,7 @@ internal static class FinanceModelConfiguration
             entity.HasIndex(expense => new { expense.CategoryDefinitionId, expense.OccurredAt });
             entity.Property(expense => expense.ReceiptReference).HasMaxLength(200);
             entity.Property(expense => expense.Notes).HasMaxLength(2000);
+            entity.Property(expense => expense.VoidReason).HasMaxLength(2000);
             entity.HasOne(expense => expense.StockLocation)
                 .WithMany()
                 .HasForeignKey(expense => expense.StockLocationId)
@@ -162,6 +165,7 @@ internal static class FinanceModelConfiguration
             entity.HasIndex(transfer => new { transfer.SourceLocationId, transfer.OccurredAt });
             entity.HasIndex(transfer => new { transfer.DestinationLocationId, transfer.OccurredAt });
             entity.Property(transfer => transfer.Notes).HasMaxLength(2000);
+            entity.Property(transfer => transfer.VoidReason).HasMaxLength(2000);
         });
         builder.Entity<StockTransferItem>(entity =>
         {
@@ -174,6 +178,7 @@ internal static class FinanceModelConfiguration
             entity.HasIndex(entry => entry.OccurredAt);
             entity.HasIndex(entry => new { entry.StaffAccountId, entry.OccurredAt });
             entity.Property(entry => entry.Notes).HasMaxLength(2000);
+            entity.Property(entry => entry.VoidReason).HasMaxLength(2000);
         });
         builder.Entity<RolePermission>(entity =>
         {

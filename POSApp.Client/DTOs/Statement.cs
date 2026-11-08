@@ -9,3 +9,36 @@ public sealed record BalanceStatement(string Account, ReportRange Range, IReadOn
 {
     public decimal PageOpening { get; init; }
 }
+
+public sealed record StockStatementRow(
+    DateOnly Date,
+    DateTimeOffset OccurredAt,
+    string Type,
+    string Reference,
+    string? ReferenceUrl,
+    string LocationName,
+    decimal QuantityChange,
+    decimal RunningBalance,
+    decimal UnitCost,
+    decimal ValueChange,
+    string? Notes);
+
+public sealed record StockStatement(
+    int ProductId,
+    string ProductName,
+    string? Sku,
+    string Unit,
+    int? LocationId,
+    string? LocationName,
+    ReportRange Range,
+    decimal OpeningQuantity,
+    decimal InQuantity,
+    decimal OutQuantity,
+    decimal ClosingQuantity,
+    decimal CurrentCostPrice,
+    decimal ClosingValue,
+    IReadOnlyList<StockStatementRow> Rows,
+    int TotalCount,
+    int CurrentPage,
+    IReadOnlyList<Lookup> AvailableProducts,
+    IReadOnlyList<Lookup> AvailableLocations);

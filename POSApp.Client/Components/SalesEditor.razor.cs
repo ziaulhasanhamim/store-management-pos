@@ -71,6 +71,12 @@ public partial class SalesEditor
     private int DiscountRevision;
     private IReadOnlyList<PaymentInput> Payments = [];
     private bool ReturnMode;
+    private int? OriginalSaleId;
+    private string ReturnReceiptSearch = "";
+    private bool LookingUpReceipt;
+    private string? ReturnReceiptError;
+    private SaleBill? LoadedReturnBill;
+    private bool IsCurrentDraft => Options.Drafts.Any(draft => draft.RequestId == RequestId);
     private bool Busy;
     private bool DraftReady = true;
     private bool Searching;
@@ -433,7 +439,8 @@ public partial class SalesEditor
             {
                 Revision = SaleRevision,
                 WorkingDate = Options.WorkingDate,
-                Payments = Payments.ToArray()
+                Payments = Payments.ToArray(),
+                OriginalSaleId = OriginalSaleId
             };
             var result = await Sales.SaveAsync(command, complete);
             SaleRevision = result.Revision;
@@ -479,6 +486,7 @@ public partial class SalesEditor
             }
             SaleRevision = draft.Revision;
             RequestId = draft.RequestId;
+            OriginalSaleId = draft.OriginalSaleId;
             DiscountRevision++;
             LocationId = draft.LocationId;
             CustomerId = draft.CustomerId;
@@ -520,6 +528,10 @@ public partial class SalesEditor
         }
         Lines.Clear();
         ReturnMode = false;
+        OriginalSaleId = null;
+        LoadedReturnBill = null;
+        ReturnReceiptSearch = "";
+        ReturnReceiptError = null;
         CustomerId = null;
         Discount = 0;
         Payments = [];
@@ -527,6 +539,116 @@ public partial class SalesEditor
         Notes = null;
         Notice = null;
         Error = null;
+    }
+
+    private async Task DiscardActiveDraftAsync()
+    {
+        if (!IsCurrentDraft) return;
+        Busy = true;
+        try
+        {
+            var targetId = RequestId;
+            await Sales.DiscardDraftAsync(targetId);
+            Options = Options with { Drafts = Options.Drafts.Where(d => d.RequestId != targetId).ToArray() };
+            if (Recovery is not null)
+            {
+                await Recovery.RequestResetAsync();
+            }
+            else
+            {
+                NewSale();
+            }
+            Notice = "Draft discarded.";
+            Error = null;
+        }
+        catch (Exception ex)
+        {
+            Error = ex.Message;
+        }
+        finally
+        {
+            Busy = false;
+        }
+    }
+
+    private async Task ReturnReceiptKeyAsync(KeyboardEventArgs args)
+    {
+        if (args.Key == "Enter")
+        {
+            await LookupReturnReceiptAsync();
+        }
+    }
+
+    private async Task LookupReturnReceiptAsync()
+    {
+        if (string.IsNullOrWhiteSpace(ReturnReceiptSearch)) return;
+        LookingUpReceipt = true;
+        ReturnReceiptError = null;
+        LoadedReturnBill = null;
+        try
+        {
+            var bill = await Sales.FindReceiptAsync(ReturnReceiptSearch.Trim());
+            if (bill is null)
+            {
+                ReturnReceiptError = $"Receipt '{ReturnReceiptSearch.Trim()}' was not found or is voided.";
+            }
+            else
+            {
+                LoadedReturnBill = bill;
+            }
+        }
+        catch (Exception ex)
+        {
+            ReturnReceiptError = ex.Message;
+        }
+        finally
+        {
+            LookingUpReceipt = false;
+        }
+    }
+
+    private async Task LoadReturnLinesAsync()
+    {
+        if (LoadedReturnBill is null) return;
+        Busy = true;
+        try
+        {
+            OriginalSaleId = LoadedReturnBill.Id;
+            if (!string.IsNullOrWhiteSpace(LoadedReturnBill.Customer))
+            {
+                var matched = Options.Customers.FirstOrDefault(c => string.Equals(c.Name, LoadedReturnBill.Customer, StringComparison.OrdinalIgnoreCase));
+                if (matched is not null)
+                {
+                    CustomerId = matched.Id;
+                }
+            }
+
+            var locationProducts = await Sales.SearchAsync(LocationId, null);
+            foreach (var billLine in LoadedReturnBill.Lines)
+            {
+                var product = locationProducts.FirstOrDefault(p => p.Id == billLine.ProductId)
+                    ?? new SalesProduct(billLine.ProductId, billLine.Name, billLine.Barcode, billLine.Unit, billLine.UnitPrice, 0, true);
+
+                Lines.Add(new CartLine
+                {
+                    Product = product,
+                    Quantity = -Math.Abs(billLine.Quantity),
+                    Price = billLine.UnitPrice
+                });
+            }
+
+            Notice = $"Loaded {LoadedReturnBill.Lines.Length} items from receipt {LoadedReturnBill.Number} as returns.";
+            LoadedReturnBill = null;
+            ReturnReceiptSearch = "";
+        }
+        catch (Exception ex)
+        {
+            Error = ex.Message;
+        }
+        finally
+        {
+            Busy = false;
+        }
     }
 
     private void OpenCustomer()

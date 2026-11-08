@@ -34,13 +34,28 @@ public static class AccountingCalendar
         return date;
     }
 
-    public static async Task EnsureOpenAsync(AppDbContext db, DateOnly date, CancellationToken ct)
+    public static async Task EnsureOpenAsync(AppDbContext db, DateOnly date, CancellationToken ct, bool requireDayOpened = true)
     {
         var month = new DateOnly(date.Year, date.Month, 1);
         if (await db.FinanceClosings.AnyAsync(closing => closing.ClosedAt != null
             && ((closing.Kind == ClosingKind.Day && closing.Date == date) || (closing.Kind == ClosingKind.Month && closing.Date == month)), ct))
         {
             throw new ValidationException("This accounting day or month is closed. Select an open accounting date.");
+        }
+
+        if (requireDayOpened)
+        {
+            var working = await db.WorkingDays.Where(w => w.Id == 1).Select(w => (DateOnly?)w.Date).SingleOrDefaultAsync(ct);
+            if (working is null || working != date)
+            {
+                throw new ValidationException("The working day has not been opened yet. Please open the working day first.");
+            }
+
+            var day = await db.DayFinances.SingleOrDefaultAsync(d => d.Date == date, ct);
+            if (day is null || day.ClosedAt != null)
+            {
+                throw new ValidationException("The working day has not been opened yet. Please open the working day first.");
+            }
         }
     }
 }

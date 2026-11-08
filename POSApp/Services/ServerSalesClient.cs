@@ -51,6 +51,16 @@ public sealed class ServerSalesClient : ISalesClient, IDisposable
         return await sales.DraftAsync(await ActorAsync(), id);
     }
 
+    public async Task DiscardDraftAsync(Guid id)
+    {
+        await sales.DiscardDraftAsync(await ActorAsync(), id);
+    }
+
+    public async Task<SaleBill?> FindReceiptAsync(string receiptNumber)
+    {
+        return await sales.FindReceiptAsync(await ActorAsync(), receiptNumber);
+    }
+
     public async Task<int> AddCustomerAsync(CustomerInput input)
     {
         return await sales.AddCustomerAsync(await ActorAsync(), input);

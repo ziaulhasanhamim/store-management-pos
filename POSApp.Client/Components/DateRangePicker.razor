@@ -86,7 +86,7 @@
 
     protected override void OnParametersSet()
     {
-        var refDate = Start ?? DateOnly.FromDateTime(DateTime.Today);
+        var refDate = Start ?? UserTime.Today();
         viewYear = refDate.Year;
         viewMonth = refDate.Month;
     }
@@ -155,7 +155,7 @@
         if (isInSelectedRange)
             return $"{baseClass} text-blue-900 font-medium bg-blue-100/80";
 
-        var today = DateOnly.FromDateTime(DateTime.Today);
+        var today = UserTime.Today();
         if (day == today)
             return $"{baseClass} text-slate-700 hover:bg-slate-100 rounded-lg border border-blue-400 font-semibold";
 

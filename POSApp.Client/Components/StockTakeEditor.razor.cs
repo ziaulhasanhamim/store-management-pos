@@ -33,10 +33,11 @@ public partial class StockTakeEditor : IAsyncDisposable
     private bool Review;
     private bool Confirmed;
     private bool ConfirmRefresh;
+    private bool ConfirmDiscard;
     private string? Error;
     private string? Notice;
     private readonly Guid CompletionId = Guid.NewGuid();
-    private bool ReadOnly => !Data.CanEdit || Review || ConfirmRefresh;
+    private bool ReadOnly => !Data.CanEdit || Review || ConfirmRefresh || ConfirmDiscard;
     private bool HasInvalid => Rows.Any(row => !row.Valid);
     private CountRow? Selected => Rows.FirstOrDefault(row => row.Item.ProductId == SelectedId) ?? PendingSelection;
     private bool CanAdd => !ReadOnly && !Busy && Selected is { Valid: true } && FoundQuantityValid && FoundQuantity > 0;
@@ -401,6 +402,12 @@ public partial class StockTakeEditor : IAsyncDisposable
         Review = false;
         await LoadListAsync();
         Notice = "Stock take applied. Every adjustment is recorded in the item's stock history.";
+    });
+
+    private Task DiscardDraftAsync() => RunAsync(async () =>
+    {
+        await Takes.DiscardDraftAsync(Data.Id);
+        Navigation.NavigateTo("/stock/takes");
     });
 
     private async Task SaveCountsAsync()

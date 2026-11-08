@@ -81,7 +81,7 @@ public sealed class ExpenseInput
     public int? StockLocationId { get; set; }
     public decimal Amount { get; set; }
     public PaymentMethod Method { get; set; } = PaymentMethod.Cash;
-    public DateTime Date { get; set; } = DateTime.Today;
+    public DateOnly Date { get; set; }
     public string? ReceiptReference { get; set; }
     public string Notes { get; set; } = "";
 }
@@ -92,8 +92,8 @@ public sealed class PayrollInput
     public Guid RequestId { get; set; } = Guid.NewGuid();
     public int EmployeeId { get; set; }
     public PayrollKind Kind { get; set; } = PayrollKind.Salary;
-    public DateTime Date { get; set; } = DateTime.Today;
-    public DateTime Month { get; set; } = DateTime.Today;
+    public DateOnly Date { get; set; }
+    public DateOnly Month { get; set; }
     public decimal Amount { get; set; }
     public PaymentMethod Method { get; set; } = PaymentMethod.Cash;
     public string Notes { get; set; } = "";
@@ -141,7 +141,7 @@ public sealed class EmployeeInput
 public sealed class SalaryInput
 {
     public int EmployeeId { get; set; }
-    public DateTime Month { get; set; }
+    public DateOnly Month { get; set; }
     public decimal Amount { get; set; }
     public string Notes { get; set; } = "";
 }

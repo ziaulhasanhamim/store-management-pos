@@ -87,7 +87,7 @@ public sealed partial class StockAdjustmentService
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         await StoreAccess.RequireAsync(db, actor, AppRoles.Admin, ct);
-        return await db.StockAdjustments.AsNoTracking().OrderByDescending(adjustment => adjustment.Id).Take(100)
+        return await db.StockAdjustments.AsNoTracking().Where(adjustment => !adjustment.IsVoided).OrderByDescending(adjustment => adjustment.Id).Take(100)
             .Select(adjustment => new StockAdjustmentHistory(adjustment.Id, adjustment.StockLocation!.Name, adjustment.Date,
                 adjustment.Items.Count, adjustment.Items.Sum(item => item.Quantity * item.UnitCost)))
             .ToArrayAsync(ct);
@@ -98,7 +98,7 @@ public sealed partial class StockAdjustmentService
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         await StoreAccess.RequireAsync(db, actor, AppRoles.Admin, ct);
-        return await db.StockAdjustments.AsNoTracking().OrderByDescending(adjustment => adjustment.Id)
+        return await db.StockAdjustments.AsNoTracking().Where(adjustment => !adjustment.IsVoided).OrderByDescending(adjustment => adjustment.Id)
             .Select(adjustment => new StockAdjustmentHistory(adjustment.Id, adjustment.StockLocation!.Name, adjustment.Date,
                 adjustment.Items.Count, adjustment.Items.Sum(item => item.Quantity * item.UnitCost)))
             .ToPageAsync(page, pageSize, ct);

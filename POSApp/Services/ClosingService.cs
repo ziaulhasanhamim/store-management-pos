@@ -66,7 +66,7 @@ public sealed class ClosingService(IServiceScopeFactory scopes, IConfiguration c
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             var actorId = await StoreAccess.RequireAsync(db, actor, AppRoles.Admin, ct);
             await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
-            await AccountingCalendar.EnsureOpenAsync(db, date, ct);
+            await AccountingCalendar.EnsureOpenAsync(db, date, ct, requireDayOpened: false);
             var selection = await db.WorkingDays.SingleOrDefaultAsync(day => day.Id == 1, ct);
             if (selection is not null && selection.Date != date)
             {
@@ -281,7 +281,7 @@ public sealed class ClosingService(IServiceScopeFactory scopes, IConfiguration c
             {
                 throw new ValidationException("Choose a date and enter notes up to 2,000 characters.");
             }
-            var date = Normalize(DateOnly.FromDateTime(input.Date), input.Kind);
+            var date = Normalize(input.Date, input.Kind);
             if (date > AccountingCalendar.Today(configuration))
             {
                 throw new ValidationException("Choose today or an earlier accounting date.");
@@ -326,22 +326,9 @@ public sealed class ClosingService(IServiceScopeFactory scopes, IConfiguration c
                 {
                     throw new ValidationException("Assign the legacy cash balances to selling locations before closing the day.");
                 }
-                dayFinance = await db.DayFinances.SingleOrDefaultAsync(day => day.Date == date, ct);
-                dayFinance ??= new DayFinance
-                {
-                    Date = date,
-                    OpeningCash = await db.CashDrawers.Select(drawer => (decimal?)drawer.CurrentCash).SumAsync(ct) ?? 0,
-                    CreatedByUserId = actorId
-                };
-                if (dayFinance.Id == 0)
-                {
-                    db.DayFinances.Add(dayFinance);
-                }
+                dayFinance = await db.DayFinances.SingleOrDefaultAsync(day => day.Date == date, ct)
+                    ?? throw new ValidationException("The working day has not been opened yet.");
                 input.OpeningCash = dayFinance.OpeningCash;
-                if (!await db.WorkingDays.AnyAsync(day => day.Id == 1, ct))
-                {
-                    db.WorkingDays.Add(new WorkingDay { Id = 1, Date = date });
-                }
             }
             else
             {
@@ -482,12 +469,12 @@ public sealed class ClosingService(IServiceScopeFactory scopes, IConfiguration c
                 && (locationId == null || item.Sale.StockLocationId == locationId.Value))
             .Select(item => new { item.UnitCost, item.Quantity }).ToListAsync(ct);
         var cogs = costs.Sum(item => decimal.Round(item.UnitCost * item.Quantity, 2, MidpointRounding.AwayFromZero));
-        var expenses = await db.Expenses.Where(expense => expense.OccurredAt >= from && expense.OccurredAt < through
+        var expenses = await db.Expenses.Where(expense => !expense.IsVoided && expense.OccurredAt >= from && expense.OccurredAt < through
                 && (locationId == null || expense.StockLocationId == locationId.Value))
             .Select(expense => (decimal?)expense.Amount).SumAsync(ct) ?? 0;
-        var salaries = await db.PayrollEntries.Where(entry => entry.OccurredAt >= from && entry.OccurredAt < through)
+        var salaries = await db.PayrollEntries.Where(entry => !entry.IsVoided && entry.OccurredAt >= from && entry.OccurredAt < through)
             .Select(entry => (decimal?)entry.PaidAmount).SumAsync(ct) ?? 0;
-        var advances = await db.PayrollEntries.Where(entry => entry.OccurredAt >= from && entry.OccurredAt < through && entry.AdvanceCreated > 0)
+        var advances = await db.PayrollEntries.Where(entry => !entry.IsVoided && entry.OccurredAt >= from && entry.OccurredAt < through && entry.AdvanceCreated > 0)
             .Select(entry => (decimal?)entry.AdvanceCreated).SumAsync(ct) ?? 0;
         var purchaseTotal = await db.Purchases.Where(purchase => !purchase.IsDeleted && purchase.ReceivedAt >= from && purchase.ReceivedAt < through
                 && (locationId == null || purchase.StockLocationId == locationId.Value))
@@ -528,15 +515,17 @@ public sealed class ClosingService(IServiceScopeFactory scopes, IConfiguration c
             AdvancesPaid = advances,
             CashVariance = variance,
             StockVariance = (await db.InventoryMovements.Where(move => (move.StockTakeItemId != null || move.StockAdjustmentItemId != null || move.Type == InventoryMovementType.Adjustment)
+                    && (move.StockAdjustmentItem == null || !move.StockAdjustmentItem.StockAdjustment!.IsVoided)
+                    && (move.StockTakeItem == null || !move.StockTakeItem.StockTake!.IsVoided)
                     && move.OccurredAt >= from && move.OccurredAt < through
                     && (locationId == null || move.StockLocationId == locationId.Value))
                 .Select(move => new { move.Quantity, move.UnitCost }).ToArrayAsync(ct))
                 .Sum(move => decimal.Round(move.Quantity * move.UnitCost, 2, MidpointRounding.AwayFromZero)),
             AwaitingPayout = new AwaitingPayoutSummary(
-                await db.PaymentClearingEntries.Where(e => e.Status == PaymentClearingStatus.Unsettled && (locationId == null || e.StockLocationId == locationId.Value) && e.Method == PaymentMethod.Card).Select(e => (decimal?)e.GrossAmount).SumAsync(ct) ?? 0,
-                await db.PaymentClearingEntries.Where(e => e.Status == PaymentClearingStatus.Unsettled && (locationId == null || e.StockLocationId == locationId.Value) && e.Method == PaymentMethod.MobileWallet).Select(e => (decimal?)e.GrossAmount).SumAsync(ct) ?? 0,
-                await db.PaymentClearingEntries.Where(e => e.Status == PaymentClearingStatus.Unsettled && (locationId == null || e.StockLocationId == locationId.Value)).CountAsync(ct),
-                await db.PaymentClearingEntries.Where(e => e.Status == PaymentClearingStatus.Unsettled && (locationId == null || e.StockLocationId == locationId.Value)).OrderBy(e => e.BusinessDate).Select(e => (DateOnly?)e.BusinessDate).FirstOrDefaultAsync(ct))
+                await db.PaymentClearingEntries.Where(e => e.Status == PaymentClearingStatus.Unsettled && (locationId == null || e.StockLocationId == locationId.Value) && (e.Payment == null || (!e.Payment.IsVoided && (e.Payment.SaleId == null || (!e.Payment.Sale!.IsDeleted && e.Payment.Sale.Status != SaleStatus.Voided)))) && e.Method == PaymentMethod.Card).Select(e => (decimal?)e.GrossAmount).SumAsync(ct) ?? 0,
+                await db.PaymentClearingEntries.Where(e => e.Status == PaymentClearingStatus.Unsettled && (locationId == null || e.StockLocationId == locationId.Value) && (e.Payment == null || (!e.Payment.IsVoided && (e.Payment.SaleId == null || (!e.Payment.Sale!.IsDeleted && e.Payment.Sale.Status != SaleStatus.Voided)))) && e.Method == PaymentMethod.MobileWallet).Select(e => (decimal?)e.GrossAmount).SumAsync(ct) ?? 0,
+                await db.PaymentClearingEntries.Where(e => e.Status == PaymentClearingStatus.Unsettled && (locationId == null || e.StockLocationId == locationId.Value) && (e.Payment == null || (!e.Payment.IsVoided && (e.Payment.SaleId == null || (!e.Payment.Sale!.IsDeleted && e.Payment.Sale.Status != SaleStatus.Voided))))).CountAsync(ct),
+                await db.PaymentClearingEntries.Where(e => e.Status == PaymentClearingStatus.Unsettled && (locationId == null || e.StockLocationId == locationId.Value) && (e.Payment == null || (!e.Payment.IsVoided && (e.Payment.SaleId == null || (!e.Payment.Sale!.IsDeleted && e.Payment.Sale.Status != SaleStatus.Voided))))).OrderBy(e => e.BusinessDate).Select(e => (DateOnly?)e.BusinessDate).FirstOrDefaultAsync(ct))
         };
         var locationBreakdown = locationId == null
             ? await MonthlyFinanceBuilder.BuildLocationBreakdownAsync(db, from, through, ct)

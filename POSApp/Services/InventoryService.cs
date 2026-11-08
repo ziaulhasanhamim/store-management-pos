@@ -30,30 +30,27 @@ public sealed class InventoryService(IServiceScopeFactory scopes, IConfiguration
                 db.Roles,
                 userRole => userRole.RoleId,
                 role => role.Id,
-                (userRole, role) => role.Name
+                (userRole, role) => role.Name!
             )
+            .Where(name => name != null)
             .ToListAsync(ct);
 
-        var canSeeCost = roles.Any(r => r == AppRoles.Admin || r == AppRoles.InventoryManager || r == AppRoles.SalesAssociate || r == AppRoles.InventoryViewer);
-        if (manage && !roles.Any(r => r == AppRoles.Admin || r == AppRoles.InventoryManager))
+        if (roles.Count == 0)
         {
             throw new UnauthorizedAccessException();
         }
 
+        if (manage && !await RolePermissionService.HasPolicyForRolesAsync(db, roles, AppPolicies.ManageInventory, ct))
+        {
+            throw new UnauthorizedAccessException();
+        }
+
+        var canSeeCost = await RolePermissionService.HasPolicyForRolesAsync(db, roles, AppPolicies.ViewCostPrice, ct);
         return (id, canSeeCost);
     }
 
-    private static async Task<bool> CanSeeCost(AppDbContext db, int id, CancellationToken ct) =>
-    await db.UserRoles
-        .Where(userRole => userRole.UserId == id)
-        .Join(
-            db.Roles,
-            userRole => userRole.RoleId,
-            role => role.Id,
-            (userRole, role) => new { userRole, role }
-        )
-        .Where(joined => joined.role.Name == AppRoles.Admin || joined.role.Name == AppRoles.InventoryManager || joined.role.Name == AppRoles.SalesAssociate || joined.role.Name == AppRoles.InventoryViewer)
-        .AnyAsync(ct);
+    private static Task<bool> CanSeeCost(AppDbContext db, int id, CancellationToken ct) =>
+        RolePermissionService.HasPolicyAsync(db, id, AppPolicies.ViewCostPrice, ct);
 
     private static IQueryable<ItemRow> ItemQuery(IQueryable<Product> products, bool costs, int? locationId = null) => products
         .Select(product => new ItemRow(
@@ -69,7 +66,8 @@ public sealed class InventoryService(IServiceScopeFactory scopes, IConfiguration
             product.AllowFractionUnit,
             product.SupplierId,
             product.Supplier!.Name,
-            product.IsNonStocked));
+            product.IsNonStocked,
+            product.ReorderLevel));
 
     public async Task<ItemLocationOptions> ItemLocationsAsync(ClaimsPrincipal actor, CancellationToken ct = default)
     {
@@ -645,6 +643,7 @@ public sealed class InventoryService(IServiceScopeFactory scopes, IConfiguration
             product.Description = input.Description?.Trim();
             product.CategoryId = input.CategoryId;
             product.SellingPrice = input.SellingPrice;
+            product.ReorderLevel = input.ReorderLevel;
             if (productId is null)
             {
                 product.CostPrice = targetCostPrice;
@@ -1105,7 +1104,7 @@ public sealed class InventoryService(IServiceScopeFactory scopes, IConfiguration
         // Critical stock alerts (items out of stock or low)
         var stockAlerts = await db.Products.AsNoTracking()
             .Where(p => !p.IsDeleted && !p.IsNonStocked
-                && p.InventoryBalances.Sum(b => (decimal?)b.QuantityOnHand ?? 0) <= 5)
+                && p.InventoryBalances.Sum(b => (decimal?)b.QuantityOnHand ?? 0) <= (decimal)p.ReorderLevel)
             .OrderBy(p => p.InventoryBalances.Sum(b => (decimal?)b.QuantityOnHand ?? 0))
             .ThenBy(p => p.Name)
             .Take(6)
@@ -1115,7 +1114,8 @@ public sealed class InventoryService(IServiceScopeFactory scopes, IConfiguration
                 p.Barcode,
                 p.InventoryBalances.Sum(b => (decimal?)b.QuantityOnHand ?? 0),
                 p.Unit,
-                p.Supplier != null ? p.Supplier.Name : "Unassigned"))
+                p.Supplier != null ? p.Supplier.Name : "Unassigned",
+                p.ReorderLevel))
             .ToListAsync(ct);
 
         return new(
@@ -1282,6 +1282,7 @@ public sealed class InventoryService(IServiceScopeFactory scopes, IConfiguration
 
             var stocks = await db.InventoryBalances.Where(b => productIds.Contains(b.ProductId)).ToListAsync(ct);
             var now = DateTimeOffset.UtcNow;
+            var costHistories = new List<ProductCostHistory>();
             var purchase = new Purchase
             {
                 RequestHash = hash,
@@ -1315,17 +1316,19 @@ public sealed class InventoryService(IServiceScopeFactory scopes, IConfiguration
                     if (product.CostPrice != oldCost)
                     {
                         var invoiceInfo = string.IsNullOrWhiteSpace(command.Invoice) ? "" : $" (Invoice: {command.Invoice.Trim()})";
-                        db.ProductCostHistories.Add(new ProductCostHistory
+                        var history = new ProductCostHistory
                         {
                             ProductId = product.Id,
                             OldCostPrice = oldCost,
                             NewCostPrice = product.CostPrice,
                             Reason = $"Received {line.Quantity:0.###} {product.Unit} @ {line.UnitCost:N2}{invoiceInfo}",
                             ReferenceType = "Purchase",
-                            ReferenceId = purchase.Id,
+                            ReferenceId = 0,
                             CreatedByUserId = actorId,
                             CreatedAt = now
-                        });
+                        };
+                        costHistories.Add(history);
+                        db.ProductCostHistories.Add(history);
                     }
                 }
 
@@ -1450,6 +1453,14 @@ public sealed class InventoryService(IServiceScopeFactory scopes, IConfiguration
             balance.UpdatedByUserId = actorId;
             db.Purchases.Add(purchase);
             await db.SaveChangesAsync(ct);
+            if (costHistories.Count > 0)
+            {
+                foreach (var history in costHistories)
+                {
+                    history.ReferenceId = purchase.Id;
+                }
+                await db.SaveChangesAsync(ct);
+            }
             await transaction.CommitAsync(ct);
             return new(purchase.Id, number, total, paidAmount, balance.CurrentBalance);
         }, ct);

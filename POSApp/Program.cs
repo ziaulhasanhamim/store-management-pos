@@ -143,8 +143,10 @@ app.Use(async (context, next) =>
 app.Use(async (context, next) =>
 {
     var previous = WorkingDayRequest.Date;
+    var previousZone = BusinessTime.AmbientZone;
     try
     {
+        BusinessTime.AmbientZone = BusinessTime.ResolveUserTimeZone(context, app.Configuration).Zone;
         if (HttpMethods.IsPost(context.Request.Method) && context.Request.HasFormContentType
             && !context.Request.Path.StartsWithSegments("/account"))
         {
@@ -159,6 +161,7 @@ app.Use(async (context, next) =>
     finally
     {
         WorkingDayRequest.Date = previous;
+        BusinessTime.AmbientZone = previousZone;
     }
 });
 

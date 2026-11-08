@@ -59,9 +59,9 @@ public sealed class BalanceIntegrityService(IServiceScopeFactory scopes)
             {
                 balance.LenderId,
                 balance.CurrentBalance,
-                Latest = (balance.Entries.OrderBy(entry => entry.Id)
+                Latest = (balance.Entries.Where(entry => !entry.IsVoided).OrderBy(entry => entry.Id)
                     .Select(entry => (decimal?)(entry.BalanceAfter - entry.Amount)).FirstOrDefault() ?? balance.OpeningBalance)
-                    + (balance.Entries.Select(entry => (decimal?)entry.Amount).Sum() ?? 0)
+                    + (balance.Entries.Where(entry => !entry.IsVoided).Select(entry => (decimal?)entry.Amount).Sum() ?? 0)
             }).ToArrayAsync(ct);
             foreach (var row in lenders.Where(row => row.Latest != row.CurrentBalance))
             {
@@ -71,9 +71,9 @@ public sealed class BalanceIntegrityService(IServiceScopeFactory scopes)
             {
                 bank.Code,
                 bank.CurrentBalance,
-                Latest = (db.BankMovements.Where(move => move.BankAccountId == bank.Id)
+                Latest = (db.BankMovements.Where(move => move.BankAccountId == bank.Id && move.ReversesMovementId == null && !db.BankMovements.Any(r => r.ReversesMovementId == move.Id))
                     .OrderBy(move => move.Id).Select(move => (decimal?)(move.BalanceAfter - move.Amount)).FirstOrDefault() ?? bank.OpeningBalance)
-                    + (db.BankMovements.Where(move => move.BankAccountId == bank.Id).Select(move => (decimal?)move.Amount).Sum() ?? 0)
+                    + (db.BankMovements.Where(move => move.BankAccountId == bank.Id && move.ReversesMovementId == null && !db.BankMovements.Any(r => r.ReversesMovementId == move.Id)).Select(move => (decimal?)move.Amount).Sum() ?? 0)
             }).ToArrayAsync(ct);
             foreach (var row in banks.Where(row => row.Latest != row.CurrentBalance))
             {
@@ -118,14 +118,62 @@ public sealed class BalanceIntegrityService(IServiceScopeFactory scopes)
             {
                 account.EmployeeId,
                 account.OutstandingAdvance,
-                Expected = (account.Entries.OrderBy(entry => entry.Id)
+                Expected = (account.Entries.Where(entry => !entry.IsVoided).OrderBy(entry => entry.Id)
                     .Select(entry => (decimal?)(entry.AdvanceBalanceAfter - entry.AdvanceCreated + entry.AdvanceApplied))
                     .FirstOrDefault() ?? 0)
-                    + (account.Entries.Select(entry => (decimal?)(entry.AdvanceCreated - entry.AdvanceApplied)).Sum() ?? 0)
+                    + (account.Entries.Where(entry => !entry.IsVoided).Select(entry => (decimal?)(entry.AdvanceCreated - entry.AdvanceApplied)).Sum() ?? 0)
             }).ToArrayAsync(ct);
             foreach (var row in advances.Where(row => row.OutstandingAdvance != row.Expected))
             {
                 issues.Add(new("Employee advance", $"Employee #{row.EmployeeId}", row.OutstandingAdvance, row.Expected));
+            }
+            var drawers = await db.CashDrawers.AsNoTracking().Select(drawer => new
+            {
+                drawer.Id,
+                drawer.CurrentCash,
+                Expected = drawer.CurrentSession != null
+                    ? drawer.CurrentSession.OpeningCash + (db.CashMovements.Where(m => m.CashSessionId == drawer.CurrentSession.Id).Select(m => (decimal?)m.Amount).Sum() ?? 0)
+                    : (db.CashSessions.Where(s => s.CashDrawerId == drawer.Id && s.ClosedAt != null).OrderByDescending(s => s.Id).Select(s => (decimal?)(s.ActualClosingCash ?? s.ExpectedCash)).FirstOrDefault() ?? drawer.OpeningBalance)
+            }).ToArrayAsync(ct);
+            foreach (var row in drawers.Where(row => row.CurrentCash != row.Expected))
+            {
+                issues.Add(new("Drawer cash", $"Drawer #{row.Id}", row.CurrentCash, row.Expected));
+            }
+            var costDiscrepancies = await db.Products.AsNoTracking()
+                .Where(p => !p.IsDeleted && db.ProductCostHistories.Any(h => h.ProductId == p.Id))
+                .Select(p => new
+                {
+                    p.Id,
+                    p.CostPrice,
+                    LatestCost = db.ProductCostHistories.Where(h => h.ProductId == p.Id).OrderByDescending(h => h.Id).Select(h => (decimal?)h.NewCostPrice).FirstOrDefault() ?? p.CostPrice
+                }).Where(p => p.CostPrice != p.LatestCost).ToArrayAsync(ct);
+            foreach (var row in costDiscrepancies)
+            {
+                issues.Add(new("Product cost", $"Product #{row.Id}", row.CostPrice, row.LatestCost));
+            }
+            var salaryDiscrepancies = await db.MonthlySalaries.AsNoTracking()
+                .Select(s => new
+                {
+                    s.Id,
+                    s.SettledAmount,
+                    Expected = db.PayrollEntries.Where(p => !p.IsVoided && p.MonthlySalaryId == s.Id)
+                        .Select(p => (decimal?)(p.Amount - p.AdvanceCreated)).Sum() ?? 0
+                }).Where(s => s.SettledAmount != s.Expected).ToArrayAsync(ct);
+            foreach (var row in salaryDiscrepancies)
+            {
+                issues.Add(new("Salary settlement", $"Salary #{row.Id}", row.SettledAmount, row.Expected));
+            }
+            var unsettledClearingTotal = await db.PaymentClearingEntries.AsNoTracking()
+                .Where(e => e.Status == PaymentClearingStatus.Unsettled && (e.Payment == null || (!e.Payment.IsVoided && (e.Payment.SaleId == null || (!e.Payment.Sale!.IsDeleted && e.Payment.Sale.Status != SaleStatus.Voided)))))
+                .Select(e => (decimal?)e.GrossAmount).SumAsync(ct) ?? 0;
+            var unsettledPaymentsTotal = await db.Payments.AsNoTracking()
+                .Where(p => !p.IsVoided && (p.Method == PaymentMethod.Card || p.Method == PaymentMethod.MobileWallet)
+                    && (p.SaleId == null || (!p.Sale!.IsDeleted && p.Sale.Status != SaleStatus.Voided))
+                    && !db.PaymentClearingEntries.Any(e => e.PaymentId == p.Id && e.Status == PaymentClearingStatus.Settled))
+                .Select(p => (decimal?)p.Amount).SumAsync(ct) ?? 0;
+            if (unsettledClearingTotal != unsettledPaymentsTotal)
+            {
+                issues.Add(new("Payment clearing", "Unsettled card & wallet total", unsettledClearingTotal, unsettledPaymentsTotal));
             }
             return issues;
         }, ct);

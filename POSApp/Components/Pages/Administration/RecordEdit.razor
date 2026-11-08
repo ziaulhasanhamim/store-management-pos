@@ -10,9 +10,9 @@
 <div class="page-heading">
     <div>
         <h1>@(Data?.Name ?? "Record correction")</h1>
-        @if (Data is not null && Kind != "product")
+        @if (Data is not null && !IsSetupKind)
         {
-            <p class="text-xs text-slate-500 mt-1">Transaction recorded on @Data.At.ToBusinessTime(Configuration).ToString("dd MMM yyyy, HH:mm") (@Zone.Id)</p>
+            <p class="text-xs text-slate-500 mt-1">Transaction recorded on @UserTime.Format(Data.At, "dd MMM yyyy, HH:mm") (@UserTime.TimeZoneId)</p>
         }
     </div>
     <a href="@BackUrl" class="btn-secondary">Back</a>
@@ -27,12 +27,12 @@
 }
 else if (Data.Deleted)
 {
-    <p class="success-panel">This record is soft-deleted. Its history is retained.</p>
+    <p class="success-panel">This record has been @(IsSetupKind ? "archived" : "voided"). Its audit history is retained.</p>
 }
 else
 {
     <div class="grid items-start gap-6 lg:grid-cols-2">
-        @if (Kind != "product")
+        @if (Kind is "sale" or "purchase")
         {
             <section class="panel p-6">
                 <h2 class="mb-5 font-semibold">Correct transaction</h2>
@@ -63,29 +63,37 @@ else
             </section>
         }
         <section class="panel p-6">
-            <h2 class="mb-3 font-semibold">@(Kind == "product" ? "Archive product" : "Void transaction")</h2>
+            <h2 class="mb-3 font-semibold">@(IsSetupKind ? "Delete or archive record" : "Void transaction")</h2>
             <p class="mb-5 text-sm text-slate-500">
-                @(Kind == "product" ? "Hide this product from the catalog. Existing stock remains in the valuation report and history is retained." : "Reverse this transaction’s stock and account balances. The original record, payments and audit history are retained.")
+                @(IsSetupKind
+                    ? "Unreferenced setup records are cleanly removed; records with transaction history are archived with full audit history."
+                    : "Reverse this transaction’s stock and account balances. The original record, payments and audit history are retained.")
             </p>
-            @if (Data.Total is not null)
+            @if (Data.Total is not null || Data.StockEffects.Count > 0)
             {
                 <dl class="mb-4 grid grid-cols-2 gap-2 text-sm">
                     <dt>Date & time</dt>
-                    <dd>@Data.At.ToBusinessTime(Configuration).ToString("dd MMM yyyy, HH:mm")</dd>
-                    <dt>Transaction value</dt>
-                    <dd class="tabular-nums">@(Configuration["CurrencyCode"] ?? "BDT") @Data.Total.Value.ToString("N2")</dd>
-                    <dt>Payments to reverse</dt>
-                    <dd class="tabular-nums">@(Configuration["CurrencyCode"] ?? "BDT") @(Data.Paid?.ToString("N2") ?? "0.00")</dd>
+                    <dd>@UserTime.Format(Data.At, "dd MMM yyyy, HH:mm")</dd>
+                    @if (Data.Total is not null)
+                    {
+                        <dt>Transaction value</dt>
+                        <dd class="tabular-nums">@(Configuration["CurrencyCode"] ?? "BDT") @Data.Total.Value.ToString("N2")</dd>
+                        <dt>Payments to reverse</dt>
+                        <dd class="tabular-nums">@(Configuration["CurrencyCode"] ?? "BDT") @(Data.Paid?.ToString("N2") ?? "0.00")</dd>
+                    }
                 </dl>
-                <details class="mb-4 text-sm">
-                    <summary class="cursor-pointer text-blue-700">Stock changes if voided · @Data.StockEffects.Count items</summary>
-                    <ul class="mt-3 space-y-2">
-                        @foreach (var effect in Data.StockEffects)
-                        {
-                            <li>@effect.Product · @(effect.Quantity >= 0 ? "+" : "")@effect.Quantity.ToString("0.###") @effect.Unit</li>
-                        }
-                    </ul>
-                </details>
+                @if (Data.StockEffects.Count > 0)
+                {
+                    <details class="mb-4 text-sm">
+                        <summary class="cursor-pointer text-blue-700">Stock changes if voided · @Data.StockEffects.Count items</summary>
+                        <ul class="mt-3 space-y-2">
+                            @foreach (var effect in Data.StockEffects)
+                            {
+                                <li>@effect.Product · @(effect.Quantity >= 0 ? "+" : "")@effect.Quantity.ToString("0.###") @effect.Unit</li>
+                            }
+                        </ul>
+                    </details>
+                }
             }
             <form method="post" @formname="record-delete" @onsubmit="DeleteAsync" data-enhance data-submit-indication="true">
                 <AntiforgeryToken />
@@ -98,7 +106,7 @@ else
                 </label>
                 <button type="submit" class="btn-danger" data-pending-text="Voiding…">
                     <Icon Name="trash" />
-                    @(Kind == "product" ? "Archive product" : "Void transaction")
+                    @(IsSetupKind ? "Delete / archive record" : "Void transaction")
                 </button>
             </form>
         </section>
@@ -114,7 +122,7 @@ else
         {
             <div class="border-t border-slate-100 p-5 text-sm">
                 <strong>@change.Action · @change.Actor</strong>
-                <span class="ml-3 text-slate-500">@change.At.ToBusinessTime(Configuration).ToString("dd MMM yyyy, HH:mm")</span>
+                <span class="ml-3 text-slate-500">@UserTime.Format(change.At, "dd MMM yyyy, HH:mm")</span>
                 <p class="mt-1">@change.Reason</p>
             </div>
         }
@@ -136,10 +144,19 @@ else
 
     private EditableRecord? Data;
     private string? Error;
-    private TimeZoneInfo Zone => TimeZoneInfo.FindSystemTimeZoneById(Configuration["BusinessTimeZone"] ?? "Asia/Dhaka");
+    private bool IsSetupKind => Kind is "product" or "category" or "customer" or "supplier" or "employee" or "lender";
     private string BackUrl => Kind switch
     {
         "product" => "/items",
+        "category" => "/categories",
+        "customer" => "/customers",
+        "supplier" => "/suppliers",
+        "employee" or "payroll" => "/finance/payroll",
+        "lender" or "debt" => "/finance/debts",
+        "cash-transfer" => "/cash-drawer",
+        "stock-transfer" => "/stock-transfers",
+        "stock-adjustment" => "/stock-adjustments",
+        "stock-take" => "/stock-takes",
         "purchase" => "/reports/receiving",
         _ => "/reports/sales"
     };

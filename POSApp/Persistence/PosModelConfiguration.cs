@@ -15,6 +15,7 @@ internal static class PosModelConfiguration
         ConfigureNormalizedName<Product>(builder);
         ConfigureNormalizedName<StockLocation>(builder);
         ConfigureNormalizedName<Supplier>(builder);
+        builder.Entity<User>().Property(u => u.TimeZoneId).HasMaxLength(100);
         FinanceModelConfiguration.Configure(builder);
         builder.Entity<Supplier>().HasIndex(supplier => supplier.LegacyId).IsUnique();
         builder.Entity<ImportJob>(entity =>
@@ -43,6 +44,7 @@ internal static class PosModelConfiguration
             entity.HasIndex(opening => opening.RequestId).IsUnique();
             entity.HasIndex(opening => new { opening.StockLocationId, opening.Date });
             entity.Property(opening => opening.Notes).HasMaxLength(2000);
+            entity.Property(opening => opening.VoidReason).HasMaxLength(2000);
         });
         builder.Entity<StockAdjustmentItem>(entity =>
         {
@@ -58,6 +60,7 @@ internal static class PosModelConfiguration
             entity.HasIndex(take => take.RequestId).IsUnique();
             entity.HasIndex(take => new { take.StockLocationId, take.BusinessDate });
             entity.Property(take => take.Reason).HasMaxLength(2000);
+            entity.Property(take => take.VoidReason).HasMaxLength(2000);
             entity.Property(take => take.Revision).IsConcurrencyToken();
         });
         builder.Entity<StockTakeItem>(entity =>
@@ -112,6 +115,7 @@ internal static class PosModelConfiguration
             entity.Property(x => x.Barcode).HasMaxLength(64);
             entity.Property(x => x.Unit).HasMaxLength(32);
             entity.Property(x => x.AllowFractionUnit).HasDefaultValue(false);
+            entity.Property(x => x.ReorderLevel).HasDefaultValue(5);
         });
         builder.Entity<ProductCostHistory>(entity =>
         {
@@ -144,6 +148,8 @@ internal static class PosModelConfiguration
             entity.HasIndex(x => x.ReceiptNumber).IsUnique();
             entity.HasIndex(x => x.SoldAt);
             entity.HasIndex(x => new { x.StockLocationId, x.SoldAt });
+            entity.HasIndex(x => x.OriginalSaleId);
+            entity.HasOne(x => x.OriginalSale).WithMany().HasForeignKey(x => x.OriginalSaleId).OnDelete(DeleteBehavior.Restrict);
         });
         builder.Entity<Purchase>(entity =>
         {
@@ -172,6 +178,7 @@ internal static class PosModelConfiguration
             entity.Property(x => x.Reference).HasMaxLength(128);
             entity.HasIndex(x => x.Reference).IsUnique();
             entity.Property(x => x.Notes).HasMaxLength(2000);
+            entity.Property(x => x.VoidReason).HasMaxLength(2000);
         });
         builder.Entity<SupplierPayment>(entity =>
         {
@@ -180,6 +187,7 @@ internal static class PosModelConfiguration
             entity.Property(x => x.Reference).HasMaxLength(128);
             entity.HasIndex(x => x.Reference).IsUnique();
             entity.Property(x => x.Notes).HasMaxLength(2000);
+            entity.Property(x => x.VoidReason).HasMaxLength(2000);
         });
 
         // Reference navigations on both sides and CustomerId/SupplierId let EF infer

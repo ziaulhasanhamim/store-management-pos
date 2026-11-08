@@ -39,4 +39,5 @@ public sealed record StockAlertItem(
     string? Barcode,
     decimal Stock,
     string Unit,
-    string Supplier);
+    string Supplier,
+    int ReorderLevel = 5);
