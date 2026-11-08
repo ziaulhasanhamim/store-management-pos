@@ -252,6 +252,14 @@ public static class ReportEndpoints
                 filtered.Sum(i => i.TotalRevenue) > 0 ? Number(decimal.Round(filtered.Sum(i => i.TotalProfit) / filtered.Sum(i => i.TotalRevenue) * 100, 1)) : "0",
                 "", "", "", ""]);
         }
+        else if (kind == "expenses")
+        {
+            var expenseReportService = context.RequestServices.GetRequiredService<ExpenseReportService>();
+            var catId = int.TryParse(context.Request.Query["categoryId"], out var cid) ? (int?)cid : null;
+            var expenseCsv = await expenseReportService.ExportCsvAsync(context.User, period, start, end, locationId, catId, search, context.RequestAborted);
+            return Results.File(Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(expenseCsv)).ToArray(),
+                "text/csv; charset=utf-8", $"expense-report-{period ?? "custom"}-{DateTime.UtcNow:yyyyMMddHHmmss}.csv");
+        }
         else
         {
             return Results.NotFound();
