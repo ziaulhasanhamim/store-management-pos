@@ -107,8 +107,8 @@ else
                 <strong class="text-sm font-bold text-slate-900 block">@(Configuration["StoreName"] ?? "RetailPOS")</strong>
                 <p>@(Configuration["Store:Address"] ?? "Khulna Shopping Complex, 41/42, 2nd Floor")</p>
                 <p>Khulna 9100, Bangladesh</p>
-                <p class="font-bold text-slate-800">@(Configuration["Store:Phone"] ?? "01811-644447")</p>
-                <p class="text-sky-600 font-medium">@(Configuration["Store:Email"] ?? "info@jasinternational.com")</p>
+                <p class="font-bold text-slate-800">Phone: @(Configuration["Store:Phone"] ?? "01711465078")</p>
+                <p class="text-sky-600 font-medium">@(Configuration["Store:Email"] ?? "info@jasinternational.com.bd")</p>
             </div>
         </div>
 
@@ -296,10 +296,11 @@ else
         <div class="text-center pb-2">
             <div class="flex items-center justify-center gap-2 mb-1">
                 <img src="/images/jas-logo-icon.png" alt="Logo" class="h-8 w-8 object-contain shrink-0" />
-                <span class="text-lg font-black tracking-tight uppercase">@(Configuration["StoreName"] ?? "JAS INTERNATIONAL")</span>
+                <span class="text-lg font-black tracking-tight uppercase">@(Configuration["StoreName"] ?? "RetailPOS")</span>
             </div>
             <p class="text-xs leading-tight">@(Configuration["Store:Address"] ?? "Khulna Shopping Complex, 41/42, 2nd Floor, Khulna 9100")</p>
-            <p class="text-xs leading-tight">@(Configuration["Store:Phone"] ?? "01811-644447")</p>
+            <p class="text-xs leading-tight">Phone: @(Configuration["Store:Phone"] ?? "01711465078")</p>
+            <p class="text-[11px] leading-tight text-slate-600">@(Configuration["Store:Email"] ?? "info@jasinternational.com.bd")</p>
             <h3 class="mt-2 text-xs font-bold uppercase tracking-wide">Mini Invoice</h3>
             <div class="my-1 border-b border-dashed border-neutral-400"></div>
             <div class="text-[11px] space-y-0.5">
