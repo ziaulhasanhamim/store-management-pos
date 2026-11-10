@@ -46,6 +46,7 @@ public partial class MoneyEntryEditor
     private string? Error;
     private string? Notice;
     private string NewCategory = "";
+    private int CategoryVersion;
     private bool Busy;
     private bool LoadingRows;
     private bool DraftReady = true;
@@ -106,7 +107,7 @@ public partial class MoneyEntryEditor
             Input = new MoneyEntryInput
             {
                 PartyId = last?.PartyId ?? 0,
-                CategoryId = Data.Categories.Any(category => category.Id == last?.CategoryId && !category.IsArchived) ? last!.CategoryId : 0,
+                CategoryId = 0,
                 StockLocationId = last?.StockLocationId ?? Data.UserDefaultLocationId,
                 Method = last?.Method ?? PaymentMethod.Cash
             }
@@ -180,14 +181,12 @@ public partial class MoneyEntryEditor
         Error = null;
         try
         {
-            var id = await Entries.SaveCategoryAsync(new(null, NewCategory));
+            var savedName = NewCategory.Trim();
+            var id = await Entries.SaveCategoryAsync(new(null, savedName));
             Data = await Entries.ReadAsync(Data.Kind, Data.Date, Data.Pagination?.Number ?? 1, Data.Pagination?.Size ?? 30);
-            var empty = Lines.FirstOrDefault(line => line.Input.CategoryId == 0);
-            if (empty is not null)
-            {
-                empty.Input.CategoryId = id;
-            }
+            CategoryVersion++;
             NewCategory = "";
+            Notice = $"Category '{savedName}' added. Select it from the category list.";
         }
         catch (Exception exception)
         {

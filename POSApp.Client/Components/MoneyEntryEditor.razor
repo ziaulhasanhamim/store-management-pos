@@ -64,21 +64,23 @@
                                     }
                                     @if (IsExpense)
                                     {
-                                        <select class="field" @bind="line.Input.CategoryId" aria-label="Expense category">
-                                            <option value="0">Select category</option>
+                                        <select class="field" @bind="line.Input.CategoryId" aria-label="Expense category"
+                                                @key="@($"category-select-{line.Input.RequestId}-{CategoryVersion}")">
+                                            <option @key="0" value="0">Select category</option>
                                             @foreach (var category in Data.Categories.Where(category => !category.IsArchived || category.Id == line.Input.CategoryId))
                                             {
-                                                <option value="@category.Id">@category.Name</option>
+                                                <option @key="category.Id" value="@category.Id">@category.Name</option>
                                             }
                                         </select>
                                     }
                                     else
                                     {
-                                        <select class="field" @bind="line.Input.PartyId" disabled="@line.FixedParty" aria-label="@(IsSupplier ? "Supplier" : "Customer")">
-                                            <option value="0">Select @(IsSupplier ? "supplier" : "customer")</option>
+                                        <select class="field" @bind="line.Input.PartyId" disabled="@line.FixedParty" aria-label="@(IsSupplier ? "Supplier" : "Customer")"
+                                                @key="@($"party-select-{line.Input.RequestId}")">
+                                            <option @key="0" value="0">Select @(IsSupplier ? "supplier" : "customer")</option>
                                             @foreach (var party in Data.Parties)
                                             {
-                                                <option value="@party.Id">@party.Name · @Money(party.Balance)</option>
+                                                <option @key="party.Id" value="@party.Id">@party.Name · @Money(party.Balance)</option>
                                             }
                                         </select>
                                     }
@@ -86,11 +88,12 @@
                                 @if (IsExpense)
                                 {
                                     <td class="min-w-40">
-                                        <select class="field" @bind="line.Input.StockLocationId" aria-label="Store location">
-                                            <option value="">Corporate / All</option>
+                                        <select class="field" @bind="line.Input.StockLocationId" aria-label="Store location"
+                                                @key="@($"location-select-{line.Input.RequestId}")">
+                                            <option @key="0" value="">Corporate / All</option>
                                             @foreach (var loc in Data.Locations)
                                             {
-                                                <option value="@loc.Id">@loc.Name</option>
+                                                <option @key="loc.Id" value="@loc.Id">@loc.Name</option>
                                             }
                                         </select>
                                     </td>
@@ -100,10 +103,11 @@
                                                   ValidityChanged="valid => line.ValidAmount = valid" aria-label="Entry amount" />
                                 </td>
                                 <td>
-                                    <select class="field min-w-36" @bind="line.Input.Method" aria-label="Payment method">
+                                    <select class="field min-w-36" @bind="line.Input.Method" aria-label="Payment method"
+                                            @key="@($"method-select-{line.Input.RequestId}")">
                                         @foreach (var method in Enum.GetValues<PaymentMethod>())
                                         {
-                                            <option value="@method">@SplitPayments.MethodName(method)</option>
+                                            <option @key="method" value="@method">@SplitPayments.MethodName(method)</option>
                                         }
                                     </select>
                                 </td>
