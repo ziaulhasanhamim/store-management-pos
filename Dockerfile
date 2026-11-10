@@ -7,7 +7,7 @@ COPY . .
 RUN npm run css:build
 
 # Stage 2: Build & Publish .NET App
-FROM mcr.microsoft.com/dotnet/sdk:11.0-preview AS build
+FROM mcr.microsoft.com/dotnet/sdk:11.0 AS build
 WORKDIR /src
 
 # Copy solution and project definitions for optimized layer caching
@@ -28,7 +28,7 @@ WORKDIR "/src/POSApp"
 RUN dotnet publish "POSApp.csproj" -c Release -o /app/publish /p:UseAppHost=false
 
 # Stage 3: Runtime
-FROM mcr.microsoft.com/dotnet/aspnet:11.0-preview AS final
+FROM mcr.microsoft.com/dotnet/aspnet:11.0 AS final
 WORKDIR /app
 
 EXPOSE 8080
