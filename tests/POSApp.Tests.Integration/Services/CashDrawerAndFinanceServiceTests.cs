@@ -1,8 +1,10 @@
+using System.ComponentModel.DataAnnotations;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using POSApp.Client.DTOs;
 using POSApp.Client.Enums;
 using POSApp.Persistence;
+using POSApp.Persistence.Entities;
 using POSApp.Services;
 using POSApp.Tests.Integration.Infrastructure;
 
@@ -240,6 +242,123 @@ public class CashDrawerAndFinanceServiceTests : PosIntegrationTestBase
                 .FirstOrDefaultAsync(e => e.SupplierBalance!.SupplierId == supplierId && e.Type == BalanceEntryType.Adjustment);
             await auditEntry.Should().NotBeNull();
             await auditEntry!.Amount.Should().BeEqualTo(300m);
+        }
+    }
+
+    [Test]
+    public async Task DeleteWorkingDayAsync_WhenMistakenlyOpened_RevertsWorkingDateAndDeletesDayFinance()
+    {
+        var today = AccountingCalendar.Today(null);
+        var yesterday = today.AddDays(-1);
+
+        // Setup yesterday as a closed DayFinance
+        await using (var scope = CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            db.DayFinances.Add(new DayFinance
+            {
+                Date = yesterday,
+                OpeningCash = 50000m,
+                ExpectedCash = 50000m,
+                CountedCash = 50000m,
+                ClosedAt = DateTimeOffset.UtcNow.AddDays(-1),
+                CreatedByUserId = 1
+            });
+            await db.SaveChangesAsync();
+        }
+
+        // Today is currently open (seeded). Now delete today as mistakenly opened!
+        await using (var scope = CreateScope())
+        {
+            var closingService = scope.ServiceProvider.GetRequiredService<ClosingService>();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+            await closingService.DeleteWorkingDayAsync(AdminUser, today);
+
+            // Working day should revert back to yesterday
+            var currentWorkingDate = await closingService.SelectedAsync(AdminUser);
+            await currentWorkingDate.Should().BeEqualTo(yesterday);
+
+            // DayFinance for today must be deleted
+            var df = await db.DayFinances.SingleOrDefaultAsync(d => d.Date == today);
+            await df.Should().BeNull();
+
+            // RecordChanges audit entry should exist
+            var audit = await db.RecordChanges.FirstOrDefaultAsync(r => r.Action == "DeleteWorkingDay" && r.Before == today.ToString("yyyy-MM-dd"));
+            await audit.Should().NotBeNull();
+            await audit!.After.Should().BeEqualTo(yesterday.ToString("yyyy-MM-dd"));
+        }
+    }
+
+    [Test]
+    public async Task DeleteWorkingDayAsync_WhenExpensesRecorded_ThrowsValidationException()
+    {
+        DateOnly workingDate;
+        int categoryId;
+
+        await using (var scope = CreateScope())
+        {
+            var closingService = scope.ServiceProvider.GetRequiredService<ClosingService>();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            workingDate = await closingService.SelectedAsync(AdminUser);
+
+            var cat = new ExpenseCategoryDefinition
+            {
+                Name = "Office Utilities",
+                NormalizedName = "OFFICE UTILITIES",
+                IsArchived = false
+            };
+            db.ExpenseCategories.Add(cat);
+            await db.SaveChangesAsync();
+            categoryId = cat.Id;
+        }
+
+        // Record an expense on that date
+        await using (var scope = CreateScope())
+        {
+            var entries = scope.ServiceProvider.GetRequiredService<MoneyEntryService>();
+            var command = new MoneyEntryCommand(
+                RequestId: Guid.NewGuid(),
+                WorkingDate: workingDate,
+                Rows: [new MoneyEntryInput
+                {
+                    RequestId = Guid.NewGuid(),
+                    Id = null,
+                    PartyId = 0,
+                    CategoryId = categoryId,
+                    Amount = 50m,
+                    Method = PaymentMethod.Cash,
+                    Notes = "Office supplies",
+                    Receipt = null
+                }]);
+            await entries.SaveAsync(AdminUser, "expenses", command);
+        }
+
+        // Attempting to delete working day should fail with ValidationException
+        await using (var scope = CreateScope())
+        {
+            var closingService = scope.ServiceProvider.GetRequiredService<ClosingService>();
+            await Assert.ThrowsAsync<ValidationException>(() => closingService.DeleteWorkingDayAsync(AdminUser, workingDate));
+        }
+    }
+
+    [Test]
+    public async Task DeleteWorkingDayAsync_WhenDayIsClosed_ThrowsValidationException()
+    {
+        var today = AccountingCalendar.Today(null);
+
+        await using (var scope = CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var df = await db.DayFinances.SingleAsync(d => d.Date == today);
+            df.ClosedAt = DateTimeOffset.UtcNow;
+            await db.SaveChangesAsync();
+        }
+
+        await using (var scope = CreateScope())
+        {
+            var closingService = scope.ServiceProvider.GetRequiredService<ClosingService>();
+            await Assert.ThrowsAsync<ValidationException>(() => closingService.DeleteWorkingDayAsync(AdminUser, today));
         }
     }
 }

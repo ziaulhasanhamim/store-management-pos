@@ -10,6 +10,12 @@
 <div class="page-heading no-print">
     <h1>@(Kind == ClosingKind.Month ? "Month finance" : "Day finance")</h1>
     <div class="flex flex-wrap gap-2">
+        @if (Kind == ClosingKind.Day)
+        {
+            <AuthorizeView Policy="@AppPolicies.ManageUsers">
+                <a href="/accounting-date" class="btn-secondary text-rose-700 border-rose-200 hover:bg-rose-50 text-xs font-semibold">Manage working day</a>
+            </AuthorizeView>
+        }
         <a class="btn-primary" href="@($"/api/finance/closing.xlsx?date={Selected:yyyy-MM-dd}&period={Period}{(LocationId.HasValue ? $"&locationId={LocationId.Value}" : "")}")" data-enhance-nav="false">Export Excel (.xlsx)</a>
         <button type="button" class="btn-secondary" data-print>Print / PDF</button>
     </div>

@@ -4,6 +4,7 @@ using System.Security.Claims;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using POSApp.Persistence;
+using POSApp.Persistence.Entities;
 
 namespace POSApp.Services;
 
@@ -107,6 +108,137 @@ public sealed class ClosingService(IServiceScopeFactory scopes, IConfiguration c
             {
                 selection.Date = date;
             }
+            await db.SaveChangesAsync(ct);
+            await transaction.CommitAsync(ct);
+        }, ct);
+    }
+
+    public async Task DeleteWorkingDayAsync(ClaimsPrincipal actor, DateOnly date, CancellationToken ct = default)
+    {
+        await StoreOperation.RunAsync(async () =>
+        {
+            await using var scope = scopes.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var actorId = await StoreAccess.RequireAsync(db, actor, AppRoles.Admin, ct);
+            await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
+
+            var dayFinance = await db.DayFinances.SingleOrDefaultAsync(day => day.Date == date, ct);
+            var selection = await db.WorkingDays.SingleOrDefaultAsync(day => day.Id == 1, ct);
+
+            if (dayFinance is null && (selection == null || selection.Date != date))
+            {
+                throw new ValidationException($"No opened working day found for {date:dd MMM yyyy}.");
+            }
+
+            if (dayFinance is { ClosedAt: not null })
+            {
+                throw new ValidationException($"Working day {date:dd MMM yyyy} is already closed. To adjust a closed day, use the Reopen workflow.");
+            }
+
+            var zone = AccountingCalendar.Zone(configuration);
+            DateTimeOffset Utc(DateOnly day) => new(TimeZoneInfo.ConvertTimeToUtc(
+                day.ToDateTime(TimeOnly.MinValue, DateTimeKind.Unspecified), zone), TimeSpan.Zero);
+            var from = Utc(date);
+            var through = Utc(date.AddDays(1));
+
+            // 1. Verify no sales exist
+            if (await db.Sales.AnyAsync(s => !s.IsDeleted && s.SoldAt >= from && s.SoldAt < through, ct))
+            {
+                throw new ValidationException($"Cannot delete working day {date:dd MMM yyyy} because sales have already been completed on this day. Void or delete all sales first.");
+            }
+
+            // 2. Verify no active expenses exist
+            if (await db.Expenses.AnyAsync(e => !e.IsVoided && e.OccurredAt >= from && e.OccurredAt < through, ct))
+            {
+                throw new ValidationException($"Cannot delete working day {date:dd MMM yyyy} because expenses were recorded on this day. Void the expenses first.");
+            }
+
+            // 3. Verify no non-opening cash or bank movements exist
+            if (await db.CashMovements.AnyAsync(m => m.BusinessDate == date && m.Kind != CashMovementKind.OpeningBalance, ct))
+            {
+                throw new ValidationException($"Cannot delete working day {date:dd MMM yyyy} because cash transactions were recorded on this day.");
+            }
+            if (await db.BankMovements.AnyAsync(m => m.BusinessDate == date && m.Kind != CashMovementKind.OpeningBalance, ct))
+            {
+                throw new ValidationException($"Cannot delete working day {date:dd MMM yyyy} because bank transactions were recorded on this day.");
+            }
+
+            // 4. Verify no purchases were received
+            if (await db.Purchases.AnyAsync(p => !p.IsDeleted && p.ReceivedAt >= from && p.ReceivedAt < through, ct))
+            {
+                throw new ValidationException($"Cannot delete working day {date:dd MMM yyyy} because stock purchases were received on this day.");
+            }
+
+            // 5. Verify no stock adjustments or transfers
+            if (await db.StockAdjustments.AnyAsync(a => !a.IsVoided && a.Date == date, ct))
+            {
+                throw new ValidationException($"Cannot delete working day {date:dd MMM yyyy} because stock adjustments were recorded on this day.");
+            }
+            if (await db.StockTransfers.AnyAsync(t => !t.IsVoided && t.OccurredAt >= from && t.OccurredAt < through, ct))
+            {
+                throw new ValidationException($"Cannot delete working day {date:dd MMM yyyy} because stock transfers were recorded on this day.");
+            }
+
+            // 6. Handle any opened cash sessions for this business date
+            var sessions = await db.CashSessions.Include(s => s.Movements)
+                .Where(s => s.BusinessDate == date).ToListAsync(ct);
+
+            if (sessions.Any(s => s.ClosedAt != null))
+            {
+                throw new ValidationException($"Cannot delete working day {date:dd MMM yyyy} because a cash drawer closing was recorded.");
+            }
+
+            if (sessions.Any(s => s.Movements.Any(m => m.Kind != CashMovementKind.OpeningBalance)))
+            {
+                throw new ValidationException($"Cannot delete working day {date:dd MMM yyyy} because drawer transactions were recorded.");
+            }
+
+            // Clean up empty drawer sessions and reset drawers
+            if (sessions.Count > 0)
+            {
+                var sessionIds = sessions.Select(s => s.Id).ToList();
+                var drawers = await db.CashDrawers.Where(d => d.CurrentSessionId != null && sessionIds.Contains(d.CurrentSessionId.Value)).ToListAsync(ct);
+                foreach (var drawer in drawers)
+                {
+                    drawer.CurrentSessionId = null;
+                }
+
+                var openingMovements = sessions.SelectMany(s => s.Movements).ToList();
+                db.CashMovements.RemoveRange(openingMovements);
+                db.CashSessions.RemoveRange(sessions);
+            }
+
+            // 7. Delete DayFinance
+            if (dayFinance is not null)
+            {
+                db.DayFinances.Remove(dayFinance);
+            }
+
+            // 8. Revert WorkingDay to the previous active date
+            var previousDate = await db.DayFinances.Where(d => d.Date < date)
+                .OrderByDescending(d => d.Date)
+                .Select(d => (DateOnly?)d.Date)
+                .FirstOrDefaultAsync(ct);
+
+            var previousClosedDate = previousDate ?? date.AddDays(-1);
+
+            if (selection is not null && selection.Date == date)
+            {
+                selection.Date = previousClosedDate;
+            }
+
+            // 9. Audit trail
+            db.RecordChanges.Add(new RecordChange
+            {
+                RecordType = "WorkingDay",
+                RecordId = selection?.Id ?? 1,
+                Action = "DeleteWorkingDay",
+                Reason = $"Deleted mistakenly opened working day {date:yyyy-MM-dd}",
+                Before = date.ToString("yyyy-MM-dd"),
+                After = previousClosedDate.ToString("yyyy-MM-dd"),
+                CreatedByUserId = actorId
+            });
+
             await db.SaveChangesAsync(ct);
             await transaction.CommitAsync(ct);
         }, ct);

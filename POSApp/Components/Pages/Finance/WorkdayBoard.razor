@@ -51,6 +51,11 @@ else if (Data is not null)
                 <AuthorizeView Policy="@AppPolicies.ManageDrawer">
                     <a href="/cash-drawer" class="btn-primary bg-linear-to-r from-blue-500 to-indigo-600 hover:from-blue-400 hover:to-indigo-500 shadow-md shadow-blue-900/30">Open location drawer</a>
                 </AuthorizeView>
+                <AuthorizeView Policy="@AppPolicies.ManageUsers">
+                    <a href="/accounting-date" class="inline-flex items-center justify-center rounded-lg border border-rose-300/40 bg-rose-500/20 px-4 py-2.5 text-sm font-medium text-rose-100 hover:bg-rose-500/30 transition">
+                        Mistakenly opened? Delete day
+                    </a>
+                </AuthorizeView>
             }
             else if (day.OpenDrawers > 0)
             {
