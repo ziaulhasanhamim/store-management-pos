@@ -48,7 +48,10 @@ h1:focus { outline: none; }
 
     html,
     body,
+    #app,
     main,
+    .min-h-screen,
+    .bg-slate-50,
     .app-layout,
     .content-area,
     .page-container {
@@ -60,6 +63,7 @@ h1:focus { outline: none; }
         border: none !important;
         border-radius: 0 !important;
         background: #ffffff !important;
+        background-color: #ffffff !important;
         padding: 0 !important;
         margin: 0 !important;
         -webkit-print-color-adjust: exact !important;

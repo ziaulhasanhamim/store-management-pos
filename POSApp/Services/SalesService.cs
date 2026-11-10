@@ -502,10 +502,13 @@ public sealed class SalesService(IServiceScopeFactory scopes, IConfiguration? co
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var actorId = await StoreAccess.RequireAsync(db, actor, AppRoles.SalesAssociate, ct);
-        var canViewOthers = await db.UserRoles.AnyAsync(membership => membership.UserId == actorId && db.Roles.Any(role =>
-            role.Id == membership.RoleId && (role.Name == AppRoles.Admin || role.Name == AppRoles.InventoryManager)), ct);
+        var canViewOthers = actor.IsInRole(AppRoles.Admin) || actor.IsInRole(AppRoles.InventoryManager);
+        if (!canViewOthers)
+        {
+            canViewOthers = await db.UserRoles.AnyAsync(membership => membership.UserId == actorId && db.Roles.Any(role =>
+                role.Id == membership.RoleId && (role.Name == AppRoles.Admin || role.Name == AppRoles.InventoryManager)), ct);
+        }
         var sale = await db.Sales.AsNoTracking()
-            .AsSplitQuery()
             .Include(item => item.Items)
             .Include(item => item.Payments)
             .Include(item => item.Customer).ThenInclude(customer => customer!.Balance)
@@ -523,7 +526,7 @@ public sealed class SalesService(IServiceScopeFactory scopes, IConfiguration? co
             ? new Dictionary<int, string>()
             : await db.ProductAttributeValues.AsNoTracking()
                 .Where(value => productIds.Contains(value.ProductId) && !value.Definition!.IsDeleted
-                    && (value.Definition.Key.ToLower() == "warranty" || value.Definition.DisplayName.ToLower().Contains("warranty")))
+                    && (value.Definition.Key == "warranty" || value.Definition.Key == "Warranty"))
                 .Select(value => new { value.ProductId, Warranty = value.DisplayValue ?? value.Value })
                 .ToDictionaryAsync(x => x.ProductId, x => x.Warranty, ct);
 

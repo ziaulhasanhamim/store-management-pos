@@ -450,7 +450,6 @@ public partial class SalesEditor
                 {
                     await Recovery.ClearAsync();
                 }
-                NewSale();
                 Navigation.NavigateTo($"/sales/{result.Id}/bill");
             }
             else

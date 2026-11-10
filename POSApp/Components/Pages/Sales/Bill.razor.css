@@ -53,3 +53,17 @@
     page-break-inside: avoid !important;
     break-inside: avoid !important;
 }
+
+@media print {
+    .invoice-sheet {
+        background: #ffffff !important;
+        background-color: #ffffff !important;
+        border: none !important;
+        box-shadow: none !important;
+        border-radius: 0 !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+}
