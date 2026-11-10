@@ -1,5 +1,8 @@
 using Microsoft.EntityFrameworkCore;
+using POSApp.Client.DTOs;
+using POSApp.Client.Enums;
 using POSApp.Persistence;
+using POSApp.Persistence.Entities;
 
 namespace POSApp.Services;
 
@@ -62,6 +65,214 @@ internal static class DailyFinanceBuilder
                         : move.DebtEntry != null ? move.DebtEntry.LenderBalance!.Lender!.Name : "",
                     "Bank / digital", move.Method, move.Amount, move.Notes)).ToArrayAsync(ct)
             : [];
+
+        // Purchases received on this day (Stock In)
+        var purchases = await db.Purchases.AsNoTracking()
+            .Where(p => !p.IsDeleted && p.ReceivedAt != null && p.ReceivedAt >= from && p.ReceivedAt < through
+                && (locationId == null || p.StockLocationId == locationId.Value))
+            .Select(p => new
+            {
+                p.Id,
+                p.PurchaseNumber,
+                p.SupplierInvoiceNumber,
+                SupplierName = p.Supplier != null ? p.Supplier.Name : "Supplier",
+                LocationName = p.StockLocation != null ? p.StockLocation.Name : "Stock location",
+                ReceivedAt = p.ReceivedAt!.Value,
+                p.TotalAmount,
+                p.Notes,
+                ItemCount = p.Items.Count,
+                TotalUnits = p.Items.Sum(i => i.Quantity)
+            })
+            .OrderBy(p => p.ReceivedAt)
+            .ToListAsync(ct);
+
+        var purchaseSnapshots = purchases.Select(p => new PaymentSnapshot(
+            p.ReceivedAt,
+            CashMovementKind.SupplierPayment,
+            false,
+            p.SupplierName,
+            p.LocationName,
+            PaymentMethod.Cash,
+            p.TotalAmount,
+            $"Receipt #{p.Id}" + (!string.IsNullOrWhiteSpace(p.PurchaseNumber) && p.PurchaseNumber != p.Id.ToString() ? $" · {p.PurchaseNumber}" : "") + (p.ItemCount > 0 ? $" · {p.ItemCount} items ({p.TotalUnits:0.##} units)" : "") + (string.IsNullOrWhiteSpace(p.Notes) ? "" : $" · {p.Notes}"))
+        {
+            CustomMethod = "Stock In",
+            IsStockIn = true
+        }).ToList();
+
+        var stockInList = purchases.Select(p => new DailyStockInItem(
+            p.ReceivedAt,
+            p.Id,
+            p.PurchaseNumber,
+            p.SupplierInvoiceNumber,
+            p.SupplierName,
+            p.LocationName,
+            p.ItemCount,
+            p.TotalUnits,
+            p.TotalAmount,
+            p.Notes)).ToList();
+
+        // Completed sales on this day (Stock Out)
+        var salesOut = await db.Sales.AsNoTracking()
+            .Where(s => !s.IsDeleted && s.Status == SaleStatus.Completed && s.SoldAt >= from && s.SoldAt < through
+                && (locationId == null || s.StockLocationId == locationId.Value))
+            .Select(s => new
+            {
+                s.Id,
+                s.ReceiptNumber,
+                s.SoldAt,
+                CustomerName = s.Customer != null ? s.Customer.Name : "Walk-in",
+                LocationName = s.StockLocation != null ? s.StockLocation.Name : "Store",
+                ItemCount = s.Items.Count,
+                TotalUnits = s.Items.Sum(i => i.Quantity),
+                TotalCost = s.Items.Sum(i => i.UnitCost * i.Quantity),
+                s.TotalAmount
+            })
+            .OrderBy(s => s.SoldAt)
+            .ToListAsync(ct);
+
+        var stockOutList = new List<DailyStockOutItem>();
+        foreach (var s in salesOut)
+        {
+            stockOutList.Add(new DailyStockOutItem(
+                s.SoldAt,
+                "Sale",
+                $"Bill #{s.ReceiptNumber} · {s.CustomerName} ({s.ItemCount} items)",
+                s.LocationName,
+                s.TotalUnits,
+                decimal.Round(s.TotalCost, 2, MidpointRounding.AwayFromZero),
+                $"Sale total: {s.TotalAmount:N2}"));
+        }
+
+        // Adjustments & Damage movements on this day
+        var adjustmentMovements = await db.InventoryMovements.AsNoTracking()
+            .Where(m => m.OccurredAt >= from && m.OccurredAt < through
+                && (locationId == null || m.StockLocationId == locationId.Value)
+                && (m.StockAdjustmentItemId != null || m.StockTakeItemId != null || m.Type == InventoryMovementType.Adjustment)
+                && (m.StockAdjustmentItem == null || !m.StockAdjustmentItem.StockAdjustment!.IsVoided)
+                && (m.StockTakeItem == null || !m.StockTakeItem.StockTake!.IsVoided))
+            .Select(m => new
+            {
+                m.OccurredAt,
+                LocationName = m.StockLocation != null ? m.StockLocation.Name : "Store",
+                ProductName = m.Product != null ? m.Product.Name : "Product",
+                m.Quantity,
+                m.UnitCost,
+                m.Notes,
+                AdjustmentNotes = m.StockAdjustmentItem != null && m.StockAdjustmentItem.StockAdjustment != null
+                    ? m.StockAdjustmentItem.StockAdjustment.Notes : null
+            })
+            .OrderBy(m => m.OccurredAt)
+            .ToListAsync(ct);
+
+        foreach (var m in adjustmentMovements)
+        {
+            if (m.Quantity < 0)
+            {
+                var qty = Math.Abs(m.Quantity);
+                var cost = Math.Abs(m.Quantity * m.UnitCost);
+                stockOutList.Add(new DailyStockOutItem(
+                    m.OccurredAt,
+                    "Damage / Waste",
+                    $"{m.ProductName}" + (!string.IsNullOrWhiteSpace(m.AdjustmentNotes ?? m.Notes) ? $" · {m.AdjustmentNotes ?? m.Notes}" : ""),
+                    m.LocationName,
+                    qty,
+                    cost,
+                    m.Notes));
+            }
+            else if (m.Quantity > 0)
+            {
+                stockInList.Add(new DailyStockInItem(
+                    m.OccurredAt,
+                    0,
+                    "Adjustment (+)",
+                    null,
+                    "Inventory Correction",
+                    m.LocationName,
+                    1,
+                    m.Quantity,
+                    m.Quantity * m.UnitCost,
+                    m.AdjustmentNotes ?? m.Notes));
+            }
+        }
+
+        // Stock Transfers on this day
+        var transfers = await db.StockTransfers.AsNoTracking()
+            .Where(t => !t.IsVoided && t.OccurredAt >= from && t.OccurredAt < through
+                && (locationId == null || t.SourceLocationId == locationId.Value || t.DestinationLocationId == locationId.Value))
+            .Select(t => new
+            {
+                t.Id,
+                t.OccurredAt,
+                t.SourceLocationId,
+                SourceName = t.SourceLocation != null ? t.SourceLocation.Name : "Source",
+                t.DestinationLocationId,
+                DestinationName = t.DestinationLocation != null ? t.DestinationLocation.Name : "Destination",
+                t.Notes,
+                TotalUnits = t.Items.Sum(i => i.Quantity),
+                ItemCount = t.Items.Count
+            })
+            .OrderBy(t => t.OccurredAt)
+            .ToListAsync(ct);
+
+        foreach (var t in transfers)
+        {
+            if (locationId == null)
+            {
+                stockOutList.Add(new DailyStockOutItem(
+                    t.OccurredAt,
+                    "Transfer",
+                    $"{t.SourceName} \u2192 {t.DestinationName} ({t.ItemCount} items)",
+                    t.SourceName,
+                    t.TotalUnits,
+                    0,
+                    t.Notes));
+            }
+            else
+            {
+                if (t.SourceLocationId == locationId.Value)
+                {
+                    stockOutList.Add(new DailyStockOutItem(
+                        t.OccurredAt,
+                        "Transfer Out",
+                        $"Transfer to {t.DestinationName} ({t.ItemCount} items)",
+                        t.SourceName,
+                        t.TotalUnits,
+                        0,
+                        t.Notes));
+                }
+                if (t.DestinationLocationId == locationId.Value)
+                {
+                    stockInList.Add(new DailyStockInItem(
+                        t.OccurredAt,
+                        0,
+                        $"Transfer #{t.Id}",
+                        null,
+                        $"Transfer from {t.SourceName}",
+                        t.DestinationName,
+                        t.ItemCount,
+                        t.TotalUnits,
+                        0,
+                        t.Notes));
+                }
+            }
+        }
+
+        var totalStockInVal = stockInList.Sum(x => x.TotalAmount);
+        var totalStockInQty = stockInList.Sum(x => x.TotalQuantity);
+        var totalStockOutVal = stockOutList.Sum(x => x.TotalCostValue);
+        var totalStockOutQty = stockOutList.Sum(x => x.TotalQuantity);
+
+        var stockActivity = new DailyStockActivity(
+            totalStockInVal,
+            totalStockInQty,
+            totalStockOutVal,
+            totalStockOutQty,
+            totalStockInVal - totalStockOutVal,
+            totalStockInQty - totalStockOutQty,
+            stockInList.OrderBy(x => x.At).ToArray(),
+            stockOutList.OrderBy(x => x.At).ToArray());
+
         var clearingEntries = await db.PaymentClearingEntries.AsNoTracking()
             .Where(e => e.Status == PaymentClearingStatus.Unsettled && (locationId == null || e.StockLocationId == locationId.Value)
                 && (e.Payment == null || (!e.Payment.IsVoided && (e.Payment.SaleId == null || (!e.Payment.Sale!.IsDeleted && e.Payment.Sale.Status != SaleStatus.Voided)))))
@@ -73,11 +284,19 @@ internal static class DailyFinanceBuilder
             clearingEntries.Count,
             clearingEntries.Count > 0 ? clearingEntries.Min(e => e.BusinessDate) : null);
 
-        return new DailyFinanceDetails(categories, cash.Concat(bank).OrderBy(row => row.At)
+        var allPayments = cash.Concat(bank).Concat(purchaseSnapshots)
+            .OrderBy(row => row.At)
             .Select(row => new DayPayment(row.At, Label(row.Kind, row.IsCollection), row.Party,
-                row.Account, row.Method, row.Amount, row.Notes)).ToArray())
+                row.Account, row.Method, row.Amount, row.Notes)
+            {
+                CustomMethod = row.CustomMethod,
+                IsStockIn = row.IsStockIn
+            }).ToArray();
+
+        return new DailyFinanceDetails(categories, allPayments)
         {
-            AwaitingPayout = awaitingSummary
+            AwaitingPayout = awaitingSummary,
+            StockActivity = stockActivity
         };
     }
 
@@ -96,5 +315,9 @@ internal static class DailyFinanceBuilder
     };
 
     private sealed record PaymentSnapshot(DateTimeOffset At, CashMovementKind Kind, bool IsCollection,
-        string Party, string Account, PaymentMethod Method, decimal Amount, string Notes);
+        string Party, string Account, PaymentMethod Method, decimal Amount, string Notes)
+    {
+        public string? CustomMethod { get; init; }
+        public bool IsStockIn { get; init; }
+    }
 }

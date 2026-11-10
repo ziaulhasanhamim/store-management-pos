@@ -76,14 +76,50 @@ public sealed record AwaitingPayoutSummary(
     public decimal TotalAmount => CardAmount + MobileWalletAmount;
 }
 
+public sealed record DailyStockActivity(
+    decimal TotalStockInValue,
+    decimal TotalStockInUnits,
+    decimal TotalStockOutValue,
+    decimal TotalStockOutUnits,
+    decimal NetStockValueChange,
+    decimal NetStockUnitsChange,
+    IReadOnlyList<DailyStockInItem> Inward,
+    IReadOnlyList<DailyStockOutItem> Outward);
+
+public sealed record DailyStockInItem(
+    DateTimeOffset At,
+    int PurchaseId,
+    string PurchaseNumber,
+    string? SupplierInvoiceNumber,
+    string SupplierName,
+    string LocationName,
+    int ItemCount,
+    decimal TotalQuantity,
+    decimal TotalAmount,
+    string? Notes);
+
+public sealed record DailyStockOutItem(
+    DateTimeOffset At,
+    string Type,
+    string Description,
+    string LocationName,
+    decimal TotalQuantity,
+    decimal TotalCostValue,
+    string? Notes);
+
 public sealed record DailyFinanceDetails(IReadOnlyList<ExpenseCategoryTotal> Categories,
     IReadOnlyList<DayPayment> Payments)
 {
     public AwaitingPayoutSummary? AwaitingPayout { get; init; }
+    public DailyStockActivity? StockActivity { get; init; }
 }
 
 public sealed record DayPayment(DateTimeOffset At, string Type, string Party, string Account,
-    PaymentMethod Method, decimal Amount, string Notes);
+    PaymentMethod Method, decimal Amount, string Notes)
+{
+    public string? CustomMethod { get; init; }
+    public bool IsStockIn { get; init; }
+}
 
 public sealed class PartyInput
 {

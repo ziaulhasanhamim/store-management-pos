@@ -2,7 +2,7 @@
     <div class="panel-heading">
         <div>
             <h2>Day activity · @Date.ToString("dd MMM yyyy")</h2>
-            <p class="mt-1 text-xs text-slate-500">Active payments only. Corrections replace the original posting; internal cash transfers are excluded.</p>
+            <p class="mt-1 text-xs text-slate-500">Active payments and stock movements only. Corrections replace the original posting; internal cash transfers are excluded.</p>
         </div>
     </div>
     @if (Data.AwaitingPayout is not null && Data.AwaitingPayout.TotalAmount > 0)
@@ -58,30 +58,198 @@
                     <tbody>
                         @foreach (var group in Groups)
                         {
-                            <tr>
-                                <td>@group.Key</td>
-                                <td class="text-right">@Money(group.Where(row => row.Amount > 0).Sum(row => row.Amount))</td>
-                                <td class="text-right">@Money(-group.Where(row => row.Amount < 0).Sum(row => row.Amount))</td>
-                            </tr>
+                            @if (group.Key == "Supplier payments")
+                            {
+                                <tr>
+                                    <td>@group.Key</td>
+                                    <td class="text-right text-slate-400">—</td>
+                                    <td class="text-right">@Money(-group.Where(row => !row.IsStockIn && row.Amount < 0).Sum(row => row.Amount))</td>
+                                </tr>
+                            }
+                            else
+                            {
+                                <tr>
+                                    <td>@group.Key</td>
+                                    <td class="text-right">@Money(group.Where(row => row.Amount > 0).Sum(row => row.Amount))</td>
+                                    <td class="text-right">@Money(-group.Where(row => row.Amount < 0).Sum(row => row.Amount))</td>
+                                </tr>
+                            }
                         }
                     </tbody>
                     <tfoot>
                         <tr>
                             <th>Total cash & bank</th>
-                            <td class="text-right">@Money(Data.Payments.Where(row => row.Amount > 0).Sum(row => row.Amount))</td>
-                            <td class="text-right">@Money(-Data.Payments.Where(row => row.Amount < 0).Sum(row => row.Amount))</td>
+                            <td class="text-right">@Money(Data.Payments.Where(row => !row.IsStockIn && row.Amount > 0).Sum(row => row.Amount))</td>
+                            <td class="text-right">@Money(-Data.Payments.Where(row => !row.IsStockIn && row.Amount < 0).Sum(row => row.Amount))</td>
                         </tr>
                     </tfoot>
                 </table>
             </div>
         </div>
     </div>
+
+    @if (Data.StockActivity is not null && (Data.StockActivity.Inward.Count > 0 || Data.StockActivity.Outward.Count > 0))
+    {
+        <div class="border-t border-slate-200/90 p-5 bg-slate-50/50">
+            <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                    <h3 class="text-base font-bold text-slate-900">Stock activity · In / Out</h3>
+                    <p class="text-xs text-slate-500">Inventory receipts from suppliers and outward movements via sales, waste & transfers.</p>
+                </div>
+                <div class="flex flex-wrap items-center gap-2 text-xs">
+                    <span class="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1 font-medium text-emerald-800">
+                        <span class="size-2 rounded-full bg-emerald-600"></span>
+                        Stock In: <strong>@Money(Data.StockActivity.TotalStockInValue)</strong> (@Data.StockActivity.TotalStockInUnits.ToString("0.##") units)
+                    </span>
+                    <span class="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-1 font-medium text-amber-800">
+                        <span class="size-2 rounded-full bg-amber-600"></span>
+                        Stock Out (COGS): <strong>@Money(Data.StockActivity.TotalStockOutValue)</strong> (@Data.StockActivity.TotalStockOutUnits.ToString("0.##") units)
+                    </span>
+                    <span class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1 font-medium text-slate-700">
+                        Net: <strong>@Money(Data.StockActivity.NetStockValueChange)</strong> (@(Data.StockActivity.NetStockUnitsChange >= 0 ? "+" : "")@Data.StockActivity.NetStockUnitsChange.ToString("0.##") units)
+                    </span>
+                </div>
+            </div>
+
+            <div class="grid gap-6 lg:grid-cols-2">
+                <!-- Inward Table -->
+                <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-2xs">
+                    <div class="mb-3 flex items-center justify-between border-b border-slate-100 pb-2">
+                        <div class="flex items-center gap-2">
+                            <span class="inline-flex size-6 items-center justify-center rounded-md bg-emerald-100 text-emerald-700 text-xs font-bold">&darr;</span>
+                            <h4 class="font-semibold text-slate-900 text-sm">Stock In · Deliveries & Receipts</h4>
+                        </div>
+                        <span class="text-xs text-slate-500">@Data.StockActivity.Inward.Count @(Data.StockActivity.Inward.Count == 1 ? "receipt" : "receipts")</span>
+                    </div>
+                    @if (Data.StockActivity.Inward.Count == 0)
+                    {
+                        <p class="py-6 text-center text-xs text-slate-400">No stock received on this day.</p>
+                    }
+                    else
+                    {
+                        <div class="table-scroll">
+                            <table class="data-table text-xs">
+                                <thead>
+                                    <tr>
+                                        <th>Time</th>
+                                        <th>Supplier</th>
+                                        <th>Location</th>
+                                        <th>Receipt / Ref</th>
+                                        <th class="text-right">Units</th>
+                                        <th class="text-right">Value</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var item in Data.StockActivity.Inward)
+                                    {
+                                        <tr>
+                                            <td>@item.At.ToBusinessTime(Configuration).ToString("HH:mm")</td>
+                                            <td class="font-medium text-slate-900">@item.SupplierName</td>
+                                            <td>@item.LocationName</td>
+                                            <td>
+                                                <span class="font-medium">@(item.PurchaseId > 0 ? $"#{item.PurchaseId}" : item.PurchaseNumber)</span>
+                                                @if (!string.IsNullOrWhiteSpace(item.PurchaseNumber) && item.PurchaseNumber != item.PurchaseId.ToString() && item.PurchaseId > 0)
+                                                {
+                                                    <span class="text-slate-400 text-[11px]">(@item.PurchaseNumber)</span>
+                                                }
+                                            </td>
+                                            <td class="text-right tabular-nums">@item.TotalQuantity.ToString("0.##")</td>
+                                            <td class="text-right font-medium text-emerald-700 tabular-nums">@Money(item.TotalAmount)</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                                <tfoot>
+                                    <tr>
+                                        <th colspan="4">Total Stock In</th>
+                                        <td class="text-right font-bold tabular-nums">@Data.StockActivity.TotalStockInUnits.ToString("0.##")</td>
+                                        <td class="text-right font-bold text-emerald-700 tabular-nums">@Money(Data.StockActivity.TotalStockInValue)</td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    }
+                </div>
+
+                <!-- Outward Table -->
+                <div class="rounded-xl border border-slate-200 bg-white p-4 shadow-2xs">
+                    <div class="mb-3 flex items-center justify-between border-b border-slate-100 pb-2">
+                        <div class="flex items-center gap-2">
+                            <span class="inline-flex size-6 items-center justify-center rounded-md bg-amber-100 text-amber-700 text-xs font-bold">&uarr;</span>
+                            <h4 class="font-semibold text-slate-900 text-sm">Stock Out · Sales, Waste & Transfers</h4>
+                        </div>
+                        <span class="text-xs text-slate-500">@Data.StockActivity.Outward.Count @(Data.StockActivity.Outward.Count == 1 ? "entry" : "entries")</span>
+                    </div>
+                    @if (Data.StockActivity.Outward.Count == 0)
+                    {
+                        <p class="py-6 text-center text-xs text-slate-400">No stock issued on this day.</p>
+                    }
+                    else
+                    {
+                        <div class="table-scroll">
+                            <table class="data-table text-xs">
+                                <thead>
+                                    <tr>
+                                        <th>Time</th>
+                                        <th>Type</th>
+                                        <th>Description</th>
+                                        <th>Location</th>
+                                        <th class="text-right">Units</th>
+                                        <th class="text-right">Cost Value</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var item in Data.StockActivity.Outward)
+                                    {
+                                        <tr>
+                                            <td>@item.At.ToBusinessTime(Configuration).ToString("HH:mm")</td>
+                                            <td>
+                                                <span class="inline-flex items-center rounded-sm px-1.5 py-0.5 text-[10px] font-medium @(item.Type == "Sale" ? "bg-blue-50 text-blue-700" : item.Type.Contains("Transfer") ? "bg-purple-50 text-purple-700" : "bg-rose-50 text-rose-700")">
+                                                    @item.Type
+                                                </span>
+                                            </td>
+                                            <td class="max-w-[200px] truncate" title="@item.Description">@item.Description</td>
+                                            <td>@item.LocationName</td>
+                                            <td class="text-right tabular-nums">@item.TotalQuantity.ToString("0.##")</td>
+                                            <td class="text-right font-medium text-slate-900 tabular-nums">@Money(item.TotalCostValue)</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                                <tfoot>
+                                    <tr>
+                                        <th colspan="4">Total Stock Out</th>
+                                        <td class="text-right font-bold tabular-nums">@Data.StockActivity.TotalStockOutUnits.ToString("0.##")</td>
+                                        <td class="text-right font-bold text-slate-900 tabular-nums">@Money(Data.StockActivity.TotalStockOutValue)</td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+
     @foreach (var group in Groups)
     {
         <details class="day-payment-group" open="@(group.Key == "Supplier payments")">
             <summary>
-                <span>@group.Key <small>· @group.Count() payments</small></span>
-                <strong>@Money(group.Sum(row => row.Amount))</strong>
+                @if (group.Key == "Supplier payments")
+                {
+                    var stockIn = group.Where(r => r.IsStockIn).Sum(r => r.Amount);
+                    var paidOut = -group.Where(r => !r.IsStockIn && r.Amount < 0).Sum(r => r.Amount);
+                    var stockCount = group.Count(r => r.IsStockIn);
+                    var payCount = group.Count(r => !r.IsStockIn);
+                    <span>
+                        Supplier payments & stock received
+                        <small>· @(stockCount > 0 ? $"{stockCount} stock {(stockCount == 1 ? "receipt" : "receipts")}" : "")@(stockCount > 0 && payCount > 0 ? ", " : "")@(payCount > 0 ? $"{payCount} {(payCount == 1 ? "payment" : "payments")}" : "")</small>
+                    </span>
+                    <strong>Stock in: @Money(stockIn) · Paid: @Money(paidOut)</strong>
+                }
+                else
+                {
+                    <span>@group.Key <small>· @group.Count() payments</small></span>
+                    <strong>@Money(group.Sum(row => row.Amount))</strong>
+                }
             </summary>
             <div class="table-scroll">
                 <table class="data-table">
@@ -92,7 +260,7 @@
                             <th>Cash location / bank</th>
                             <th>Method</th>
                             <th>Notes</th>
-                            <th class="text-right">Received</th>
+                            <th class="text-right">@(group.Key == "Supplier payments" ? "Received (Stock In)" : "Received")</th>
                             <th class="text-right">Paid out</th>
                         </tr>
                     </thead>
@@ -103,7 +271,7 @@
                                 <td>@payment.At.ToBusinessTime(Configuration).ToString("dd MMM, HH:mm")</td>
                                 <td>@(string.IsNullOrEmpty(payment.Party) ? "—" : payment.Party)</td>
                                 <td>@payment.Account</td>
-                                <td>@SplitPayments.MethodName(payment.Method)</td>
+                                <td>@(payment.CustomMethod ?? SplitPayments.MethodName(payment.Method))</td>
                                 <td>@payment.Notes</td>
                                 <td class="text-right text-emerald-700">@(payment.Amount > 0 ? Money(payment.Amount) : "—")</td>
                                 <td class="text-right">@(payment.Amount < 0 ? Money(-payment.Amount) : "—")</td>

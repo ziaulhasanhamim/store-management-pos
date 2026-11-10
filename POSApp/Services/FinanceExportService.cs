@@ -58,6 +58,10 @@ public static class FinanceExportService
         {
             BuildDayPaymentsSheet(workbook, totals, currencyCode);
         }
+        if (totals.Daily?.StockActivity is not null && (totals.Daily.StockActivity.Inward.Count > 0 || totals.Daily.StockActivity.Outward.Count > 0))
+        {
+            BuildDayStockSheet(workbook, totals, currencyCode);
+        }
 
         using var stream = new MemoryStream();
         workbook.SaveAs(stream);
@@ -296,10 +300,10 @@ public static class FinanceExportService
         foreach (var p in payments.OrderBy(p => p.At))
         {
             ws.Cell(r, 1).Value = TimeZoneInfo.ConvertTime(p.At.ToUniversalTime(), zone).ToString("HH:mm:ss", CultureInfo.InvariantCulture);
-            ws.Cell(r, 2).Value = p.Type;
+            ws.Cell(r, 2).Value = p.IsStockIn ? "Stock In (Supplier)" : p.Type;
             ws.Cell(r, 3).Value = p.Party;
             ws.Cell(r, 4).Value = p.Account;
-            ws.Cell(r, 5).Value = p.Method.ToString();
+            ws.Cell(r, 5).Value = p.CustomMethod ?? p.Method.ToString();
             ws.Cell(r, 6).Value = p.Amount;
             ws.Cell(r, 6).Style.NumberFormat.Format = CurrencyFormat;
             ws.Cell(r, 7).Value = p.Notes ?? "";
@@ -324,6 +328,123 @@ public static class FinanceExportService
         ws.Columns(1, 7).AdjustToContents();
         ws.Column(3).Width = Math.Max(ws.Column(3).Width, 24);
         ws.Column(7).Width = Math.Max(ws.Column(7).Width, 30);
+    }
+
+    private static void BuildDayStockSheet(XLWorkbook workbook, ClosingTotals totals, string currency)
+    {
+        var stock = totals.Daily?.StockActivity;
+        if (stock == null || (stock.Inward.Count == 0 && stock.Outward.Count == 0)) return;
+
+        var ws = workbook.Worksheets.Add("Stock Activity (In-Out)");
+        ws.ShowGridLines = true;
+
+        var zone = BusinessTime.AmbientZone ?? TimeZoneInfo.Utc;
+
+        // KPI Summary Block
+        ws.Cell("A1").Value = "STOCK ACTIVITY SUMMARY";
+        ws.Cell("A1").Style.Font.Bold = true;
+        ws.Cell("A1").Style.Font.FontSize = 13;
+        ws.Cell("A1").Style.Font.FontColor = BrandBlue;
+
+        ws.Cell("A3").Value = "Metric";
+        ws.Cell("B3").Value = "Units";
+        ws.Cell("C3").Value = $"Value ({currency})";
+        var kpiHeader = ws.Range("A3:C3");
+        kpiHeader.Style.Font.Bold = true;
+        kpiHeader.Style.Font.FontColor = XLColor.White;
+        kpiHeader.Style.Fill.BackgroundColor = BrandDark;
+
+        ws.Cell("A4").Value = "Total Stock In (Purchases / Inward)";
+        ws.Cell("B4").Value = stock.TotalStockInUnits;
+        ws.Cell("C4").Value = stock.TotalStockInValue;
+        ws.Cell("C4").Style.NumberFormat.Format = CurrencyFormat;
+
+        ws.Cell("A5").Value = "Total Stock Out (Sales COGS / Waste)";
+        ws.Cell("B5").Value = stock.TotalStockOutUnits;
+        ws.Cell("C5").Value = stock.TotalStockOutValue;
+        ws.Cell("C5").Style.NumberFormat.Format = CurrencyFormat;
+
+        ws.Cell("A6").Value = "Net Stock Change";
+        ws.Cell("B6").Value = stock.NetStockUnitsChange;
+        ws.Cell("C6").Value = stock.NetStockValueChange;
+        ws.Cell("C6").Style.NumberFormat.Format = CurrencyFormat;
+        ws.Range("A6:C6").Style.Font.Bold = true;
+        ws.Range("A6:C6").Style.Fill.BackgroundColor = TotalBg;
+
+        var r = 8;
+        if (stock.Inward.Count > 0)
+        {
+            ws.Cell(r, 1).Value = "INWARD DELIVERIES (STOCK IN)";
+            ws.Cell(r, 1).Style.Font.Bold = true;
+            ws.Cell(r, 1).Style.Font.FontColor = SuccessGreen;
+            r++;
+
+            string[] inHeaders = ["Time", "Supplier", "Stock Location", "Reference", "Items", "Units", $"Value ({currency})", "Notes"];
+            for (var c = 0; c < inHeaders.Length; c++)
+            {
+                var cell = ws.Cell(r, c + 1);
+                cell.Value = inHeaders[c];
+                cell.Style.Font.Bold = true;
+                cell.Style.Font.FontColor = XLColor.White;
+                cell.Style.Fill.BackgroundColor = BrandDark;
+                if (c >= 4 && c <= 6) cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
+            }
+            r++;
+
+            foreach (var item in stock.Inward)
+            {
+                ws.Cell(r, 1).Value = TimeZoneInfo.ConvertTime(item.At.ToUniversalTime(), zone).ToString("HH:mm:ss", CultureInfo.InvariantCulture);
+                ws.Cell(r, 2).Value = item.SupplierName;
+                ws.Cell(r, 3).Value = item.LocationName;
+                ws.Cell(r, 4).Value = $"#{item.PurchaseId} " + (string.IsNullOrWhiteSpace(item.PurchaseNumber) ? "" : item.PurchaseNumber);
+                ws.Cell(r, 5).Value = item.ItemCount;
+                ws.Cell(r, 6).Value = item.TotalQuantity;
+                ws.Cell(r, 7).Value = item.TotalAmount;
+                ws.Cell(r, 7).Style.NumberFormat.Format = CurrencyFormat;
+                ws.Cell(r, 8).Value = item.Notes ?? "";
+
+                if (r % 2 == 1) ws.Range(r, 1, r, 8).Style.Fill.BackgroundColor = ZebraBg;
+                r++;
+            }
+            r++;
+        }
+
+        if (stock.Outward.Count > 0)
+        {
+            ws.Cell(r, 1).Value = "OUTWARD MOVEMENTS (STOCK OUT)";
+            ws.Cell(r, 1).Style.Font.Bold = true;
+            ws.Cell(r, 1).Style.Font.FontColor = DangerRed;
+            r++;
+
+            string[] outHeaders = ["Time", "Type", "Description", "Location", "Units", $"Cost Value ({currency})", "Notes"];
+            for (var c = 0; c < outHeaders.Length; c++)
+            {
+                var cell = ws.Cell(r, c + 1);
+                cell.Value = outHeaders[c];
+                cell.Style.Font.Bold = true;
+                cell.Style.Font.FontColor = XLColor.White;
+                cell.Style.Fill.BackgroundColor = BrandDark;
+                if (c >= 4 && c <= 5) cell.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
+            }
+            r++;
+
+            foreach (var item in stock.Outward)
+            {
+                ws.Cell(r, 1).Value = TimeZoneInfo.ConvertTime(item.At.ToUniversalTime(), zone).ToString("HH:mm:ss", CultureInfo.InvariantCulture);
+                ws.Cell(r, 2).Value = item.Type;
+                ws.Cell(r, 3).Value = item.Description;
+                ws.Cell(r, 4).Value = item.LocationName;
+                ws.Cell(r, 5).Value = item.TotalQuantity;
+                ws.Cell(r, 6).Value = item.TotalCostValue;
+                ws.Cell(r, 6).Style.NumberFormat.Format = CurrencyFormat;
+                ws.Cell(r, 7).Value = item.Notes ?? "";
+
+                if (r % 2 == 1) ws.Range(r, 1, r, 7).Style.Fill.BackgroundColor = ZebraBg;
+                r++;
+            }
+        }
+
+        ws.Columns(1, 8).AdjustToContents();
     }
 
     private static void BuildSummarySheet(XLWorkbook workbook, ClosingTotals totals, string monthName, string currency, string storeName)
