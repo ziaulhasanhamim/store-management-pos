@@ -59,9 +59,9 @@ public sealed class PartyAccountService(IServiceScopeFactory scopes, IConfigurat
             {
                 throw new ValidationException("Choose a customer.");
             }
-            var date = await AccountingCalendar.SelectedAsync(db, actorId, configuration, ct);
+            var at = input.TransactionTime.HasValue ? input.TransactionTime.Value.ToUniversalTime() : AccountingCalendar.At(await AccountingCalendar.SelectedAsync(db, actorId, configuration, ct), configuration);
+            var date = input.TransactionTime.HasValue ? DateOnly.FromDateTime(at.ToBusinessTime(configuration).DateTime) : await AccountingCalendar.SelectedAsync(db, actorId, configuration, ct);
             await AccountingCalendar.EnsureOpenAsync(db, date, ct);
-            var at = AccountingCalendar.At(date, configuration);
             var balance = await db.CustomerBalances.SingleOrDefaultAsync(balance => balance.CustomerId == input.CustomerId, ct);
             if (balance is null)
             {
@@ -81,6 +81,7 @@ public sealed class PartyAccountService(IServiceScopeFactory scopes, IConfigurat
                 TenderedAmount = input.Amount,
                 Method = input.Method,
                 PaidAt = at,
+                CreatedAt = at,
                 Reference = reference,
                 Notes = input.Notes.Trim(),
                 CreatedByUserId = actorId
@@ -95,11 +96,12 @@ public sealed class PartyAccountService(IServiceScopeFactory scopes, IConfigurat
                 Amount = -input.Amount,
                 BalanceAfter = balance.CurrentBalance,
                 OccurredAt = at,
+                CreatedAt = at,
                 Notes = input.Notes.Trim(),
                 CreatedByUserId = actorId
             });
             await FinancialPosting.PostAsync(db, actorId, input.Method, input.Amount, CashMovementKind.Sale,
-                $"Customer collection · #{input.CustomerId}", date, ct, payment: payment);
+                $"Customer collection · #{input.CustomerId}", date, ct, payment: payment, occurredAt: at);
             await db.SaveChangesAsync(ct);
             await transaction.CommitAsync(ct);
         }, ct);

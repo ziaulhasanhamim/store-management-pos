@@ -71,8 +71,20 @@ else
                         </select>
                     </div>
                 </div>
-                <label class="field-label mt-4" for="collection-note">Reference / notes</label>
-                <input id="collection-note" name="Collection.Notes" class="field" maxlength="2000" required />
+                <div class="grid gap-4 sm:grid-cols-2 mt-4">
+                    <div>
+                        <label class="field-label" for="collection-note">Reference / notes</label>
+                        <input id="collection-note" name="Collection.Notes" class="field" maxlength="2000" required />
+                    </div>
+                    @if (CanBackdate)
+                    {
+                        <div>
+                            <label class="field-label" for="collection-time">Transaction Date & Time (Optional backdate)</label>
+                            <input id="collection-time" type="datetime-local" name="Collection.TransactionTime" class="field"
+                                   value="@(Collection?.TransactionTime?.ToString("yyyy-MM-ddTHH:mm"))" />
+                        </div>
+                    }
+                </div>
                 <button class="btn-primary mt-4" data-pending-text="Recording…">Receive payment</button>
             </form>
         </section>
@@ -172,6 +184,7 @@ else
     private int PaginationNumber => Data?.Pagination?.Number ?? 1;
     private bool Suppliers => Kind != "customers";
     private string Title => Suppliers ? "Supplier" : "Customer";
+    private bool CanBackdate => HttpContext.User.IsInRole(AppRoles.Admin) || HttpContext.User.IsInRole("Manager");
 
     protected override async Task OnParametersSetAsync()
     {

@@ -134,7 +134,8 @@ public partial class MoneyEntryEditor
                 Amount = row.Amount,
                 Method = row.Method,
                 Notes = row.Notes,
-                Receipt = row.Receipt
+                Receipt = row.Receipt,
+                TransactionTime = row.At
             }
         });
         Notice = $"Editing entry #{row.Id}. Save to apply the correction.";

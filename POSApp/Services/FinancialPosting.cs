@@ -12,12 +12,14 @@ public static class FinancialPosting
     public static async Task PostAsync(AppDbContext db, int actorId, PaymentMethod method, decimal amount,
         CashMovementKind kind, string notes, DateOnly date, CancellationToken ct,
         Payment? payment = null, SupplierPayment? supplierPayment = null, Expense? expense = null, PayrollEntry? payroll = null,
-        int? cashLocationId = null, CashSession? cashSession = null, bool periodValidated = false, DebtEntry? debtEntry = null)
+        int? cashLocationId = null, CashSession? cashSession = null, bool periodValidated = false, DebtEntry? debtEntry = null,
+        DateTimeOffset? occurredAt = null)
     {
         if (!periodValidated)
         {
             await AccountingCalendar.EnsureOpenAsync(db, date, ct);
         }
+        var timestamp = occurredAt?.ToUniversalTime() ?? DateTimeOffset.UtcNow;
         if (method == PaymentMethod.Cash)
         {
             var drawer = await CashDrawerService.RequireDrawerAsync(db, actorId, ct, cashLocationId);
@@ -25,6 +27,7 @@ public static class FinancialPosting
             {
                 RequestId = Guid.NewGuid(),
                 BusinessDate = date,
+                CreatedAt = timestamp,
                 CashSession = cashSession,
                 CashSessionId = cashSession?.Id,
                 Kind = kind,
@@ -52,6 +55,7 @@ public static class FinancialPosting
                 PaymentId = payment?.Id ?? 0,
                 StockLocationId = locationId,
                 BusinessDate = date,
+                CreatedAt = timestamp,
                 Method = method,
                 GrossAmount = amount,
                 SettledAmount = 0m,
@@ -66,6 +70,7 @@ public static class FinancialPosting
             {
                 RequestId = Guid.NewGuid(),
                 BusinessDate = date,
+                CreatedAt = timestamp,
                 Method = method,
                 Kind = kind,
                 Amount = amount,

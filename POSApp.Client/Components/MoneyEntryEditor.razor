@@ -48,6 +48,10 @@
                             {
                                 <th>Receipt (optional)</th>
                             }
+                            @if (Data.CanBackdate)
+                            {
+                                <th>Date & Time</th>
+                            }
                             <th>
                                 <span class="sr-only">Remove entry</span>
                             </th>
@@ -118,6 +122,15 @@
                                 {
                                     <td>
                                         <input class="field min-w-32" @bind="line.Input.Receipt" maxlength="200" aria-label="Receipt reference" />
+                                    </td>
+                                }
+                                @if (Data.CanBackdate)
+                                {
+                                    <td>
+                                        <input type="datetime-local" class="field text-xs min-w-44"
+                                               value="@(line.Input.TransactionTime?.ToString("yyyy-MM-ddTHH:mm"))"
+                                               @onchange="e => { if (DateTime.TryParse(e.Value?.ToString(), out var dt)) line.Input.TransactionTime = dt; else line.Input.TransactionTime = null; }"
+                                               aria-label="Transaction date and time (optional backdate)" />
                                     </td>
                                 }
                                 <td>

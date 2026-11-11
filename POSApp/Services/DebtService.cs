@@ -146,7 +146,8 @@ public sealed class DebtService(IServiceScopeFactory scopes, IConfiguration conf
                 }
                 return previous.Id;
             }
-            var date = await RequireDayAsync(db, actorId, input.WorkingDate, ct);
+            var at = input.TransactionTime.HasValue ? input.TransactionTime.Value.ToUniversalTime() : DateTimeOffset.UtcNow;
+            var date = input.TransactionTime.HasValue ? DateOnly.FromDateTime(at.ToBusinessTime(configuration).DateTime) : await RequireDayAsync(db, actorId, input.WorkingDate, ct);
             var balance = await db.LenderBalances.Include(balance => balance.Lender)
                 .SingleOrDefaultAsync(balance => balance.LenderId == input.LenderId, ct)
                 ?? throw new ValidationException("Choose an existing lender.");
@@ -163,6 +164,7 @@ public sealed class DebtService(IServiceScopeFactory scopes, IConfiguration conf
                 RequestId = input.RequestId,
                 LenderBalance = balance,
                 BusinessDate = date,
+                CreatedAt = at,
                 Kind = input.Kind,
                 Amount = amount,
                 BalanceAfter = balance.CurrentBalance,
@@ -175,7 +177,7 @@ public sealed class DebtService(IServiceScopeFactory scopes, IConfiguration conf
             await FinancialPosting.PostAsync(db, actorId, input.Method, amount,
                 input.Kind == DebtEntryKind.Borrowing ? CashMovementKind.DebtBorrowing : CashMovementKind.DebtRepayment,
                 $"{input.Kind} · {balance.Lender!.Name}", date, ct,
-                cashLocationId: locationId, periodValidated: true, debtEntry: entry);
+                cashLocationId: locationId, periodValidated: true, debtEntry: entry, occurredAt: at);
             await db.SaveChangesAsync(ct);
             await transaction.CommitAsync(ct);
             return entry.Id;

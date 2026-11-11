@@ -80,7 +80,15 @@ else if (Data is not null)
                         </select>
                         <p class="mt-2 text-xs text-slate-500">Cash requires this location's open drawer. Other methods use bank / digital funds.</p>
                     </div>
-                    <div>
+                    @if (CanBackdate)
+                    {
+                        <div>
+                            <label for="debt-time" class="field-label">Transaction Date & Time (Optional backdate)</label>
+                            <input id="debt-time" type="datetime-local" class="field" name="Input.TransactionTime"
+                                   value="@(Input?.TransactionTime?.ToString("yyyy-MM-ddTHH:mm"))" />
+                        </div>
+                    }
+                    <div class="@(CanBackdate ? "" : "sm:col-span-2")">
                         <label for="debt-notes" class="field-label">Notes / reference (optional)</label>
                         <textarea id="debt-notes" class="field" name="Input.Notes" maxlength="2000">@Input.Notes</textarea>
                     </div>
@@ -177,6 +185,7 @@ else if (Data is not null)
     private DebtPage? Data;
     private string? Error;
     private LenderRow? Selected => Data?.Lenders.FirstOrDefault(lender => lender.Id == LenderId);
+    private bool CanBackdate => HttpContext.User.IsInRole(AppRoles.Admin) || HttpContext.User.IsInRole("Manager");
 
     protected override async Task OnParametersSetAsync()
     {

@@ -155,6 +155,7 @@ public sealed class CustomerPaymentInput
     public decimal Amount { get; set; }
     public PaymentMethod Method { get; set; } = PaymentMethod.Cash;
     public string Notes { get; set; } = "";
+    public DateTimeOffset? TransactionTime { get; set; }
 }
 
 public sealed record DayOverview(DateOnly Date, decimal OpeningCash, decimal CashIn, decimal CashOut,

@@ -57,6 +57,8 @@ public sealed class SupplierPaymentInput
 
     [StringLength(2000)]
     public string? Notes { get; set; }
+
+    public DateTimeOffset? TransactionTime { get; set; }
 }
 
 public sealed class SupplierCreateInput

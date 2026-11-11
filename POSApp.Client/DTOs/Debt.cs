@@ -21,6 +21,7 @@ public sealed class DebtPaymentInput
     public PaymentMethod Method { get; set; } = PaymentMethod.Cash;
     public int? CashLocationId { get; set; }
     public string Notes { get; set; } = "";
+    public DateTimeOffset? TransactionTime { get; set; }
 }
 
 public sealed record LenderRow(int Id, string Name, string? Phone, decimal Opening, decimal Balance);

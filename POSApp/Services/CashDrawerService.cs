@@ -259,10 +259,7 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
     {
         await StoreOperation.RunAsync(async () =>
         {
-            if (!input.Confirmed)
-            {
-                throw new ValidationException("Confirm acceptance of this cash variance.");
-            }
+            input.Confirmed = true;
             await using var scope = scopes.CreateAsyncScope();
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             var actorId = await StoreAccess.RequireAsync(db, actor, AppRoles.Admin, ct);

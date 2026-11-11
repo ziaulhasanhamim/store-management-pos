@@ -98,9 +98,9 @@ public sealed class SupplierService(IServiceScopeFactory scopes, IConfiguration?
                 StoreOperation.CheckReplay(actorId, previous.CreatedByUserId, previous.RequestHash, hash);
                 return previous.Id;
             }
-            var businessDate = await AccountingCalendar.SelectedAsync(db, actorId, configuration, ct);
+            var at = input.TransactionTime.HasValue ? input.TransactionTime.Value.ToUniversalTime() : AccountingCalendar.At(await AccountingCalendar.SelectedAsync(db, actorId, configuration, ct), configuration);
+            var businessDate = input.TransactionTime.HasValue ? DateOnly.FromDateTime(at.ToBusinessTime(configuration).DateTime) : await AccountingCalendar.SelectedAsync(db, actorId, configuration, ct);
             await AccountingCalendar.EnsureOpenAsync(db, businessDate, ct);
-            var effectiveAt = AccountingCalendar.At(businessDate, configuration);
 
             if (!await db.Suppliers.AnyAsync(supplier => supplier.Id == input.SupplierId && !supplier.IsDeleted, ct))
             {
@@ -110,14 +110,14 @@ public sealed class SupplierService(IServiceScopeFactory scopes, IConfiguration?
             var balance = await db.SupplierBalances.SingleOrDefaultAsync(item => item.SupplierId == input.SupplierId, ct);
             if (balance is null)
             {
-                balance = new SupplierBalance { SupplierId = input.SupplierId, OpenedAt = effectiveAt };
+                balance = new SupplierBalance { SupplierId = input.SupplierId, OpenedAt = at };
                 db.SupplierBalances.Add(balance);
                 balance.Entries.Add(new SupplierBalanceEntry
                 {
                     SupplierBalanceId = 0,
                     SupplierBalance = balance,
                     Type = BalanceEntryType.OpeningBalance,
-                    OccurredAt = effectiveAt
+                    OccurredAt = at
                 });
             }
             balance.CurrentBalance -= input.Amount;
@@ -131,15 +131,16 @@ public sealed class SupplierService(IServiceScopeFactory scopes, IConfiguration?
                 SupplierBalance = balance,
                 Amount = input.Amount,
                 Method = input.Method,
-                PaidAt = effectiveAt,
+                PaidAt = at,
+                CreatedAt = at,
                 Reference = reference,
                 Notes = input.Notes,
                 CreatedByUserId = actorId
             };
             db.SupplierPayments.Add(payment);
             await FinancialPosting.PostAsync(db, actorId, input.Method, -input.Amount,
-                CashMovementKind.SupplierPayment, $"Supplier payment · #{input.SupplierId}", businessDate, ct, supplierPayment: payment);
-            payment.PaidAt = effectiveAt;
+                CashMovementKind.SupplierPayment, $"Supplier payment · #{input.SupplierId}", businessDate, ct, supplierPayment: payment, occurredAt: at);
+            payment.PaidAt = at;
             balance.Entries.Add(new SupplierBalanceEntry
             {
                 SupplierBalanceId = balance.Id,
@@ -148,7 +149,8 @@ public sealed class SupplierService(IServiceScopeFactory scopes, IConfiguration?
                 Amount = -input.Amount,
                 BalanceAfter = balance.CurrentBalance,
                 SupplierPayment = payment,
-                OccurredAt = effectiveAt,
+                OccurredAt = at,
+                CreatedAt = at,
                 Notes = input.Notes,
                 CreatedByUserId = actorId
             });

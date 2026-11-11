@@ -182,7 +182,7 @@ public sealed partial class MoneyEntryService
                     expense.Notes = notes;
                     expense.ReceiptReference = row.Receipt?.Trim();
                     await posting.PostAsync(row.Method, -row.Amount, CashMovementKind.Expense,
-                        notes.Length == 0 ? category.Name : notes, expense: expense, cashLocationId: locationId, rowDate: rowDate);
+                        notes.Length == 0 ? category.Name : notes, expense: expense, cashLocationId: locationId, rowDate: rowDate, occurredAt: rowAt);
                     entity = expense;
                 }
                 else if (kind == "supplier-payments")
@@ -240,7 +240,7 @@ public sealed partial class MoneyEntryService
                         Notes = oldEntity is null ? notes : EditNote("Payment", payment.Id, notes), CreatedByUserId = actorId
                     });
                     await posting.PostAsync(row.Method, -row.Amount, CashMovementKind.SupplierPayment,
-                        $"Supplier payment · #{row.PartyId}", supplierPayment: payment, cashLocationId: locationId, rowDate: rowDate);
+                        $"Supplier payment · #{row.PartyId}", supplierPayment: payment, cashLocationId: locationId, rowDate: rowDate, occurredAt: rowAt);
                     entity = payment;
                 }
                 else
@@ -290,7 +290,7 @@ public sealed partial class MoneyEntryService
                         Notes = oldEntity is null ? notes : EditNote("Collection", payment.Id, notes), CreatedByUserId = actorId
                     });
                     await posting.PostAsync(row.Method, row.Amount, CashMovementKind.Sale,
-                        $"Customer collection · #{row.PartyId}", payment: payment, cashLocationId: locationId, rowDate: rowDate);
+                        $"Customer collection · #{row.PartyId}", payment: payment, cashLocationId: locationId, rowDate: rowDate, occurredAt: rowAt);
                     if (oldEntity is not null)
                     {
                         await ReversePostingsAsync(db, kind, oldEntity.Id, actorId, date, ct);
@@ -591,12 +591,13 @@ public sealed partial class MoneyEntryService
     private sealed class BatchPosting(AppDbContext db, int actorId, DateOnly defaultDate, CancellationToken ct)
     {
         public async Task PostAsync(PaymentMethod method, decimal amount, CashMovementKind kind, string notes,
-            Payment? payment = null, SupplierPayment? supplierPayment = null, Expense? expense = null, int? cashLocationId = null, DateOnly? rowDate = null)
+            Payment? payment = null, SupplierPayment? supplierPayment = null, Expense? expense = null, int? cashLocationId = null, DateOnly? rowDate = null,
+            DateTimeOffset? occurredAt = null)
         {
             var date = rowDate ?? defaultDate;
             await FinancialPosting.PostAsync(db, actorId, method, amount, kind, notes, date, ct,
                 payment: payment, supplierPayment: supplierPayment, expense: expense,
-                cashLocationId: cashLocationId, cashSession: null, periodValidated: true);
+                cashLocationId: cashLocationId, cashSession: null, periodValidated: true, occurredAt: occurredAt);
         }
     }
 }
