@@ -397,6 +397,8 @@ namespace POSApp.Persistence.Migrations
 
                     b.HasIndex("StockLocationId", "BusinessDate");
 
+                    b.HasIndex("CashDrawerId", "BusinessDate", "CountedAt", "Id");
+
                     b.ToTable("CashCounts");
                 });
 
@@ -551,6 +553,10 @@ namespace POSApp.Persistence.Migrations
                     b.HasIndex("CashDrawerId", "CreatedAt");
 
                     b.HasIndex("CashSessionId", "Id");
+
+                    b.HasIndex("CashDrawerId", "BusinessDate", "CreatedAt", "Id");
+
+                    NpgsqlIndexBuilderExtensions.IncludeProperties(b.HasIndex("CashDrawerId", "BusinessDate", "CreatedAt", "Id"), new[] { "Amount", "Kind" });
 
                     b.ToTable("CashMovements");
                 });

@@ -11,7 +11,8 @@ namespace POSApp.Services;
 
 public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguration? configuration = null)
 {
-    public async Task<CashDrawerPage> ReadAsync(ClaimsPrincipal actor, int? sessionId = null, CancellationToken ct = default, int movementPage = 1, int sessionPage = 1, int pageSize = 30)
+    public async Task<CashDrawerPage> ReadAsync(ClaimsPrincipal actor, int? sessionId = null, CancellationToken ct = default,
+        int movementPage = 1, int sessionPage = 1, int pageSize = 30, int countsPage = 1, DateOnly? countsFrom = null, DateOnly? countsTo = null)
     {
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -102,15 +103,31 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
             };
         }
 
-        // Recent counts history
-        var countHistoryEntities = await db.CashCounts.AsNoTracking()
-            .Where(c => admin || c.StockLocationId == selected)
+        // Paginated & date-filtered cash counts history
+        var countsBaseQuery = db.CashCounts.AsNoTracking()
+            .Where(c => admin || c.StockLocationId == selected);
+
+        if (countsFrom.HasValue)
+        {
+            countsBaseQuery = countsBaseQuery.Where(c => c.BusinessDate >= countsFrom.Value);
+        }
+        if (countsTo.HasValue)
+        {
+            countsBaseQuery = countsBaseQuery.Where(c => c.BusinessDate <= countsTo.Value);
+        }
+
+        var countsTotal = await countsBaseQuery.CountAsync(ct);
+        var countsPageSize = 20;
+        var countsEffectivePage = Math.Max(1, countsPage);
+        var countHistoryEntities = await countsBaseQuery
             .Include(c => c.StockLocation)
             .Include(c => c.CountedByUser)
             .Include(c => c.CashDrawer)
-            .OrderByDescending(c => c.CountedAt)
+            .OrderByDescending(c => c.BusinessDate)
+            .ThenByDescending(c => c.CountedAt)
             .ThenByDescending(c => c.Id)
-            .Take(50)
+            .Skip((countsEffectivePage - 1) * countsPageSize)
+            .Take(countsPageSize)
             .ToListAsync(ct);
 
         var countHistoryList = new List<CashCountRow>();
@@ -142,6 +159,7 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
             });
         }
         var countHistory = countHistoryList.ToArray();
+        var countsPagination = new PageInfo(countsEffectivePage, countsPageSize, countsTotal);
 
         // Recent movements for selected drawer
         var movementsQuery = db.CashMovements.AsNoTracking()
@@ -208,6 +226,9 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
             PendingCount = pendingCount,
             LastCount = lastCount,
             CountHistory = countHistory,
+            CountsPagination = countsPagination,
+            CountsFromDate = countsFrom,
+            CountsToDate = countsTo,
             Locations = locations.Select(location =>
             {
                 var drawer = drawers.SingleOrDefault(drawer => drawer.StockLocationId == location.Id);
@@ -417,7 +438,7 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
                 count.CashDrawer.LastCountedCash = count.CountedCash;
                 var deltaAfter = await db.CashMovements.AsNoTracking()
                     .Where(m => (m.CashDrawerId == count.CashDrawer.Id || (m.CashSession != null && m.CashSession.CashDrawerId == count.CashDrawer.Id))
-                        && m.CreatedAt > count.CountedAt
+                        && (m.BusinessDate > count.BusinessDate || (m.BusinessDate == count.BusinessDate && (m.CreatedAt > count.CountedAt || (m.CreatedAt == count.CountedAt && m.Id > count.Id))))
                         && m.CreatedAt <= now
                         && m.Kind != CashMovementKind.Variance)
                     .SumAsync(m => (decimal?)m.Amount, ct) ?? 0m;
@@ -509,6 +530,58 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
         }, ct);
     }
 
+    public async Task DeleteCountAsync(ClaimsPrincipal actor, int countId, CancellationToken ct = default)
+    {
+        await StoreOperation.RunAsync(async () =>
+        {
+            await using var scope = scopes.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var actorId = await StoreAccess.RequireAsync(db, actor, AppRoles.Admin, ct);
+            await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
+
+            var count = await db.CashCounts.Include(c => c.CashDrawer).Include(c => c.VarianceMovement)
+                .SingleOrDefaultAsync(c => c.Id == countId, ct)
+                ?? throw new ValidationException("Cash count not found.");
+
+            var wasAccepted = count.Status == CashCountStatus.Completed
+                || count.Status == CashCountStatus.VarianceAccepted
+                || count.Status == CashCountStatus.Accepted;
+
+            var drawer = count.CashDrawer
+                ?? await db.CashDrawers.SingleOrDefaultAsync(d => d.Id == count.CashDrawerId, ct);
+
+            if (count.VarianceMovement is not null)
+            {
+                db.CashMovements.Remove(count.VarianceMovement);
+            }
+
+            db.CashCounts.Remove(count);
+            await db.SaveChangesAsync(ct);
+
+            if (drawer != null)
+            {
+                var remainingAnchor = await db.CashCounts.AsNoTracking()
+                    .Where(c => c.CashDrawerId == drawer.Id && c.Id != countId && (c.Status == CashCountStatus.Completed || c.Status == CashCountStatus.VarianceAccepted || c.Status == CashCountStatus.Accepted) && !c.IsVoided)
+                    .OrderByDescending(c => c.BusinessDate)
+                    .ThenByDescending(c => c.CountedAt)
+                    .ThenByDescending(c => c.Id)
+                    .FirstOrDefaultAsync(ct);
+
+                drawer.LastCountedAt = remainingAnchor?.CountedAt;
+                drawer.LastCountedCash = remainingAnchor?.CountedCash;
+                if (wasAccepted)
+                {
+                    drawer.CurrentCash = await CalculateLiveBalanceAsync(db, drawer, null, ct);
+                }
+                drawer.UpdatedAt = DateTimeOffset.UtcNow;
+                drawer.UpdatedByUserId = actorId;
+                await db.SaveChangesAsync(ct);
+            }
+
+            await transaction.CommitAsync(ct);
+        }, ct);
+    }
+
     public static async Task<decimal> CalculateLiveBalanceAsync(AppDbContext db, CashDrawer drawer, DateTimeOffset? asOf = null, CancellationToken ct = default)
     {
         var effectiveAsOf = asOf ?? DateTimeOffset.UtcNow;
@@ -519,9 +592,10 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
                 && (c.Status == CashCountStatus.Completed || c.Status == CashCountStatus.VarianceAccepted || c.Status == CashCountStatus.Accepted)
                 && !c.IsVoided
                 && c.CountedAt <= effectiveAsOf)
-            .OrderByDescending(c => c.CountedAt)
+            .OrderByDescending(c => c.BusinessDate)
+            .ThenByDescending(c => c.CountedAt)
             .ThenByDescending(c => c.Id)
-            .Select(c => new { c.CountedAt, c.CountedCash })
+            .Select(c => new { c.BusinessDate, c.CountedAt, c.Id, c.CountedCash })
             .FirstOrDefault();
 
         var dbAnchor = localAnchor is not null ? null : await db.CashCounts.AsNoTracking()
@@ -529,24 +603,50 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
                 && (c.Status == CashCountStatus.Completed || c.Status == CashCountStatus.VarianceAccepted || c.Status == CashCountStatus.Accepted)
                 && !c.IsVoided
                 && c.CountedAt <= effectiveAsOf)
-            .OrderByDescending(c => c.CountedAt)
+            .OrderByDescending(c => c.BusinessDate)
+            .ThenByDescending(c => c.CountedAt)
             .ThenByDescending(c => c.Id)
-            .Select(c => new { c.CountedAt, c.CountedCash })
+            .Select(c => new { c.BusinessDate, c.CountedAt, c.Id, c.CountedCash })
             .FirstOrDefaultAsync(ct);
 
         var anchor = localAnchor ?? dbAnchor;
-        var baseTimestamp = anchor?.CountedAt ?? DateTimeOffset.MinValue;
         var baseBalance = anchor?.CountedCash ?? drawer.OpeningBalance;
 
-        // Sum movements strictly after the anchor and at or before effectiveAsOf, excluding synthetic variance movements
-        var delta = await db.CashMovements.AsNoTracking()
-            .Where(m => (m.CashDrawerId == drawer.Id || (m.CashSession != null && m.CashSession.CashDrawerId == drawer.Id))
-                && m.CreatedAt > baseTimestamp
-                && m.CreatedAt <= effectiveAsOf
-                && m.Kind != CashMovementKind.Variance)
-            .SumAsync(m => (decimal?)m.Amount, ct) ?? 0m;
+        // Movement ordering is (BusinessDate, CreatedAt, Id). A movement belongs to an interval by that order.
+        decimal delta;
+        if (anchor != null)
+        {
+            var aDate = anchor.BusinessDate;
+            var aTime = anchor.CountedAt;
+            var aId = anchor.Id;
+
+            delta = await db.CashMovements.AsNoTracking()
+                .Where(m => (m.CashDrawerId == drawer.Id || (m.CashSession != null && m.CashSession.CashDrawerId == drawer.Id))
+                    && (m.BusinessDate > aDate || (m.BusinessDate == aDate && (m.CreatedAt > aTime || (m.CreatedAt == aTime && m.Id > aId))))
+                    && m.CreatedAt <= effectiveAsOf
+                    && m.Kind != CashMovementKind.Variance)
+                .SumAsync(m => (decimal?)m.Amount, ct) ?? 0m;
+        }
+        else
+        {
+            delta = await db.CashMovements.AsNoTracking()
+                .Where(m => (m.CashDrawerId == drawer.Id || (m.CashSession != null && m.CashSession.CashDrawerId == drawer.Id))
+                    && m.CreatedAt <= effectiveAsOf
+                    && m.Kind != CashMovementKind.Variance)
+                .SumAsync(m => (decimal?)m.Amount, ct) ?? 0m;
+        }
 
         return baseBalance + delta;
+    }
+
+    public async Task<decimal> GetExpectedAtAsync(ClaimsPrincipal actor, int locationId, DateTimeOffset asOf, CancellationToken ct = default)
+    {
+        await using var scope = scopes.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await StoreAccess.RequireAsync(db, actor, AppRoles.SalesAssociate, ct);
+        var drawer = await db.CashDrawers.AsNoTracking().FirstOrDefaultAsync(d => d.StockLocationId == locationId, ct)
+            ?? throw new ValidationException("Cash drawer not found for location.");
+        return await CalculateLiveBalanceAsync(db, drawer, asOf, ct);
     }
 
     public static async Task<decimal> GetCashBalanceAtAsync(AppDbContext db, int drawerId, DateTimeOffset asOf, CancellationToken ct = default)
@@ -934,16 +1034,20 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
         // Retroactive historical entries (on or before the latest accepted count) do NOT change current drawer cash!
         var latestAnchor = db.CashCounts.Local
             .Where(c => c.CashDrawerId == drawer.Id && (c.Status == CashCountStatus.Completed || c.Status == CashCountStatus.VarianceAccepted || c.Status == CashCountStatus.Accepted) && !c.IsVoided)
-            .OrderByDescending(c => c.CountedAt)
+            .OrderByDescending(c => c.BusinessDate)
+            .ThenByDescending(c => c.CountedAt)
             .ThenByDescending(c => c.Id)
             .FirstOrDefault()
             ?? db.CashCounts.AsNoTracking()
                 .Where(c => c.CashDrawerId == drawer.Id && (c.Status == CashCountStatus.Completed || c.Status == CashCountStatus.VarianceAccepted || c.Status == CashCountStatus.Accepted) && !c.IsVoided)
-                .OrderByDescending(c => c.CountedAt)
+                .OrderByDescending(c => c.BusinessDate)
+                .ThenByDescending(c => c.CountedAt)
                 .ThenByDescending(c => c.Id)
                 .FirstOrDefault();
 
-        var isHistorical = latestAnchor != null && movement.CreatedAt <= latestAnchor.CountedAt;
+        var isHistorical = latestAnchor != null &&
+            (movement.BusinessDate < latestAnchor.BusinessDate ||
+             (movement.BusinessDate == latestAnchor.BusinessDate && movement.CreatedAt <= latestAnchor.CountedAt));
 
         if (!isHistorical)
         {

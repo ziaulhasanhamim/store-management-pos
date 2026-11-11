@@ -55,6 +55,7 @@ internal static class FinanceModelConfiguration
         {
             entity.HasIndex(count => count.RequestId).IsUnique();
             entity.HasIndex(count => new { count.CashDrawerId, count.CountedAt });
+            entity.HasIndex(count => new { count.CashDrawerId, count.BusinessDate, count.CountedAt, count.Id });
             entity.HasIndex(count => new { count.StockLocationId, count.BusinessDate });
             entity.Property(count => count.Notes).HasMaxLength(2000);
             entity.Property(count => count.VoidReason).HasMaxLength(2000);
@@ -94,6 +95,8 @@ internal static class FinanceModelConfiguration
             entity.HasIndex(move => move.RequestId).IsUnique();
             entity.HasIndex(move => move.BusinessDate);
             entity.HasIndex(move => new { move.CashDrawerId, move.CreatedAt });
+            entity.HasIndex(move => new { move.CashDrawerId, move.BusinessDate, move.CreatedAt, move.Id })
+                .IncludeProperties(move => new { move.Amount, move.Kind });
             entity.HasIndex(move => new { move.CashSessionId, move.Id });
             entity.HasIndex(move => move.PayrollEntryId).IsUnique();
             entity.HasIndex(move => move.ReversesMovementId).IsUnique();

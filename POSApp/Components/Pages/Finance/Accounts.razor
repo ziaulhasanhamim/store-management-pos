@@ -80,8 +80,11 @@ else
                     {
                         <div>
                             <label class="field-label" for="collection-time">Transaction Date & Time (Optional backdate)</label>
-                            <input id="collection-time" type="datetime-local" name="Collection.TransactionTime" class="field"
-                                   value="@(Collection?.TransactionTime?.ToString("yyyy-MM-ddTHH:mm"))" />
+                            <div class="flex items-center gap-1.5">
+                                <input id="collection-time" type="datetime-local" name="Collection.TransactionTime" class="field"
+                                       value="@(Collection?.TransactionTime?.ToString("yyyy-MM-ddTHH:mm"))" />
+                                <button type="button" class="btn-secondary text-xs px-2.5 py-2 shrink-0" onclick="document.getElementById('collection-time').blur()" title="Confirm date selection">Done</button>
+                            </div>
                         </div>
                     }
                 </div>

@@ -55,6 +55,11 @@ public sealed class AcceptVarianceInput
     public string? Notes { get; set; }
 }
 
+public sealed class DeleteCountInput
+{
+    public int CountId { get; set; }
+}
+
 public sealed record CashCountRow(
     int Id,
     int LocationId,
@@ -103,6 +108,9 @@ public sealed record CashDrawerPage(CashSessionRow? Current, CashSessionRow? Vie
     public CashCountRow? PendingCount { get; init; }
     public CashCountRow? LastCount { get; init; }
     public IReadOnlyList<CashCountRow> CountHistory { get; init; } = [];
+    public PageInfo? CountsPagination { get; init; }
+    public DateOnly? CountsFromDate { get; init; }
+    public DateOnly? CountsToDate { get; init; }
 }
 
 public sealed record CashLocationRow(int Id, string Name, decimal Balance, bool Initialized, int? SessionId, bool ClosedToday)

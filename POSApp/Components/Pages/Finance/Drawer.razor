@@ -20,7 +20,7 @@
 }
 @if (Data is not null)
 {
-    <DrawerView View="@View" Data="Data" Open="Open!" Close="Close!" Adjustment="Adjustment!" Location="Location!" Transfer="Transfer!" Assignment="Assignment!" CountInput="CountInput!" AcceptVarianceInput="AcceptVarianceInput!" SelectLocationAsync="SelectLocationAsync" TransferAsync="TransferAsync" AssignAsync="AssignAsync" OpenAsync="OpenAsync" CloseAsync="CloseAsync" AdjustAsync="AdjustAsync" SubmitCountAsync="SubmitCountAsync" AcceptVarianceAsync="AcceptVarianceAsync" DepositServicingProfitAsync="DepositServicingProfitAsync" />
+    <DrawerView View="@View" Data="Data" Open="Open!" Close="Close!" Adjustment="Adjustment!" Location="Location!" Transfer="Transfer!" Assignment="Assignment!" CountInput="CountInput!" AcceptVarianceInput="AcceptVarianceInput!" DeleteCount="DeleteCount!" SelectLocationAsync="SelectLocationAsync" TransferAsync="TransferAsync" AssignAsync="AssignAsync" OpenAsync="OpenAsync" CloseAsync="CloseAsync" AdjustAsync="AdjustAsync" SubmitCountAsync="SubmitCountAsync" AcceptVarianceAsync="AcceptVarianceAsync" DeleteCountAsync="DeleteCountAsync" DepositServicingProfitAsync="DepositServicingProfitAsync" />
 }
 else
 {
@@ -61,6 +61,18 @@ else
     [SupplyParameterFromForm(FormName = "cash-variance-accept")]
     private AcceptVarianceInput? AcceptVarianceInput { get; set; }
 
+    [SupplyParameterFromForm(FormName = "cash-count-delete")]
+    private DeleteCountInput? DeleteCount { get; set; }
+
+    [SupplyParameterFromQuery(Name = "countsPage")]
+    public int CountsPage { get; set; } = 1;
+
+    [SupplyParameterFromQuery(Name = "from")]
+    public string? FromDateStr { get; set; }
+
+    [SupplyParameterFromQuery(Name = "to")]
+    public string? ToDateStr { get; set; }
+
     private CashDrawerPage? Data;
     private string? Error;
 
@@ -75,6 +87,7 @@ else
         Assignment ??= new();
         CountInput ??= new();
         AcceptVarianceInput ??= new();
+        DeleteCount ??= new();
         try
         {
             Data = await LoadAsync();
@@ -99,7 +112,12 @@ else
     [SupplyParameterFromQuery]
     public int PageSize { get; set; } = 30;
 
-    private Task<CashDrawerPage> LoadAsync() => Drawers.ReadAsync(HttpContext.User, SessionId, HttpContext.RequestAborted, MovementPage, SessionPage, PageSize);
+    private Task<CashDrawerPage> LoadAsync()
+    {
+        DateOnly? fromDate = DateOnly.TryParse(FromDateStr, out var f) ? f : null;
+        DateOnly? toDate = DateOnly.TryParse(ToDateStr, out var t) ? t : null;
+        return Drawers.ReadAsync(HttpContext.User, SessionId, HttpContext.RequestAborted, MovementPage, SessionPage, PageSize, CountsPage, fromDate, toDate);
+    }
 
     private Task SelectLocationAsync() => SubmitAsync(() => Drawers.SelectLocationAsync(HttpContext.User, Location!.LocationId, HttpContext.RequestAborted), "/cash-drawer");
     private Task TransferAsync() => SubmitAsync(() => Drawers.TransferAsync(HttpContext.User, Transfer!, HttpContext.RequestAborted), "/cash-drawer?view=transfer");
@@ -117,6 +135,7 @@ else
     private Task AdjustAsync() => SubmitAsync(() => Drawers.AdjustAsync(HttpContext.User, Adjustment!, HttpContext.RequestAborted), "/cash-drawer?view=transfer");
     private Task SubmitCountAsync() => SubmitAsync(() => Drawers.SubmitCountAsync(HttpContext.User, CountInput!, HttpContext.RequestAborted), "/cash-drawer");
     private Task AcceptVarianceAsync() => SubmitAsync(() => Drawers.AcceptVarianceAsync(HttpContext.User, AcceptVarianceInput!, HttpContext.RequestAborted), "/cash-drawer");
+    private Task DeleteCountAsync() => SubmitAsync(() => Drawers.DeleteCountAsync(HttpContext.User, DeleteCount!.CountId, HttpContext.RequestAborted), "/cash-drawer" + (View == "counts" ? "?view=counts" : ""));
     private Task DepositServicingProfitAsync() => Task.CompletedTask;
 
     private async Task SubmitAsync(Func<Task> action, string? target = null)

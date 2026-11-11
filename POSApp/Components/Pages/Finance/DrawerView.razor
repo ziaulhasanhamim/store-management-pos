@@ -107,13 +107,17 @@
                                     ⚠️ Deposit servicing profit before accepting variance!
                                 </div>
                             }
-                            <form method="post" @formname="cash-variance-accept" @onsubmit="AcceptVarianceAsync" data-enhance data-submit-indication="true">
+                            <form method="post" @formname="cash-variance-accept" @onsubmit="AcceptVarianceAsync" data-enhance data-submit-indication="true" class="flex items-center gap-2">
                                 <AntiforgeryToken />
                                 <input type="hidden" name="AcceptVarianceInput.CountId" value="@Data.PendingCount.Id" />
                                 <input type="hidden" name="AcceptVarianceInput.CashCountId" value="@Data.PendingCount.Id" />
                                 <input type="hidden" name="AcceptVarianceInput.Confirmed" value="true" />
                                 <button type="submit" class="btn-primary text-xs py-2 px-3 whitespace-nowrap" data-pending-text="Accepting…" disabled="@(Data.UndepositedServicingProfit > 0)">
                                     Accept Variance (Set Anchor)
+                                </button>
+                                <button type="button" class="btn-secondary text-xs py-2 px-3 whitespace-nowrap text-rose-700 hover:text-rose-900 border-rose-200"
+                                        onclick="if (confirm('Are you sure you want to delete / dismiss this pending cash count?')) { document.getElementById('delete-count-id-input').value = '@Data.PendingCount.Id'; document.getElementById('cash-count-delete-form').requestSubmit(); }">
+                                    Delete Count
                                 </button>
                             </form>
                         </div>
@@ -172,9 +176,17 @@
                             </label>
                             <div id="backdate-count-box" class="@(CountInput?.IsBackdate == true ? "" : "hidden") mt-2.5 p-3 rounded-lg bg-amber-50/60 border border-amber-200/80">
                                 <label class="field-label text-xs" for="count-time">Counted at (physical date & time)</label>
-                                <input type="datetime-local" id="count-time" name="CountInput.CountedAt" class="field text-xs max-w-xs"
-                                       min="@(Data.LastCount?.CountedAt.ToBusinessTime(Configuration).ToString("yyyy-MM-ddTHH:mm"))"
-                                       value="@(CountInput?.CountedAt?.ToBusinessTime(Configuration).ToString("yyyy-MM-ddTHH:mm"))" />
+                                <div class="flex items-center gap-2">
+                                    <input type="datetime-local" id="count-time" name="CountInput.CountedAt" class="field text-xs max-w-xs"
+                                           min="@(Data.LastCount?.CountedAt.ToBusinessTime(Configuration).ToString("yyyy-MM-ddTHH:mm"))"
+                                           value="@(CountInput?.CountedAt?.ToBusinessTime(Configuration).ToString("yyyy-MM-ddTHH:mm"))"
+                                           onchange="fetchHistoricalExpectedCash(this.value, @(Data.SelectedLocationId ?? 0))" />
+                                    <button type="button" class="btn-secondary text-xs px-2.5 py-1.5 shrink-0" onclick="document.getElementById('count-time').blur();" title="Done selecting date & time">Done</button>
+                                </div>
+                                <div id="historical-expected-cash-banner" class="hidden mt-2 p-2.5 rounded-lg bg-amber-100/80 border border-amber-300/80 text-amber-950 text-xs">
+                                    <span class="font-medium">Expected book cash at selected time:</span> <strong id="historical-expected-amount" class="text-sm font-bold">BDT 0.00</strong>
+                                    <p class="text-[11px] text-amber-800 mt-0.5">Based on the accepted anchor before this timestamp and net movements up to this moment.</p>
+                                </div>
                                 <p class="mt-1 text-[11px] text-amber-800">
                                     Must be after the last accepted count (@(Data.LastCount is not null ? Data.LastCount.CountedAt.ToBusinessTime(Configuration).ToString("dd MMM yyyy, hh:mm tt") : "start of drawer")). Historical expected cash will be calculated as of that moment.
                                 </p>
@@ -201,11 +213,27 @@
 @if (View == "counts")
 {
     <section class="panel mb-6 table-scroll">
-        <div class="panel-heading">
+        <div class="panel-heading flex flex-wrap items-center justify-between gap-3">
             <div>
                 <h2>Physical Cash Count Checkpoints</h2>
                 <p class="mt-1 text-xs text-slate-500">Audit trail of all physical cash counts, variances, and admin approvals.</p>
             </div>
+            <form method="get" action="/cash-drawer" class="flex flex-wrap items-end gap-2 no-print" data-enhance>
+                <input type="hidden" name="view" value="counts" />
+                <div>
+                    <label class="field-label text-[11px]" for="from-date">From date</label>
+                    <input id="from-date" name="from" type="date" class="field text-xs py-1" value="@(Data.CountsFromDate?.ToString("yyyy-MM-dd"))" />
+                </div>
+                <div>
+                    <label class="field-label text-[11px]" for="to-date">To date</label>
+                    <input id="to-date" name="to" type="date" class="field text-xs py-1" value="@(Data.CountsToDate?.ToString("yyyy-MM-dd"))" />
+                </div>
+                <button type="submit" class="btn-primary text-xs py-1.5 px-3">Filter</button>
+                @if (Data.CountsFromDate is not null || Data.CountsToDate is not null)
+                {
+                    <a href="/cash-drawer?view=counts" class="btn-secondary text-xs py-1.5 px-3">Clear</a>
+                }
+            </form>
         </div>
         <table class="data-table">
             <thead>
@@ -282,18 +310,48 @@
                         @if (Data?.Admin == true)
                         {
                             <td>
-                                @if (count.Status == CashCountStatus.PendingReview)
-                                {
-                                    <a href="/cash-drawer" class="btn-secondary text-xs py-1 px-2 whitespace-nowrap">
-                                        Review in Drawer
-                                    </a>
-                                }
+                                <div class="flex items-center gap-1.5">
+                                    @if (count.Status == CashCountStatus.PendingReview)
+                                    {
+                                        <a href="/cash-drawer" class="btn-secondary text-xs py-1 px-2 whitespace-nowrap">
+                                            Review
+                                        </a>
+                                    }
+                                    <button type="button" class="text-xs text-rose-600 hover:text-rose-800 font-semibold px-2 py-1 rounded hover:bg-rose-50"
+                                            onclick="if (confirm('Are you sure you want to delete cash count #@count.Id? Any subsequent counts will automatically re-anchor to the count preceding this one.')) { document.getElementById('delete-count-id-input').value = '@count.Id'; document.getElementById('cash-count-delete-form').requestSubmit(); }"
+                                            title="Delete cash count checkpoint">
+                                        Delete
+                                    </button>
+                                </div>
                             </td>
                         }
                     </tr>
                 }
             </tbody>
         </table>
+
+        @if (Data.CountsPagination is not null && Data.CountsPagination.Pages > 1)
+        {
+            var filterQuery = (Data.CountsFromDate is not null ? $"&from={Data.CountsFromDate:yyyy-MM-dd}" : "") + (Data.CountsToDate is not null ? $"&to={Data.CountsToDate:yyyy-MM-dd}" : "");
+            <div class="p-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 text-xs text-slate-500">
+                <div>
+                    Showing @Data.CountsPagination.First to @Data.CountsPagination.Last of @Data.CountsPagination.Total checkpoints
+                </div>
+                <div class="flex items-center gap-1">
+                    @if (Data.CountsPagination.Number > 1)
+                    {
+                        var prevUrl = $"/cash-drawer?view=counts&countsPage={Data.CountsPagination.Number - 1}{filterQuery}";
+                        <a href="@prevUrl" class="btn-secondary text-xs py-1 px-2.5">Previous</a>
+                    }
+                    <span class="px-2 py-1 font-medium text-slate-700">Page @Data.CountsPagination.Number of @Data.CountsPagination.Pages</span>
+                    @if (Data.CountsPagination.Number < Data.CountsPagination.Pages)
+                    {
+                        var nextUrl = $"/cash-drawer?view=counts&countsPage={Data.CountsPagination.Number + 1}{filterQuery}";
+                        <a href="@nextUrl" class="btn-secondary text-xs py-1 px-2.5">Next</a>
+                    }
+                </div>
+            </div>
+        }
     </section>
 }
 @if (View == "drawer" && Data is { Admin: true, Current: { } statementSession })
@@ -468,6 +526,12 @@
     public AcceptVarianceInput AcceptVarianceInput { get; set; } = default!;
 
     [Parameter]
+    public DeleteCountInput DeleteCount { get; set; } = default!;
+
+    [Parameter]
+    public EventCallback DeleteCountAsync { get; set; }
+
+    [Parameter]
     public EventCallback SubmitCountAsync { get; set; }
 
     [Parameter]
@@ -508,3 +572,33 @@
     private string Money(decimal amount) => $"{Currency} {amount:N2}";
     private string Time(DateTimeOffset at) => at.ToBusinessTime(Configuration).ToString("dd MMM, HH:mm");
 }
+
+<form id="cash-count-delete-form" method="post" @formname="cash-count-delete" @onsubmit="DeleteCountAsync" data-enhance class="hidden">
+    <AntiforgeryToken />
+    <input type="hidden" id="delete-count-id-input" name="DeleteCount.CountId" value="0" />
+</form>
+
+<script>
+    function fetchHistoricalExpectedCash(timeVal, locId) {
+        var banner = document.getElementById('historical-expected-cash-banner');
+        var amountEl = document.getElementById('historical-expected-amount');
+        if (!timeVal || !locId) {
+            if (banner) banner.classList.add('hidden');
+            return;
+        }
+        fetch('/api/finance/cash-drawer/expected-at?locationId=' + encodeURIComponent(locId) + '&asOf=' + encodeURIComponent(timeVal))
+            .then(function(res) {
+                if (!res.ok) throw new Error('Failed to fetch expected cash');
+                return res.json();
+            })
+            .then(function(data) {
+                if (banner && amountEl && data.expectedCash !== undefined) {
+                    amountEl.textContent = 'BDT ' + Number(data.expectedCash).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                    banner.classList.remove('hidden');
+                }
+            })
+            .catch(function(err) {
+                console.error(err);
+            });
+    }
+</script>

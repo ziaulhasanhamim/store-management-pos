@@ -646,4 +646,82 @@ public class CashDrawerAndFinanceServiceTests : PosIntegrationTestBase
         var balAfter = await drawerService.GetCashBalanceAtAsync(AdminUser, drawer.Id, t0.AddHours(3));
         await balAfter.Should().BeEqualTo(baseCash + 350m);
     }
+
+    [Test]
+    public async Task PhysicalCashCount_DeleteCount_ReAnchorsToPrecedingCount()
+    {
+        await using var scope = CreateScope();
+        var drawerService = scope.ServiceProvider.GetRequiredService<CashDrawerService>();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var drawer = await db.CashDrawers.FirstAsync(d => d.StockLocationId == 1);
+        var baseCash = drawer.CurrentCash;
+
+        // Step 1: Count 1 at T0: anchor at baseCash + 1000
+        var t0 = DateTimeOffset.UtcNow.AddDays(-2);
+        var count1 = new CashCount
+        {
+            RequestId = Guid.NewGuid(),
+            CashDrawerId = drawer.Id,
+            StockLocationId = drawer.StockLocationId ?? 1,
+            BusinessDate = DateOnly.FromDateTime(t0.UtcDateTime),
+            CountedCash = baseCash + 1000m,
+            ExpectedCash = baseCash,
+            CountedAt = t0,
+            CountedByUserId = 1,
+            Status = CashCountStatus.VarianceAccepted,
+            AcceptedVariance = 1000m
+        };
+        db.CashCounts.Add(count1);
+        await db.SaveChangesAsync();
+
+        // Step 2: Movement +200 at T0 + 1 hr
+        var move1 = new CashMovement
+        {
+            RequestId = Guid.NewGuid(),
+            CashDrawerId = drawer.Id,
+            BusinessDate = DateOnly.FromDateTime(t0.UtcDateTime),
+            CreatedAt = t0.AddHours(1),
+            Kind = CashMovementKind.Sale,
+            Amount = 200m,
+            BalanceAfter = baseCash + 1200m,
+            Notes = "Sale 1",
+            CreatedByUserId = 1
+        };
+        db.CashMovements.Add(move1);
+
+        // Step 3: Count 2 at T0 + 2 hrs: anchor at 1500
+        var t2 = t0.AddHours(2);
+        var count2 = new CashCount
+        {
+            RequestId = Guid.NewGuid(),
+            CashDrawerId = drawer.Id,
+            StockLocationId = drawer.StockLocationId ?? 1,
+            BusinessDate = DateOnly.FromDateTime(t2.UtcDateTime),
+            CountedCash = 1500m,
+            ExpectedCash = baseCash + 1200m,
+            CountedAt = t2,
+            CountedByUserId = 1,
+            Status = CashCountStatus.VarianceAccepted,
+            AcceptedVariance = 100m
+        };
+        db.CashCounts.Add(count2);
+        drawer.LastCountedAt = t2;
+        drawer.LastCountedCash = 1500m;
+        drawer.CurrentCash = 1500m;
+        await db.SaveChangesAsync();
+
+        // While Count 2 is anchor, live balance is 1500
+        var balWithCount2 = await CashDrawerService.CalculateLiveBalanceAsync(db, drawer, null);
+        await balWithCount2.Should().BeEqualTo(1500m);
+
+        // Now Admin deletes Count 2
+        await drawerService.DeleteCountAsync(AdminUser, count2.Id);
+
+        // After deleting Count 2, drawer must re-anchor to Count 1 (baseCash + 1000) + move1 (+200) = baseCash + 1200!
+        var drawerAfter = await db.CashDrawers.AsNoTracking().FirstAsync(d => d.Id == drawer.Id);
+        await drawerAfter.LastCountedAt.Should().BeEqualTo(t0);
+        await drawerAfter.LastCountedCash.Should().BeEqualTo(baseCash + 1000m);
+        await drawerAfter.CurrentCash.Should().BeEqualTo(baseCash + 1200m);
+    }
 }

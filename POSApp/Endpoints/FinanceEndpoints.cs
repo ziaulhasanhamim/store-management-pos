@@ -8,10 +8,17 @@ public static class FinanceEndpoints
 {
     public static RouteGroupBuilder MapFinanceEndpoints(this RouteGroupBuilder group)
     {
-        group.RequireAuthorization(AppPolicies.ManageUsers);
         group.AddEndpointFilter<StoreRequestFilter>();
-        group.MapGet("/closing.xlsx", ExportClosingExcelAsync);
+        group.MapGet("/closing.xlsx", ExportClosingExcelAsync).RequireAuthorization(AppPolicies.ManageUsers);
+        group.MapGet("/cash-drawer/expected-at", GetHistoricalExpectedCashAsync).RequireAuthorization(AppPolicies.ManageDrawer);
         return group;
+    }
+
+    public static async Task<IResult> GetHistoricalExpectedCashAsync(
+        int locationId, DateTimeOffset asOf, HttpContext context, CashDrawerService drawerService)
+    {
+        var expected = await drawerService.GetExpectedAtAsync(context.User, locationId, asOf, context.RequestAborted);
+        return Results.Ok(new { expectedCash = expected });
     }
 
     public static async Task<IResult> ExportClosingExcelAsync(
