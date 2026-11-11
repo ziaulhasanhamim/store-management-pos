@@ -58,6 +58,7 @@ public sealed class SupplierPaymentInput
     [StringLength(2000)]
     public string? Notes { get; set; }
 
+    public bool IsBackdate { get; set; }
     public DateTimeOffset? TransactionTime { get; set; }
 }
 

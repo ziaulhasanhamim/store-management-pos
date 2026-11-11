@@ -89,6 +89,7 @@ public partial class SalesEditor
     private string CustomerName = "";
     private string? CustomerPhone;
     private decimal CustomerOpening;
+    private bool IsBackdating;
     private DateTime? CustomTransactionTime;
     private string? Error;
     private string? Notice;
@@ -436,7 +437,7 @@ public partial class SalesEditor
         try
         {
             DateTimeOffset? transactionTime = null;
-            if (CustomTransactionTime.HasValue)
+            if (Options.CanBackdate && IsBackdating && CustomTransactionTime.HasValue)
             {
                 var unspecified = DateTime.SpecifyKind(CustomTransactionTime.Value, DateTimeKind.Unspecified);
                 var zone = UserTimeZone.ResolveZone(null, "Asia/Dhaka");

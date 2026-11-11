@@ -21,6 +21,7 @@ public sealed class DebtPaymentInput
     public PaymentMethod Method { get; set; } = PaymentMethod.Cash;
     public int? CashLocationId { get; set; }
     public string Notes { get; set; } = "";
+    public bool IsBackdate { get; set; }
     public DateTimeOffset? TransactionTime { get; set; }
 }
 

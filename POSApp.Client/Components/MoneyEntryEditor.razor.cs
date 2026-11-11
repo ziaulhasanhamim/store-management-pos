@@ -50,6 +50,8 @@ public partial class MoneyEntryEditor
     private bool Busy;
     private bool LoadingRows;
     private bool DraftReady = true;
+    private bool IsBackdating;
+    private DateTime? BatchTransactionTime;
     private IReadOnlySet<int> PendingIds => Lines
         .Where(line => line.Input.Id.HasValue)
         .Select(line => line.Input.Id!.Value)
@@ -94,6 +96,8 @@ public partial class MoneyEntryEditor
     {
         Error = null;
         Notice = null;
+        IsBackdating = false;
+        BatchTransactionTime = null;
         BatchId = Guid.NewGuid();
         Lines = [];
         AddLine();
@@ -153,10 +157,30 @@ public partial class MoneyEntryEditor
         var committed = false;
         try
         {
+            if (Data.CanBackdate && IsBackdating && BatchTransactionTime.HasValue)
+            {
+                foreach (var line in Lines)
+                {
+                    line.Input.TransactionTime = BatchTransactionTime.Value;
+                }
+            }
+            else
+            {
+                foreach (var line in Lines)
+                {
+                    if (line.Input.Id is null)
+                    {
+                        line.Input.TransactionTime = null;
+                    }
+                }
+            }
+
             var result = await Entries.SaveAsync(Data.Kind, new MoneyEntryCommand(BatchId, Data.WorkingDate,
                 Lines.Select(line => line.Input).ToArray()));
             committed = true;
             BatchId = Guid.NewGuid();
+            IsBackdating = false;
+            BatchTransactionTime = null;
             Lines = [];
             AddLine();
             Notice = $"Saved {result.Ids.Count} {(result.Ids.Count == 1 ? "entry" : "entries")}. Ready for a new entry.";

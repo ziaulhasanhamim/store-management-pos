@@ -78,10 +78,19 @@ else
                     </div>
                     @if (CanBackdate)
                     {
-                        <div>
-                            <label class="field-label" for="collection-time">Transaction Date & Time (Optional backdate)</label>
-                            <input id="collection-time" type="datetime-local" name="Collection.TransactionTime" class="field"
-                                   value="@(Collection?.TransactionTime?.ToString("yyyy-MM-ddTHH:mm"))" />
+                        <div class="rounded-xl border border-blue-200 bg-blue-50/70 p-3 space-y-2">
+                            <label class="inline-flex items-center gap-2 cursor-pointer text-xs font-semibold text-blue-900 select-none">
+                                <input type="checkbox" id="customer-backdate-toggle" name="Collection.IsBackdate" value="true" class="rounded border-blue-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                       checked="@(Collection?.IsBackdate == true)"
+                                       onchange="document.getElementById('customer-backdate-box').classList.toggle('hidden', !this.checked)" />
+                                <span>Record historical payment (backdate)</span>
+                            </label>
+                            <div id="customer-backdate-box" class="@(Collection?.IsBackdate == true ? "" : "hidden")">
+                                <label class="field-label text-blue-900 text-xs" for="collection-time">Transaction Date & Time</label>
+                                <input id="collection-time" type="datetime-local" name="Collection.TransactionTime" class="field bg-white mt-1 text-xs"
+                                       value="@(Collection?.TransactionTime?.ToString("yyyy-MM-ddTHH:mm"))" />
+                                <p class="text-[11px] text-blue-700 mt-1">Backfills land on earlier dates without interrupting live accounts.</p>
+                            </div>
                         </div>
                     }
                 </div>

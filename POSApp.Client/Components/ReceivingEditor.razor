@@ -101,12 +101,19 @@
 
                         @if (Options.CanBackdate)
                         {
-                            <div class="sm:col-span-2 rounded-xl border border-blue-200 bg-blue-50/70 p-3 space-y-1.5">
-                                <label class="block">
-                                    <span class="field-label text-blue-900">Transaction Date & Time (Admin Backdate)</span>
-                                    <input type="datetime-local" class="field bg-white mt-1" @bind="CustomTransactionTime" />
+                            <div class="sm:col-span-2 rounded-xl border border-blue-200 bg-blue-50/70 p-3 space-y-2">
+                                <label class="inline-flex items-center gap-2 cursor-pointer text-xs font-semibold text-blue-900 select-none">
+                                    <input type="checkbox" class="rounded border-blue-300 text-blue-600 focus:ring-blue-500 cursor-pointer" @bind="IsBackdating" />
+                                    <span>Record historical purchase / receipt (backdate)</span>
                                 </label>
-                                <p class="text-[11px] text-blue-700">Leave blank for current time. Backdated receipts land on their business date without interrupting live operations.</p>
+                                @if (IsBackdating)
+                                {
+                                    <label class="block">
+                                        <span class="field-label text-blue-900">Transaction Date & Time</span>
+                                        <input type="datetime-local" class="field bg-white mt-1" @bind="CustomTransactionTime" />
+                                    </label>
+                                    <p class="text-[11px] text-blue-700">Backdated receipts land on their business date without interrupting live operations.</p>
+                                }
                             </div>
                         }
                     </div>

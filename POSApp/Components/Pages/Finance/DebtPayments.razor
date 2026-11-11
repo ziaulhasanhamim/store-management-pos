@@ -82,13 +82,22 @@ else if (Data is not null)
                     </div>
                     @if (CanBackdate)
                     {
-                        <div>
-                            <label for="debt-time" class="field-label">Transaction Date & Time (Optional backdate)</label>
-                            <input id="debt-time" type="datetime-local" class="field" name="Input.TransactionTime"
-                                   value="@(Input?.TransactionTime?.ToString("yyyy-MM-ddTHH:mm"))" />
+                        <div class="sm:col-span-2 rounded-xl border border-blue-200 bg-blue-50/70 p-3 space-y-2">
+                            <label class="inline-flex items-center gap-2 cursor-pointer text-xs font-semibold text-blue-900 select-none">
+                                <input type="checkbox" id="debt-backdate-toggle" name="Input.IsBackdate" value="true" class="rounded border-blue-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                       checked="@(Input?.IsBackdate == true)"
+                                       onchange="document.getElementById('debt-backdate-box').classList.toggle('hidden', !this.checked)" />
+                                <span>Record historical transaction (backdate)</span>
+                            </label>
+                            <div id="debt-backdate-box" class="@(Input?.IsBackdate == true ? "" : "hidden")">
+                                <label for="debt-time" class="field-label text-blue-900 text-xs">Transaction Date & Time</label>
+                                <input id="debt-time" type="datetime-local" class="field bg-white mt-1 text-xs max-w-xs" name="Input.TransactionTime"
+                                       value="@(Input?.TransactionTime?.ToString("yyyy-MM-ddTHH:mm"))" />
+                                <p class="text-[11px] text-blue-700 mt-1">Backfills land on earlier dates without interrupting live accounts.</p>
+                            </div>
                         </div>
                     }
-                    <div class="@(CanBackdate ? "" : "sm:col-span-2")">
+                    <div class="sm:col-span-2">
                         <label for="debt-notes" class="field-label">Notes / reference (optional)</label>
                         <textarea id="debt-notes" class="field" name="Input.Notes" maxlength="2000">@Input.Notes</textarea>
                     </div>

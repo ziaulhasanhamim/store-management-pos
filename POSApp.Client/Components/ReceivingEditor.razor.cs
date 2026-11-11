@@ -64,6 +64,7 @@ public partial class ReceivingEditor
     private string? Dialog;
     private string? DialogError;
     private string? Invoice;
+    private bool IsBackdating;
     private DateTime? CustomTransactionTime;
     private bool AllowDuplicateInvoice;
     private string? Notes;
@@ -379,7 +380,7 @@ public partial class ReceivingEditor
         try
         {
             DateTimeOffset? transactionTime = null;
-            if (CustomTransactionTime.HasValue)
+            if (Options.CanBackdate && IsBackdating && CustomTransactionTime.HasValue)
             {
                 var unspecified = DateTime.SpecifyKind(CustomTransactionTime.Value, DateTimeKind.Unspecified);
                 var zone = UserTimeZone.ResolveZone(null, "Asia/Dhaka");

@@ -146,6 +146,10 @@ public sealed class DebtService(IServiceScopeFactory scopes, IConfiguration conf
                 }
                 return previous.Id;
             }
+            if (!input.IsBackdate)
+            {
+                input.TransactionTime = null;
+            }
             var at = input.TransactionTime.HasValue ? input.TransactionTime.Value.ToUniversalTime() : DateTimeOffset.UtcNow;
             var date = input.TransactionTime.HasValue ? DateOnly.FromDateTime(at.ToBusinessTime(configuration).DateTime) : await RequireDayAsync(db, actorId, input.WorkingDate, ct);
             var balance = await db.LenderBalances.Include(balance => balance.Lender)

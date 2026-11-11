@@ -59,6 +59,10 @@ public sealed class PartyAccountService(IServiceScopeFactory scopes, IConfigurat
             {
                 throw new ValidationException("Choose a customer.");
             }
+            if (!input.IsBackdate)
+            {
+                input.TransactionTime = null;
+            }
             var at = input.TransactionTime.HasValue ? input.TransactionTime.Value.ToUniversalTime() : AccountingCalendar.At(await AccountingCalendar.SelectedAsync(db, actorId, configuration, ct), configuration);
             var date = input.TransactionTime.HasValue ? DateOnly.FromDateTime(at.ToBusinessTime(configuration).DateTime) : await AccountingCalendar.SelectedAsync(db, actorId, configuration, ct);
             await AccountingCalendar.EnsureOpenAsync(db, date, ct);
