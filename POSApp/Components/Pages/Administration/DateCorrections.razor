@@ -120,10 +120,12 @@
             <table class="data-table">
                 <thead>
                     <tr>
-                        <th class="w-10 text-center">
-                            <input type="checkbox" id="select-all-records" onchange="toggleSelectAllDateCorrections(this)" title="Select all visible" class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+                        <th class="w-24 cursor-pointer select-none" id="th-date-corrections-select-all" title="Click to select or deselect all visible records">
+                            <div class="flex items-center gap-1.5">
+                                <input type="checkbox" id="select-all-records" title="Select all visible" class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer" />
+                                <span class="font-bold text-slate-800">ID</span>
+                            </div>
                         </th>
-                        <th class="w-20">ID</th>
                         <th>Transaction details</th>
                         <th>Current timestamp (Dhaka)</th>
                         <th>Business date</th>
@@ -133,12 +135,12 @@
                 <tbody>
                     @if (Candidates is null)
                     {
-                        <TableStatusRow Columns="6" Message="Searching transactions…" Loading="true" />
+                        <TableStatusRow Columns="5" Message="Searching transactions…" Loading="true" />
                     }
                     else if (Candidates.Count == 0)
                     {
                         <tr>
-                            <td colspan="6" class="p-8 text-center text-sm text-slate-500">
+                            <td colspan="5" class="p-8 text-center text-sm text-slate-500">
                                 No @FormatTypeLabel(EffectiveType).ToLowerInvariant() records found matching your filters.
                             </td>
                         </tr>
@@ -148,11 +150,11 @@
                         @foreach (var candidate in Candidates)
                         {
                             <tr class="hover:bg-slate-50/75">
-                                <td class="text-center">
-                                    <input type="checkbox" name="Input.SelectedIds" value="@candidate.Id" class="record-select-cb rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" onchange="updateSelectedDateCorrectionCount()" />
-                                </td>
-                                <td class="font-mono text-xs font-semibold text-slate-700">
-                                    #@candidate.Id
+                                <td class="whitespace-nowrap">
+                                    <div class="flex items-center gap-2">
+                                        <input type="checkbox" name="Input.SelectedIds" value="@candidate.Id" class="record-select-cb rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer" onchange="updateSelectedDateCorrectionCount()" />
+                                        <span class="font-mono text-xs font-semibold text-slate-700">#@candidate.Id</span>
+                                    </div>
                                 </td>
                                 <td>
                                     <div class="font-medium text-slate-900">@candidate.DisplayTitle</div>
@@ -247,23 +249,6 @@
         </tbody>
     </table>
 </section>
-
-<script>
-    function updateSelectedDateCorrectionCount() {
-        var checked = document.querySelectorAll('.record-select-cb:checked');
-        var badge = document.getElementById('selected-count-badge');
-        var btn = document.getElementById('btn-apply-correction');
-        if (badge) badge.textContent = checked.length;
-        if (btn) {
-            btn.textContent = checked.length > 0 ? ('Apply Date Correction (' + checked.length + ')') : 'Apply Date Correction';
-        }
-    }
-    function toggleSelectAllDateCorrections(master) {
-        var boxes = document.querySelectorAll('.record-select-cb');
-        boxes.forEach(function(b) { b.checked = master.checked; });
-        updateSelectedDateCorrectionCount();
-    }
-</script>
 
 @code {
     [CascadingParameter]

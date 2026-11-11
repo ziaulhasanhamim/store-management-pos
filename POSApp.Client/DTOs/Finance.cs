@@ -38,6 +38,7 @@ public sealed class CashCountInput
     public decimal? CountedCash { get; set; }
     public decimal? ExpectedCash { get; set; }
     public string? Notes { get; set; }
+    public DateTimeOffset? CountedAt { get; set; }
 }
 
 public sealed class AcceptVarianceInput

@@ -203,10 +203,28 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
             var locationId = input.LocationId != 0 ? input.LocationId : await ResolveLocationAsync(db, actorId, ct);
             await ValidateLocationAsync(db, locationId, ct);
             var drawer = await RequireDrawerAsync(db, actorId, ct, locationId);
+            var isAdmin = await IsAdminAsync(db, actorId, ct);
 
             var now = DateTimeOffset.UtcNow;
-            var date = AccountingCalendar.Today(configuration);
-            var expected = drawer.CurrentCash;
+            DateTimeOffset effectiveCountedAt;
+            DateOnly effectiveDate;
+            decimal expected;
+
+            if (isAdmin && input.CountedAt.HasValue)
+            {
+                effectiveCountedAt = input.CountedAt.Value.ToUniversalTime();
+                effectiveDate = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(effectiveCountedAt, AccountingCalendar.Zone(configuration)).DateTime);
+                expected = drawer.OpeningBalance + (await db.CashMovements.AsNoTracking()
+                    .Where(m => (m.CashDrawerId == drawer.Id || (m.CashSession != null && m.CashSession.CashDrawerId == drawer.Id))
+                        && m.CreatedAt <= effectiveCountedAt)
+                    .SumAsync(m => (decimal?)m.Amount, ct) ?? 0m);
+            }
+            else
+            {
+                effectiveCountedAt = now;
+                effectiveDate = AccountingCalendar.Today(configuration);
+                expected = drawer.CurrentCash;
+            }
 
             var difference = counted - expected;
             if (difference != 0 && string.IsNullOrWhiteSpace(input.Notes))
@@ -221,20 +239,23 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
                 RequestId = input.RequestId != Guid.Empty ? input.RequestId : Guid.NewGuid(),
                 CashDrawerId = drawer.Id,
                 StockLocationId = locationId,
-                BusinessDate = date,
-                CountedAt = now,
+                BusinessDate = effectiveDate,
+                CountedAt = effectiveCountedAt,
                 CountedByUserId = actorId,
                 CountedCash = counted,
                 ExpectedCash = expected,
                 Notes = input.Notes?.Trim(),
                 Status = status,
-                CompletedAt = status == CashCountStatus.Completed ? now : null,
+                CompletedAt = status == CashCountStatus.Completed ? effectiveCountedAt : null,
                 CompletedByUserId = status == CashCountStatus.Completed ? actorId : null
             };
             db.CashCounts.Add(count);
 
-            drawer.LastCountedAt = now;
-            drawer.LastCountedCash = counted;
+            if (drawer.LastCountedAt == null || effectiveCountedAt >= drawer.LastCountedAt.Value)
+            {
+                drawer.LastCountedAt = effectiveCountedAt;
+                drawer.LastCountedCash = counted;
+            }
             drawer.UpdatedAt = now;
             drawer.UpdatedByUserId = actorId;
 

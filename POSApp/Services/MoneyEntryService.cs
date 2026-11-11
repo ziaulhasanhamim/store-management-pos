@@ -142,7 +142,7 @@ public sealed partial class MoneyEntryService(IServiceScopeFactory scopes, IConf
 
         return new(kind, working, selected, selected == working && !closed, admin, total, count, categories, parties, rows)
         {
-            CanBackdate = admin,
+            CanBackdate = true,
             Pagination = pagination,
             Locations = activeLocations,
             UserDefaultLocationId = userLocation

@@ -30,7 +30,7 @@
                     <select class="field w-auto!" aria-label="Stock location" value="@LocationId" @onchange="ChangeLocationAsync" disabled="@(Lines.Count > 0)">
                         @foreach (var location in Options.Locations)
                         {
-                            <option value="@location.Id">@location.Name@(Options.OpenLocationIds.Contains(location.Id) ? "" : " (Drawer closed)")</option>
+                            <option value="@location.Id">@location.Name</option>
                         }
                     </select>
                 </div>

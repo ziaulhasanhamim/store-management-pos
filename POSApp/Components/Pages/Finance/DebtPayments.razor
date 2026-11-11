@@ -185,7 +185,7 @@ else if (Data is not null)
     private DebtPage? Data;
     private string? Error;
     private LenderRow? Selected => Data?.Lenders.FirstOrDefault(lender => lender.Id == LenderId);
-    private bool CanBackdate => HttpContext.User.IsInRole(AppRoles.Admin) || HttpContext.User.IsInRole("Manager");
+    private bool CanBackdate => true;
 
     protected override async Task OnParametersSetAsync()
     {

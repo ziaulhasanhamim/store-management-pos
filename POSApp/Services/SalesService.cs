@@ -36,8 +36,7 @@ public sealed class SalesService(IServiceScopeFactory scopes, IConfiguration? co
             WorkingDate = workingDate,
             CanSetOpeningBalance = await db.UserRoles.AnyAsync(membership => membership.UserId == actorId
                 && db.Roles.Any(role => role.Id == membership.RoleId && (role.Name == AppRoles.Admin || role.Name == AppRoles.InventoryManager)), ct),
-            CanBackdate = await db.UserRoles.AnyAsync(membership => membership.UserId == actorId
-                && db.Roles.Any(role => role.Id == membership.RoleId && (role.Name == AppRoles.Admin || role.Name == AppRoles.InventoryManager)), ct),
+            CanBackdate = true,
             DefaultLocationId = userLocationId,
             OpenLocationIds = openLocationIds
         };

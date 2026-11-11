@@ -807,8 +807,7 @@ public sealed class InventoryService(IServiceScopeFactory scopes, IConfiguration
         {
             WorkingDate = await AccountingCalendar.SelectedAsync(db, actorId, configuration, ct),
             Attributes = definitions,
-            CanBackdate = await db.UserRoles.AnyAsync(membership => membership.UserId == actorId
-                && db.Roles.Any(role => role.Id == membership.RoleId && (role.Name == AppRoles.Admin || role.Name == AppRoles.InventoryManager)), ct)
+            CanBackdate = true
         };
     }
 

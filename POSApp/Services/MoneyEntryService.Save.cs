@@ -156,8 +156,8 @@ public sealed partial class MoneyEntryService
                     }
                 }
                 locationId ??= await db.Users.Where(u => u.Id == actorId).Select(u => u.CashLocationId).FirstOrDefaultAsync(ct);
-                var rowAt = (admin && row.TransactionTime.HasValue) ? row.TransactionTime.Value.ToUniversalTime() : at;
-                var rowDate = (admin && row.TransactionTime.HasValue)
+                var rowAt = row.TransactionTime.HasValue ? row.TransactionTime.Value.ToUniversalTime() : at;
+                var rowDate = row.TransactionTime.HasValue
                     ? DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(rowAt, AccountingCalendar.Zone(configuration)).DateTime)
                     : date;
                 if (kind == "expenses")

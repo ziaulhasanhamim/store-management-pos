@@ -11,7 +11,7 @@
     {
         <a href="/reports/statements/cash" class="filter-chip">Cash statement</a>
     }
-    <a href="/cash-drawer?view=history" class="@(View == "history" ? "filter-chip active" : "filter-chip")">Shift history</a>
+    <a href="/cash-drawer?view=history" class="@(View == "history" ? "filter-chip active" : "filter-chip")">Session history</a>
 </nav>
 <DrawerControls Data="Data" View="@View" Location="Location" Transfer="Transfer" Assignment="Assignment" SelectLocationAsync="SelectLocationAsync" TransferAsync="TransferAsync" AssignAsync="AssignAsync" />
 
@@ -161,6 +161,15 @@
                     <AntiforgeryToken />
                     <input type="hidden" name="CountInput.CashDrawerId" value="@(Data.Viewed?.DrawerId ?? selectedLoc.Id)" />
                     <CashCount Value="CountInput?.CountedCash" Expected="Data.CurrentCash" Currency="@Currency" FieldName="CountInput.CountedCash" @rendermode="InteractiveAuto" />
+                    @if (Data.Admin)
+                    {
+                        <div class="mt-4">
+                            <label class="field-label" for="count-time">Count date &amp; time (optional backdate)</label>
+                            <input type="datetime-local" id="count-time" name="CountInput.CountedAt" class="field max-w-xs text-sm"
+                                   value="@(CountInput?.CountedAt?.ToBusinessTime(Configuration).ToString("yyyy-MM-ddTHH:mm"))" />
+                            <p class="mt-1 text-xs text-slate-500">Leave blank for current time. Admins can record a physical count from a past date &amp; time (e.g. 9 Nov).</p>
+                        </div>
+                    }
                     <label class="field-label mt-4" for="count-notes">Count notes</label>
                     <textarea id="count-notes" name="CountInput.Notes" class="field" rows="2" maxlength="2000" placeholder="Required if counted cash differs from book balance...">@CountInput?.Notes</textarea>
                     <p class="mt-2 text-xs text-slate-500">If physical cash matches book cash, the count finishes immediately. If there is a variance, it is queued for admin approval.</p>
@@ -357,7 +366,7 @@
             <table class="data-table">
                 <thead>
                     <tr>
-                        <th>Shift</th>
+                        <th>Session</th>
                         <th>Location / opened by</th>
                         <th>Opened</th>
                         <th>Status</th>

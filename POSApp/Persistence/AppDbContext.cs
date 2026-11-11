@@ -64,14 +64,33 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
 
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
+        NormalizeDateTimeOffsets();
         CaptureFinancialCorrections();
         return base.SaveChanges(acceptAllChangesOnSuccess);
     }
 
     public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
     {
+        NormalizeDateTimeOffsets();
         CaptureFinancialCorrections();
         return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+    }
+
+    private void NormalizeDateTimeOffsets()
+    {
+        foreach (var entry in ChangeTracker.Entries())
+        {
+            if (entry.State is EntityState.Added or EntityState.Modified)
+            {
+                foreach (var prop in entry.Properties)
+                {
+                    if (prop.CurrentValue is DateTimeOffset dto && dto.Offset != TimeSpan.Zero)
+                    {
+                        prop.CurrentValue = dto.ToUniversalTime();
+                    }
+                }
+            }
+        }
     }
 
     private void CaptureFinancialCorrections()

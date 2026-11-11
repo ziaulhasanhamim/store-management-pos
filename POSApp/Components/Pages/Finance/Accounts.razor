@@ -184,7 +184,7 @@ else
     private int PaginationNumber => Data?.Pagination?.Number ?? 1;
     private bool Suppliers => Kind != "customers";
     private string Title => Suppliers ? "Supplier" : "Customer";
-    private bool CanBackdate => HttpContext.User.IsInRole(AppRoles.Admin) || HttpContext.User.IsInRole("Manager");
+    private bool CanBackdate => true;
 
     protected override async Task OnParametersSetAsync()
     {
