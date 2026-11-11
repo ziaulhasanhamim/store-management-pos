@@ -4,24 +4,88 @@
 
 - `/stock/locations`: inventory managers/admins create selling locations or warehouses/godowns. Warehouses can receive and transfer stock but are rejected by sales, including returns. Existing locations retain selling permission until changed.
 - `/stock/transfers`: move a product between locations, with name/barcode/ID search and transfer history. Stock, paired movements, and a transfer record commit atomically. Whole/fractional rules, available source stock, destination limits and retries are validated. Transfers do not create a purchase, change weighted average cost, or change supplier dues.
-- `/cash-drawer`: each selling location has one physical cash account and one session per working day. Warehouses do not have sales drawers. Staff can share a location drawer; the author of each transaction/opening/count remains audited. Select the paying cash location here for expenses, payroll, supplier/customer payments, bank deposits/withdrawals and warehouse purchases. Cash sales/refunds always use the sale's own selling location, regardless of that selected context. A drawer's retained cash carries into its next session automatically. Count and close each active location separately.
+- `/cash-drawer`: each selling location has one continuous physical cash account (`CashDrawer`). Cash movements (sales, returns, supplier payments, expenses, customer collections, owner contributions/draws, servicing profits) are continuous ledger entries tied directly to location drawers without requiring an active shift session to be open. Staff can take physical cash counts at any time (morning float verification, handover, evening close). Counts record counted cash vs expected cash at count time. Counts with zero variance complete immediately and establish new balance checkpoints; counts with variance enter pending review until an administrator approves them. The drawer overview displays "Last Counted" freshness indicators (🟢 Fresh within 24h, 🟡 Yesterday within 48h, 🔴 Overdue > 48h or never counted) and flags pending variances.
 - `/finance/bank`: administrators inspect one combined bank/card/mobile-wallet balance, enter an opening, signed corrections, and cash-to-bank or bank-to-cash transfers. Transfers update both ledgers atomically and do not count as profit. Bank balances can be negative to represent an overdraft or missing migration opening; physical drawer cash cannot be negative.
 - `/employees`: maintain employees independently of login users. The list shows the working month's created salary, settled amount, remaining due, money paid, bonuses and carried advance. Salary creation always targets the shared working month's salary and immediately applies any outstanding employee advance. The default salary is a template; changing it does not rewrite existing records. Older months remain available for viewing and overdue installment payments.
-- `/finance`: store staff record expenses and view their own entries. Administrators see all expenses and payroll. The default list shows the shared working day. Expenses and payroll always post to that day; a submitted calendar date cannot move them elsewhere. Salary installments settle the created monthly obligation. Salary overpayments become a stored advance for the next salary. Bonus is separate, nonrecoverable extra pay. Salary, bonus and advance payouts are expenses when paid. Applying a previous advance moves no money and adds no new expense.
-- `/accounting-date`: an administrator opens the shared working day for everyone. No global opening-cash input is needed. Set initial cash already physically held once on each location drawer during initial setup. Close the current day before opening a later day; each location retains its own counted closing balance. Sales, purchases, supplier/customer payments, bank entries, transfers, expenses and payroll use this global date. Actual `CreatedAt` audit timestamps still record entry time. A fresh/unconfigured database defaults to today until the opening is saved.
-- `/finance/day` (also `/finance/closing`): review expected physical cash, sales receipts/refunds, due collections, purchases/returns, supplier payments, payroll, advances, expenses, bank movements, dues and stock value. The small Auto `CashCount` component on each drawer shows the difference while typing; the surrounding pages and forms stay SSR. Count cash on each location's drawer; the business-day screen shows every location's status/count and cannot close while any drawer remains open. It totals those counts without requesting another business-wide cash count. The next-day link starts the next working day. Monthly closing derives its opening from the first working day and includes saved daily cash differences. Inactive days require no zero entry. The dashboard uses a small indexed cash aggregate rather than loading the full stock/profit report.
+- `/finance`: store staff record expenses and view their own entries. Administrators see all expenses and payroll. The default list shows the shared working day. Expenses and payroll post to their selected business date; authorized administrators and inventory managers can specify backdated transaction dates during outage recovery. Salary installments settle the created monthly obligation. Salary overpayments become a stored advance for the next salary. Bonus is separate, nonrecoverable extra pay. Salary, bonus and advance payouts are expenses when paid. Applying a previous advance moves no money and adds no new expense.
+- `/accounting-date`: an administrator opens the shared working day for everyone. No global opening-cash input is needed. Set initial cash already physically held once on each location drawer during initial setup. Sales, purchases, supplier/customer payments, bank entries, transfers, expenses and payroll use this global date by default unless a role-authorized transaction date is explicitly provided. Actual `CreatedAt` audit timestamps always record immutable entry time. A fresh/unconfigured database defaults to today until the opening is saved.
+- `/finance/day` (also `/finance/closing`): review expected physical cash, sales receipts/refunds, due collections, purchases/returns, supplier payments, payroll, advances, expenses, bank movements, dues and stock value. The small Auto `CashCount` component on each drawer shows the difference while typing; the surrounding pages and forms stay SSR. Cash counts provide reconciliation checkpoints; the business-day screen shows every location's status, count age, and pending variances. Monthly closing derives its opening from the first working day and includes saved daily cash differences. Inactive days require no zero entry. The dashboard uses a small indexed cash aggregate rather than loading the full stock/profit report.
 - `/accounts/suppliers` and `/accounts/customers`: administrator creation with signed opening dues/credit, account histories, opening corrections, and signed due adjustments. A supplier waiver from 35,000 to 30,000 is an adjustment of -5,000 with a reason. This is a noncash account change and does not automatically become a profit/loss item. Changing an opening changes current balance only by the difference, preserving subsequent invoices and payments. Customer quick-add also exposes opening balance to inventory/admin roles. Customer accounts can receive payments against opening or accumulated due; these update cash/bank and the stored customer balance without creating new sales revenue.
+- `/admin/date-corrections`: administrator-only facility to correct transaction dates and timestamps individually or in bulk (by providing comma, space, or newline-separated record IDs). Every correction records before/after state in `RecordChanges` and recalculates financial and inventory movement linkages.
 - `/reports/profit-loss`: administrator-only streamed SSR P&L, with day/week/month grouping, date filters and printing.
 
 ## Money and dates
 
 Applied cash sale payments add to a drawer, cash refunds subtract, and cash supplier payments/expenses/payroll subtract. Card, wallet and bank-transfer receipts/payments post to the combined bank ledger instead. Cash change is excluded by posting only the applied amount. Credit transactions post invoices and stored party due but do not move funds until paid. All money entries retain source links, author, amount, business date and actual creation time. Stable request IDs and serializable transactions protect retries and concurrent postings.
 
-A drawer's opening is physical cash already present, not income. During initial setup, enter it once per location. Later openings carry the previous actual count automatically; an arbitrary replacement opening is ignored. New locations created after trading begins start at zero and are funded through a recorded transfer or cash-in. If cash is banked before closing, record the bank deposit first; only the remaining cash carries overnight.
+A drawer's opening is physical cash already present, not income. During initial setup, enter it once per location. The cash drawer maintains a continuous running balance in `CashDrawer.CurrentCash` updated in $O(1)$ by every cash movement, with immutable `BalanceAfter` captured on each ledger row. New locations created after trading begins start at zero and are funded through a recorded transfer or cash-in. If cash is banked, record the bank deposit first; the remaining continuous balance stays in the drawer.
 
-The location formula is expected cash = carried opening + cash sales/collections + cash-in/transfers received - refunds/supplier payments/expenses/payroll/payouts/transfers sent. Closing saves expected, counted and signed difference; a discrepancy requires notes. Closed counts cannot be rewritten by retrying or deleting their source transactions.
+The continuous cash ledger formula is:
+```
+CurrentCash = OpeningBalance + ∑ CashMovements.Amount
+```
+Where cash movements include cash sales, customer due collections, servicing profits, manual cash-ins/owner contributions, supplier payments, operational expenses, paid payroll, reversals, and approved cash count variances.
 
-Location-to-location transfers have a unique `CashTransfer` header and two linked cash movements. Both locations must have an open session, the source must have enough cash, and the transaction commits atomically. Retries do not move money again. These internal transfers are excluded from consolidated cash-in/out totals and never create income or expense. Bank transfers retain their cash/bank legs and likewise have no profit effect.
+Location-to-location transfers have a unique `CashTransfer` header and two linked cash movements. Both locations belong to the continuous ledger; the source must have enough cash, and the transaction commits atomically. Retries do not move money again. These internal transfers are excluded from consolidated cash-in/out totals and never create income or expense. Bank transfers retain their cash/bank legs and likewise have no profit effect.
+
+## Continuous Location Cash Ledger and Physical Cash Counts
+
+In place of legacy shift locking (where cash could only be recorded while an ephemeral shift session was open), JASInt uses a **Continuous Location Cash Ledger** coupled with **Physical Cash Counts** (modeled after Stock Take):
+
+1. **Continuous Ledger**:
+   - Cash transactions stand on their own. No open shift is required to record sales, expenses, supplier payments, customer collections, reversals, or owner deposits/withdrawals.
+   - Every cash movement belongs directly to `CashDrawer` via `CashDrawerId` and updates `drawer.CurrentCash` in real time.
+   - Backdated transactions belong to their business date and adjust drawer funds without interfering with other cashiers' concurrent operations.
+
+2. **Physical Cash Counts (Checkpoints)**:
+   - Staff (Cashier, Inventory Manager, Admin) count the physical cash in the drawer at any time (morning float check, shift handover, evening close).
+   - The count records: `StockLocationId`, `CashDrawerId`, `CountedByUserId`, `CountedAt`, `CountedCash`, and system `ExpectedCash` (computed from all cash movements up to the count timestamp).
+   - **"Last Counted" Age Indicator**:
+     - 🟢 **Fresh**: Counted within 24 hours.
+     - 🟡 **Yesterday**: Counted within 24 to 48 hours.
+     - 🔴 **Overdue**: Not counted for > 48 hours, or never counted.
+
+3. **Admin Variance Approval Workflow**:
+   - When `CountedCash == ExpectedCash` (variance is zero), the count completes immediately (`Status = Completed`), recording `LastCountedAt` and `LastCountedCash` on the drawer as a balance checkpoint.
+   - When `CountedCash != ExpectedCash` (variance is nonzero), a note explaining the discrepancy is mandatory. The count is saved with `Status = PendingReview`.
+   - While pending, the ledger balance is **not** altered. The drawer overview, daily summary, and cash statement prominently flag the pending variance (e.g. `⚠️ Pending Variance: -৳150`).
+   - An administrator or inventory manager reviews the count. Upon approval (`AcceptVarianceAsync`), the system posts a single `CashMovementKind.Variance` entry dated to the count timestamp with the explanation note, bringing the book balance into alignment with physical cash (`Status = VarianceAccepted`).
+   - **Mobile Servicing Rule**: If undeposited/unsettled mobile servicing profits exist for that location on or before the count date, variance acceptance is blocked until the profit is deposited or voided. A 1-click deposit button is surfaced directly in the drawer review banner.
+
+## Point-in-Time Cash Balance Calculations
+
+To look up cash drawer balances at any arbitrary historical timestamp $T$ without scanning decades of transaction history:
+
+$$\text{Balance}(T) = \text{CheckpointBalance} + \sum \{ m.\text{Amount} \mid m.\text{CreatedAt} > \text{CheckpointTimestamp} \land m.\text{CreatedAt} \le T \}$$
+
+1. If $T$ is within 30 seconds of current time (`UtcNow`), the system returns `CashDrawer.CurrentCash` directly in $O(1)$ time.
+2. Otherwise, the system queries the nearest accepted Physical Cash Count checkpoint (`Status == Completed || Status == VarianceAccepted`) where `CountedAt <= T`.
+3. If a checkpoint exists, `CheckpointBalance = checkpoint.CountedCash` and `CheckpointTimestamp = checkpoint.CountedAt`. If no prior count exists, the drawer's `OpeningBalance` and `DateTimeOffset.MinValue` are used.
+4. Only the small delta of cash movements recorded between `CheckpointTimestamp` and $T$ are summed. This guarantees $O(\Delta)$ performance regardless of how many years the business has operated.
+
+## Historical Data Changes and Outage Recovery
+
+During internet or power outages, stores continue recording sales and expenses on paper. When power resumes, the backlog must be entered without distorting live trading:
+
+1. 🥇 **Role-Guarded "Transaction Date & Time" on Creation Forms**:
+   - Standard cashiers see a read-only / hidden transaction date defaulting to the current moment.
+   - Administrators and Inventory Managers have an unlocked "Transaction Date & Time" input on:
+     - POS Checkout / Sales form
+     - Expense batch entry (`/expenses`)
+     - Supplier receiving (`/stock/receiving`) and supplier payments (`/suppliers/payments`)
+     - Customer payment collections (`/customers/payments`)
+   - Entering an outage sale (e.g., dated 10 Sep 2026, 03:00 PM) posts directly to 10th September with exact historical business date and timestamp, updating inventory and cash without interfering with 11th September active cashier floats.
+
+2. 🥈 **Post-Entry Date Corrections (`DateCorrectionService`)**:
+   - For clerical typos or missed records, administrators can navigate to `/admin/date-corrections`.
+   - Supports both single record corrections and bulk date edits (comma, space, or newline-separated IDs).
+   - In-place date correction is also accessible on the record view (`RecordEdit.razor`).
+   - Updates `OccurredAt`/`TransactionTime`, recalculates `BusinessDate` via the business timezone, updates linked cash/bank ledger rows, moves stock transfer timestamps, and logs immutable audit records with before/after state in `RecordChanges`.
+
+3. **Timezone Architecture**:
+   - The business timezone is centrally configured in `appsettings.json` under `"BusinessTimeZone"` (default `"Asia/Dhaka"`).
+   - Resolved safely across Windows, Linux, and macOS via `UserTimeZone.ResolveZone` with IANA/Windows mapping and fallback to UTC.
+   - `AccountingCalendar.At(date, time?, configuration?)` combines local calendar dates with local business times and converts them accurately to UTC `DateTimeOffset` storage.
 
 `WorkingDay` is the shared date. `DayFinance` stores the combined opening, expected closing, sum of location counts, variance and close audit, linked to its `FinanceClosing` snapshot. Retained balances at locations that did not operate remain part of total cash. A business-day closing is a consolidation, not a second cash account or cash count. Monthly cash includes saved daily differences. Cash shortfalls are recorded as reconciliation differences rather than silently turned into operating expenses.
 

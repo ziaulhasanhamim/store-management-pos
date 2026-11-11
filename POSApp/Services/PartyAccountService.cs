@@ -60,7 +60,6 @@ public sealed class PartyAccountService(IServiceScopeFactory scopes, IConfigurat
                 throw new ValidationException("Choose a customer.");
             }
             var date = await AccountingCalendar.SelectedAsync(db, actorId, configuration, ct);
-            AccountingCalendar.ValidateExpected(date, WorkingDayRequest.Date);
             await AccountingCalendar.EnsureOpenAsync(db, date, ct);
             var at = AccountingCalendar.At(date, configuration);
             var balance = await db.CustomerBalances.SingleOrDefaultAsync(balance => balance.CustomerId == input.CustomerId, ct);
@@ -122,7 +121,6 @@ public sealed class PartyAccountService(IServiceScopeFactory scopes, IConfigurat
             await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
             var hash = StoreOperation.Fingerprint(input);
             var date = await AccountingCalendar.SelectedAsync(db, actorId, configuration, ct);
-            AccountingCalendar.ValidateExpected(date, WorkingDayRequest.Date);
             await AccountingCalendar.EnsureOpenAsync(db, date, ct);
             var at = AccountingCalendar.At(date, configuration);
             var note = (input.Opening ? "Opening balance correction: " : "Due adjustment: ") + input.Reason.Trim();

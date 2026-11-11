@@ -506,79 +506,38 @@
 
     <!-- Right Column: Closing Status & Consolidated Action Panel + Visual Charts -->
     <div class="space-y-6 lg:col-span-5 no-print">
-        <!-- Panel 1: Closing Status or Action Form -->
+        <!-- Panel 1: Continuous Summary Information -->
         <section class="rounded-2xl border border-slate-200/90 bg-white p-5 shadow-xs">
-            @if (Data.ClosedAt is not null)
-            {
-                <div class="flex items-center justify-between border-b border-slate-100 pb-3.5">
-                    <div class="flex items-center gap-2">
-                        <span class="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700">
-                            <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
-                            </svg>
-                        </span>
-                        <h3 class="font-bold text-emerald-800">Period closed</h3>
-                    </div>
-                    <span class="rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700 border border-emerald-200">Locked</span>
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3.5">
+                <div class="flex items-center gap-2">
+                    <span class="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-50 text-indigo-700">
+                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                        </svg>
+                    </span>
+                    <h3 class="font-bold text-slate-900">Continuous Timeline</h3>
                 </div>
-                <p class="mt-3 text-sm text-slate-500">Saved @Data.ClosedAt.Value.ToBusinessTime(Configuration).ToString("dd MMM yyyy, HH:mm"). New postings and corrections to this period are blocked.</p>
-                @if (Data.CountedCash is not null)
-                {
-                    <div class="mt-3 rounded-xl border border-slate-100 bg-slate-50/60 p-3 text-xs space-y-1">
-                        <div class="flex justify-between items-center text-slate-600">
-                            <span>Counted cash:</span>
-                            <span class="font-semibold text-slate-900 tabular-nums">@Money(Data.CountedCash.Value)</span>
-                        </div>
-                        <div class="flex justify-between items-center text-slate-600">
-                            <span>Shortage / overage:</span>
-                            <span class="font-semibold tabular-nums @(Data.Difference >= 0 ? "text-emerald-700" : "text-rose-600")">@Money(Data.Difference ?? 0)</span>
-                        </div>
-                    </div>
-                }
-                @if (!string.IsNullOrWhiteSpace(Data.Notes))
-                {
-                    <p class="mt-3 text-xs text-slate-600 bg-slate-50 rounded-lg p-2.5 border border-slate-100 italic">"@Data.Notes"</p>
-                }
-                <div class="mt-4 flex flex-col gap-2">
-                    <a href="@($"/finance/reopen?kind={(Kind == ClosingKind.Month ? "month" : "day")}&date={Data.Start:yyyy-MM-dd}")" class="btn-secondary w-full justify-center">Reopen @(Kind == ClosingKind.Month ? "month" : "day")</a>
-                    @if (Kind == ClosingKind.Day)
-                    {
-                        <a class="btn-primary w-full justify-center" href="@($"/accounting-date?date={Data.Start.AddDays(1):yyyy-MM-dd}")">Open next working day</a>
-                    }
+                <span class="rounded-full bg-emerald-50 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700 border border-emerald-200">Active</span>
+            </div>
+            <p class="mt-3 text-xs text-slate-500">All figures are calculated on demand from recorded transactions for <strong>@Data.Start.ToString("dd MMM yyyy")</strong>@(Kind == ClosingKind.Month ? $" – {Data.End:dd MMM yyyy}" : ""). No manual opening or closing required.</p>
+            <div class="mt-4 rounded-xl border border-slate-100 bg-slate-50/60 p-3 text-xs space-y-2">
+                <div class="flex justify-between items-center text-slate-600">
+                    <span>Cash balance:</span>
+                    <span class="font-semibold text-slate-900 tabular-nums">@Money(Data.ClosingCash)</span>
                 </div>
-            }
-            else if (Kind == ClosingKind.Day && !Data.IsWorkingDay)
-            {
-                <h3 class="font-bold text-slate-900">Non-working Day</h3>
-                <p class="mt-2 text-sm text-slate-500">Viewing another day. Open the working day to record its opening and closing.</p>
-                <a class="btn-secondary mt-4 inline-flex" href="/finance/day">Current working day</a>
-            }
-            else if (HideActions)
-            {
-                <h3 class="font-bold text-slate-900">Review Mode</h3>
-                <p class="mt-2 text-sm text-slate-500">Confirm the reviewed closing above, or keep this period open.</p>
-            }
-            else
-            {
-                <div class="flex items-center justify-between border-b border-slate-100 pb-3">
-                    <h3 class="font-bold text-slate-900">Consolidated closing</h3>
-                    <span class="rounded-full bg-blue-50 px-2.5 py-0.5 text-[11px] font-semibold text-blue-700 border border-blue-200">Open</span>
+                <div class="flex justify-between items-center text-slate-600">
+                    <span>Bank balance:</span>
+                    <span class="font-semibold text-slate-900 tabular-nums">@Money(Data.ClosingBank)</span>
                 </div>
-                <form method="post" @formname="period-closing" @onsubmit="OnSave" data-enhance data-submit-indication="true">
-                    <AntiforgeryToken />
-                    <input type="hidden" name="Input.Date" value="@Data.Start.ToString("yyyy-MM-dd")" />
-                    <input type="hidden" name="Input.Kind" value="@Kind" />
-                    <p class="mt-3 text-xs text-slate-500">Opening cash is calculated from location drawers. Count and close each location separately; this business closing totals those counts without counting cash again.</p>
-                    <a href="/cash-drawer" class="btn-secondary mt-3 text-xs w-full justify-center">Review location drawers</a>
-                    <label class="field-label mt-4" for="period-notes">Notes / shortage or overage explanation</label>
-                    <textarea id="period-notes" name="Input.Notes" class="field text-sm" maxlength="2000" rows="3">@Data.Notes</textarea>
-                    <div class="mt-4 flex flex-col gap-2">
-                        <button name="Action" value="review" class="btn-primary w-full justify-center" data-pending-text="Reviewing…">Review & close @(Kind == ClosingKind.Day ? "day" : "month")</button>
-                        <button name="Action" value="save" class="btn-secondary w-full justify-center text-xs" data-pending-text="Saving…">Refresh summary</button>
-                    </div>
-                    <p class="mt-2 text-[11px] text-slate-400">Close every active location drawer first. Closing freezes the combined summary.</p>
-                </form>
-            }
+                <div class="flex justify-between items-center text-slate-600">
+                    <span>Total liquid funds:</span>
+                    <span class="font-bold text-indigo-700 tabular-nums">@Money(Data.ClosingCash + Data.ClosingBank)</span>
+                </div>
+            </div>
+            <div class="mt-4 flex flex-col gap-2">
+                <a href="/cash-drawer" class="btn-secondary w-full justify-center text-xs">Manage Cash Drawers & Shifts</a>
+                <a href="/admin/date-corrections" class="btn-secondary w-full justify-center text-xs">Transaction Date Audit Log</a>
+            </div>
         </section>
 
         <!-- Chart 1: Profit & Cost Structure Bar Chart -->

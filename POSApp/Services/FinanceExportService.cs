@@ -26,7 +26,7 @@ public static class FinanceExportService
         {
             BuildLocationsSheet(workbook, totals, currencyCode);
         }
-        BuildWorkingDaysSheet(workbook, totals, currencyCode);
+        BuildDailyBreakdownSheet(workbook, totals, currencyCode);
         BuildSuppliersSheet(workbook, totals, currencyCode);
         BuildExpensesPayrollSheet(workbook, totals, currencyCode);
         BuildAssetsSheet(workbook, totals, currencyCode);
@@ -633,9 +633,9 @@ public static class FinanceExportService
         ws.Column(1).Width = Math.Max(ws.Column(1).Width, 28);
     }
 
-    private static void BuildWorkingDaysSheet(XLWorkbook workbook, ClosingTotals totals, string currency)
+    private static void BuildDailyBreakdownSheet(XLWorkbook workbook, ClosingTotals totals, string currency)
     {
-        var ws = workbook.Worksheets.Add("Working Days");
+        var ws = workbook.Worksheets.Add("Daily Breakdown");
         ws.ShowGridLines = true;
 
         string[] headers =

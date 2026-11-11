@@ -11,9 +11,9 @@
     <aside class="sidebar fixed inset-y-0 left-0 z-50 w-72 max-w-[85vw] -translate-x-full peer-checked:translate-x-0 transition-transform duration-200 ease-in-out lg:transition-none overflow-y-auto lg:translate-x-0 lg:fixed lg:inset-y-0 lg:left-0 lg:z-20 lg:w-64 lg:border-r lg:border-b-0 lg:overflow-y-auto">
         <div class="flex items-center justify-between px-6 py-6">
             <a href="/" class="flex items-center gap-3">
-                <img src="/images/logo.svg" alt="@(Configuration["StoreName"] ?? "RetailPOS") logo" class="size-11 rounded-xl" />
+                <img src="/images/logo.svg" alt="@(Configuration["StoreName"] ?? "JAS International") logo" class="size-11 rounded-xl" />
                 <span class="text-base font-bold tracking-tight text-white">
-                    @(Configuration["StoreName"] ?? "RetailPOS")
+                    @(Configuration["StoreName"] ?? "JAS International")
                     <span class="mt-0.5 block text-[10px] font-medium tracking-[0.18em] text-slate-400 uppercase">@(Configuration["StoreSubtitle"] ?? "Store management")</span>
                 </span>
             </a>
@@ -40,12 +40,20 @@
                 <AuthorizeView Policy="@AppPolicies.ManageDrawer" Context="drawerAuth">
                     <NavLink href="/cash-drawer" Match="NavLinkMatch.All" class="nav-link">
                         <Icon Name="wallet" />
-                        <span>Cash Drawer</span>
+                        <span>Cash Drawers & Shifts</span>
                     </NavLink>
                 </AuthorizeView>
 
                 <!-- OPERATIONS -->
                 <div class="sidebar-section-header">Operations</div>
+
+                <!-- Mobile Servicing (JAS) -->
+                <AuthorizeView Policy="@AppPolicies.MakeSales" Context="servAuth">
+                    <SidebarGroup Title="Mobile Servicing" IconName="service" Href="/servicing" Prefix="/servicing">
+                        <NavLink href="/servicing" Match="NavLinkMatch.All">Servicing jobs & entries</NavLink>
+                        <NavLink href="/servicing/technicians">Technician setup</NavLink>
+                    </SidebarGroup>
+                </AuthorizeView>
 
                 <!-- Expenses -->
                 <AuthorizeView Policy="@AppPolicies.ManageDrawer" Context="expAuth">
@@ -96,10 +104,11 @@
 
                 <!-- Finance & Books -->
                 <AuthorizeView Policy="@AppPolicies.ManageDrawer" Context="financeAuth">
-                    <SidebarGroup Title="Finance & Books" IconName="wallet" Href="/finance/day" Prefix="/finance" AlternatePrefix="/reports/statements/cash,/reports/statements/bank,/cash-drawer?view=transfer">
+                    <SidebarGroup Title="Finance & Books" IconName="wallet" Href="/finance/summary" Prefix="/finance" AlternatePrefix="/reports/statements/cash,/reports/statements/bank,/cash-drawer?view=transfer">
                         <AuthorizeView Policy="@AppPolicies.ManageInventory" Context="closeAuth">
-                            <NavLink href="/finance/day">Day summary & close</NavLink>
-                            <NavLink href="/finance/month">Month summary & close</NavLink>
+                            <NavLink href="/finance/summary">Financial summary</NavLink>
+                            <NavLink href="/finance/day">Daily breakdown</NavLink>
+                            <NavLink href="/finance/month">Monthly breakdown</NavLink>
                         </AuthorizeView>
                         <AuthorizeView Policy="@AppPolicies.ManageUsers" Context="bankAuth">
                             <NavLink href="/finance/bank">Bank & digital accounts</NavLink>
@@ -124,9 +133,10 @@
                 <!-- SYSTEM -->
                 <AuthorizeView Policy="@AppPolicies.ManageUsers" Context="adminAuth">
                     <div class="sidebar-section-header">System</div>
-                    <SidebarGroup Title="Administration" IconName="settings" Href="/administration" Prefix="/administration" AlternatePrefix="/users">
+                    <SidebarGroup Title="Administration" IconName="settings" Href="/administration" Prefix="/administration" AlternatePrefix="/users,/admin">
                         <NavLink href="/administration" Match="NavLinkMatch.All">Store setup & settings</NavLink>
                         <NavLink href="/users">Users & permissions</NavLink>
+                        <NavLink href="/admin/date-corrections">Transaction date corrections</NavLink>
                         <NavLink href="/administration/audit">Record change audit</NavLink>
                         <NavLink href="/finance/balance-checks">Balance integrity checks</NavLink>
                     </SidebarGroup>
@@ -135,7 +145,7 @@
         </AuthorizeView>
 
         <div class="px-6 pb-6 pt-3 text-xs text-slate-400 border-t border-slate-100">
-            <div class="font-medium text-slate-500">@(Configuration["StoreName"] ?? "RetailPOS") © @UserTime.Today().Year</div>
+            <div class="font-medium text-slate-500">@(Configuration["StoreName"] ?? "JAS International") © @UserTime.Today().Year</div>
         </div>
     </aside>
 
@@ -147,8 +157,8 @@
                 </svg>
             </label>
             <a href="/" class="flex items-center gap-2 shrink-0 lg:hidden">
-                <img src="/images/logo.svg" alt="@(Configuration["StoreName"] ?? "RetailPOS") logo" class="size-7 rounded-lg" />
-                <span class="text-sm font-bold text-slate-900 truncate max-w-[120px] sm:max-w-none">@(Configuration["StoreName"] ?? "RetailPOS")</span>
+                <img src="/images/logo.svg" alt="@(Configuration["StoreName"] ?? "JAS International") logo" class="size-7 rounded-lg" />
+                <span class="text-sm font-bold text-slate-900 truncate max-w-[120px] sm:max-w-none">@(Configuration["StoreName"] ?? "JAS International")</span>
             </a>
             <AuthorizeView Policy="@AppPolicies.MakeSales">
                 <Authorized>
@@ -193,7 +203,7 @@
         <footer class="mt-16 border-t border-slate-200/80 pt-6 pb-8 text-xs text-slate-500 no-print">
             <div class="flex flex-col sm:flex-row items-center justify-between gap-3 text-slate-400">
                 <div>
-                    @(Configuration["StoreName"] ?? "RetailPOS") · System Version 2.0 · © @UserTime.Today().Year
+                    @(Configuration["StoreName"] ?? "JAS International") · System Version 2.0 · © @UserTime.Today().Year
                 </div>
                 <div class="flex items-center gap-1.5 text-slate-500">
                     <span>Developed by</span>

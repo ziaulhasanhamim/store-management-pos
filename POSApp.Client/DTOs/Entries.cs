@@ -15,6 +15,7 @@ public sealed record MoneyEntryInput
     public PaymentMethod Method { get; set; } = PaymentMethod.Cash;
     public string Notes { get; set; } = "";
     public string? Receipt { get; set; }
+    public DateTimeOffset? TransactionTime { get; set; }
 }
 
 public sealed record MoneyEntryCommand(Guid RequestId, DateOnly WorkingDate, IReadOnlyList<MoneyEntryInput> Rows);
@@ -43,6 +44,7 @@ public sealed record MoneyEntryPage(string Kind, DateOnly WorkingDate, DateOnly 
     IReadOnlyList<ExpenseCategoryOption> Categories, IReadOnlyList<EntryParty> Parties,
     IReadOnlyList<MoneyEntryRow> Rows)
 {
+    public bool CanBackdate { get; init; }
     public PageInfo? Pagination { get; init; }
     public IReadOnlyList<StockLocationOption> Locations { get; init; } = [];
     public int? UserDefaultLocationId { get; init; }

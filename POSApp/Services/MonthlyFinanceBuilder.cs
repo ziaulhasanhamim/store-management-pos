@@ -112,37 +112,30 @@ internal static class MonthlyFinanceBuilder
                     .OrderBy(category => category.Name)
                     .ToArray());
 
-        var sessionVariances = await db.CashSessions.AsNoTracking()
-            .Where(session => session.BusinessDate >= totals.Start && session.BusinessDate <= totals.End
+        var varianceMovements = await db.CashMovements.AsNoTracking()
+            .Where(m => m.CreatedAt >= from && m.CreatedAt <= through
+                && m.Kind == CashMovementKind.Variance
+                && (locationId == null || (m.CashDrawer != null && m.CashDrawer.StockLocationId == locationId.Value)))
+            .Select(m => new { m.CreatedAt, Difference = m.Amount })
+            .ToListAsync(ct);
+
+        var legacySessions = await db.CashSessions.AsNoTracking()
+            .Where(session => session.OpenedAt >= from && session.OpenedAt <= through
                 && session.ClosedAt != null && session.Difference != null
-                && (locationId == null || session.StockLocationId == locationId.Value || session.CashDrawer!.StockLocationId == locationId.Value))
-            .GroupBy(session => session.BusinessDate)
-            .Select(g => new { Date = g.Key, Variance = g.Sum(s => s.Difference!.Value) })
-            .ToDictionaryAsync(x => x.Date, x => x.Variance, ct);
+                && (locationId == null || session.StockLocationId == locationId.Value || (session.CashDrawer != null && session.CashDrawer.StockLocationId == locationId.Value))
+                && !db.CashMovements.Any(m => m.Kind == CashMovementKind.Variance && m.CreatedAt == session.ClosedAt))
+            .Select(session => new { CreatedAt = session.OpenedAt, Difference = session.Difference!.Value })
+            .ToListAsync(ct);
 
-        if (locationId == null)
-        {
-            var dayFinances = await db.DayFinances.AsNoTracking()
-                .Where(day => day.Date >= totals.Start && day.Date <= totals.End && day.ClosedAt != null && day.Difference != null)
-                .ToDictionaryAsync(d => d.Date, d => d.Difference!.Value, ct);
-            foreach (var (dayDate, diff) in dayFinances)
-            {
-                sessionVariances.TryAdd(dayDate, diff);
-            }
-        }
-
-        var workingDayDates = (await db.DayFinances.AsNoTracking()
-            .Where(day => day.Date >= totals.Start && day.Date <= totals.End)
-            .Select(day => day.Date)
-            .ToArrayAsync(ct))
-            .ToHashSet();
+        var sessionVariances = varianceMovements.Concat(legacySessions)
+            .GroupBy(s => DateOnly.FromDateTime(s.CreatedAt.DateTime))
+            .ToDictionary(g => g.Key, g => g.Sum(s => s.Difference));
 
         var totalDays = totals.End.DayNumber - totals.Start.DayNumber + 1;
         var candidateDays = Enumerable.Range(0, totalDays).Select(offset => totals.Start.AddDays(offset)).ToList();
 
         var workingDates = candidateDays.Where(date =>
-            workingDayDates.Contains(date)
-            || byDay.ContainsKey(date)
+            byDay.ContainsKey(date)
             || dailyExpense.ContainsKey(date)
             || dailyPayroll.ContainsKey(date)
             || dailySupplierPaid.ContainsKey(date)
@@ -240,44 +233,13 @@ internal static class MonthlyFinanceBuilder
             paymentsBySupplier.GetValueOrDefault(s.Id),
             s.CurrentBalance)).ToArray();
 
-        var currentClosing = await db.FinanceClosings.AsNoTracking()
-            .SingleOrDefaultAsync(c => c.Date == totals.Start && c.Kind == ClosingKind.Month, ct);
-
-        var previousMonthEnd = totals.Start.AddDays(-1);
-        var previousMonthStart = new DateOnly(previousMonthEnd.Year, previousMonthEnd.Month, 1);
-        var previousClosing = await db.FinanceClosings.AsNoTracking()
-            .SingleOrDefaultAsync(c => c.Date == previousMonthStart && c.Kind == ClosingKind.Month, ct);
-
-        decimal openingStock, openingCash, openingBank, openingSupplierDue, openingCustomerDue, openingDebt;
-
-        if (currentClosing is not null && (currentClosing.OpeningAssetsCustomized || currentClosing.OpeningStock > 0 || currentClosing.OpeningSupplierDue > 0))
-        {
-            openingStock = currentClosing.OpeningStock;
-            openingCash = currentClosing.OpeningCash;
-            openingBank = currentClosing.OpeningBank;
-            openingSupplierDue = currentClosing.OpeningSupplierDue;
-            openingCustomerDue = currentClosing.OpeningCustomerDue;
-            openingDebt = currentClosing.OpeningDebt;
-        }
-        else if (previousClosing is not null && previousClosing.ClosedAt != null)
-        {
-            openingStock = previousClosing.ClosingStock > 0 ? previousClosing.ClosingStock : previousClosing.StockValue;
-            openingCash = previousClosing.ClosingCash;
-            openingBank = previousClosing.ClosingBank;
-            openingSupplierDue = previousClosing.ClosingSupplierDue > 0 ? previousClosing.ClosingSupplierDue : previousClosing.SupplierDue;
-            openingCustomerDue = previousClosing.ClosingCustomerDue > 0 ? previousClosing.ClosingCustomerDue : previousClosing.CustomerDue;
-            openingDebt = previousClosing.ClosingDebt > 0 ? previousClosing.ClosingDebt : previousClosing.OutstandingDebt;
-        }
-        else
-        {
-            var (calcSupplierDue, calcCustomerDue) = await FinancePositionReader.DuesAtAsync(db, from, ct);
-            openingStock = await FinancePositionReader.StockValueAtAsync(db, from, ct, locationId);
-            openingCash = totals.OpeningCash;
-            openingBank = totals.OpeningBank;
-            openingSupplierDue = calcSupplierDue;
-            openingCustomerDue = calcCustomerDue;
-            openingDebt = await DebtService.OutstandingBeforeAsync(db, totals.Start, ct);
-        }
+        var (calcSupplierDue, calcCustomerDue) = await FinancePositionReader.DuesAtAsync(db, from, ct);
+        decimal openingStock = await FinancePositionReader.StockValueAtAsync(db, from, ct, locationId);
+        decimal openingCash = totals.OpeningCash;
+        decimal openingBank = totals.OpeningBank;
+        decimal openingSupplierDue = calcSupplierDue;
+        decimal openingCustomerDue = calcCustomerDue;
+        decimal openingDebt = await DebtService.OutstandingBeforeAsync(db, totals.Start, ct);
 
         string? selectedLocationName = null;
         if (locationId != null)
@@ -303,12 +265,12 @@ internal static class MonthlyFinanceBuilder
             Suppliers = supplierSummaries,
             SelectedLocationId = locationId,
             SelectedLocationName = selectedLocationName,
-            LocationBreakdown = locationId == null ? await BuildLocationBreakdownAsync(db, from, through, ct) : []
+            LocationBreakdown = locationId == null ? await BuildLocationBreakdownAsync(db, from, through, ct, totals.Start, totals.End) : []
         };
     }
 
     public static async Task<IReadOnlyList<LocationFinanceSummary>> BuildLocationBreakdownAsync(
-        AppDbContext db, DateTimeOffset from, DateTimeOffset through, CancellationToken ct)
+        AppDbContext db, DateTimeOffset from, DateTimeOffset through, CancellationToken ct, DateOnly? startDate = null, DateOnly? endDate = null)
     {
         var locations = await db.StockLocations.AsNoTracking()
             .Where(l => !l.IsDeleted)
@@ -317,6 +279,9 @@ internal static class MonthlyFinanceBuilder
             .ToArrayAsync(ct);
 
         if (locations.Length == 0) return [];
+
+        var startDay = startDate ?? DateOnly.FromDateTime(from.Date);
+        var endDay = endDate ?? DateOnly.FromDateTime(through.AddTicks(-1).Date);
 
         var salesByLoc = await db.Sales.AsNoTracking()
             .Where(s => !s.IsDeleted && s.Status == SaleStatus.Completed && s.SoldAt >= from && s.SoldAt < through)
@@ -389,15 +354,15 @@ internal static class MonthlyFinanceBuilder
     {
         var drawers = await db.CashDrawers.Where(drawer => drawer.OpeningDate < before)
             .Select(drawer => new { drawer.Id, drawer.OpeningBalance }).ToArrayAsync(ct);
-        var latest = await db.CashSessions.Where(session => session.BusinessDate < before)
-            .GroupBy(session => session.CashDrawerId).Select(group => new
-            {
-                DrawerId = group.Key,
-                Id = group.Max(session => session.Id)
-            }).ToArrayAsync(ct);
-        var ids = latest.Select(session => session.Id).ToArray();
-        var balances = await db.CashSessions.Where(session => ids.Contains(session.Id))
-            .Select(session => new { session.CashDrawerId, Balance = session.ActualClosingCash ?? session.ExpectedCash }).ToArrayAsync(ct);
-        return drawers.Sum(drawer => balances.SingleOrDefault(balance => balance.CashDrawerId == drawer.Id)?.Balance ?? drawer.OpeningBalance);
+        decimal total = 0m;
+        foreach (var drawer in drawers)
+        {
+            var moves = await db.CashMovements.AsNoTracking()
+                .Where(m => (m.CashDrawerId == drawer.Id || (m.CashSession != null && m.CashSession.CashDrawerId == drawer.Id)) && m.BusinessDate < before)
+                .SumAsync(m => (decimal?)m.Amount, ct) ?? 0m;
+            total += drawer.OpeningBalance + moves;
+        }
+        return total;
     }
+
 }

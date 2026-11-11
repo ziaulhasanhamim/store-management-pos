@@ -31,7 +31,8 @@ public class PosWebApplicationFactory : TestWebApplicationFactory<Program>
         {
             services.RemoveAll<DbContextOptions<AppDbContext>>();
             services.RemoveAll<AppDbContext>();
-            services.AddDbContextPool<AppDbContext>(o => o.UseNpgsql(PostgreSqlTestDatabase.ConnectionString));
+            services.AddDbContextPool<AppDbContext>(o => o.UseNpgsql(PostgreSqlTestDatabase.ConnectionString)
+                .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning)));
 
             services.RemoveAll<IAntiforgery>();
             services.AddSingleton<IAntiforgery, TestAntiforgery>();

@@ -8,6 +8,9 @@ public sealed record BalanceStatement(string Account, ReportRange Range, IReadOn
     decimal OwnerContributions, decimal OwnerWithdrawals, IReadOnlyList<StatementRow> Rows, int Count, int Page)
 {
     public decimal PageOpening { get; init; }
+    public decimal? PendingCountDifference { get; init; }
+    public string? PendingCountNotes { get; init; }
+    public DateTimeOffset? PendingCountAt { get; init; }
 }
 
 public sealed record StockStatementRow(

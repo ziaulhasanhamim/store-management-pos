@@ -48,8 +48,7 @@ public sealed class FinanceService(IServiceScopeFactory scopes, IConfiguration c
                 return previous.Id;
             }
             var date = await AccountingCalendar.SelectedAsync(db, actorId, configuration, ct);
-            AccountingCalendar.ValidateExpected(date, WorkingDayRequest.Date);
-            var at = AccountingCalendar.At(date, configuration);
+                        var at = AccountingCalendar.At(date, configuration);
             var userLocationId = await db.Users.Where(u => u.Id == actorId).Select(u => u.CashLocationId).FirstOrDefaultAsync(ct);
             var locationId = input.StockLocationId ?? userLocationId;
             var category = await db.ExpenseCategories.FindAsync([input.CategoryId ?? -(int)input.Category], ct)
@@ -109,9 +108,7 @@ public sealed class FinanceService(IServiceScopeFactory scopes, IConfiguration c
                 return previous.Id;
             }
             var date = await AccountingCalendar.SelectedAsync(db, actorId, configuration, ct);
-            AccountingCalendar.ValidateExpected(date, WorkingDayRequest.Date);
-            AccountingCalendar.ValidateExpected(date, input.WorkingDate);
-            var at = AccountingCalendar.At(date, configuration);
+                                    var at = AccountingCalendar.At(date, configuration);
             var employee = await db.Employees.SingleOrDefaultAsync(employee => employee.Id == input.EmployeeId && !employee.IsDeleted, ct)
                 ?? throw new ValidationException("Choose an employee from the employee list.");
             var account = await db.StaffAccounts.SingleOrDefaultAsync(item => item.EmployeeId == input.EmployeeId, ct);

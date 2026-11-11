@@ -70,7 +70,6 @@ public sealed class EmployeeService(IServiceScopeFactory scopes, IConfiguration 
             var actorId = await StoreAccess.RequireAsync(db, actor, AppRoles.Admin, ct);
             await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
             var date = await AccountingCalendar.SelectedAsync(db, actorId, configuration, ct);
-            AccountingCalendar.ValidateExpected(date, WorkingDayRequest.Date);
             var month = new DateOnly(date.Year, date.Month, 1);
             await AccountingCalendar.EnsureOpenAsync(db, date, ct);
             if (!await db.Employees.AnyAsync(employee => employee.Id == input.EmployeeId && !employee.IsDeleted, ct))

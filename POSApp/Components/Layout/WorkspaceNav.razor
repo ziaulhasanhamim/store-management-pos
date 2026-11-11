@@ -21,19 +21,28 @@
             ("/reports", "Reports hub", AppPolicies.MakeSales),
             ("/reports/sales", "Sales", AppPolicies.MakeSales),
             ("/reports/expenses", "Expense analysis", AppPolicies.MakeSales),
+            ("/reports/servicing", "Servicing report", AppPolicies.MakeSales),
             ("/reports/statements/stock", "Stock ledger", AppPolicies.ManageInventory),
             ("/reports/statements/cash", "Cash ledger", AppPolicies.ManageUsers),
             ("/reports/statements/bank", "Bank ledger", AppPolicies.ManageUsers)
+        ],
+        "servicing" =>
+        [
+            ("/servicing", "Servicing jobs", AppPolicies.MakeSales),
+            ("/servicing/technicians", "Technicians", AppPolicies.MakeSales),
+            ("/reports/servicing", "Servicing report", AppPolicies.MakeSales)
         ],
         "administration" =>
         [
             ("/administration", "Setup", AppPolicies.ManageUsers),
             ("/users", "Users & roles", AppPolicies.ManageUsers),
+            ("/admin/date-corrections", "Date corrections", AppPolicies.ManageUsers),
             ("/administration/audit", "Audit history", AppPolicies.ManageUsers)
         ],
         "finance" =>
         [
-            ("/finance", "Working day", AppPolicies.MakeSales),
+            ("/finance/summary", "Summary", AppPolicies.ManageUsers),
+            ("/finance", "Finance hub", AppPolicies.MakeSales),
             ("/finance/clearing", "Card & wallet clearing", AppPolicies.MakeSales),
             ("/finance/payments", "Payments", AppPolicies.MakeSales),
             ("/finance/people", "People & payroll", AppPolicies.MakeSales),

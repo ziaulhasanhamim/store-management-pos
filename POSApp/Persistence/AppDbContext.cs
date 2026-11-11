@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
@@ -18,19 +19,17 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<Lender> Lenders { get; set; } = null!;
     public DbSet<LenderBalance> LenderBalances { get; set; } = null!;
     public DbSet<DebtEntry> DebtEntries { get; set; } = null!;
-    public DbSet<WorkingDay> WorkingDays { get; set; } = null!;
-    public DbSet<DayFinance> DayFinances { get; set; } = null!;
     public DbSet<Employee> Employees { get; set; } = null!;
     public DbSet<MonthlySalary> MonthlySalaries { get; set; } = null!;
     public DbSet<BankAccount> BankAccounts { get; set; } = null!;
     public DbSet<BankMovement> BankMovements { get; set; } = null!;
-    public DbSet<FinanceClosing> FinanceClosings { get; set; } = null!;
     public DbSet<StockTransfer> StockTransfers { get; set; } = null!;
     public DbSet<StockTransferItem> StockTransferItems { get; set; } = null!;
     public DbSet<CashTransfer> CashTransfers { get; set; } = null!;
     public DbSet<CashDrawer> CashDrawers { get; set; } = null!;
     public DbSet<CashSession> CashSessions { get; set; } = null!;
     public DbSet<CashMovement> CashMovements { get; set; } = null!;
+    public DbSet<CashCount> CashCounts { get; set; } = null!;
     public DbSet<PaymentClearingEntry> PaymentClearingEntries { get; set; } = null!;
     public DbSet<PaymentPayout> PaymentPayouts { get; set; } = null!;
     public DbSet<Expense> Expenses { get; set; } = null!;
@@ -118,7 +117,19 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     {
         base.ConfigureConventions(builder);
         builder.Properties<decimal>().HavePrecision(18, 2);
+
+        // Ensure every DateTimeOffset parameter sent to PostgreSQL timestamptz has Offset = 0 (UTC).
+        builder.Properties<DateTimeOffset>().HaveConversion<DateTimeOffsetToUtcConverter>();
+        builder.Properties<DateTimeOffset?>().HaveConversion<NullableDateTimeOffsetToUtcConverter>();
     }
+
+    private sealed class DateTimeOffsetToUtcConverter() : ValueConverter<DateTimeOffset, DateTimeOffset>(
+        static value => value.ToUniversalTime(),
+        static value => value.ToUniversalTime());
+
+    private sealed class NullableDateTimeOffsetToUtcConverter() : ValueConverter<DateTimeOffset?, DateTimeOffset?>(
+        static value => value.HasValue ? value.Value.ToUniversalTime() : value,
+        static value => value.HasValue ? value.Value.ToUniversalTime() : value);
 
     protected override void OnModelCreating(ModelBuilder builder)
     {

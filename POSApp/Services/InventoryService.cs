@@ -806,7 +806,9 @@ public sealed class InventoryService(IServiceScopeFactory scopes, IConfiguration
         return new(suppliers, locations)
         {
             WorkingDate = await AccountingCalendar.SelectedAsync(db, actorId, configuration, ct),
-            Attributes = definitions
+            Attributes = definitions,
+            CanBackdate = await db.UserRoles.AnyAsync(membership => membership.UserId == actorId
+                && db.Roles.Any(role => role.Id == membership.RoleId && (role.Name == AppRoles.Admin || role.Name == AppRoles.InventoryManager)), ct)
         };
     }
 
@@ -963,7 +965,6 @@ public sealed class InventoryService(IServiceScopeFactory scopes, IConfiguration
             var id = await RequireActor(db, actor, true, ct);
             await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
             var date = await AccountingCalendar.SelectedAsync(db, id, configuration, ct);
-            AccountingCalendar.ValidateExpected(date, WorkingDayRequest.Date);
             await AccountingCalendar.EnsureOpenAsync(db, date, ct);
             var now = AccountingCalendar.At(date, configuration);
             var supplier = new Supplier
@@ -1207,7 +1208,6 @@ public sealed class InventoryService(IServiceScopeFactory scopes, IConfiguration
             // Serializable protects weighted averages, stock and supplier balances against overlapping receipts.
             await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
             var businessDate = await AccountingCalendar.SelectedAsync(db, actorId, configuration, ct);
-            AccountingCalendar.ValidateExpected(businessDate, WorkingDayRequest.Date);
             var hash = StoreOperation.Fingerprint(new
             {
                 command.RequestId, command.SupplierId, command.LocationId, command.Lines,
@@ -1235,7 +1235,11 @@ public sealed class InventoryService(IServiceScopeFactory scopes, IConfiguration
             }
             AccountingCalendar.ValidateExpected(businessDate, command.WorkingDate);
             await AccountingCalendar.EnsureOpenAsync(db, businessDate, ct);
-            var effectiveAt = AccountingCalendar.At(businessDate, configuration);
+            var effectiveAt = (command.TransactionTime?.ToUniversalTime()) ?? AccountingCalendar.At(businessDate, configuration);
+            if (command.TransactionTime.HasValue)
+            {
+                businessDate = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(effectiveAt, AccountingCalendar.Zone(configuration)).DateTime);
+            }
             if (!string.IsNullOrWhiteSpace(command.Invoice))
             {
                 var invoice = command.Invoice.Trim().ToUpperInvariant();

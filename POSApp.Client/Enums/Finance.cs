@@ -32,7 +32,8 @@ public enum CashMovementKind
     DebtBorrowing,
     DebtRepayment,
     OwnerContribution,
-    OwnerWithdrawal
+    OwnerWithdrawal,
+    Variance
 }
 
 public enum ClosingKind
@@ -46,4 +47,13 @@ public enum DebtEntryKind
     OpeningBalance = 1,
     Borrowing,
     Repayment
+}
+
+public enum CashCountStatus
+{
+    Draft = 1,
+    PendingReview = 2,
+    Completed = 3,
+    VarianceAccepted = 4,
+    Voided = 5
 }

@@ -495,12 +495,7 @@ public sealed class RecordAdministration(IServiceScopeFactory scopes, IConfigura
                     }
                     ValidateRevision(adjustment, adjustment.IsVoided, input);
                     await AccountingCalendar.EnsureOpenAsync(db, adjustment.Date, ct, requireDayOpened: false);
-                    var adjMonth = new DateOnly(adjustment.Date.Year, adjustment.Date.Month, 1);
-                    if (await db.FinanceClosings.AnyAsync(c => c.ClosedAt != null
-                        && ((c.Kind == ClosingKind.Day && c.Date >= adjustment.Date) || (c.Kind == ClosingKind.Month && c.Date >= adjMonth)), ct))
-                    {
-                        throw new ValidationException("Voiding this stock adjustment would change a closed period. Reopen the affected closings first.");
-                    }
+
                     before = new { adjustment.StockLocationId, adjustment.Date, adjustment.IsVoided };
                     var adjNote = $"Stock adjustment void #{id}: {reasonText}";
                     foreach (var item in adjustment.Items)
@@ -928,22 +923,14 @@ public sealed class RecordAdministration(IServiceScopeFactory scopes, IConfigura
 
         foreach (var move in cashMovements)
         {
-            CashSession sessionToUse;
-            DateOnly businessDateToUse;
-            if (move.CashSession!.ClosedAt is null && move.BusinessDate == activeDate)
-            {
-                sessionToUse = move.CashSession;
-                businessDateToUse = move.BusinessDate;
-            }
-            else
-            {
-                sessionToUse = await CashDrawerService.RequireOpenAsync(db, actorId, ct, move.CashSession.StockLocationId);
-                businessDateToUse = activeDate;
-            }
-            CashDrawerService.Append(db, sessionToUse, new CashMovement
+            var drawerId = move.CashDrawerId != 0 ? move.CashDrawerId : (move.CashSession?.CashDrawerId ?? 0);
+            var drawerToUse = move.CashDrawer
+                ?? await db.CashDrawers.SingleOrDefaultAsync(d => d.Id == drawerId, ct)
+                ?? await CashDrawerService.RequireDrawerAsync(db, actorId, ct, move.CashSession?.StockLocationId);
+            CashDrawerService.Append(db, drawerToUse, new CashMovement
             {
                 RequestId = Guid.NewGuid(),
-                BusinessDate = businessDateToUse,
+                BusinessDate = activeDate,
                 Kind = CashMovementKind.Reversal,
                 Amount = -move.Amount,
                 Notes = reason,

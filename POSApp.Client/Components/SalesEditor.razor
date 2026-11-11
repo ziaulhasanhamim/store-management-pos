@@ -238,14 +238,17 @@
                 {
                     <p class="text-xs text-slate-500">Select a customer to leave a due or credit balance.</p>
                 }
-                @if (!IsDrawerOpen)
+                @if (Options.CanBackdate)
                 {
-                    <div class="rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900" role="alert">
-                        <p class="font-semibold">Cash drawer is closed</p>
-                        <p class="mt-0.5">The drawer for <strong>@SelectedLocationName</strong> is not open for today. Open this location's cash drawer before completing sales.</p>
+                    <div class="rounded-xl border border-blue-200 bg-blue-50/70 p-3 space-y-1.5">
+                        <label class="block">
+                            <span class="field-label text-blue-900">Transaction Date & Time (Admin Backdate)</span>
+                            <input type="datetime-local" class="field bg-white" @bind="CustomTransactionTime" />
+                        </label>
+                        <p class="text-[11px] text-blue-700">Leave blank for current time. Backfills land on earlier dates without interrupting live sales.</p>
                     </div>
                 }
-                <button type="button" id="pos-submit-btn" class="btn-primary w-full" disabled="@(Invalid || WalkInUnsettled || !IsDrawerOpen)" @onclick="() => SaveAsync(true)">
+                <button type="button" id="pos-submit-btn" class="btn-primary w-full" disabled="@(Invalid || WalkInUnsettled)" @onclick="() => SaveAsync(true)">
                     @if (Busy)
                     {
                         <span class="form-submit-spinner"></span>

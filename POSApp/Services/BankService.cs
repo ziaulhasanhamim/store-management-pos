@@ -63,7 +63,6 @@ public sealed class BankService(IServiceScopeFactory scopes, IConfiguration conf
                 hash = StoreOperation.Fingerprint(new { input.RequestId, input.Amount, input.Action, input.Notes });
             }
             var date = await AccountingCalendar.SelectedAsync(db, actorId, configuration, ct);
-            AccountingCalendar.ValidateExpected(date, WorkingDayRequest.Date);
             await AccountingCalendar.EnsureOpenAsync(db, date, ct);
             var account = await db.BankAccounts.SingleOrDefaultAsync(account => account.Code == "MAIN", ct);
             if (input.Action == "opening" && account?.OpeningDate is not null)
@@ -81,8 +80,8 @@ public sealed class BankService(IServiceScopeFactory scopes, IConfiguration conf
             };
             if (input.Action is "deposit" or "withdraw")
             {
-                var session = await CashDrawerService.RequireOpenAsync(db, actorId, ct);
-                CashDrawerService.Append(db, session, new CashMovement
+                var drawer = await CashDrawerService.RequireDrawerAsync(db, actorId, ct);
+                CashDrawerService.Append(db, drawer, new CashMovement
                 {
                     RequestId = Guid.NewGuid(),
                     BusinessDate = date,

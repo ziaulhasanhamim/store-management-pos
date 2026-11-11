@@ -8,12 +8,16 @@ public static class WorkspaceNavigation
         {
             return "reports";
         }
+        if (path.StartsWith("/servicing"))
+        {
+            return "servicing";
+        }
         if (path.StartsWith("/administration") || path.StartsWith("/users"))
         {
             return "administration";
         }
         if (path.StartsWith("/finance") || path.StartsWith("/expenses") || path.StartsWith("/payroll")
-            || path.StartsWith("/cash-drawer") || path.StartsWith("/accounting-date") || path.StartsWith("/accounts")
+            || path.StartsWith("/cash-drawer") || path.StartsWith("/admin/date-corrections") || path.StartsWith("/accounts")
             || path.StartsWith("/employees") || path.StartsWith("/customers") || path.StartsWith("/suppliers/payments"))
         {
             return "finance";
@@ -43,7 +47,7 @@ public static class WorkspaceNavigation
         "administration" when path.StartsWith("/users") => "/users",
         "administration" when path.StartsWith("/administration/audit") => "/administration/audit",
         "administration" => "/administration",
-        "reports" => path,
+                        "reports" => path,
         _ => ""
     };
 }

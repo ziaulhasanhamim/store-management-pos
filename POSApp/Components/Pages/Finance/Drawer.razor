@@ -58,7 +58,7 @@
 }
 else if (Data is not null)
 {
-    <DrawerView View="@View" Data="Data" Open="Open!" Close="Close!" Adjustment="Adjustment!" Location="Location!" Transfer="Transfer!" Assignment="Assignment!" SelectLocationAsync="SelectLocationAsync" TransferAsync="TransferAsync" AssignAsync="AssignAsync" OpenAsync="OpenAsync" CloseAsync="CloseAsync" AdjustAsync="AdjustAsync" />
+    <DrawerView View="@View" Data="Data" Open="Open!" Close="Close!" Adjustment="Adjustment!" Location="Location!" Transfer="Transfer!" Assignment="Assignment!" CountInput="CountInput!" AcceptVarianceInput="AcceptVarianceInput!" SelectLocationAsync="SelectLocationAsync" TransferAsync="TransferAsync" AssignAsync="AssignAsync" OpenAsync="OpenAsync" CloseAsync="CloseAsync" AdjustAsync="AdjustAsync" SubmitCountAsync="SubmitCountAsync" AcceptVarianceAsync="AcceptVarianceAsync" DepositServicingProfitAsync="DepositServicingProfitAsync" />
 }
 else
 {
@@ -93,19 +93,27 @@ else
     [SupplyParameterFromForm(FormName = "cash-assign")]
     private AssignCashDrawerInput? Assignment { get; set; }
 
+    [SupplyParameterFromForm(FormName = "cash-count")]
+    private CashCountInput? CountInput { get; set; }
+
+    [SupplyParameterFromForm(FormName = "cash-variance-accept")]
+    private AcceptVarianceInput? AcceptVarianceInput { get; set; }
+
     private CashDrawerPage? Data;
     private string? Error;
     private bool Review;
 
     protected override async Task OnParametersSetAsync()
     {
-        View = View is "drawer" or "locations" or "transfer" or "history" ? View : SessionId is not null ? "history" : "drawer";
+        View = View is "drawer" or "locations" or "transfer" or "history" or "counts" ? View : SessionId is not null ? "history" : "drawer";
         Open ??= new();
         Close ??= new();
         Adjustment ??= new();
         Location ??= new();
         Transfer ??= new();
         Assignment ??= new();
+        CountInput ??= new();
+        AcceptVarianceInput ??= new();
         try
         {
             Data = await LoadAsync();
@@ -167,6 +175,9 @@ else
         }
     }
     private Task AdjustAsync() => SubmitAsync(() => Drawers.AdjustAsync(HttpContext.User, Adjustment!, HttpContext.RequestAborted), "/cash-drawer?view=transfer");
+    private Task SubmitCountAsync() => SubmitAsync(() => Drawers.SubmitCountAsync(HttpContext.User, CountInput!, HttpContext.RequestAborted), "/cash-drawer");
+    private Task AcceptVarianceAsync() => SubmitAsync(() => Drawers.AcceptVarianceAsync(HttpContext.User, AcceptVarianceInput!, HttpContext.RequestAborted), "/cash-drawer");
+    private Task DepositServicingProfitAsync() => Task.CompletedTask;
 
     private async Task SubmitAsync(Func<Task> action, string? target = null)
     {

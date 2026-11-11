@@ -23,10 +23,52 @@ public sealed class CloseCashInput
 public sealed class CashAdjustmentInput
 {
     public Guid RequestId { get; set; } = Guid.NewGuid();
-    public int SessionId { get; set; }
+    public int? SessionId { get; set; }
+    public int? LocationId { get; set; }
     public bool Payout { get; set; }
     public decimal Amount { get; set; }
     public string Notes { get; set; } = "";
+}
+
+public sealed class CashCountInput
+{
+    public Guid RequestId { get; set; } = Guid.NewGuid();
+    public int LocationId { get; set; }
+    [Required]
+    public decimal? CountedCash { get; set; }
+    public decimal? ExpectedCash { get; set; }
+    public string? Notes { get; set; }
+}
+
+public sealed class AcceptVarianceInput
+{
+    public int CountId { get; set; }
+    public int CashCountId
+    {
+        get => CountId;
+        set => CountId = value;
+    }
+    public bool Confirmed { get; set; } = true;
+    public string? Notes { get; set; }
+}
+
+public sealed record CashCountRow(
+    int Id,
+    int LocationId,
+    string Location,
+    string CountedBy,
+    DateTimeOffset CountedAt,
+    decimal CountedCash,
+    decimal ExpectedCash,
+    decimal Difference,
+    CashCountStatus Status,
+    string? Notes,
+    DateTimeOffset? CompletedAt,
+    DateTimeOffset? VarianceAcceptedAt,
+    bool IsVoided)
+{
+    public decimal Variance => Difference;
+    public string? CompletedBy { get; init; }
 }
 
 public sealed record CashSummary(CashMovementKind Kind, decimal Amount);
@@ -42,17 +84,25 @@ public sealed record CashSessionRow(int Id, string Cashier, DateTimeOffset Opene
 public sealed record CashDrawerPage(CashSessionRow? Current, CashSessionRow? Viewed, IReadOnlyList<CashMovementRow> Movements,
     IReadOnlyList<CashSummary> Breakdown, IReadOnlyList<CashSessionRow> Recent, bool Admin)
 {
+    public decimal CurrentCash { get; init; }
     public PageInfo? MovementPagination { get; init; }
     public PageInfo? SessionPagination { get; init; }
     public int? SelectedLocationId { get; init; }
+    public decimal UndepositedServicingProfit { get; init; }
     public IReadOnlyList<CashLocationRow> Locations { get; init; } = [];
     public IReadOnlyList<LegacyCashDrawerRow> Unassigned { get; init; } = [];
     public CashSessionRow? ClosedTodaySession { get; init; }
+    public CashCountRow? PendingCount { get; init; }
+    public CashCountRow? LastCount { get; init; }
+    public IReadOnlyList<CashCountRow> CountHistory { get; init; } = [];
 }
 
 public sealed record CashLocationRow(int Id, string Name, decimal Balance, bool Initialized, int? SessionId, bool ClosedToday)
 {
     public int? ClosedSessionId { get; init; }
+    public DateTimeOffset? LastCountedAt { get; init; }
+    public string? LastCountedBy { get; init; }
+    public decimal? LastCountedCash { get; init; }
 }
 public sealed record LegacyCashDrawerRow(int Id, decimal Balance, int? SessionId);
 public sealed class CashLocationInput

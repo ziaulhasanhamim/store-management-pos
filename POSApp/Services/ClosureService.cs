@@ -54,18 +54,18 @@ public sealed class ClosureService(IServiceScopeFactory scopes, IConfiguration c
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var actorId = await StoreAccess.RequireAsync(db, actor, AppRoles.SalesAssociate, ct);
-        var date = await AccountingCalendar.SelectedAsync(db, actorId, configuration, ct);
-        var day = await db.DayFinances.AsNoTracking().SingleOrDefaultAsync(day => day.Date == date, ct);
-        var sessions = await db.CashSessions.Where(session => session.BusinessDate == date && session.StockLocationId != null)
-            .Select(session => new { session.StockLocationId, session.ClosedAt }).ToArrayAsync(ct);
+        var date = AccountingCalendar.Today(configuration);
+        var activeSessions = await db.CashSessions.Where(session => session.StockLocationId != null && session.ClosedAt == null)
+            .Select(session => new { session.StockLocationId }).ToArrayAsync(ct);
+        var closedTodaySessions = await db.CashSessions.Where(session => session.StockLocationId != null && session.ClosedAt != null
+            && session.ClosedAt >= DateTimeOffset.UtcNow.Date)
+            .Select(session => new { session.StockLocationId }).ToArrayAsync(ct);
         var locations = await db.StockLocations.Where(location => location.CanSell && !location.IsDeleted)
             .Select(location => location.Id).ToArrayAsync(ct);
-        var month = new DateOnly(date.Year, date.Month, 1);
-        var monthClosed = await db.FinanceClosings.AnyAsync(closing => closing.Kind == ClosingKind.Month
-            && closing.Date == month && closing.ClosedAt != null, ct);
-        return new(date, day is not null, day?.ClosedAt is not null,
-            sessions.Count(session => session.ClosedAt == null), sessions.Count(session => session.ClosedAt != null),
-            locations.Count(id => !sessions.Any(session => session.StockLocationId == id)), monthClosed);
+
+        return new(date, true, false,
+            activeSessions.Length, closedTodaySessions.Length,
+            locations.Count(id => !activeSessions.Any(session => session.StockLocationId == id)), false);
     }
 
     public async Task<ReopenTarget> ReadAsync(ClaimsPrincipal actor, string kind, int id, DateOnly date, CancellationToken ct = default)
@@ -73,7 +73,7 @@ public sealed class ClosureService(IServiceScopeFactory scopes, IConfiguration c
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         await StoreAccess.RequireAsync(db, actor, AppRoles.Admin, ct);
-        var target = await FindAsync(db, kind, id, date, ct);
+        var target = await FindAsync(db, kind, id, ct);
         var closedAt = target.ClosedAt ?? throw new ValidationException("This record is already open.");
         return new(target.Entity.Id, kind, target.Date, target.Title, closedAt, Hash(target.Snapshot));
     }
@@ -84,80 +84,43 @@ public sealed class ClosureService(IServiceScopeFactory scopes, IConfiguration c
         {
             var reason = input.Reason?.Trim() ?? "";
             if (!input.Confirmed || input.RequestId == Guid.Empty || reason.Length is 0 or > 2000
-                || input.Kind is not ("drawer" or "day" or "month"))
+                || input.Kind != "drawer")
             {
-                throw new ValidationException("Confirm reopening and enter a reason up to 2,000 characters.");
+                throw new ValidationException("Confirm shift reopening and enter a reason up to 2,000 characters.");
             }
             await using var scope = scopes.CreateAsyncScope();
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             var actorId = await StoreAccess.RequireAsync(db, actor, AppRoles.Admin, ct);
             await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
+
             var previous = await db.RecordChanges.SingleOrDefaultAsync(change => change.RequestId == input.RequestId, ct);
             if (previous is not null)
             {
-                if (previous.CreatedByUserId != actorId || previous.RecordType != input.Kind || previous.RecordId != input.Id
-                    || previous.Reason != reason || Hash(previous.Before) != input.Revision)
-                {
-                    throw new ValidationException("This request was already saved. Reload before changing it.");
-                }
                 return;
             }
-            var target = await FindAsync(db, input.Kind, input.Id, input.Date, ct);
-            if (target.ClosedAt is null || target.Entity.Id != input.Id || Hash(target.Snapshot) != input.Revision || target.Date != input.Date)
+            var target = await FindAsync(db, input.Kind, input.Id, ct);
+            if (target.ClosedAt is null || target.Entity.Id != input.Id || Hash(target.Snapshot) != input.Revision)
             {
-                throw new ValidationException("This closing changed. Reload and review it again.");
+                throw new ValidationException("This shift closing changed. Reload and review it again.");
             }
-            if (input.Kind == "drawer")
+
+            var session = (CashSession)target.Entity;
+            if (session.CashDrawer!.CurrentSessionId is not null
+                || await db.CashSessions.AnyAsync(other => other.CashDrawerId == session.CashDrawerId && other.Id > session.Id, ct))
             {
-                var session = (CashSession)target.Entity;
-                await RequireLatestDayAsync(db, actorId, target.Date, ct);
-                await AccountingCalendar.EnsureOpenAsync(db, target.Date, ct);
-                if (session.CashDrawer!.CurrentSessionId is not null
-                    || await db.CashSessions.AnyAsync(other => other.CashDrawerId == session.CashDrawerId && other.Id > session.Id, ct))
-                {
-                    throw new ValidationException("A later drawer session exists. Its carried-forward balance must not be changed.");
-                }
-                session.CashDrawer.CurrentCash = session.ExpectedCash;
-                session.CashDrawer.CurrentSession = session;
-                session.CashDrawer.UpdatedAt = DateTimeOffset.UtcNow;
-                session.CashDrawer.UpdatedByUserId = actorId;
-                session.ClosedAt = null;
-                session.ExpectedClosingCash = null;
-                session.ActualClosingCash = null;
-                session.Difference = null;
-                session.ClosingNotes = null;
+                throw new ValidationException("A later drawer session exists. Its carried-forward balance must not be changed.");
             }
-            else
-            {
-                var closing = (FinanceClosing)target.Entity;
-                if (input.Kind == "month")
-                {
-                    if (await db.FinanceClosings.AnyAsync(other => other.Kind == ClosingKind.Month
-                        && other.Date > target.Date && other.ClosedAt != null, ct))
-                    {
-                        throw new ValidationException("Reopen later closed months first to preserve their opening balances.");
-                    }
-                }
-                else
-                {
-                    await RequireLatestDayAsync(db, actorId, target.Date, ct);
-                    var month = new DateOnly(target.Date.Year, target.Date.Month, 1);
-                    if (await db.FinanceClosings.AnyAsync(other => other.Kind == ClosingKind.Month
-                        && other.Date == month && other.ClosedAt != null, ct))
-                    {
-                        throw new ValidationException("Reopen this month before reopening its day.");
-                    }
-                    var day = await db.DayFinances.SingleOrDefaultAsync(day => day.Date == target.Date, ct)
-                        ?? throw new ValidationException("The saved working day was not found.");
-                    day.ClosedAt = null;
-                    day.CountedCash = null;
-                    day.Difference = null;
-                    day.UpdatedAt = DateTimeOffset.UtcNow;
-                    day.UpdatedByUserId = actorId;
-                }
-                closing.ClosedAt = null;
-                closing.MonthlyDetailsJson = null;
-            }
+
+            session.CashDrawer.CurrentCash = session.ExpectedCash;
+            session.CashDrawer.CurrentSession = session;
+            session.CashDrawer.UpdatedAt = DateTimeOffset.UtcNow;
+            session.CashDrawer.UpdatedByUserId = actorId;
+            session.ClosedAt = null;
+            session.ExpectedClosingCash = null;
+            session.ActualClosingCash = null;
+            session.Difference = null;
+            session.ClosingNotes = null;
+
             target.Entity.UpdatedAt = DateTimeOffset.UtcNow;
             target.Entity.UpdatedByUserId = actorId;
             db.RecordChanges.Add(new RecordChange
@@ -165,10 +128,10 @@ public sealed class ClosureService(IServiceScopeFactory scopes, IConfiguration c
                 RequestId = input.RequestId,
                 RecordType = input.Kind,
                 RecordId = target.Entity.Id,
-                Action = "Reopen",
+                Action = "ReopenShift",
                 Reason = reason,
                 Before = target.Snapshot,
-                After = input.Kind == "drawer" ? DrawerSnapshot((CashSession)target.Entity) : PeriodSnapshot((FinanceClosing)target.Entity),
+                After = DrawerSnapshot(session),
                 CreatedByUserId = actorId
             });
             await db.SaveChangesAsync(ct);
@@ -187,41 +150,22 @@ public sealed class ClosureService(IServiceScopeFactory scopes, IConfiguration c
 
     internal static string DrawerSnapshot(CashSession session) => JsonSerializer.Serialize(new
     {
-        session.Id, session.BusinessDate, session.CashDrawerId, session.OpeningCash, session.ExpectedCash,
+        session.Id, session.CashDrawerId, session.OpeningCash, session.ExpectedCash,
         session.ExpectedClosingCash, session.ActualClosingCash, session.Difference, session.ClosedAt,
         session.ClosingNotes, session.UpdatedAt, CurrentCash = session.CashDrawer?.CurrentCash
     });
 
-    internal static string PeriodSnapshot(FinanceClosing closing) => JsonSerializer.Serialize(closing);
-
-    private async Task RequireLatestDayAsync(AppDbContext db, int actorId, DateOnly date, CancellationToken ct)
-    {
-        if (date != await AccountingCalendar.SelectedAsync(db, actorId, configuration, ct)
-            || await db.DayFinances.AnyAsync(day => day.Date > date, ct)
-            || await db.CashSessions.AnyAsync(session => session.BusinessDate > date, ct))
-        {
-            throw new ValidationException("Only the latest working day can be reopened. A later day's opening depends on this closing; use a current-day correction for older records.");
-        }
-    }
-
-    private static async Task<Target> FindAsync(AppDbContext db, string kind, int id, DateOnly date, CancellationToken ct)
+    private static async Task<Target> FindAsync(AppDbContext db, string kind, int id, CancellationToken ct)
     {
         if (kind == "drawer")
         {
             var session = await db.CashSessions.Include(session => session.CashDrawer).ThenInclude(drawer => drawer!.StockLocation)
                 .SingleOrDefaultAsync(session => session.Id == id, ct) ?? throw new ValidationException("Drawer session not found.");
-            return new(session, session.BusinessDate, session.CashDrawer!.StockLocation?.Name ?? $"Drawer #{session.CashDrawerId}",
+            var openDate = DateOnly.FromDateTime(session.OpenedAt.DateTime);
+            return new(session, openDate, session.CashDrawer!.StockLocation?.Name ?? $"Drawer #{session.CashDrawerId}",
                 session.ClosedAt, DrawerSnapshot(session));
         }
-        if (kind is not ("day" or "month") || date == default)
-        {
-            throw new ValidationException("Choose a drawer, day or month closing.");
-        }
-        var period = kind == "month" ? ClosingKind.Month : ClosingKind.Day;
-        date = period == ClosingKind.Month ? new(date.Year, date.Month, 1) : date;
-        var closing = await db.FinanceClosings.SingleOrDefaultAsync(closing => closing.Kind == period && closing.Date == date, ct)
-            ?? throw new ValidationException("Closing not found.");
-        return new(closing, date, kind == "month" ? "Monthly closing" : "Business day closing", closing.ClosedAt, PeriodSnapshot(closing));
+        throw new ValidationException("Only drawer shifts can be reopened.");
     }
 
     private static string Hash(string value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value)));

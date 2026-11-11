@@ -50,7 +50,7 @@ public class FinanceEndpointsTests : PosIntegrationTestBase
         using var stream = new MemoryStream(bytes);
         using var workbook = new ClosedXML.Excel.XLWorkbook(stream);
         await workbook.Worksheets.Contains("Overview").Should().BeEqualTo(true);
-        await workbook.Worksheets.Contains("Working Days").Should().BeEqualTo(true);
+        await workbook.Worksheets.Contains("Daily Breakdown").Should().BeEqualTo(true);
         await workbook.Worksheets.Contains("Suppliers").Should().BeEqualTo(true);
     }
 

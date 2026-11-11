@@ -119,11 +119,6 @@ public class DevelopmentDataSeederTests : PosIntegrationTestBase
         await drawer.CurrentSession!.ClosedAt.Should().BeNull();
         await drawer.CurrentSession.OpeningCash.Should().BeEqualTo(10000m);
 
-        // DayFinance
-        var dayFinance = await db.DayFinances.SingleOrDefaultAsync(df => df.Date == drawer.CurrentSession.BusinessDate);
-        await dayFinance.Should().NotBeNull();
-        await dayFinance!.OpeningCash.Should().BeEqualTo(10000m);
-
         // BankAccount
         var bank = await db.BankAccounts.SingleOrDefaultAsync(b => b.Code == "MAIN");
         await bank.Should().NotBeNull();

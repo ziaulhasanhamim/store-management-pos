@@ -99,7 +99,6 @@ public sealed class SupplierService(IServiceScopeFactory scopes, IConfiguration?
                 return previous.Id;
             }
             var businessDate = await AccountingCalendar.SelectedAsync(db, actorId, configuration, ct);
-            AccountingCalendar.ValidateExpected(businessDate, WorkingDayRequest.Date);
             await AccountingCalendar.EnsureOpenAsync(db, businessDate, ct);
             var effectiveAt = AccountingCalendar.At(businessDate, configuration);
 

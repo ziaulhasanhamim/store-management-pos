@@ -31,10 +31,7 @@ public sealed class DebtService(IServiceScopeFactory scopes, IConfiguration conf
         var locations = await db.StockLocations.Where(location => location.CanSell && !location.IsDeleted)
             .OrderBy(location => location.Name)
             .Select(location => new DebtLocation(location.Id, location.Name)).ToArrayAsync(ct);
-        var month = new DateOnly(date.Year, date.Month, 1);
-        var closed = await db.FinanceClosings.AnyAsync(closing => closing.ClosedAt != null
-            && (closing.Kind == ClosingKind.Day && closing.Date == date
-                || closing.Kind == ClosingKind.Month && closing.Date == month), ct);
+        var closed = false;
         var today = await db.DebtEntries.Where(entry => !entry.IsVoided && entry.BusinessDate == date)
             .Select(entry => new { entry.Kind, entry.Amount }).ToArrayAsync(ct);
         var historyQuery = db.DebtEntries.AsNoTracking()

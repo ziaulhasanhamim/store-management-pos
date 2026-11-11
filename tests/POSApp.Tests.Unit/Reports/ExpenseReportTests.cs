@@ -77,7 +77,7 @@ public class ExpenseReportTests
     }
 
     [Test]
-    public async Task DeleteAsync_ExpenseOnDifferentWorkingDay_ThrowsValidationException()
+    public async Task DeleteAsync_ExpenseOnDifferentDay_SucceedsInContinuousTimeline()
     {
         var options = new Microsoft.EntityFrameworkCore.DbContextOptionsBuilder<POSApp.Persistence.AppDbContext>()
             .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
@@ -90,9 +90,8 @@ public class ExpenseReportTests
         db.Roles.Add(adminRole);
         db.UserRoles.Add(userRole);
 
-        // Current working day is 2026-11-08
+        // Current day is 2026-11-08
         var today = new DateOnly(2026, 11, 8);
-        db.WorkingDays.Add(new POSApp.Persistence.Entities.WorkingDay { Id = 1, Date = today });
 
         // Expense occurred on previous working day: 2026-11-07
         var pastExpense = new POSApp.Persistence.Entities.Expense
@@ -126,8 +125,11 @@ public class ExpenseReportTests
                     new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.Role, "Admin")
                 }, "test"));
 
-        // Voiding an expense from another day must throw ValidationException
-        await Assert.ThrowsAsync<System.ComponentModel.DataAnnotations.ValidationException>(() => service.DeleteAsync(principal, kind: "expenses", id: 50));
+        // In continuous timeline, voiding an expense from a past day succeeds without working day barriers
+        await service.DeleteAsync(principal, kind: "expenses", id: 50);
+        using var verifyDb = new POSApp.Persistence.AppDbContext(options);
+        var expense = await verifyDb.Expenses.FindAsync(50);
+        await expense!.IsVoided.Should().BeTrue();
     }
 
     [Test]
@@ -146,9 +148,6 @@ public class ExpenseReportTests
             var userRole = new Microsoft.AspNetCore.Identity.IdentityUserRole<int> { RoleId = 1, UserId = 1 };
             setupDb.Roles.Add(adminRole);
             setupDb.UserRoles.Add(userRole);
-
-            setupDb.WorkingDays.Add(new POSApp.Persistence.Entities.WorkingDay { Id = 1, Date = today });
-            setupDb.DayFinances.Add(new POSApp.Persistence.Entities.DayFinance { Date = today, ClosedAt = null });
 
             var bankAccount = new POSApp.Persistence.Entities.BankAccount { Id = 1, Code = "MAIN", CurrentBalance = 5000m };
             setupDb.BankAccounts.Add(bankAccount);

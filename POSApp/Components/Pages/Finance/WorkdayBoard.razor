@@ -1,10 +1,11 @@
 @attribute [StreamRendering]
 @inject ClosureService Closures
+@inject IConfiguration Configuration
 @inject ILogger<WorkdayBoard> Logger
 
 @if (Data is null && Error is null)
 {
-    <LoadingPanel Message="Loading working day…" />
+    <LoadingPanel Message="Loading store operations…" />
 }
 else if (Error is not null)
 {
@@ -16,56 +17,23 @@ else if (Data is not null)
     <section class="workday-board mb-7">
         <div class="flex flex-wrap items-start justify-between gap-5">
             <div>
-                <p class="eyebrow text-blue-200!">Daily operations</p>
+                <p class="eyebrow text-blue-200!">Store operations</p>
                 <h2 class="mt-2 text-2xl font-bold tracking-tight text-white">@day.Date.ToString("dddd, dd MMM yyyy")</h2>
-                <p class="mt-2 text-sm text-blue-100">@(day.Closed ? "Day closed · counted cash is ready for the next day" : day.Opened ? "Working day open" : "Open the working day to begin")</p>
+                <p class="mt-2 text-sm text-blue-100">Continuous timeline active · Transactions are recorded live without working day locks</p>
             </div>
             <span class="status-pill @(day.OpenDrawers > 0 ? "status-pill-live" : "")">
                 <span class="size-2 rounded-full @(day.OpenDrawers > 0 ? "bg-emerald-400 animate-pulse" : "bg-white/40")"></span>
-                @day.OpenDrawers open · @day.ClosedDrawers counted · @day.UnopenedDrawers unused
+                @day.OpenDrawers active shift@(day.OpenDrawers == 1 ? "" : "s") · @day.ClosedDrawers counted
             </span>
         </div>
-        <ol class="mt-6 grid gap-3 sm:grid-cols-3 xl:grid-cols-5">
-            @foreach (var step in Steps)
-            {
-                <li class="workflow-step @(step.Done ? "complete" : "")">
-                    <span class="workflow-number">@(step.Done ? "✓" : step.Number)</span>
-                    <span>@step.Label</span>
-                </li>
-            }
-        </ol>
         <div class="mt-6 flex flex-wrap gap-3">
-            @if (day.Closed || !day.Opened)
-            {
-                <AuthorizeView Policy="@AppPolicies.ManageUsers">
-                    <Authorized>
-                        <a href="@($"/accounting-date?date={(day.Closed ? day.Date.AddDays(1) : day.Date):yyyy-MM-dd}")" class="btn-primary bg-linear-to-r from-blue-500 to-indigo-600 hover:from-blue-400 hover:to-indigo-500 shadow-md shadow-blue-900/30">@(day.Closed ? "Open next working day" : "Open working day")</a>
-                    </Authorized>
-                    <NotAuthorized>
-                        <span class="text-sm">Ask an administrator to open the working day.</span>
-                    </NotAuthorized>
-                </AuthorizeView>
-            }
-            else if (day.OpenDrawers == 0 && day.ClosedDrawers == 0)
-            {
-                <AuthorizeView Policy="@AppPolicies.ManageDrawer">
-                    <a href="/cash-drawer" class="btn-primary bg-linear-to-r from-blue-500 to-indigo-600 hover:from-blue-400 hover:to-indigo-500 shadow-md shadow-blue-900/30">Open location drawer</a>
-                </AuthorizeView>
-                <AuthorizeView Policy="@AppPolicies.ManageUsers">
-                    <a href="/accounting-date" class="inline-flex items-center justify-center rounded-lg border border-rose-300/40 bg-rose-500/20 px-4 py-2.5 text-sm font-medium text-rose-100 hover:bg-rose-500/30 transition">
-                        Mistakenly opened? Delete day
-                    </a>
-                </AuthorizeView>
-            }
-            else if (day.OpenDrawers > 0)
-            {
-                <a href="/sales" class="btn-primary bg-linear-to-r from-blue-500 to-indigo-600 hover:from-blue-400 hover:to-indigo-500 shadow-md shadow-blue-900/30">Start / continue sales</a>
-                <AuthorizeView Policy="@AppPolicies.ManageDrawer">
-                    <a href="/cash-drawer" class="inline-flex items-center justify-center rounded-lg border border-white/20 bg-white/10 px-4 py-2.5 text-sm font-medium text-white hover:bg-white/20 transition">Location drawers</a>
-                </AuthorizeView>
-            }
+            <a href="/sales" class="btn-primary bg-linear-to-r from-blue-500 to-indigo-600 hover:from-blue-400 hover:to-indigo-500 shadow-md shadow-blue-900/30">Start / Continue sales</a>
+            <AuthorizeView Policy="@AppPolicies.ManageDrawer">
+                <a href="/cash-drawer" class="inline-flex items-center justify-center rounded-lg border border-white/20 bg-white/10 px-4 py-2.5 text-sm font-medium text-white hover:bg-white/20 transition">Cash drawers & shifts</a>
+            </AuthorizeView>
             <AuthorizeView Policy="@AppPolicies.ManageUsers">
-                <a href="/finance/day" class="inline-flex items-center justify-center rounded-lg border border-white/20 bg-white/10 px-4 py-2.5 text-sm font-medium text-white hover:bg-white/20 transition">@(day.Closed ? "View day finance" : "Review day finance")</a>
+                <a href="/finance/summary" class="inline-flex items-center justify-center rounded-lg border border-white/20 bg-white/10 px-4 py-2.5 text-sm font-medium text-white hover:bg-white/20 transition">Financial summary</a>
+                <a href="/admin/date-corrections" class="inline-flex items-center justify-center rounded-lg border border-white/20 bg-white/10 px-4 py-2.5 text-sm font-medium text-white hover:bg-white/20 transition">Date audit log</a>
             </AuthorizeView>
         </div>
     </section>
@@ -77,14 +45,6 @@ else if (Data is not null)
 
     private OperatingDay? Data;
     private string? Error;
-    private (string Number, string Label, bool Done)[] Steps => Data is null ? [] :
-    [
-        ("1", "Open day", Data.Opened),
-        ("2", "Open drawers", Data.OpenDrawers + Data.ClosedDrawers > 0),
-        ("3", "Trade & payments", Data.Closed || Data.ClosedDrawers > 0 && Data.OpenDrawers == 0),
-        ("4", "Count & close drawers", Data.ClosedDrawers > 0 && Data.OpenDrawers == 0),
-        ("5", "Review & close day", Data.Closed)
-    ];
 
     protected override async Task OnInitializedAsync()
     {
@@ -94,8 +54,8 @@ else if (Data is not null)
         }
         catch (Exception exception)
         {
-            Logger.LogError(exception, "Working day workflow could not load.");
-            Error = "Unable to load the working day. Please reload.";
+            Logger.LogError(exception, "Store operations could not load.");
+            Error = "Unable to load store operations. Please reload.";
         }
     }
 }

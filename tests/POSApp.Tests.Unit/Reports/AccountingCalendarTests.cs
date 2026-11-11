@@ -92,20 +92,14 @@ public class AccountingCalendarTests
     }
 
     [Test]
-    public async Task ValidateExpected_WhenCurrentMatchesExpected_DoesNotThrow()
-    {
-        var date = new DateOnly(2026, 10, 26);
-        AccountingCalendar.ValidateExpected(date, date);
-        AccountingCalendar.ValidateExpected(date, null);
-    }
-
-    [Test]
-    public async Task ValidateExpected_WhenCurrentDiffersFromExpected_ThrowsValidationException()
+    public async Task ValidateExpected_InContinuousTimeline_NeverThrows()
     {
         var current = new DateOnly(2026, 10, 26);
         var expected = new DateOnly(2026, 10, 25);
 
-        Assert.Throws<ValidationException>(() =>
-            AccountingCalendar.ValidateExpected(current, expected));
+        // Continuous timeline allows operations without working-day locking
+        AccountingCalendar.ValidateExpected(current, expected);
+        AccountingCalendar.ValidateExpected(current, current);
+        AccountingCalendar.ValidateExpected(current, null);
     }
 }

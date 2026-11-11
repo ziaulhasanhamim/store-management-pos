@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Components.Web;
 using Microsoft.JSInterop;
 using POSApp.Client.DTOs;
 using POSApp.Client.Enums;
+using POSApp.Client.Services;
 
 namespace POSApp.Client.Components;
 
@@ -88,6 +89,7 @@ public partial class SalesEditor
     private string CustomerName = "";
     private string? CustomerPhone;
     private decimal CustomerOpening;
+    private DateTime? CustomTransactionTime;
     private string? Error;
     private string? Notice;
     private string? CameraError;
@@ -433,6 +435,15 @@ public partial class SalesEditor
         Error = null;
         try
         {
+            DateTimeOffset? transactionTime = null;
+            if (CustomTransactionTime.HasValue)
+            {
+                var unspecified = DateTime.SpecifyKind(CustomTransactionTime.Value, DateTimeKind.Unspecified);
+                var zone = UserTimeZone.ResolveZone(null, "Asia/Dhaka");
+                var utc = TimeZoneInfo.ConvertTimeToUtc(unspecified, zone);
+                transactionTime = new DateTimeOffset(utc, TimeSpan.Zero);
+            }
+
             var command = new SalesCommand(RequestId, LocationId, CustomerId,
                 Lines.Select(line => new SalesLine(line.Product.Id, line.Quantity, line.Price)).ToArray(),
                 Discount, 0, PaymentMethod.Cash, Notes)
@@ -440,7 +451,8 @@ public partial class SalesEditor
                 Revision = SaleRevision,
                 WorkingDate = Options.WorkingDate,
                 Payments = Payments.ToArray(),
-                OriginalSaleId = OriginalSaleId
+                OriginalSaleId = OriginalSaleId,
+                TransactionTime = transactionTime
             };
             var result = await Sales.SaveAsync(command, complete);
             SaleRevision = result.Revision;

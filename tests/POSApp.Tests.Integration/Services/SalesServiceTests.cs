@@ -201,7 +201,7 @@ public class SalesServiceTests : PosIntegrationTestBase
     }
 
     [Test]
-    public async Task SaveAsync_CompleteSaleWithClosedDrawer_ThrowsValidationException_ForCashCardAndWallet()
+    public async Task SaveAsync_CompleteSaleWithoutOpenShift_SucceedsOnContinuousDrawer()
     {
         var productId = await SetupProductWithStockAsync(cost: 50m, price: 100m, quantity: 10m);
 
@@ -219,7 +219,7 @@ public class SalesServiceTests : PosIntegrationTestBase
         };
         await drawerService.CloseAsync(AdminUser, closeInput);
 
-        // 2. Attempting to complete sale with Cash must fail
+        // 2. Under continuous ledger, completing a sale succeeds directly without an open shift
         var cashSale = new SalesCommand(
             RequestId: Guid.NewGuid(),
             LocationId: 1,
@@ -228,21 +228,17 @@ public class SalesServiceTests : PosIntegrationTestBase
             Discount: 0m,
             Payment: 100m,
             Method: PaymentMethod.Cash,
-            Notes: "Should fail with closed drawer");
-        var cashEx = await Assert.ThrowsAsync<ValidationException>(() => sales.SaveAsync(SalesUser, cashSale, complete: true));
-        await cashEx!.Message.Should().Contain("cash drawer before completing sales");
+            Notes: "Sale completed on continuous drawer");
 
-        // 3. Attempting to complete sale with Card must ALSO fail (previously a bug that bypassed checks)
+        var result = await sales.SaveAsync(SalesUser, cashSale, complete: true);
+        await result.Completed.Should().BeTrue();
+
+        // 3. Card sale also succeeds on continuous ledger
         var cardSale = cashSale with { RequestId = Guid.NewGuid(), Method = PaymentMethod.Card };
-        var cardEx = await Assert.ThrowsAsync<ValidationException>(() => sales.SaveAsync(SalesUser, cardSale, complete: true));
-        await cardEx!.Message.Should().Contain("cash drawer before completing sales");
+        var cardResult = await sales.SaveAsync(SalesUser, cardSale, complete: true);
+        await cardResult.Completed.Should().BeTrue();
 
-        // 4. Attempting to complete sale with MobileWallet must ALSO fail
-        var walletSale = cashSale with { RequestId = Guid.NewGuid(), Method = PaymentMethod.MobileWallet };
-        var walletEx = await Assert.ThrowsAsync<ValidationException>(() => sales.SaveAsync(SalesUser, walletSale, complete: true));
-        await walletEx!.Message.Should().Contain("cash drawer before completing sales");
-
-        // 5. Saving as draft (complete: false) must still succeed even with closed drawer
+        // 4. Saving as draft (complete: false) also succeeds
         var draftSale = cashSale with { RequestId = Guid.NewGuid(), Notes = "Draft saved while drawer closed" };
         var draftResult = await sales.SaveAsync(SalesUser, draftSale, complete: false);
         await draftResult.Should().NotBeNull();

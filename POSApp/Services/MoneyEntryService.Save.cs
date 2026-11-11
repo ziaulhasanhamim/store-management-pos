@@ -55,12 +55,7 @@ public sealed partial class MoneyEntryService
                 }
                 return new(cached.Ids);
             }
-            var date = await AccountingCalendar.SelectedAsync(db, actorId, configuration, ct);
-            AccountingCalendar.ValidateExpected(date, WorkingDayRequest.Date);
-            if (date != input.WorkingDate)
-            {
-                throw new ValidationException("The working day has changed. Reload before saving these entries.");
-            }
+            var date = input.WorkingDate == default ? await AccountingCalendar.SelectedAsync(db, actorId, configuration, ct) : input.WorkingDate;
             await AccountingCalendar.EnsureOpenAsync(db, date, ct);
             var at = AccountingCalendar.At(date, configuration);
             var partyIds = input.Rows.Select(row => row.PartyId).Distinct().ToArray();
@@ -161,6 +156,10 @@ public sealed partial class MoneyEntryService
                     }
                 }
                 locationId ??= await db.Users.Where(u => u.Id == actorId).Select(u => u.CashLocationId).FirstOrDefaultAsync(ct);
+                var rowAt = (admin && row.TransactionTime.HasValue) ? row.TransactionTime.Value.ToUniversalTime() : at;
+                var rowDate = (admin && row.TransactionTime.HasValue)
+                    ? DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(rowAt, AccountingCalendar.Zone(configuration)).DateTime)
+                    : date;
                 if (kind == "expenses")
                 {
                     var category = db.ExpenseCategories.Local.SingleOrDefault(category => category.Id == row.CategoryId)
@@ -172,7 +171,7 @@ public sealed partial class MoneyEntryService
                     }
                     if (expense is null)
                     {
-                        expense = new Expense { RequestId = row.RequestId, OccurredAt = at, Notes = notes, CreatedByUserId = actorId };
+                        expense = new Expense { RequestId = row.RequestId, OccurredAt = rowAt, Notes = notes, CreatedByUserId = actorId };
                         db.Expenses.Add(expense);
                     }
                     expense.CategoryDefinitionId = category.Id;
@@ -183,7 +182,7 @@ public sealed partial class MoneyEntryService
                     expense.Notes = notes;
                     expense.ReceiptReference = row.Receipt?.Trim();
                     await posting.PostAsync(row.Method, -row.Amount, CashMovementKind.Expense,
-                        notes.Length == 0 ? category.Name : notes, expense: expense, cashLocationId: locationId);
+                        notes.Length == 0 ? category.Name : notes, expense: expense, cashLocationId: locationId, rowDate: rowDate);
                     entity = expense;
                 }
                 else if (kind == "supplier-payments")
@@ -213,14 +212,14 @@ public sealed partial class MoneyEntryService
                     var balance = db.SupplierBalances.Local.SingleOrDefault(balance => balance.SupplierId == row.PartyId);
                     if (balance is null)
                     {
-                        balance = new SupplierBalance { SupplierId = row.PartyId, OpenedAt = at };
+                        balance = new SupplierBalance { SupplierId = row.PartyId, OpenedAt = rowAt };
                         db.SupplierBalances.Add(balance);
                     }
                     if (payment is null)
                     {
                         payment = new SupplierPayment
                         {
-                            SupplierBalanceId = balance.Id, Amount = row.Amount, PaidAt = at,
+                            SupplierBalanceId = balance.Id, Amount = row.Amount, PaidAt = rowAt,
                             Reference = $"PAY-{row.RequestId:N}", CreatedByUserId = actorId
                         };
                         db.SupplierPayments.Add(payment);
@@ -241,7 +240,7 @@ public sealed partial class MoneyEntryService
                         Notes = oldEntity is null ? notes : EditNote("Payment", payment.Id, notes), CreatedByUserId = actorId
                     });
                     await posting.PostAsync(row.Method, -row.Amount, CashMovementKind.SupplierPayment,
-                        $"Supplier payment · #{row.PartyId}", supplierPayment: payment, cashLocationId: locationId);
+                        $"Supplier payment · #{row.PartyId}", supplierPayment: payment, cashLocationId: locationId, rowDate: rowDate);
                     entity = payment;
                 }
                 else
@@ -266,12 +265,12 @@ public sealed partial class MoneyEntryService
                     var balance = db.CustomerBalances.Local.SingleOrDefault(balance => balance.CustomerId == row.PartyId);
                     if (balance is null)
                     {
-                        balance = new CustomerBalance { CustomerId = row.PartyId, OpenedAt = at };
+                        balance = new CustomerBalance { CustomerId = row.PartyId, OpenedAt = rowAt };
                         db.CustomerBalances.Add(balance);
                     }
                     if (payment is null)
                     {
-                        payment = new Payment { PaidAt = at, Reference = $"CUSTOMER-PAY-{row.RequestId:N}", CreatedByUserId = actorId };
+                        payment = new Payment { PaidAt = rowAt, Reference = $"CUSTOMER-PAY-{row.RequestId:N}", CreatedByUserId = actorId };
                         db.Payments.Add(payment);
                     }
                     payment.CustomerBalance = balance;
@@ -291,7 +290,7 @@ public sealed partial class MoneyEntryService
                         Notes = oldEntity is null ? notes : EditNote("Collection", payment.Id, notes), CreatedByUserId = actorId
                     });
                     await posting.PostAsync(row.Method, row.Amount, CashMovementKind.Sale,
-                        $"Customer collection · #{row.PartyId}", payment: payment, cashLocationId: locationId);
+                        $"Customer collection · #{row.PartyId}", payment: payment, cashLocationId: locationId, rowDate: rowDate);
                     if (oldEntity is not null)
                     {
                         await ReversePostingsAsync(db, kind, oldEntity.Id, actorId, date, ct);
@@ -347,13 +346,14 @@ public sealed partial class MoneyEntryService
             .ToArrayAsync(ct);
         foreach (var move in cash)
         {
-            if (move.CashSession!.ClosedAt != null || move.BusinessDate != date)
+            var drawerId = move.CashDrawerId != 0 ? move.CashDrawerId : (move.CashSession?.CashDrawerId ?? 0);
+            var drawer = move.CashDrawer
+                ?? await db.CashDrawers.SingleOrDefaultAsync(d => d.Id == drawerId, ct)
+                ?? await CashDrawerService.RequireDrawerAsync(db, actorId, ct, move.CashSession?.StockLocationId);
+
+            CashDrawerService.Append(db, drawer, new CashMovement
             {
-                throw new ValidationException("This entry belongs to a closed cash drawer or another working day.");
-            }
-            CashDrawerService.Append(db, move.CashSession, new CashMovement
-            {
-                RequestId = Guid.NewGuid(), BusinessDate = move.BusinessDate, Kind = CashMovementKind.Reversal,
+                RequestId = Guid.NewGuid(), BusinessDate = date, Kind = CashMovementKind.Reversal,
                 Amount = -move.Amount, Notes = $"Reversal {kind} #{id}: previous cash posting",
                 ReversesMovementId = move.Id, CreatedByUserId = actorId
             });
@@ -364,13 +364,9 @@ public sealed partial class MoneyEntryService
             .ToArrayAsync(ct);
         foreach (var move in bank)
         {
-            if (move.BusinessDate != date)
-            {
-                throw new ValidationException("This posting belongs to another working day.");
-            }
             await FinancialPosting.BankAsync(db, new BankMovement
             {
-                RequestId = Guid.NewGuid(), BusinessDate = move.BusinessDate, Kind = CashMovementKind.Reversal,
+                RequestId = Guid.NewGuid(), BusinessDate = date, Kind = CashMovementKind.Reversal,
                 Method = move.Method, Amount = -move.Amount, Notes = $"Reversal {kind} #{id}: previous bank posting",
                 ReversesMovementId = move.Id, CreatedByUserId = actorId
             }, ct);
@@ -382,10 +378,6 @@ public sealed partial class MoneyEntryService
                 .ToArrayAsync(ct);
             foreach (var entry in clearing)
             {
-                if (entry.BusinessDate != date)
-                {
-                    throw new ValidationException("This clearing entry belongs to another working day.");
-                }
                 entry.Status = PaymentClearingStatus.Reversed;
                 entry.Notes = string.IsNullOrWhiteSpace(entry.Notes)
                     ? $"Reversal {kind} #{id}: previous clearing posting"
@@ -408,7 +400,6 @@ public sealed partial class MoneyEntryService
             await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
 
             var date = await AccountingCalendar.SelectedAsync(db, actorId, configuration, ct);
-            AccountingCalendar.ValidateExpected(date, WorkingDayRequest.Date);
             await AccountingCalendar.EnsureOpenAsync(db, date, ct);
             var at = AccountingCalendar.At(date, configuration);
             var utcNow = DateTimeOffset.UtcNow;
@@ -494,12 +485,6 @@ public sealed partial class MoneyEntryService
                 if (!admin && expense.CreatedByUserId != actorId)
                 {
                     throw new UnauthorizedAccessException("Only the creator or admin can void this expense.");
-                }
-
-                var occurred = expense.OccurredAt;
-                if (DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(occurred, AccountingCalendar.Zone(configuration)).DateTime) != date)
-                {
-                    throw new ValidationException("Only expenses in the current open working day can be voided.");
                 }
 
                 var before = Snapshot(expense);
@@ -603,30 +588,15 @@ public sealed partial class MoneyEntryService
         }, ct);
     }
 
-    private sealed class BatchPosting(AppDbContext db, int actorId, DateOnly date, CancellationToken ct)
+    private sealed class BatchPosting(AppDbContext db, int actorId, DateOnly defaultDate, CancellationToken ct)
     {
-        private readonly Dictionary<int, CashSession> sessions = [];
-
         public async Task PostAsync(PaymentMethod method, decimal amount, CashMovementKind kind, string notes,
-            Payment? payment = null, SupplierPayment? supplierPayment = null, Expense? expense = null, int? cashLocationId = null)
+            Payment? payment = null, SupplierPayment? supplierPayment = null, Expense? expense = null, int? cashLocationId = null, DateOnly? rowDate = null)
         {
-            CashSession? session = null;
-            if (method == PaymentMethod.Cash)
-            {
-                var key = cashLocationId ?? 0;
-                if (!sessions.TryGetValue(key, out session))
-                {
-                    session = await CashDrawerService.RequireOpenAsync(db, actorId, ct, cashLocationId);
-                    sessions[key] = session;
-                    if (session.StockLocationId is not null)
-                    {
-                        sessions[session.StockLocationId.Value] = session;
-                    }
-                }
-            }
+            var date = rowDate ?? defaultDate;
             await FinancialPosting.PostAsync(db, actorId, method, amount, kind, notes, date, ct,
                 payment: payment, supplierPayment: supplierPayment, expense: expense,
-                cashSession: session, periodValidated: true);
+                cashLocationId: cashLocationId, cashSession: null, periodValidated: true);
         }
     }
 }

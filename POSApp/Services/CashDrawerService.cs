@@ -2,7 +2,10 @@ using System.ComponentModel.DataAnnotations;
 using System.Data;
 using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
+using POSApp.Client.DTOs;
+using POSApp.Client.Enums;
 using POSApp.Persistence;
+using POSApp.Persistence.Entities;
 
 namespace POSApp.Services;
 
@@ -12,41 +15,142 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
     {
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var actorId = await StoreAccess.RequireAsync(db, actor, AppRoles.InventoryManager, ct);
+        var actorId = await StoreAccess.RequireAsync(db, actor, AppRoles.SalesAssociate, ct);
         var admin = await IsAdminAsync(db, actorId, ct);
         var date = await AccountingCalendar.SelectedAsync(db, actorId, configuration, ct);
         var locations = await db.StockLocations.Where(location => location.CanSell && !location.IsDeleted)
             .OrderBy(location => location.Name).Select(location => new { location.Id, location.Name }).ToArrayAsync(ct);
         var drawers = await db.CashDrawers.AsNoTracking().ToArrayAsync(ct);
-        var sessions = await db.CashSessions.Where(session => session.BusinessDate == date)
-            .Select(session => new { session.CashDrawerId, session.Id, session.ClosedAt }).ToArrayAsync(ct);
         var selected = await db.Users.Where(user => user.Id == actorId).Select(user => user.CashLocationId).SingleAsync(ct);
         if (!locations.Any(location => location.Id == selected))
         {
             selected = locations.Length == 1 ? locations[0].Id : null;
         }
-        var currentId = drawers.SingleOrDefault(drawer => drawer.StockLocationId == selected && selected != null)?.CurrentSessionId;
-        var current = currentId is null ? null : await Rows(db, db.CashSessions.Where(session => session.Id == currentId)).SingleOrDefaultAsync(ct);
+
         var selectedDrawer = drawers.SingleOrDefault(drawer => drawer.StockLocationId == selected && selected != null);
-        var closedTodaySessionId = (current is null && selectedDrawer != null)
-            ? sessions.Where(s => s.CashDrawerId == selectedDrawer.Id && s.ClosedAt != null).OrderByDescending(s => s.Id).Select(s => (int?)s.Id).FirstOrDefault()
-            : null;
-        var closedTodaySession = closedTodaySessionId is null ? null : await Rows(db, db.CashSessions.Where(session => session.Id == closedTodaySessionId.Value)).SingleOrDefaultAsync(ct);
-        var visible = db.CashSessions.Where(session => admin || session.CashDrawer!.StockLocationId == selected);
-        var viewed = sessionId is null ? (current ?? closedTodaySession) : await Rows(db, visible.Where(session => session.Id == sessionId)).SingleOrDefaultAsync(ct);
-        var recent = await Rows(db, visible.OrderByDescending(session => session.Id)).ToPageAsync(sessionPage, pageSize, ct);
-        var movements = viewed is null ? null : await db.CashMovements.Where(move => move.CashSessionId == viewed.Id)
+        var drawerId = selectedDrawer?.Id;
+
+        // Pending count for the selected location (if any)
+        var pendingCountEntity = drawerId is null ? null : await db.CashCounts.AsNoTracking()
+            .Where(c => c.CashDrawerId == drawerId.Value && c.Status == CashCountStatus.PendingReview && !c.IsVoided)
+            .Include(c => c.CountedByUser)
+            .OrderByDescending(c => c.Id)
+            .FirstOrDefaultAsync(ct);
+
+        var pendingCount = pendingCountEntity is null ? null : new CashCountRow(
+            pendingCountEntity.Id,
+            pendingCountEntity.StockLocationId,
+            selectedDrawer?.StockLocationId != null ? locations.FirstOrDefault(l => l.Id == selectedDrawer.StockLocationId)?.Name ?? "Drawer" : "Drawer",
+            pendingCountEntity.CountedByUser?.UserName ?? "Staff",
+            pendingCountEntity.CountedAt,
+            pendingCountEntity.CountedCash,
+            pendingCountEntity.ExpectedCash,
+            pendingCountEntity.Difference,
+            pendingCountEntity.Status,
+            pendingCountEntity.Notes,
+            pendingCountEntity.CompletedAt,
+            pendingCountEntity.VarianceAcceptedAt,
+            pendingCountEntity.IsVoided);
+
+        // Last completed or accepted count
+        var lastCountEntity = drawerId is null ? null : await db.CashCounts.AsNoTracking()
+            .Where(c => c.CashDrawerId == drawerId.Value && (c.Status == CashCountStatus.Completed || c.Status == CashCountStatus.VarianceAccepted) && !c.IsVoided)
+            .Include(c => c.CountedByUser)
+            .OrderByDescending(c => c.Id)
+            .FirstOrDefaultAsync(ct);
+
+        var lastCount = lastCountEntity is null ? null : new CashCountRow(
+            lastCountEntity.Id,
+            lastCountEntity.StockLocationId,
+            selectedDrawer?.StockLocationId != null ? locations.FirstOrDefault(l => l.Id == selectedDrawer.StockLocationId)?.Name ?? "Drawer" : "Drawer",
+            lastCountEntity.CountedByUser?.UserName ?? "Staff",
+            lastCountEntity.CountedAt,
+            lastCountEntity.CountedCash,
+            lastCountEntity.ExpectedCash,
+            lastCountEntity.Difference,
+            lastCountEntity.Status,
+            lastCountEntity.Notes,
+            lastCountEntity.CompletedAt,
+            lastCountEntity.VarianceAcceptedAt,
+            lastCountEntity.IsVoided);
+
+        // Recent counts history
+        var countHistoryEntities = await db.CashCounts.AsNoTracking()
+            .Where(c => admin || c.StockLocationId == selected)
+            .Include(c => c.StockLocation)
+            .Include(c => c.CountedByUser)
+            .OrderByDescending(c => c.CountedAt)
+            .Take(50)
+            .ToListAsync(ct);
+
+        var countHistory = countHistoryEntities.Select(c => new CashCountRow(
+            c.Id,
+            c.StockLocationId,
+            c.StockLocation?.Name ?? "Drawer",
+            c.CountedByUser?.UserName ?? "Staff",
+            c.CountedAt,
+            c.CountedCash,
+            c.ExpectedCash,
+            c.Difference,
+            c.Status,
+            c.Notes,
+            c.CompletedAt,
+            c.VarianceAcceptedAt,
+            c.IsVoided)).ToArray();
+
+        // Recent movements for selected drawer
+        var movementsQuery = db.CashMovements.AsNoTracking()
+            .Where(move => (drawerId != null && move.CashDrawerId == drawerId.Value)
+                || (sessionId != null && move.CashSessionId == sessionId.Value));
+
+        var movements = drawerId is null && sessionId is null ? null : await movementsQuery
             .OrderByDescending(move => move.Id)
             .Select(move => new CashMovementRow(move.CreatedAt, move.Kind, move.Amount, move.Notes))
             .ToPageAsync(movementPage, pageSize, ct);
-        var breakdown = viewed is null ? [] : await db.CashMovements.Where(move => move.CashSessionId == viewed.Id)
+
+        var breakdown = drawerId is null && sessionId is null ? [] : await movementsQuery
             .GroupBy(move => move.Kind).Select(group => new CashSummary(group.Key, group.Sum(move => move.Amount))).ToArrayAsync(ct);
-        return new(current, viewed, movements?.Items ?? [], breakdown, recent.Items, admin)
+
+
+
+        // Sessions fallback for legacy inspection
+        var sessions = await db.CashSessions.Where(session => session.OpenedAt >= DateTimeOffset.UtcNow.Date)
+            .Select(session => new { session.CashDrawerId, session.Id, session.ClosedAt }).ToArrayAsync(ct);
+        var visible = db.CashSessions.Where(session => admin || session.CashDrawer!.StockLocationId == selected);
+        var recent = await Rows(db, visible.OrderByDescending(session => session.Id)).ToPageAsync(sessionPage, pageSize, ct);
+        var viewed = sessionId is null ? null : await Rows(db, visible.Where(session => session.Id == sessionId)).SingleOrDefaultAsync(ct);
+
+        // Synthesize current CashSessionRow if viewed is null to preserve legacy DTO contract
+        var current = viewed;
+        if (current is null && selectedDrawer != null)
         {
+            current = new CashSessionRow(
+                selectedDrawer.Id,
+                "Continuous",
+                selectedDrawer.LastCountedAt ?? selectedDrawer.CreatedAt,
+                null,
+                selectedDrawer.OpeningBalance,
+                selectedDrawer.CurrentCash,
+                selectedDrawer.LastCountedCash,
+                (selectedDrawer.LastCountedCash ?? selectedDrawer.CurrentCash) - selectedDrawer.CurrentCash,
+                "Live continuous drawer")
+            {
+                DrawerId = selectedDrawer.Id,
+                LocationId = selectedDrawer.StockLocationId,
+                Location = locations.FirstOrDefault(l => l.Id == selectedDrawer.StockLocationId)?.Name ?? "Main",
+                BusinessDate = date
+            };
+        }
+
+        return new(current, viewed ?? current, movements?.Items ?? [], breakdown, recent.Items, admin)
+        {
+            CurrentCash = selectedDrawer?.CurrentCash ?? 0,
             MovementPagination = movements?.Pagination,
             SessionPagination = recent.Pagination,
             SelectedLocationId = selected,
-            ClosedTodaySession = closedTodaySession,
+            PendingCount = pendingCount,
+            LastCount = lastCount,
+            CountHistory = countHistory,
             Locations = locations.Select(location =>
             {
                 var drawer = drawers.SingleOrDefault(drawer => drawer.StockLocationId == location.Id);
@@ -56,12 +160,14 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
                 var isOpenToday = activeSession != null;
                 var isClosedToday = !isOpenToday && closedSession != null;
                 return new CashLocationRow(location.Id, location.Name, drawer?.CurrentCash ?? 0,
-                    drawer?.OpeningDate != null, isOpenToday ? activeSession!.Id : null, isClosedToday)
+                    drawer?.OpeningDate != null, activeSession?.Id, isClosedToday)
                 {
-                    ClosedSessionId = closedSession?.Id
+                    ClosedSessionId = closedSession?.Id,
+                    LastCountedAt = drawer?.LastCountedAt,
+                    LastCountedCash = drawer?.LastCountedCash
                 };
             }).ToArray(),
-            Unassigned = admin ? drawers.Where(drawer => drawer.StockLocationId == null && (drawer.CurrentCash != 0 || drawer.CurrentSessionId != null))
+            Unassigned = admin ? drawers.Where(drawer => drawer.StockLocationId == null && drawer.CurrentCash != 0)
                 .Select(drawer => new LegacyCashDrawerRow(drawer.Id, drawer.CurrentCash, drawer.CurrentSessionId)).ToArray() : []
         };
     }
@@ -75,8 +181,239 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
         DrawerId = session.CashDrawerId,
         LocationId = session.CashDrawer!.StockLocationId,
         Location = session.CashDrawer.StockLocation == null ? "Legacy / unassigned" : session.CashDrawer.StockLocation.Name,
-        BusinessDate = session.BusinessDate
+        BusinessDate = DateOnly.FromDateTime(session.OpenedAt.DateTime)
     });
+
+    public async Task<int> SubmitCountAsync(ClaimsPrincipal actor, CashCountInput input, CancellationToken ct = default)
+    {
+        return await StoreOperation.RunAsync<int>(async () =>
+        {
+            var counted = input.CountedCash ?? throw new ValidationException("Enter the physically counted cash.");
+            StoreAccess.Money(counted, "Counted cash");
+            if (input.Notes?.Length > 2000)
+            {
+                throw new ValidationException("Notes must be at most 2,000 characters.");
+            }
+            await using var scope = scopes.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var actorId = await StoreAccess.RequireAsync(db, actor, AppRoles.SalesAssociate, ct);
+            await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
+
+            var locationId = input.LocationId != 0 ? input.LocationId : await ResolveLocationAsync(db, actorId, ct);
+            await ValidateLocationAsync(db, locationId, ct);
+            var drawer = await RequireDrawerAsync(db, actorId, ct, locationId);
+
+            var now = DateTimeOffset.UtcNow;
+            var date = AccountingCalendar.Today(configuration);
+            var expected = drawer.CurrentCash;
+
+            var difference = counted - expected;
+            if (difference != 0 && string.IsNullOrWhiteSpace(input.Notes))
+            {
+                throw new ValidationException("Add a note explaining the shortage or overage.");
+            }
+
+            var status = difference == 0 ? CashCountStatus.Completed : CashCountStatus.PendingReview;
+
+            var count = new CashCount
+            {
+                RequestId = input.RequestId != Guid.Empty ? input.RequestId : Guid.NewGuid(),
+                CashDrawerId = drawer.Id,
+                StockLocationId = locationId,
+                BusinessDate = date,
+                CountedAt = now,
+                CountedByUserId = actorId,
+                CountedCash = counted,
+                ExpectedCash = expected,
+                Notes = input.Notes?.Trim(),
+                Status = status,
+                CompletedAt = status == CashCountStatus.Completed ? now : null,
+                CompletedByUserId = status == CashCountStatus.Completed ? actorId : null
+            };
+            db.CashCounts.Add(count);
+
+            drawer.LastCountedAt = now;
+            drawer.LastCountedCash = counted;
+            drawer.UpdatedAt = now;
+            drawer.UpdatedByUserId = actorId;
+
+            db.RecordChanges.Add(new RecordChange
+            {
+                RequestId = Guid.NewGuid(),
+                RecordType = "cash_count",
+                RecordId = count.Id,
+                Action = status == CashCountStatus.Completed ? "CountBalanced" : "CountPendingReview",
+                Reason = input.Notes?.Trim() ?? "Physical cash count recorded",
+                Before = $"{{\"Expected\": {expected}}}",
+                After = $"{{\"Counted\": {counted}, \"Difference\": {difference}, \"Status\": \"{status}\"}}",
+                CreatedByUserId = actorId
+            });
+
+            await db.SaveChangesAsync(ct);
+            await transaction.CommitAsync(ct);
+            return count.Id;
+        }, ct);
+    }
+
+    public async Task AcceptVarianceAsync(ClaimsPrincipal actor, AcceptVarianceInput input, CancellationToken ct = default)
+    {
+        await StoreOperation.RunAsync(async () =>
+        {
+            if (!input.Confirmed)
+            {
+                throw new ValidationException("Confirm acceptance of this cash variance.");
+            }
+            await using var scope = scopes.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var actorId = await StoreAccess.RequireAsync(db, actor, AppRoles.Admin, ct);
+            await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
+
+            var count = await db.CashCounts.Include(c => c.CashDrawer)
+                .SingleOrDefaultAsync(c => c.Id == input.CountId, ct)
+                ?? throw new ValidationException("Cash count record not found.");
+
+            if (count.Status != CashCountStatus.PendingReview)
+            {
+                throw new ValidationException("This cash count is not awaiting variance approval.");
+            }
+
+
+
+            var note = string.IsNullOrWhiteSpace(input.Notes) ? count.Notes : input.Notes.Trim();
+            if (string.IsNullOrWhiteSpace(note))
+            {
+                throw new ValidationException("A note is required when accepting a cash variance.");
+            }
+
+            var now = DateTimeOffset.UtcNow;
+            var movement = new CashMovement
+            {
+                RequestId = Guid.NewGuid(),
+                CashDrawerId = count.CashDrawerId,
+                BusinessDate = count.BusinessDate,
+                Kind = CashMovementKind.Variance,
+                Amount = count.Difference,
+                Notes = $"Cash count #{count.Id} variance · {note}",
+                CreatedByUserId = actorId,
+                CreatedAt = count.CountedAt
+            };
+            Append(db, count.CashDrawer!, movement);
+
+            count.VarianceMovement = movement;
+            count.Status = CashCountStatus.VarianceAccepted;
+            count.VarianceAcceptedAt = now;
+            count.VarianceAcceptedByUserId = actorId;
+            count.CompletedAt = now;
+            count.CompletedByUserId = actorId;
+            count.Notes = note;
+            count.UpdatedAt = now;
+            count.UpdatedByUserId = actorId;
+
+            db.RecordChanges.Add(new RecordChange
+            {
+                RequestId = Guid.NewGuid(),
+                RecordType = "cash_count",
+                RecordId = count.Id,
+                Action = "AcceptVariance",
+                Reason = note,
+                Before = $"{{\"Status\": \"PendingReview\", \"Variance\": {count.Difference}}}",
+                After = $"{{\"Status\": \"VarianceAccepted\", \"MovementId\": {movement.Id}}}",
+                CreatedByUserId = actorId
+            });
+
+            await db.SaveChangesAsync(ct);
+            await transaction.CommitAsync(ct);
+        }, ct);
+    }
+
+    public async Task VoidCountAsync(ClaimsPrincipal actor, int countId, string reason, CancellationToken ct = default)
+    {
+        await StoreOperation.RunAsync(async () =>
+        {
+            if (string.IsNullOrWhiteSpace(reason) || reason.Length > 2000)
+            {
+                throw new ValidationException("Enter a reason of up to 2,000 characters.");
+            }
+            await using var scope = scopes.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var actorId = await StoreAccess.RequireAsync(db, actor, AppRoles.Admin, ct);
+            await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
+
+            var count = await db.CashCounts.Include(c => c.CashDrawer).Include(c => c.VarianceMovement)
+                .SingleOrDefaultAsync(c => c.Id == countId, ct)
+                ?? throw new ValidationException("Cash count not found.");
+
+            if (count.IsVoided)
+            {
+                return;
+            }
+
+            // If a variance movement was already posted, reverse it
+            if (count.VarianceMovement is not null)
+            {
+                Append(db, count.CashDrawer!, new CashMovement
+                {
+                    RequestId = Guid.NewGuid(),
+                    CashDrawerId = count.CashDrawerId,
+                    BusinessDate = count.BusinessDate,
+                    Kind = CashMovementKind.Reversal,
+                    Amount = -count.VarianceMovement.Amount,
+                    Notes = $"Reversal of count #{count.Id} variance: {reason.Trim()}",
+                    ReversesMovementId = count.VarianceMovement.Id,
+                    CreatedByUserId = actorId
+                });
+            }
+
+            count.IsVoided = true;
+            count.VoidedAt = DateTimeOffset.UtcNow;
+            count.VoidedByUserId = actorId;
+            count.VoidReason = reason.Trim();
+            count.Status = CashCountStatus.Voided;
+            count.UpdatedAt = DateTimeOffset.UtcNow;
+            count.UpdatedByUserId = actorId;
+
+            await db.SaveChangesAsync(ct);
+            await transaction.CommitAsync(ct);
+        }, ct);
+    }
+
+    public static async Task<decimal> GetCashBalanceAtAsync(AppDbContext db, int drawerId, DateTimeOffset asOf, CancellationToken ct = default)
+    {
+        var drawer = await db.CashDrawers.AsNoTracking().SingleOrDefaultAsync(d => d.Id == drawerId, ct);
+        if (drawer is null) return 0m;
+
+        // If querying right now (within 30 seconds of UtcNow), return live stored CurrentCash
+        if (Math.Abs((DateTimeOffset.UtcNow - asOf).TotalSeconds) < 30)
+        {
+            return drawer.CurrentCash;
+        }
+
+        // Find nearest accepted Physical Cash Count checkpoint at or before 'asOf'
+        var checkpoint = await db.CashCounts.AsNoTracking()
+            .Where(c => c.CashDrawerId == drawerId && (c.Status == CashCountStatus.Completed || c.Status == CashCountStatus.VarianceAccepted))
+            .Where(c => c.CountedAt <= asOf && !c.IsVoided)
+            .OrderByDescending(c => c.CountedAt)
+            .Select(c => new { c.CountedAt, c.CountedCash })
+            .FirstOrDefaultAsync(ct);
+
+        var baseTimestamp = checkpoint?.CountedAt ?? DateTimeOffset.MinValue;
+        var baseBalance = checkpoint?.CountedCash ?? drawer.OpeningBalance;
+
+        // Sum only delta movements between the checkpoint and asOf
+        var delta = await db.CashMovements.AsNoTracking()
+            .Where(m => m.CashDrawerId == drawerId && m.CreatedAt > baseTimestamp && m.CreatedAt <= asOf)
+            .SumAsync(m => (decimal?)m.Amount, ct) ?? 0m;
+
+        return baseBalance + delta;
+    }
+
+    public async Task<decimal> GetCashBalanceAtAsync(ClaimsPrincipal actor, int drawerId, DateTimeOffset asOf, CancellationToken ct = default)
+    {
+        await using var scope = scopes.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await StoreAccess.RequireAsync(db, actor, AppRoles.InventoryManager, ct);
+        return await GetCashBalanceAtAsync(db, drawerId, asOf, ct);
+    }
 
     public async Task SelectLocationAsync(ClaimsPrincipal actor, int locationId, CancellationToken ct = default)
     {
@@ -109,53 +446,14 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
             }
             await using var scope = scopes.CreateAsyncScope();
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            var actorId = await StoreAccess.RequireAsync(db, actor, AppRoles.InventoryManager, ct);
+            var actorId = await StoreAccess.RequireAsync(db, actor, AppRoles.SalesAssociate, ct);
             await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
-            var previous = await db.CashSessions.SingleOrDefaultAsync(session => session.RequestId == input.RequestId, ct);
-            if (previous is not null)
-            {
-                if (previous.CreatedByUserId != actorId)
-                {
-                    throw new UnauthorizedAccessException();
-                }
-                if ((input.StockLocationId is not null && previous.StockLocationId != input.StockLocationId.Value)
-                    || (input.OpeningCash != 0 && previous.OpeningCash != input.OpeningCash))
-                {
-                    throw new ValidationException("This drawer opening was already saved with different values. Review the existing drawer.");
-                }
-                return previous.Id;
-            }
             var locationId = input.StockLocationId ?? await ResolveLocationAsync(db, actorId, ct);
             await ValidateLocationAsync(db, locationId, ct);
-            var date = await AccountingCalendar.SelectedAsync(db, actorId, configuration, ct);
-            AccountingCalendar.ValidateExpected(date, WorkingDayRequest.Date);
-            await AccountingCalendar.EnsureOpenAsync(db, date, ct);
+            var date = AccountingCalendar.Today(configuration);
             var drawer = await db.CashDrawers.SingleOrDefaultAsync(drawer => drawer.StockLocationId == locationId, ct);
-            if (drawer?.CurrentSessionId != null || await db.CashSessions.AnyAsync(session => session.CashDrawerId == (drawer == null ? -1 : drawer.Id) && session.BusinessDate == date, ct))
-            {
-                throw new ValidationException("This location's drawer has already been opened for the working day. A counted closing is final.");
-            }
-            var day = await db.DayFinances.SingleOrDefaultAsync(day => day.Date == date, ct);
-            if (day is null)
-            {
-                day = new DayFinance
-                {
-                    Date = date,
-                    OpeningCash = await db.CashDrawers.Select(drawer => (decimal?)drawer.CurrentCash).SumAsync(ct) ?? 0,
-                    CreatedByUserId = actorId
-                };
-                db.DayFinances.Add(day);
-            }
-            if (!await db.WorkingDays.AnyAsync(day => day.Id == 1, ct))
-            {
-                db.WorkingDays.Add(new WorkingDay { Id = 1, Date = date });
-            }
             if (drawer is null)
             {
-                if (input.OpeningCash > 0 && await db.DayFinances.AnyAsync(day => day.ClosedAt != null, ct))
-                {
-                    throw new ValidationException("New locations start at zero after initial setup. Fund this drawer using a cash transfer or a recorded cash-in.");
-                }
                 drawer = new CashDrawer
                 {
                     StockLocationId = locationId,
@@ -164,39 +462,32 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
                     CurrentCash = input.OpeningCash,
                     CreatedByUserId = actorId
                 };
-                day.OpeningCash += input.OpeningCash;
                 db.CashDrawers.Add(drawer);
                 await db.SaveChangesAsync(ct);
             }
             else if (drawer.OpeningDate is null)
             {
-                if (input.OpeningCash > 0 && await db.DayFinances.AnyAsync(day => day.ClosedAt != null, ct))
-                {
-                    throw new ValidationException("New locations start at zero after initial setup. Fund this drawer using a cash transfer or a recorded cash-in.");
-                }
                 drawer.OpeningBalance = input.OpeningCash;
                 drawer.OpeningDate = date;
                 drawer.CurrentCash = input.OpeningCash;
-                day.OpeningCash += input.OpeningCash;
                 await db.SaveChangesAsync(ct);
             }
-            day.ExpectedCash = day.OpeningCash;
+
             var session = new CashSession
             {
                 RequestId = input.RequestId,
                 CashDrawer = drawer,
                 StockLocationId = locationId,
-                BusinessDate = date,
                 OpenedAt = DateTimeOffset.UtcNow,
                 OpeningCash = drawer.CurrentCash,
                 ExpectedCash = drawer.CurrentCash,
                 CreatedByUserId = actorId
             };
             db.CashSessions.Add(session);
-            await db.SaveChangesAsync(ct);
             drawer.CurrentSession = session;
-            drawer.UpdatedAt = DateTimeOffset.UtcNow;
-            drawer.UpdatedByUserId = actorId;
+            drawer.CurrentSessionId = session.Id;
+            await db.SaveChangesAsync(ct);
+
             (await db.Users.SingleAsync(user => user.Id == actorId, ct)).CashLocationId = locationId;
             await db.SaveChangesAsync(ct);
             await transaction.CommitAsync(ct);
@@ -216,62 +507,74 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
             }
             await using var scope = scopes.CreateAsyncScope();
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            var actorId = await StoreAccess.RequireAsync(db, actor, AppRoles.InventoryManager, ct);
+            var actorId = await StoreAccess.RequireAsync(db, actor, AppRoles.SalesAssociate, ct);
             await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
-            var session = await db.CashSessions.Include(session => session.CashDrawer)
-                .SingleOrDefaultAsync(session => session.Id == input.SessionId, ct)
-                ?? throw new ValidationException("Cash drawer not found.");
-            if (session.ClosedAt is not null)
-            {
-                if (session.ActualClosingCash != actual || session.ClosingNotes != input.Notes?.Trim())
-                {
-                    throw new ValidationException("This drawer is already closed with a different count. An administrator must reopen it before correcting the count.");
-                }
-                return;
-            }
-            if (session.CashDrawer!.StockLocationId == null && !await IsAdminAsync(db, actorId, ct))
-            {
-                throw new UnauthorizedAccessException();
-            }
-            if (!await IsAdminAsync(db, actorId, ct) && session.CashDrawer.StockLocationId != await ResolveLocationAsync(db, actorId, ct))
-            {
-                throw new ValidationException("Select this location before closing its drawer.");
-            }
-            if (input.ExpectedCash is not null && input.ExpectedCash.Value != session.ExpectedCash)
-            {
-                throw new ValidationException("Cash movements changed after review. Count and review the drawer again.");
-            }
-            await AccountingCalendar.EnsureOpenAsync(db, session.BusinessDate, ct);
-            var before = ClosureService.DrawerSnapshot(session);
-            await BalanceIntegrityService.CheckDrawerAsync(db, session, ct);
-            var difference = actual - session.ExpectedCash;
+
+            var session = await db.CashSessions.Include(s => s.CashDrawer)
+                .SingleOrDefaultAsync(s => s.Id == input.SessionId, ct);
+
+            var drawer = session?.CashDrawer ?? await RequireDrawerAsync(db, actorId, ct);
+
+            var now = DateTimeOffset.UtcNow;
+            var difference = actual - drawer.CurrentCash;
             if (difference != 0 && string.IsNullOrWhiteSpace(input.Notes))
             {
                 throw new ValidationException("Add a note explaining the shortage or overage.");
             }
-            session.ExpectedClosingCash = session.ExpectedCash;
-            session.ActualClosingCash = actual;
-            session.Difference = difference;
-            session.ClosingNotes = input.Notes?.Trim();
-            session.ClosedAt = DateTimeOffset.UtcNow;
-            session.UpdatedAt = session.ClosedAt;
-            session.UpdatedByUserId = actorId;
-            session.CashDrawer.CurrentCash = actual;
-            session.CashDrawer.CurrentSession = null;
-            session.CashDrawer.CurrentSessionId = null;
-            session.CashDrawer.UpdatedAt = session.ClosedAt;
-            session.CashDrawer.UpdatedByUserId = actorId;
-            db.RecordChanges.Add(new RecordChange
+
+            var count = new CashCount
             {
                 RequestId = Guid.NewGuid(),
-                RecordType = "drawer",
-                RecordId = session.Id,
-                Action = "Close",
-                Reason = input.Notes?.Trim() ?? "Drawer counted and closed",
-                Before = before,
-                After = ClosureService.DrawerSnapshot(session),
-                CreatedByUserId = actorId
-            });
+                CashDrawerId = drawer.Id,
+                StockLocationId = drawer.StockLocationId ?? 0,
+                BusinessDate = AccountingCalendar.Today(configuration),
+                CountedAt = now,
+                CountedByUserId = actorId,
+                CountedCash = actual,
+                ExpectedCash = drawer.CurrentCash,
+                Notes = input.Notes?.Trim(),
+                Status = difference == 0 ? CashCountStatus.Completed : CashCountStatus.VarianceAccepted,
+                CompletedAt = now,
+                CompletedByUserId = actorId
+            };
+            db.CashCounts.Add(count);
+
+            if (difference != 0)
+            {
+                var varianceMove = new CashMovement
+                {
+                    RequestId = Guid.NewGuid(),
+                    CashDrawerId = drawer.Id,
+                    BusinessDate = count.BusinessDate,
+                    Kind = CashMovementKind.Variance,
+                    Amount = difference,
+                    Notes = $"Closing count variance · {input.Notes?.Trim()}",
+                    CreatedByUserId = actorId
+                };
+                Append(db, drawer, varianceMove);
+                count.VarianceMovement = varianceMove;
+                count.VarianceAcceptedAt = now;
+                count.VarianceAcceptedByUserId = actorId;
+            }
+
+            drawer.LastCountedAt = now;
+            drawer.LastCountedCash = actual;
+            drawer.CurrentSession = null;
+            drawer.CurrentSessionId = null;
+            drawer.UpdatedAt = now;
+            drawer.UpdatedByUserId = actorId;
+
+            if (session != null)
+            {
+                session.ExpectedClosingCash = session.ExpectedCash;
+                session.ActualClosingCash = actual;
+                session.Difference = difference;
+                session.ClosingNotes = input.Notes?.Trim();
+                session.ClosedAt = now;
+                session.UpdatedAt = now;
+                session.UpdatedByUserId = actorId;
+            }
+
             await db.SaveChangesAsync(ct);
             await transaction.CommitAsync(ct);
         }, ct);
@@ -288,64 +591,46 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
             await ValidateLocationAsync(db, input.LocationId, ct);
             var drawer = await db.CashDrawers.SingleOrDefaultAsync(drawer => drawer.Id == input.DrawerId && drawer.StockLocationId == null, ct)
                 ?? throw new ValidationException("Choose an unassigned legacy drawer.");
-            var existing = await db.CashDrawers.Include(drawer => drawer.CurrentSession)
-                .SingleOrDefaultAsync(drawer => drawer.StockLocationId == input.LocationId, ct);
+            var existing = await db.CashDrawers.SingleOrDefaultAsync(drawer => drawer.StockLocationId == input.LocationId, ct);
             if (existing is not null)
             {
-                if (drawer.CurrentSessionId != null)
-                {
-                    throw new ValidationException("Count and close the legacy drawer before consolidating its cash into another location.");
-                }
                 if (drawer.CurrentCash == 0)
                 {
                     return;
                 }
                 var date = await AccountingCalendar.SelectedAsync(db, actorId, configuration, ct);
-                AccountingCalendar.ValidateExpected(date, WorkingDayRequest.Date);
-                await AccountingCalendar.EnsureOpenAsync(db, date, ct);
-                var destination = await RequireOpenAsync(db, actorId, ct, input.LocationId);
                 var amount = drawer.CurrentCash;
-                var source = new CashSession
-                {
-                    RequestId = Guid.NewGuid(),
-                    CashDrawer = drawer,
-                    BusinessDate = date,
-                    OpeningCash = amount,
-                    ExpectedCash = amount,
-                    OpenedAt = DateTimeOffset.UtcNow,
-                    CreatedByUserId = actorId
-                };
-                db.CashSessions.Add(source);
                 var transfer = new CashTransfer
                 {
                     RequestId = Guid.NewGuid(),
                     SourceDrawer = drawer,
-                    DestinationDrawer = destination.CashDrawer,
+                    DestinationDrawer = existing,
                     BusinessDate = date,
                     Amount = amount,
                     Notes = "Legacy cash consolidated into selected location",
                     CreatedByUserId = actorId
                 };
                 db.CashTransfers.Add(transfer);
-                foreach (var (session, value) in new[] { (source, -amount), (destination, amount) })
+                Append(db, drawer, new CashMovement
                 {
-                    Append(db, session, new CashMovement
-                    {
-                        RequestId = Guid.NewGuid(),
-                        BusinessDate = date,
-                        Kind = CashMovementKind.Transfer,
-                        Amount = value,
-                        CashTransfer = transfer,
-                        Notes = transfer.Notes,
-                        CreatedByUserId = actorId
-                    });
-                }
-                source.ExpectedClosingCash = 0;
-                source.ActualClosingCash = 0;
-                source.Difference = 0;
-                source.ClosedAt = DateTimeOffset.UtcNow;
-                source.UpdatedByUserId = actorId;
-                source.ClosingNotes = "Counted legacy cash moved in full to the selected location";
+                    RequestId = Guid.NewGuid(),
+                    BusinessDate = date,
+                    Kind = CashMovementKind.Transfer,
+                    Amount = -amount,
+                    CashTransfer = transfer,
+                    Notes = transfer.Notes,
+                    CreatedByUserId = actorId
+                });
+                Append(db, existing, new CashMovement
+                {
+                    RequestId = Guid.NewGuid(),
+                    BusinessDate = date,
+                    Kind = CashMovementKind.Transfer,
+                    Amount = amount,
+                    CashTransfer = transfer,
+                    Notes = transfer.Notes,
+                    CreatedByUserId = actorId
+                });
                 await db.SaveChangesAsync(ct);
                 await transaction.CommitAsync(ct);
                 return;
@@ -384,30 +669,25 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
                 }
                 return;
             }
-            var date = await AccountingCalendar.SelectedAsync(db, actorId, configuration, ct);
-            AccountingCalendar.ValidateExpected(date, WorkingDayRequest.Date);
-            await AccountingCalendar.EnsureOpenAsync(db, date, ct);
-            var source = await RequireOpenAsync(db, actorId, ct, input.SourceLocationId);
-            var destination = await RequireOpenAsync(db, actorId, ct, input.DestinationLocationId);
+            var source = await RequireDrawerAsync(db, actorId, ct, input.SourceLocationId);
+            var destination = await RequireDrawerAsync(db, actorId, ct, input.DestinationLocationId);
             var names = await db.StockLocations.Where(location => location.Id == input.SourceLocationId || location.Id == input.DestinationLocationId)
                 .ToDictionaryAsync(location => location.Id, location => location.Name, ct);
             var transfer = new CashTransfer
             {
                 RequestId = input.RequestId,
-                SourceDrawer = source.CashDrawer,
-                DestinationDrawer = destination.CashDrawer,
-                BusinessDate = date,
+                SourceDrawer = source,
+                DestinationDrawer = destination,
                 Amount = input.Amount,
                 Notes = input.Notes.Trim(),
                 CreatedByUserId = actorId
             };
             db.CashTransfers.Add(transfer);
-            foreach (var (session, amount) in new[] { (source, -input.Amount), (destination, input.Amount) })
+            foreach (var (drawer, amount) in new[] { (source, -input.Amount), (destination, input.Amount) })
             {
-                Append(db, session, new CashMovement
+                Append(db, drawer, new CashMovement
                 {
                     RequestId = Guid.NewGuid(),
-                    BusinessDate = date,
                     Kind = CashMovementKind.Transfer,
                     Amount = amount,
                     CashTransfer = transfer,
@@ -437,27 +717,22 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
             var previous = await db.CashMovements.SingleOrDefaultAsync(move => move.RequestId == input.RequestId, ct);
             if (previous is not null)
             {
-                if (previous.CreatedByUserId != actorId || previous.CashSessionId != input.SessionId
-                    || previous.Amount != (input.Payout ? -input.Amount : input.Amount)
-                    || previous.Kind != (input.Payout ? CashMovementKind.OwnerWithdrawal : CashMovementKind.OwnerContribution)
-                    || previous.Notes != input.Notes.Trim())
-                {
-                    throw new ValidationException("This cash movement was already saved with different values. Start a new entry.");
-                }
                 return;
             }
-            var session = await RequireOpenAsync(db, actorId, ct);
-            if (session.Id != input.SessionId)
+            int? locId = input.LocationId;
+            CashSession? session = null;
+            if (input.SessionId.HasValue)
             {
-                throw new ValidationException("The selected cash location changed. Reload before recording cash.");
+                session = await db.CashSessions.FirstOrDefaultAsync(s => s.Id == input.SessionId.Value, ct);
+                locId ??= session?.StockLocationId;
             }
-            var date = await AccountingCalendar.SelectedAsync(db, actorId, configuration, ct);
-            AccountingCalendar.ValidateExpected(date, WorkingDayRequest.Date);
-            await AccountingCalendar.EnsureOpenAsync(db, date, ct);
-            Append(db, session, new CashMovement
+            var drawer = await RequireDrawerAsync(db, actorId, ct, locId);
+            Append(db, drawer, new CashMovement
             {
-                BusinessDate = date,
                 RequestId = input.RequestId,
+                CashSession = session,
+                CashSessionId = session?.Id,
+                BusinessDate = session?.BusinessDate ?? AccountingCalendar.Today(configuration),
                 Kind = input.Payout ? CashMovementKind.OwnerWithdrawal : CashMovementKind.OwnerContribution,
                 Amount = input.Payout ? -input.Amount : input.Amount,
                 Notes = input.Notes.Trim(),
@@ -493,71 +768,99 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
         return locations[0];
     }
 
-    internal static async Task<CashSession> RequireOpenAsync(AppDbContext db, int actorId, CancellationToken ct, int? locationId = null)
+    internal static async Task<CashDrawer> RequireDrawerAsync(AppDbContext db, int actorId, CancellationToken ct, int? locationId = null)
     {
         var id = locationId ?? await ResolveLocationAsync(db, actorId, ct);
         await ValidateLocationAsync(db, id, ct);
-        var drawer = db.CashDrawers.Local.SingleOrDefault(drawer => drawer.StockLocationId == id)
-            ?? await db.CashDrawers.Include(drawer => drawer.CurrentSession).SingleOrDefaultAsync(drawer => drawer.StockLocationId == id, ct);
-        var session = drawer?.CurrentSession;
-        if (session is null || session.ClosedAt != null)
+        var drawer = db.CashDrawers.Local.SingleOrDefault(d => d.StockLocationId == id)
+            ?? await db.CashDrawers.SingleOrDefaultAsync(d => d.StockLocationId == id, ct);
+        if (drawer is null)
         {
-            throw new ValidationException("Open this selling location's cash drawer before completing sales or recording cash.");
+            drawer = new CashDrawer
+            {
+                StockLocationId = id,
+                OpeningBalance = 0m,
+                OpeningDate = DateOnly.FromDateTime(DateTimeOffset.UtcNow.DateTime),
+                CurrentCash = 0m,
+                CreatedByUserId = actorId
+            };
+            db.CashDrawers.Add(drawer);
+            await db.SaveChangesAsync(ct);
         }
-        var working = await db.WorkingDays.Where(day => day.Id == 1).Select(day => (DateOnly?)day.Date).SingleOrDefaultAsync(ct);
-        if (working != null && session.BusinessDate != working)
+        return drawer;
+    }
+
+    internal static void Append(AppDbContext db, CashDrawer drawer, CashMovement movement)
+    {
+        var newCash = drawer.CurrentCash + movement.Amount;
+        StoreAccess.Money(newCash, "Location cash balance");
+        drawer.CurrentCash = newCash;
+        drawer.UpdatedAt = DateTimeOffset.UtcNow;
+        drawer.UpdatedByUserId = movement.CreatedByUserId;
+        movement.CashDrawer = drawer;
+        movement.CashDrawerId = drawer.Id;
+        movement.BalanceAfter = newCash;
+
+        if (movement.CashSession != null)
         {
-            throw new ValidationException("This drawer belongs to another working day. Count and close it before continuing.");
+            movement.CashSession.ExpectedCash += movement.Amount;
+            movement.CashSession.UpdatedAt = DateTimeOffset.UtcNow;
         }
-        return session;
+        else if (movement.CashSessionId != null)
+        {
+            var sess = db.CashSessions.Local.FirstOrDefault(s => s.Id == movement.CashSessionId.Value)
+                ?? db.CashSessions.Find(movement.CashSessionId.Value);
+            if (sess != null)
+            {
+                sess.ExpectedCash += movement.Amount;
+                sess.UpdatedAt = DateTimeOffset.UtcNow;
+            }
+        }
+
+        db.CashMovements.Add(movement);
     }
 
     internal static void Append(AppDbContext db, CashSession session, CashMovement movement)
     {
-        var expected = session.ExpectedCash + movement.Amount;
-        StoreAccess.Money(expected, "Expected drawer cash");
-        session.ExpectedCash = expected;
-        session.CashDrawer!.CurrentCash += movement.Amount;
-        StoreAccess.Money(session.CashDrawer.CurrentCash, "Location cash balance");
-        session.CashDrawer.UpdatedAt = DateTimeOffset.UtcNow;
-        session.CashDrawer.UpdatedByUserId = movement.CreatedByUserId;
-        session.UpdatedAt = DateTimeOffset.UtcNow;
+        var drawer = session.CashDrawer ?? db.CashDrawers.Local.FirstOrDefault(d => d.Id == session.CashDrawerId)
+            ?? db.CashDrawers.Find(session.CashDrawerId);
+        if (drawer is null)
+        {
+            session.ExpectedCash += movement.Amount;
+            session.UpdatedAt = DateTimeOffset.UtcNow;
+            movement.CashSession = session;
+            movement.CashSessionId = session.Id;
+            db.CashMovements.Add(movement);
+            return;
+        }
         movement.CashSession = session;
-        db.CashMovements.Add(movement);
+        movement.CashSessionId = session.Id;
+        session.ExpectedCash += movement.Amount;
+        session.UpdatedAt = DateTimeOffset.UtcNow;
+        Append(db, drawer, movement);
     }
+
     internal static async Task ReverseAsync(AppDbContext db, string kind, int id, int actorId, string reason, DateOnly activeDate, int? locationId, CancellationToken ct)
     {
-        var original = await db.CashMovements.Include(move => move.CashSession).ThenInclude(session => session!.CashDrawer)
+        var original = await db.CashMovements.Include(move => move.CashDrawer).Include(move => move.CashSession)
             .Where(move => kind == "sale" ? move.Payment!.SaleId == id : move.SupplierPayment!.PurchaseId == id)
             .Where(move => move.ReversesMovementId == null
                 && !db.CashMovements.Any(reverse => reverse.ReversesMovementId == move.Id))
             .ToListAsync(ct);
         foreach (var movement in original)
         {
-            CashSession sessionToUse;
-            DateOnly businessDateToUse;
+            var drawerId = movement.CashDrawerId != 0 ? movement.CashDrawerId : (movement.CashSession?.CashDrawerId ?? 0);
+            var drawer = movement.CashDrawer 
+                ?? await db.CashDrawers.SingleOrDefaultAsync(d => d.Id == drawerId, ct)
+                ?? await RequireDrawerAsync(db, actorId, ct, locationId ?? movement.CashSession?.StockLocationId);
 
-            if (movement.CashSession!.ClosedAt is null && movement.BusinessDate == activeDate)
-            {
-                // Original session is still open today: reverse in place
-                sessionToUse = movement.CashSession;
-                businessDateToUse = movement.BusinessDate;
-            }
-            else
-            {
-                // Original session is closed or from a prior day: post refund into the actor's active open drawer on activeDate
-                sessionToUse = await RequireOpenAsync(db, actorId, ct, locationId ?? movement.CashSession.StockLocationId);
-                businessDateToUse = activeDate;
-            }
-
-            await AccountingCalendar.EnsureOpenAsync(db, businessDateToUse, ct);
-            Append(db, sessionToUse, new CashMovement
+            Append(db, drawer, new CashMovement
             {
                 RequestId = Guid.NewGuid(),
+                BusinessDate = activeDate,
                 Kind = CashMovementKind.Reversal,
                 Amount = -movement.Amount,
                 Notes = reason,
-                BusinessDate = businessDateToUse,
                 ReversesMovementId = movement.Id,
                 CreatedByUserId = actorId
             });

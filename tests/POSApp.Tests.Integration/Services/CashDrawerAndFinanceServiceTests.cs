@@ -149,6 +149,72 @@ public class CashDrawerAndFinanceServiceTests : PosIntegrationTestBase
     }
 
     [Test]
+    public async Task CashDrawer_OpenPreseededDrawer_SetsOpeningBalanceAndExpectedCashCorrectly()
+    {
+        await using var scope = CreateScope();
+        var drawerService = scope.ServiceProvider.GetRequiredService<CashDrawerService>();
+        var inventory = scope.ServiceProvider.GetRequiredService<InventoryService>();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        // 1. Create a location and pre-seed a cash drawer with 0 balance and null OpeningDate (like AdminSeeder)
+        var locId = await inventory.AddLocationAsync(AdminUser, "East Outlet", canSell: true);
+        var preseededDrawer = new CashDrawer
+        {
+            StockLocationId = locId,
+            OpeningBalance = 0m,
+            CurrentCash = 0m,
+            OpeningDate = null
+        };
+        db.CashDrawers.Add(preseededDrawer);
+        await db.SaveChangesAsync();
+
+        // 2. Open drawer with 8300 opening cash
+        var openInput = new OpenCashInput
+        {
+            RequestId = Guid.NewGuid(),
+            StockLocationId = locId,
+            OpeningCash = 8300m
+        };
+        var sessionId = await drawerService.OpenAsync(AdminUser, openInput);
+        await sessionId.Should().BeGreaterThan(0);
+
+        // 3. Verify drawer and session reflect 8300
+        var sessionInDb = await db.CashSessions.AsNoTracking().SingleAsync(s => s.Id == sessionId);
+        await sessionInDb.OpeningCash.Should().BeEqualTo(8300m);
+        await sessionInDb.ExpectedCash.Should().BeEqualTo(8300m);
+
+        var drawerInDb = await db.CashDrawers.AsNoTracking().SingleAsync(d => d.StockLocationId == locId);
+        await drawerInDb.OpeningBalance.Should().BeEqualTo(8300m);
+        await drawerInDb.CurrentCash.Should().BeEqualTo(8300m);
+        await drawerInDb.OpeningDate.HasValue.Should().BeTrue();
+    }
+
+    [Test]
+    public async Task CashDrawer_Open_CreatesActiveShiftSession()
+    {
+        await using var scope = CreateScope();
+        var drawerService = scope.ServiceProvider.GetRequiredService<CashDrawerService>();
+        var inventory = scope.ServiceProvider.GetRequiredService<InventoryService>();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var locId = await inventory.AddLocationAsync(AdminUser, "West Outlet", canSell: true);
+
+        var openInput = new OpenCashInput
+        {
+            RequestId = Guid.NewGuid(),
+            StockLocationId = locId,
+            OpeningCash = 1000m
+        };
+
+        await drawerService.OpenAsync(AdminUser, openInput);
+
+        var drawer = await db.CashDrawers.Include(d => d.CurrentSession).SingleAsync(d => d.StockLocationId == locId);
+        await drawer.CurrentSession.Should().NotBeNull();
+        await drawer.CurrentSession!.OpeningCash.Should().BeEqualTo(1000m);
+        await drawer.CurrentSession.ClosedAt.Should().BeNull();
+    }
+
+    [Test]
     public async Task BankService_AdjustmentAndMonthOpening_UpdatesBalanceAccurately()
     {
         await using var scope = CreateScope();
@@ -246,62 +312,14 @@ public class CashDrawerAndFinanceServiceTests : PosIntegrationTestBase
     }
 
     [Test]
-    public async Task DeleteWorkingDayAsync_WhenMistakenlyOpened_RevertsWorkingDateAndDeletesDayFinance()
+    public async Task ChangeDateAsync_WhenAdminBackdatesExpense_UpdatesTimestampAndAuditLog()
     {
         var today = AccountingCalendar.Today(null);
-        var yesterday = today.AddDays(-1);
-
-        // Setup yesterday as a closed DayFinance
-        await using (var scope = CreateScope())
-        {
-            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            db.DayFinances.Add(new DayFinance
-            {
-                Date = yesterday,
-                OpeningCash = 50000m,
-                ExpectedCash = 50000m,
-                CountedCash = 50000m,
-                ClosedAt = DateTimeOffset.UtcNow.AddDays(-1),
-                CreatedByUserId = 1
-            });
-            await db.SaveChangesAsync();
-        }
-
-        // Today is currently open (seeded). Now delete today as mistakenly opened!
-        await using (var scope = CreateScope())
-        {
-            var closingService = scope.ServiceProvider.GetRequiredService<ClosingService>();
-            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-
-            await closingService.DeleteWorkingDayAsync(AdminUser, today);
-
-            // Working day should revert back to yesterday
-            var currentWorkingDate = await closingService.SelectedAsync(AdminUser);
-            await currentWorkingDate.Should().BeEqualTo(yesterday);
-
-            // DayFinance for today must be deleted
-            var df = await db.DayFinances.SingleOrDefaultAsync(d => d.Date == today);
-            await df.Should().BeNull();
-
-            // RecordChanges audit entry should exist
-            var audit = await db.RecordChanges.FirstOrDefaultAsync(r => r.Action == "DeleteWorkingDay" && r.Before == today.ToString("yyyy-MM-dd"));
-            await audit.Should().NotBeNull();
-            await audit!.After.Should().BeEqualTo(yesterday.ToString("yyyy-MM-dd"));
-        }
-    }
-
-    [Test]
-    public async Task DeleteWorkingDayAsync_WhenExpensesRecorded_ThrowsValidationException()
-    {
-        DateOnly workingDate;
-        int categoryId;
+        int expenseId;
 
         await using (var scope = CreateScope())
         {
-            var closingService = scope.ServiceProvider.GetRequiredService<ClosingService>();
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            workingDate = await closingService.SelectedAsync(AdminUser);
-
             var cat = new ExpenseCategoryDefinition
             {
                 Name = "Office Utilities",
@@ -310,55 +328,212 @@ public class CashDrawerAndFinanceServiceTests : PosIntegrationTestBase
             };
             db.ExpenseCategories.Add(cat);
             await db.SaveChangesAsync();
-            categoryId = cat.Id;
-        }
 
-        // Record an expense on that date
-        await using (var scope = CreateScope())
-        {
             var entries = scope.ServiceProvider.GetRequiredService<MoneyEntryService>();
             var command = new MoneyEntryCommand(
                 RequestId: Guid.NewGuid(),
-                WorkingDate: workingDate,
+                WorkingDate: today,
                 Rows: [new MoneyEntryInput
                 {
                     RequestId = Guid.NewGuid(),
                     Id = null,
                     PartyId = 0,
-                    CategoryId = categoryId,
+                    CategoryId = cat.Id,
                     Amount = 50m,
                     Method = PaymentMethod.Cash,
                     Notes = "Office supplies",
                     Receipt = null
                 }]);
-            await entries.SaveAsync(AdminUser, "expenses", command);
+            var result = await entries.SaveAsync(AdminUser, "expenses", command);
+            expenseId = result.Ids[0];
         }
 
-        // Attempting to delete working day should fail with ValidationException
+        // Now backdate the expense using DateCorrectionService
+        var pastDate = today.AddDays(-3);
+        var pastTimestamp = new DateTimeOffset(pastDate.Year, pastDate.Month, pastDate.Day, 14, 0, 0, TimeSpan.Zero);
+
         await using (var scope = CreateScope())
         {
-            var closingService = scope.ServiceProvider.GetRequiredService<ClosingService>();
-            await Assert.ThrowsAsync<ValidationException>(() => closingService.DeleteWorkingDayAsync(AdminUser, workingDate));
+            var corrections = scope.ServiceProvider.GetRequiredService<DateCorrectionService>();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+            await corrections.ChangeDateAsync(AdminUser, "expense", expenseId, pastTimestamp, "Late entry submitted by clerk");
+
+            var expense = await db.Expenses.SingleAsync(e => e.Id == expenseId);
+            await expense.OccurredAt.Should().BeEqualTo(pastTimestamp);
+
+            var movement = await db.CashMovements.SingleAsync(m => m.ExpenseId == expenseId);
+            await movement.BusinessDate.Should().BeEqualTo(pastDate);
+
+            var audit = await db.RecordChanges.FirstOrDefaultAsync(r => r.RecordType == "expense" && r.RecordId == expenseId);
+            await audit.Should().NotBeNull();
+            await audit!.Reason.Should().BeEqualTo("Late entry submitted by clerk");
         }
     }
 
     [Test]
-    public async Task DeleteWorkingDayAsync_WhenDayIsClosed_ThrowsValidationException()
+    public async Task PhysicalCashCount_Balanced_CompletesImmediately_AndSetsCheckpoint()
     {
+        await using var scope = CreateScope();
+        var drawerService = scope.ServiceProvider.GetRequiredService<CashDrawerService>();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var drawer = await db.CashDrawers.FirstAsync(d => d.StockLocationId == 1);
+        var expected = drawer.CurrentCash;
+
+        var countId = await drawerService.SubmitCountAsync(AdminUser, new CashCountInput
+        {
+            LocationId = drawer.StockLocationId ?? 1,
+            CountedCash = expected,
+            Notes = "Perfect balance morning count"
+        });
+
+        var count = await db.CashCounts.SingleAsync(c => c.Id == countId);
+        await count.Status.Should().BeEqualTo(CashCountStatus.Completed);
+        await count.CompletedAt.HasValue.Should().BeTrue();
+        await count.VarianceAcceptedAt.HasValue.Should().BeFalse();
+
+        var updatedDrawer = await db.CashDrawers.AsNoTracking().SingleAsync(d => d.Id == drawer.Id);
+        await updatedDrawer.LastCountedCash.Should().BeEqualTo(expected);
+        await updatedDrawer.LastCountedAt.HasValue.Should().BeTrue();
+    }
+
+    [Test]
+    public async Task PhysicalCashCount_WithVariance_QueuesAsPending_AndAdminAcceptsVariance()
+    {
+        await using var scope = CreateScope();
+        var drawerService = scope.ServiceProvider.GetRequiredService<CashDrawerService>();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var drawer = await db.CashDrawers.FirstAsync(d => d.StockLocationId == 1);
+        var originalCash = drawer.CurrentCash;
+        var countedCash = originalCash - 150m;
+
+        // 1. Submit count with difference != 0
+        var countId = await drawerService.SubmitCountAsync(SalesUser, new CashCountInput
+        {
+            LocationId = drawer.StockLocationId ?? 1,
+            CountedCash = countedCash,
+            Notes = "Cash shortage counted at shift handover"
+        });
+
+        var count = await db.CashCounts.SingleAsync(c => c.Id == countId);
+        await count.Status.Should().BeEqualTo(CashCountStatus.PendingReview);
+
+        // Drawer balance should NOT be altered yet
+        var unchangedDrawer = await db.CashDrawers.AsNoTracking().SingleAsync(d => d.Id == drawer.Id);
+        await unchangedDrawer.CurrentCash.Should().BeEqualTo(originalCash);
+
+        // 2. Admin accepts variance
+        await drawerService.AcceptVarianceAsync(AdminUser, new AcceptVarianceInput
+        {
+            CountId = countId,
+            Confirmed = true,
+            Notes = "Approved shortage by manager"
+        });
+
+        var reviewedCount = await db.CashCounts.AsNoTracking().Include(c => c.VarianceMovement).SingleAsync(c => c.Id == countId);
+        await reviewedCount.Status.Should().BeEqualTo(CashCountStatus.VarianceAccepted);
+        await reviewedCount.VarianceMovementId.HasValue.Should().BeTrue();
+        await reviewedCount.VarianceMovement!.Amount.Should().BeEqualTo(-150m);
+        await reviewedCount.VarianceMovement.Kind.Should().BeEqualTo(CashMovementKind.Variance);
+
+        // Drawer balance now matches the physical count
+        var finalDrawer = await db.CashDrawers.AsNoTracking().SingleAsync(d => d.Id == drawer.Id);
+        await finalDrawer.CurrentCash.Should().BeEqualTo(countedCash);
+        await finalDrawer.LastCountedCash.Should().BeEqualTo(countedCash);
+    }
+
+    [Test]
+    public async Task BulkChangeDateAsync_UpdatesMultipleRecords_WithAuditLog()
+    {
+        await using var scope = CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var entries = scope.ServiceProvider.GetRequiredService<MoneyEntryService>();
+        var corrections = scope.ServiceProvider.GetRequiredService<DateCorrectionService>();
+
+        var cat = new ExpenseCategoryDefinition { Name = "Bulk Utility", NormalizedName = "BULK UTILITY" };
+        db.ExpenseCategories.Add(cat);
+        await db.SaveChangesAsync();
+
         var today = AccountingCalendar.Today(null);
+        var res1 = await entries.SaveAsync(AdminUser, "expenses", new MoneyEntryCommand(Guid.NewGuid(), today,
+            [new MoneyEntryInput { RequestId = Guid.NewGuid(), CategoryId = cat.Id, Amount = 10m }]));
+        var res2 = await entries.SaveAsync(AdminUser, "expenses", new MoneyEntryCommand(Guid.NewGuid(), today,
+            [new MoneyEntryInput { RequestId = Guid.NewGuid(), CategoryId = cat.Id, Amount = 20m }]));
 
-        await using (var scope = CreateScope())
-        {
-            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            var df = await db.DayFinances.SingleAsync(d => d.Date == today);
-            df.ClosedAt = DateTimeOffset.UtcNow;
-            await db.SaveChangesAsync();
-        }
+        var ids = new[] { res1.Ids[0], res2.Ids[0] };
+        var targetDate = today.AddDays(-5);
+        var targetTimestamp = new DateTimeOffset(targetDate.Year, targetDate.Month, targetDate.Day, 10, 0, 0, TimeSpan.Zero);
 
-        await using (var scope = CreateScope())
+        var updated = await corrections.BulkChangeDateAsync(AdminUser, "expense", ids, targetTimestamp, "Bulk downtime backfill");
+        await updated.Should().BeEqualTo(2);
+
+        var exp1 = await db.Expenses.SingleAsync(e => e.Id == ids[0]);
+        var exp2 = await db.Expenses.SingleAsync(e => e.Id == ids[1]);
+        await exp1.OccurredAt.Should().BeEqualTo(targetTimestamp);
+        await exp2.OccurredAt.Should().BeEqualTo(targetTimestamp);
+
+        var logs = await db.RecordChanges.Where(r => r.RecordType == "expense" && ids.Contains(r.RecordId)).ToListAsync();
+        await logs.Count.Should().BeEqualTo(2);
+        await logs.All(l => l.Reason == "Bulk downtime backfill").Should().BeTrue();
+    }
+
+    [Test]
+    public async Task GetCashBalanceAtAsync_AnchorsToCheckpoint_AndReflectsBackdatedMovements()
+    {
+        await using var scope = CreateScope();
+        var drawerService = scope.ServiceProvider.GetRequiredService<CashDrawerService>();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var drawer = await db.CashDrawers.FirstAsync(d => d.StockLocationId == 1);
+        var baseCash = drawer.CurrentCash;
+
+        // Perform a physical cash count at T0
+        var t0 = DateTimeOffset.UtcNow.AddHours(-10);
+        var count = new CashCount
         {
-            var closingService = scope.ServiceProvider.GetRequiredService<ClosingService>();
-            await Assert.ThrowsAsync<ValidationException>(() => closingService.DeleteWorkingDayAsync(AdminUser, today));
-        }
+            CashDrawerId = drawer.Id,
+            StockLocationId = drawer.StockLocationId ?? 1,
+            BusinessDate = DateOnly.FromDateTime(t0.UtcDateTime),
+            CountedCash = baseCash,
+            ExpectedCash = baseCash,
+            CountedAt = t0,
+            CountedByUserId = 1,
+            Status = CashCountStatus.Completed
+        };
+        db.CashCounts.Add(count);
+        drawer.LastCountedAt = t0;
+        drawer.LastCountedCash = baseCash;
+        await db.SaveChangesAsync();
+
+        // Query balance at T0 -> should equal baseCash (checkpoint lookup)
+        var balT0 = await drawerService.GetCashBalanceAtAsync(AdminUser, drawer.Id, t0);
+        await balT0.Should().BeEqualTo(baseCash);
+
+        // Add a backdated movement at T0 + 2 hours
+        var t1 = t0.AddHours(2);
+        var date1 = DateOnly.FromDateTime(t1.UtcDateTime);
+        var movement = new CashMovement
+        {
+            CashDrawerId = drawer.Id,
+            Kind = CashMovementKind.CashIn,
+            Amount = 350m,
+            BalanceAfter = baseCash + 350m,
+            BusinessDate = date1,
+            CreatedAt = t1,
+            Notes = "Midday float addition"
+        };
+        db.CashMovements.Add(movement);
+        drawer.CurrentCash += 350m;
+        await db.SaveChangesAsync();
+
+        // Balance before t1 (e.g. t0 + 1 hr) should still be baseCash
+        var balBefore = await drawerService.GetCashBalanceAtAsync(AdminUser, drawer.Id, t0.AddHours(1));
+        await balBefore.Should().BeEqualTo(baseCash);
+
+        // Balance at or after t1 (e.g. t0 + 3 hrs) should be baseCash + 350
+        var balAfter = await drawerService.GetCashBalanceAtAsync(AdminUser, drawer.Id, t0.AddHours(3));
+        await balAfter.Should().BeEqualTo(baseCash + 350m);
     }
 }

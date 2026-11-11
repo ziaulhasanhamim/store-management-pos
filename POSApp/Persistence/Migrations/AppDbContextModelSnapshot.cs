@@ -194,7 +194,7 @@ namespace POSApp.Persistence.Migrations
                     b.HasIndex("Code")
                         .IsUnique();
 
-                    b.ToTable("BankAccounts");
+                    b.ToTable("BankAccounts", (string)null);
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.BankMovement", b =>
@@ -291,7 +291,104 @@ namespace POSApp.Persistence.Migrations
 
                     b.HasIndex("SupplierPaymentId");
 
-                    b.ToTable("BankMovements");
+                    b.ToTable("BankMovements", (string)null);
+                });
+
+            modelBuilder.Entity("POSApp.Persistence.Entities.CashCount", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateOnly>("BusinessDate")
+                        .HasColumnType("date");
+
+                    b.Property<int>("CashDrawerId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("CompletedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("CountedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("CountedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("CountedCash")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("CreatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("ExpectedCash")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<bool>("IsVoided")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<Guid>("RequestId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("StockLocationId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("UpdatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset?>("VarianceAcceptedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("VarianceAcceptedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("VarianceMovementId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("VoidReason")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<DateTimeOffset?>("VoidedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("VoidedByUserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CountedByUserId");
+
+                    b.HasIndex("RequestId")
+                        .IsUnique();
+
+                    b.HasIndex("VarianceMovementId");
+
+                    b.HasIndex("CashDrawerId", "CountedAt");
+
+                    b.HasIndex("StockLocationId", "BusinessDate");
+
+                    b.ToTable("CashCounts", (string)null);
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.CashDrawer", b =>
@@ -314,6 +411,13 @@ namespace POSApp.Persistence.Migrations
 
                     b.Property<int?>("CurrentSessionId")
                         .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset?>("LastCountedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal?>("LastCountedCash")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
 
                     b.Property<decimal>("OpeningBalance")
                         .HasPrecision(18, 2)
@@ -339,7 +443,7 @@ namespace POSApp.Persistence.Migrations
                     b.HasIndex("StockLocationId")
                         .IsUnique();
 
-                    b.ToTable("CashDrawers");
+                    b.ToTable("CashDrawers", (string)null);
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.CashMovement", b =>
@@ -354,10 +458,17 @@ namespace POSApp.Persistence.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
 
+                    b.Property<decimal>("BalanceAfter")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
                     b.Property<DateOnly>("BusinessDate")
                         .HasColumnType("date");
 
-                    b.Property<int>("CashSessionId")
+                    b.Property<int>("CashDrawerId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("CashSessionId")
                         .HasColumnType("integer");
 
                     b.Property<int?>("CashTransferId")
@@ -428,9 +539,11 @@ namespace POSApp.Persistence.Migrations
 
                     b.HasIndex("SupplierPaymentId");
 
+                    b.HasIndex("CashDrawerId", "CreatedAt");
+
                     b.HasIndex("CashSessionId", "Id");
 
-                    b.ToTable("CashMovements");
+                    b.ToTable("CashMovements", (string)null);
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.CashSession", b =>
@@ -502,11 +615,9 @@ namespace POSApp.Persistence.Migrations
 
                     b.HasIndex("StockLocationId");
 
-                    b.HasIndex("CashDrawerId", "BusinessDate");
-
                     b.HasIndex("CashDrawerId", "OpenedAt");
 
-                    b.ToTable("CashSessions");
+                    b.ToTable("CashSessions", (string)null);
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.CashTransfer", b =>
@@ -572,7 +683,7 @@ namespace POSApp.Persistence.Migrations
 
                     b.HasIndex("SourceDrawerId");
 
-                    b.ToTable("CashTransfers");
+                    b.ToTable("CashTransfers", (string)null);
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.Category", b =>
@@ -620,7 +731,7 @@ namespace POSApp.Persistence.Migrations
 
                     b.HasIndex("NormalizedName");
 
-                    b.ToTable("Categories");
+                    b.ToTable("Categories", (string)null);
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.Customer", b =>
@@ -671,7 +782,7 @@ namespace POSApp.Persistence.Migrations
 
                     b.HasIndex("NormalizedName");
 
-                    b.ToTable("Customers");
+                    b.ToTable("Customers", (string)null);
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.CustomerBalance", b =>
@@ -713,7 +824,7 @@ namespace POSApp.Persistence.Migrations
                     b.HasIndex("CustomerId")
                         .IsUnique();
 
-                    b.ToTable("CustomerBalances");
+                    b.ToTable("CustomerBalances", (string)null);
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.CustomerBalanceEntry", b =>
@@ -783,63 +894,7 @@ namespace POSApp.Persistence.Migrations
                     b.HasIndex("SaleId")
                         .IsUnique();
 
-                    b.ToTable("CustomerBalanceEntries");
-                });
-
-            modelBuilder.Entity("POSApp.Persistence.Entities.DayFinance", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTimeOffset?>("ClosedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<decimal?>("CountedCash")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("CreatedByUserId")
-                        .HasColumnType("integer");
-
-                    b.Property<DateOnly>("Date")
-                        .HasColumnType("date");
-
-                    b.Property<decimal?>("Difference")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<decimal>("ExpectedCash")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<int?>("FinanceClosingId")
-                        .HasColumnType("integer");
-
-                    b.Property<decimal>("OpeningCash")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<DateTimeOffset?>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("UpdatedByUserId")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Date")
-                        .IsUnique();
-
-                    b.HasIndex("FinanceClosingId")
-                        .IsUnique();
-
-                    b.ToTable("DayFinances");
+                    b.ToTable("CustomerBalanceEntries", (string)null);
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.DebtEntry", b =>
@@ -921,7 +976,7 @@ namespace POSApp.Persistence.Migrations
 
                     b.HasIndex("LenderBalanceId", "BusinessDate");
 
-                    b.ToTable("DebtEntries");
+                    b.ToTable("DebtEntries", (string)null);
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.EditorDraft", b =>
@@ -959,7 +1014,7 @@ namespace POSApp.Persistence.Migrations
                     b.HasIndex("UserId", "Kind")
                         .IsUnique();
 
-                    b.ToTable("EditorDrafts");
+                    b.ToTable("EditorDrafts", (string)null);
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.Employee", b =>
@@ -1010,7 +1065,7 @@ namespace POSApp.Persistence.Migrations
 
                     b.HasIndex("NormalizedName");
 
-                    b.ToTable("Employees");
+                    b.ToTable("Employees", (string)null);
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.Expense", b =>
@@ -1092,7 +1147,7 @@ namespace POSApp.Persistence.Migrations
 
                     b.HasIndex("StockLocationId", "OccurredAt");
 
-                    b.ToTable("Expenses");
+                    b.ToTable("Expenses", (string)null);
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.ExpenseCategoryDefinition", b =>
@@ -1126,210 +1181,7 @@ namespace POSApp.Persistence.Migrations
 
                     b.HasIndex("NormalizedName");
 
-                    b.ToTable("ExpenseCategories");
-                });
-
-            modelBuilder.Entity("POSApp.Persistence.Entities.FinanceClosing", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<decimal>("AdvancesPaid")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<decimal>("AssetBuilt")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<decimal>("BankIn")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<decimal>("BankOut")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<decimal>("CashIn")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<decimal>("CashOut")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<decimal>("CashVariance")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<DateTimeOffset?>("ClosedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<decimal>("ClosingBank")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<decimal>("ClosingCash")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<decimal>("ClosingCustomerDue")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<decimal>("ClosingDebt")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<decimal>("ClosingNetAssets")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<decimal>("ClosingStock")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<decimal>("ClosingSupplierDue")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<decimal>("Cogs")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("CreatedByUserId")
-                        .HasColumnType("integer");
-
-                    b.Property<decimal>("CustomerCollections")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<decimal>("CustomerDue")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<DateOnly>("Date")
-                        .HasColumnType("date");
-
-                    b.Property<decimal>("DebtBorrowed")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<decimal>("DebtRepaid")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<decimal>("Expenses")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<int>("Kind")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("MonthlyDetailsJson")
-                        .HasColumnType("text");
-
-                    b.Property<string>("Notes")
-                        .HasMaxLength(2000)
-                        .HasColumnType("character varying(2000)");
-
-                    b.Property<bool>("OpeningAssetsCustomized")
-                        .HasColumnType("boolean");
-
-                    b.Property<decimal>("OpeningBank")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<decimal>("OpeningCash")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<decimal>("OpeningCustomerDue")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<decimal>("OpeningDebt")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<decimal>("OpeningNetAssets")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<decimal>("OpeningStock")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<decimal>("OpeningSupplierDue")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<decimal>("OutstandingDebt")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<decimal>("OwnerContributions")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<decimal>("OwnerWithdrawals")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<decimal>("PayrollPaid")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<decimal>("PurchaseTotal")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<decimal>("Revenue")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<decimal>("SalaryExpense")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<decimal>("SalesReceipts")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<decimal>("StockValue")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<decimal>("StockVariance")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<decimal>("SupplierDue")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<decimal>("SupplierPaid")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("numeric(18,2)");
-
-                    b.Property<DateTimeOffset?>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("UpdatedByUserId")
-                        .HasColumnType("integer");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Kind", "Date")
-                        .IsUnique();
-
-                    b.ToTable("FinanceClosings");
+                    b.ToTable("ExpenseCategories", (string)null);
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.FinancialEntryBatch", b =>
@@ -1372,7 +1224,7 @@ namespace POSApp.Persistence.Migrations
                     b.HasIndex("RequestId")
                         .IsUnique();
 
-                    b.ToTable("FinancialEntryBatches");
+                    b.ToTable("FinancialEntryBatches", (string)null);
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.ImportJob", b =>
@@ -1440,7 +1292,7 @@ namespace POSApp.Persistence.Migrations
 
                     b.HasIndex("Kind", "CreatedAt");
 
-                    b.ToTable("ImportJobs");
+                    b.ToTable("ImportJobs", (string)null);
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.InventoryBalance", b =>
@@ -1480,7 +1332,7 @@ namespace POSApp.Persistence.Migrations
                     b.HasIndex("StockLocationId", "ProductId")
                         .IsUnique();
 
-                    b.ToTable("InventoryBalances");
+                    b.ToTable("InventoryBalances", (string)null);
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.InventoryMovement", b =>
@@ -1559,7 +1411,7 @@ namespace POSApp.Persistence.Migrations
 
                     b.HasIndex("StockLocationId", "ProductId", "OccurredAt");
 
-                    b.ToTable("InventoryMovements");
+                    b.ToTable("InventoryMovements", (string)null);
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.Lender", b =>
@@ -1612,7 +1464,7 @@ namespace POSApp.Persistence.Migrations
                     b.HasIndex("RequestId")
                         .IsUnique();
 
-                    b.ToTable("Lenders");
+                    b.ToTable("Lenders", (string)null);
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.LenderBalance", b =>
@@ -1657,7 +1509,7 @@ namespace POSApp.Persistence.Migrations
                     b.HasIndex("LenderId")
                         .IsUnique();
 
-                    b.ToTable("LenderBalances");
+                    b.ToTable("LenderBalances", (string)null);
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.MonthlySalary", b =>
@@ -1720,7 +1572,7 @@ namespace POSApp.Persistence.Migrations
                     b.HasIndex("EmployeeId", "Month")
                         .IsUnique();
 
-                    b.ToTable("MonthlySalaries");
+                    b.ToTable("MonthlySalaries", (string)null);
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.Payment", b =>
@@ -1797,7 +1649,7 @@ namespace POSApp.Persistence.Migrations
 
                     b.HasIndex("SaleId", "PaidAt");
 
-                    b.ToTable("Payments");
+                    b.ToTable("Payments", (string)null);
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.PaymentClearingEntry", b =>
@@ -1873,7 +1725,7 @@ namespace POSApp.Persistence.Migrations
 
                     b.HasIndex("Status", "StockLocationId", "Method", "BusinessDate");
 
-                    b.ToTable("PaymentClearingEntries");
+                    b.ToTable("PaymentClearingEntries", (string)null);
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.PaymentPayout", b =>
@@ -1958,7 +1810,7 @@ namespace POSApp.Persistence.Migrations
 
                     b.HasIndex("StockLocationId", "BusinessDate");
 
-                    b.ToTable("PaymentPayouts");
+                    b.ToTable("PaymentPayouts", (string)null);
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.PayrollEntry", b =>
@@ -2055,7 +1907,7 @@ namespace POSApp.Persistence.Migrations
 
                     b.HasIndex("StaffAccountId", "OccurredAt");
 
-                    b.ToTable("PayrollEntries");
+                    b.ToTable("PayrollEntries", (string)null);
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.Product", b =>
@@ -2143,7 +1995,7 @@ namespace POSApp.Persistence.Migrations
 
                     b.HasIndex("SupplierId");
 
-                    b.ToTable("Products");
+                    b.ToTable("Products", (string)null);
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.ProductAttributeDefinition", b =>
@@ -2211,7 +2063,7 @@ namespace POSApp.Persistence.Migrations
                     b.HasIndex("Key")
                         .IsUnique();
 
-                    b.ToTable("ProductAttributeDefinitions");
+                    b.ToTable("ProductAttributeDefinitions", (string)null);
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.ProductAttributeOption", b =>
@@ -2243,7 +2095,7 @@ namespace POSApp.Persistence.Migrations
                     b.HasIndex("ProductAttributeDefinitionId", "Value")
                         .IsUnique();
 
-                    b.ToTable("ProductAttributeOptions");
+                    b.ToTable("ProductAttributeOptions", (string)null);
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.ProductAttributeValue", b =>
@@ -2276,7 +2128,7 @@ namespace POSApp.Persistence.Migrations
                     b.HasIndex("ProductId", "ProductAttributeDefinitionId")
                         .IsUnique();
 
-                    b.ToTable("ProductAttributeValues");
+                    b.ToTable("ProductAttributeValues", (string)null);
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.ProductCostHistory", b =>
@@ -2322,7 +2174,7 @@ namespace POSApp.Persistence.Migrations
 
                     b.HasIndex("ProductId", "CreatedAt");
 
-                    b.ToTable("ProductCostHistories");
+                    b.ToTable("ProductCostHistories", (string)null);
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.Purchase", b =>
@@ -2406,7 +2258,7 @@ namespace POSApp.Persistence.Migrations
 
                     b.HasIndex("SupplierId", "SupplierInvoiceNumber");
 
-                    b.ToTable("Purchases");
+                    b.ToTable("Purchases", (string)null);
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.PurchaseItem", b =>
@@ -2453,7 +2305,7 @@ namespace POSApp.Persistence.Migrations
 
                     b.HasIndex("PurchaseId");
 
-                    b.ToTable("PurchaseItems");
+                    b.ToTable("PurchaseItems", (string)null);
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.RecordChange", b =>
@@ -2512,7 +2364,7 @@ namespace POSApp.Persistence.Migrations
 
                     b.HasIndex("RecordType", "RecordId", "Id");
 
-                    b.ToTable("RecordChanges");
+                    b.ToTable("RecordChanges", (string)null);
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.RolePermission", b =>
@@ -2553,7 +2405,7 @@ namespace POSApp.Persistence.Migrations
                     b.HasIndex("RoleName", "PolicyName")
                         .IsUnique();
 
-                    b.ToTable("RolePermissions");
+                    b.ToTable("RolePermissions", (string)null);
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.Sale", b =>
@@ -2657,7 +2509,7 @@ namespace POSApp.Persistence.Migrations
 
                     b.HasIndex("StockLocationId", "SoldAt");
 
-                    b.ToTable("Sales");
+                    b.ToTable("Sales", (string)null);
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.SaleDraftPayment", b =>
@@ -2682,7 +2534,7 @@ namespace POSApp.Persistence.Migrations
 
                     b.HasIndex("SaleId");
 
-                    b.ToTable("SaleDraftPayments");
+                    b.ToTable("SaleDraftPayments", (string)null);
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.SaleItem", b =>
@@ -2739,7 +2591,7 @@ namespace POSApp.Persistence.Migrations
 
                     b.HasIndex("SaleId");
 
-                    b.ToTable("SaleItems");
+                    b.ToTable("SaleItems", (string)null);
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.StaffAccount", b =>
@@ -2774,7 +2626,7 @@ namespace POSApp.Persistence.Migrations
                     b.HasIndex("EmployeeId")
                         .IsUnique();
 
-                    b.ToTable("StaffAccounts");
+                    b.ToTable("StaffAccounts", (string)null);
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.StockAdjustment", b =>
@@ -2831,7 +2683,7 @@ namespace POSApp.Persistence.Migrations
 
                     b.HasIndex("StockLocationId", "Date");
 
-                    b.ToTable("StockAdjustments");
+                    b.ToTable("StockAdjustments", (string)null);
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.StockAdjustmentItem", b =>
@@ -2877,7 +2729,7 @@ namespace POSApp.Persistence.Migrations
                     b.HasIndex("StockAdjustmentId", "ProductId")
                         .IsUnique();
 
-                    b.ToTable("StockAdjustmentItems");
+                    b.ToTable("StockAdjustmentItems", (string)null);
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.StockLocation", b =>
@@ -2938,7 +2790,7 @@ namespace POSApp.Persistence.Migrations
 
                     b.HasIndex("NormalizedName");
 
-                    b.ToTable("StockLocations");
+                    b.ToTable("StockLocations", (string)null);
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.StockTake", b =>
@@ -3008,7 +2860,7 @@ namespace POSApp.Persistence.Migrations
 
                     b.HasIndex("StockLocationId", "BusinessDate");
 
-                    b.ToTable("StockTakes");
+                    b.ToTable("StockTakes", (string)null);
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.StockTakeItem", b =>
@@ -3067,7 +2919,7 @@ namespace POSApp.Persistence.Migrations
                     b.HasIndex("StockTakeId", "ProductId")
                         .IsUnique();
 
-                    b.ToTable("StockTakeItems");
+                    b.ToTable("StockTakeItems", (string)null);
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.StockTransfer", b =>
@@ -3131,7 +2983,7 @@ namespace POSApp.Persistence.Migrations
 
                     b.HasIndex("SourceLocationId", "OccurredAt");
 
-                    b.ToTable("StockTransfers");
+                    b.ToTable("StockTransfers", (string)null);
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.StockTransferItem", b =>
@@ -3163,7 +3015,7 @@ namespace POSApp.Persistence.Migrations
                     b.HasIndex("StockTransferId", "ProductId")
                         .IsUnique();
 
-                    b.ToTable("StockTransferItems");
+                    b.ToTable("StockTransferItems", (string)null);
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.Supplier", b =>
@@ -3223,7 +3075,7 @@ namespace POSApp.Persistence.Migrations
 
                     b.HasIndex("NormalizedName");
 
-                    b.ToTable("Suppliers");
+                    b.ToTable("Suppliers", (string)null);
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.SupplierBalance", b =>
@@ -3265,7 +3117,7 @@ namespace POSApp.Persistence.Migrations
                     b.HasIndex("SupplierId")
                         .IsUnique();
 
-                    b.ToTable("SupplierBalances");
+                    b.ToTable("SupplierBalances", (string)null);
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.SupplierBalanceEntry", b =>
@@ -3335,7 +3187,7 @@ namespace POSApp.Persistence.Migrations
                     b.HasIndex("SupplierPaymentId")
                         .IsUnique();
 
-                    b.ToTable("SupplierBalanceEntries");
+                    b.ToTable("SupplierBalanceEntries", (string)null);
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.SupplierPayment", b =>
@@ -3408,7 +3260,7 @@ namespace POSApp.Persistence.Migrations
 
                     b.HasIndex("SupplierBalanceId", "PaidAt");
 
-                    b.ToTable("SupplierPayments");
+                    b.ToTable("SupplierPayments", (string)null);
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.User", b =>
@@ -3488,19 +3340,6 @@ namespace POSApp.Persistence.Migrations
                         .HasDatabaseName("UserNameIndex");
 
                     b.ToTable("AspNetUsers", (string)null);
-                });
-
-            modelBuilder.Entity("POSApp.Persistence.Entities.WorkingDay", b =>
-                {
-                    b.Property<int>("Id")
-                        .HasColumnType("integer");
-
-                    b.Property<DateOnly>("Date")
-                        .HasColumnType("date");
-
-                    b.HasKey("Id");
-
-                    b.ToTable("WorkingDays");
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<int>", b =>
@@ -3607,6 +3446,40 @@ namespace POSApp.Persistence.Migrations
                     b.Navigation("SupplierPayment");
                 });
 
+            modelBuilder.Entity("POSApp.Persistence.Entities.CashCount", b =>
+                {
+                    b.HasOne("POSApp.Persistence.Entities.CashDrawer", "CashDrawer")
+                        .WithMany("Counts")
+                        .HasForeignKey("CashDrawerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("POSApp.Persistence.Entities.User", "CountedByUser")
+                        .WithMany()
+                        .HasForeignKey("CountedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("POSApp.Persistence.Entities.StockLocation", "StockLocation")
+                        .WithMany()
+                        .HasForeignKey("StockLocationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("POSApp.Persistence.Entities.CashMovement", "VarianceMovement")
+                        .WithMany()
+                        .HasForeignKey("VarianceMovementId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("CashDrawer");
+
+                    b.Navigation("CountedByUser");
+
+                    b.Navigation("StockLocation");
+
+                    b.Navigation("VarianceMovement");
+                });
+
             modelBuilder.Entity("POSApp.Persistence.Entities.CashDrawer", b =>
                 {
                     b.HasOne("POSApp.Persistence.Entities.CashSession", "CurrentSession")
@@ -3626,11 +3499,16 @@ namespace POSApp.Persistence.Migrations
 
             modelBuilder.Entity("POSApp.Persistence.Entities.CashMovement", b =>
                 {
+                    b.HasOne("POSApp.Persistence.Entities.CashDrawer", "CashDrawer")
+                        .WithMany("Movements")
+                        .HasForeignKey("CashDrawerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("POSApp.Persistence.Entities.CashSession", "CashSession")
                         .WithMany("Movements")
                         .HasForeignKey("CashSessionId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("POSApp.Persistence.Entities.CashTransfer", "CashTransfer")
                         .WithMany()
@@ -3666,6 +3544,8 @@ namespace POSApp.Persistence.Migrations
                         .WithMany()
                         .HasForeignKey("SupplierPaymentId")
                         .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("CashDrawer");
 
                     b.Navigation("CashSession");
 
@@ -3755,16 +3635,6 @@ namespace POSApp.Persistence.Migrations
                     b.Navigation("Payment");
 
                     b.Navigation("Sale");
-                });
-
-            modelBuilder.Entity("POSApp.Persistence.Entities.DayFinance", b =>
-                {
-                    b.HasOne("POSApp.Persistence.Entities.FinanceClosing", "FinanceClosing")
-                        .WithMany()
-                        .HasForeignKey("FinanceClosingId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("FinanceClosing");
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.DebtEntry", b =>
@@ -4354,6 +4224,10 @@ namespace POSApp.Persistence.Migrations
 
             modelBuilder.Entity("POSApp.Persistence.Entities.CashDrawer", b =>
                 {
+                    b.Navigation("Counts");
+
+                    b.Navigation("Movements");
+
                     b.Navigation("Sessions");
                 });
 

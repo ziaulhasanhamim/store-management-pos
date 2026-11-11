@@ -51,13 +51,6 @@ public sealed partial class StockAdjustmentService(IServiceScopeFactory scopes, 
             }
             await ValidateLocationAsync(db, input.LocationId, ct);
             await AccountingCalendar.EnsureOpenAsync(db, input.Date, ct, requireDayOpened: false);
-            var month = new DateOnly(input.Date.Year, input.Date.Month, 1);
-            if (await db.FinanceClosings.AnyAsync(closing => closing.ClosedAt != null
-                && ((closing.Kind == ClosingKind.Day && closing.Date >= input.Date)
-                    || (closing.Kind == ClosingKind.Month && closing.Date >= month)), ct))
-            {
-                throw new ValidationException("Stock adjustments would change a closed period. Reopen the affected closings first.");
-            }
             var products = await ValidateProductsAsync(db, input.LocationId, input.Items, ct);
             var ids = products.Keys.ToArray();
             var stocks = await db.InventoryBalances.Where(stock => ids.Contains(stock.ProductId)).ToListAsync(ct);

@@ -2,10 +2,11 @@
 @attribute [Authorize(Policy = AppPolicies.ManageUsers)]
 @using System.ComponentModel.DataAnnotations
 @inject RecordAdministration Records
+@inject DateCorrectionService CorrectionService
 @inject NavigationManager Navigation
 @inject ILogger<RecordEdit> Logger
 
-<PageTitle>Record correction · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
+<PageTitle>Record correction · @(Configuration["StoreName"] ?? "JAS International")</PageTitle>
 
 <div class="page-heading">
     <div>
@@ -52,6 +53,11 @@ else
                                     <option value="@party.Id" selected="@(Input!.PartyId == party.Id)">@party.Name</option>
                                 }
                             </select>
+                        </div>
+                        <div>
+                            <label class="field-label" for="record-timestamp">Transaction Date & Time</label>
+                            <input id="record-timestamp" type="datetime-local" class="field" name="Input.NewTimestamp" value="@FormTimestamp" />
+                            <p class="mt-1 text-[11px] text-slate-500">Backdate or adjust the recorded date for outage recovery or clerical correction.</p>
                         </div>
                         <div>
                             <label class="field-label" for="edit-reason">Reason</label>
@@ -144,6 +150,7 @@ else
 
     private EditableRecord? Data;
     private string? Error;
+    private string FormTimestamp => Input?.NewTimestamp ?? (Data is not null ? Data.At.ToBusinessTime(Configuration).ToString("yyyy-MM-ddTHH:mm") : "");
     private bool IsSetupKind => Kind is "product" or "category" or "customer" or "supplier" or "employee" or "lender";
     private string BackUrl => Kind switch
     {
@@ -157,6 +164,8 @@ else
         "stock-transfer" => "/stock-transfers",
         "stock-adjustment" => "/stock-adjustments",
         "stock-take" => "/stock-takes",
+        "servicing" => "/servicing",
+        "technician" => "/servicing/technicians",
         "purchase" => "/reports/receiving",
         _ => "/reports/sales"
     };
@@ -184,6 +193,18 @@ else
                 if (form["ConfirmRemoval"] != "true")
                 {
                     throw new ValidationException("Review and confirm the transaction reversal first.");
+                }
+            }
+            if (!delete && !string.IsNullOrWhiteSpace(Input?.NewTimestamp) && Data is not null)
+            {
+                var zone = AccountingCalendar.Zone(Configuration);
+                var unspecified = DateTime.SpecifyKind(DateTime.Parse(Input.NewTimestamp), DateTimeKind.Unspecified);
+                var utcInstant = TimeZoneInfo.ConvertTimeToUtc(unspecified, zone);
+                var finalOffset = new DateTimeOffset(utcInstant, TimeSpan.Zero);
+
+                if (Math.Abs((finalOffset - Data.At).TotalMinutes) > 1)
+                {
+                    await CorrectionService.ChangeDateAsync(HttpContext.User, Kind, Id, finalOffset, Input.Reason, HttpContext.RequestAborted);
                 }
             }
             await Records.ChangeAsync(HttpContext.User, Kind, Id, Input!, delete, HttpContext.RequestAborted);

@@ -1,0 +1,248 @@
+@page "/admin/date-corrections"
+@attribute [Authorize(Policy = AppPolicies.ManageUsers)]
+@attribute [StreamRendering]
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.EntityFrameworkCore
+@using POSApp.Persistence
+@using POSApp.Persistence.Entities
+@inject DateCorrectionService CorrectionService
+@inject NavigationManager Navigation
+@inject IConfiguration Configuration
+@inject AppDbContext DbContext
+
+<PageTitle>Transaction Date Corrections · @(Configuration["StoreName"] ?? "JAS International")</PageTitle>
+
+<div class="page-heading">
+    <div>
+        <h1>Transaction Date Corrections</h1>
+        <p class="text-xs text-slate-500 mt-1">Backdate or adjust recorded transactions when something was entered on the wrong date</p>
+    </div>
+</div>
+
+@if (SuccessMessage is not null)
+{
+    <p class="success-panel mb-6" role="status">@SuccessMessage</p>
+}
+
+@if (ErrorMessage is not null)
+{
+    <p class="error-panel mb-6" role="alert">@ErrorMessage</p>
+}
+
+<div class="grid gap-6 lg:grid-cols-3 mb-8">
+    <section class="panel p-6 lg:col-span-1">
+        <h2 class="text-base font-semibold text-slate-900 mb-4">Edit Transaction Date</h2>
+        <p class="text-xs text-slate-500 mb-5">Select a transaction and apply the corrected date and time. An immutable audit record will be logged with your reason.</p>
+
+        <form method="post" @formname="date-correction-form" @onsubmit="ApplyCorrectionAsync" data-enhance data-submit-indication="true">
+            <AntiforgeryToken />
+
+            <div class="space-y-4">
+                <div>
+                    <label class="field-label" for="record-type">Transaction type</label>
+                    <select id="record-type" name="Input.RecordType" class="field" required>
+                        <option value="sale" selected="@(FormModel.RecordType == "sale")">Sale / Invoice</option>
+                        <option value="expense" selected="@(FormModel.RecordType == "expense")">Expense</option>
+                        <option value="supplier-payment" selected="@(FormModel.RecordType == "supplier-payment")">Supplier payment</option>
+                        <option value="payment" selected="@(FormModel.RecordType == "payment")">Customer payment</option>
+                        <option value="purchase" selected="@(FormModel.RecordType == "purchase")">Purchase / Receipt</option>
+                        <option value="stock-adjustment" selected="@(FormModel.RecordType == "stock-adjustment")">Stock adjustment</option>
+                        <option value="stock-transfer" selected="@(FormModel.RecordType == "stock-transfer")">Stock transfer</option>
+                                            </select>
+                </div>
+
+                <div>
+                    <label class="field-label" for="record-id">Record ID(s)</label>
+                    <input id="record-id" type="text" name="Input.RecordIds" class="field" value="@FormModel.RecordIds" placeholder="Single ID (104) or bulk (104, 105, 106)" required />
+                    <p class="mt-1 text-[11px] text-slate-500">Supports single ID or multiple comma/space separated IDs for bulk updating.</p>
+                </div>
+
+                <div>
+                    <label class="field-label" for="new-timestamp">New date & time</label>
+                    <input id="new-timestamp" type="datetime-local" name="Input.NewTimestamp" class="field" value="@FormModel.NewTimestamp" required />
+                </div>
+
+                <div>
+                    <label class="field-label" for="correction-reason">Audit reason</label>
+                    <textarea id="correction-reason" name="Input.Reason" class="field text-sm" rows="3" placeholder="Explain why this date is being changed..." required maxlength="2000">@FormModel.Reason</textarea>
+                </div>
+
+                <button type="submit" class="btn-primary w-full justify-center" data-pending-text="Updating date…">Update transaction date</button>
+            </div>
+        </form>
+    </section>
+
+    <section class="panel p-6 lg:col-span-2 table-scroll">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-base font-semibold text-slate-900">Recent Date Corrections Audit Log</h2>
+            <span class="text-xs text-slate-500">Filtered by EditDate actions</span>
+        </div>
+
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Date changed</th>
+                    <th>Record</th>
+                    <th>Previous date</th>
+                    <th>New date</th>
+                    <th>Reason / Admin</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (AuditLogs is null)
+                {
+                    <TableStatusRow Columns="5" Message="Loading date corrections…" Loading="true" />
+                }
+                else if (AuditLogs.Count == 0)
+                {
+                    <tr>
+                        <td colspan="5" class="p-6 text-center text-sm text-slate-500">No date corrections have been recorded yet.</td>
+                    </tr>
+                }
+                else
+                {
+                    @foreach (var log in AuditLogs)
+                    {
+                        <tr>
+                            <td class="whitespace-nowrap text-xs text-slate-600">
+                                @log.CreatedAt.ToBusinessTime(Configuration).ToString("dd MMM yyyy, HH:mm")
+                            </td>
+                            <td class="font-medium text-slate-900">
+                                <span class="capitalize">@log.RecordType</span> #@log.RecordId
+                            </td>
+                            <td class="text-xs text-slate-600 font-mono">
+                                @log.Before
+                            </td>
+                            <td class="text-xs font-semibold text-indigo-700 font-mono">
+                                @log.After
+                            </td>
+                            <td class="text-xs text-slate-700">
+                                <div>@log.Reason</div>
+                                <div class="text-[11px] text-slate-400 mt-0.5">By user #@log.CreatedByUserId</div>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </section>
+</div>
+
+@code {
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromForm(FormName = "date-correction-form")]
+    private CorrectionModel? Input { get; set; }
+
+    private CorrectionModel FormModel => Input ??= new();
+
+    private IReadOnlyList<RecordChange>? AuditLogs;
+    private string? SuccessMessage;
+    private string? ErrorMessage;
+
+    public sealed class CorrectionModel
+    {
+        public string RecordType { get; set; } = "sale";
+        public string RecordIds { get; set; } = "";
+        public int RecordId { get; set; }
+        public string NewTimestamp { get; set; } = DateTimeOffset.UtcNow.ToString("yyyy-MM-ddTHH:mm");
+        public string Reason { get; set; } = "";
+    }
+
+    protected override void OnParametersSet()
+    {
+        Input ??= new();
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        Input ??= new();
+        await LoadLogsAsync();
+    }
+
+    private async Task LoadLogsAsync()
+    {
+        AuditLogs = await DbContext.RecordChanges
+            .AsNoTracking()
+            .Where(r => r.Action == "EditDate")
+            .OrderByDescending(r => r.Id)
+            .Take(50)
+            .ToListAsync();
+    }
+
+    private async Task ApplyCorrectionAsync()
+    {
+        try
+        {
+            var model = FormModel;
+            if (string.IsNullOrWhiteSpace(model.NewTimestamp) || !DateTimeOffset.TryParse(model.NewTimestamp, out var parsedTimestamp))
+            {
+                throw new ValidationException("Please choose a valid date and time.");
+            }
+
+            var zone = AccountingCalendar.Zone(Configuration);
+            // Convert input to UTC offset matching business zone
+            var unspecified = DateTime.SpecifyKind(DateTime.Parse(model.NewTimestamp), DateTimeKind.Unspecified);
+            var utcInstant = TimeZoneInfo.ConvertTimeToUtc(unspecified, zone);
+            var finalOffset = new DateTimeOffset(utcInstant, TimeSpan.Zero);
+
+            var rawIds = (model.RecordIds ?? "")
+                .Split(new[] { ',', ' ', ';', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(s => int.TryParse(s.Trim(), out var parsed) ? parsed : (int?)null)
+                .Where(x => x.HasValue)
+                .Select(x => x!.Value)
+                .Distinct()
+                .ToList();
+
+            if (rawIds.Count == 0 && model.RecordId > 0)
+            {
+                rawIds.Add(model.RecordId);
+            }
+
+            if (rawIds.Count == 0)
+            {
+                throw new ValidationException("Please enter at least one valid numeric record ID.");
+            }
+
+            if (rawIds.Count == 1)
+            {
+                await CorrectionService.ChangeDateAsync(
+                    HttpContext.User,
+                    model.RecordType,
+                    rawIds[0],
+                    finalOffset,
+                    model.Reason,
+                    HttpContext.RequestAborted);
+
+                SuccessMessage = $"Successfully updated {model.RecordType} #{rawIds[0]} date to {model.NewTimestamp}.";
+            }
+            else
+            {
+                var updatedCount = await CorrectionService.BulkChangeDateAsync(
+                    HttpContext.User,
+                    model.RecordType,
+                    rawIds,
+                    finalOffset,
+                    model.Reason,
+                    HttpContext.RequestAborted);
+
+                SuccessMessage = $"Successfully updated {updatedCount} {model.RecordType} records to {model.NewTimestamp}.";
+            }
+
+            ErrorMessage = null;
+            Input = new();
+            await LoadLogsAsync();
+        }
+        catch (ValidationException ex)
+        {
+            ErrorMessage = ex.Message;
+            SuccessMessage = null;
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = ex.Message;
+            SuccessMessage = null;
+        }
+    }
+}

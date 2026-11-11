@@ -10,6 +10,17 @@ public sealed record BalanceIssue(string Account, string Reference, decimal Stor
 public sealed class BalanceIntegrityService(IServiceScopeFactory scopes)
 {
     // Closing only checks the affected drawer, using its indexed movement relation.
+    public static async Task CheckDrawerAsync(AppDbContext db, CashDrawer drawer, CancellationToken ct)
+    {
+        var movementTotal = await db.CashMovements.Where(move => move.CashDrawerId == drawer.Id || (move.CashSession != null && move.CashSession.CashDrawerId == drawer.Id))
+            .Select(move => (decimal?)move.Amount).SumAsync(ct) ?? 0;
+        if (drawer.CurrentCash != drawer.OpeningBalance + movementTotal)
+        {
+            throw new System.ComponentModel.DataAnnotations.ValidationException(
+                "This drawer's balance does not match its movements. Ask an administrator to review Balance checks.");
+        }
+    }
+
     public static async Task CheckDrawerAsync(AppDbContext db, CashSession session, CancellationToken ct)
     {
         var movementTotal = await db.CashMovements.Where(move => move.CashSessionId == session.Id)
@@ -131,9 +142,7 @@ public sealed class BalanceIntegrityService(IServiceScopeFactory scopes)
             {
                 drawer.Id,
                 drawer.CurrentCash,
-                Expected = drawer.CurrentSession != null
-                    ? drawer.CurrentSession.OpeningCash + (db.CashMovements.Where(m => m.CashSessionId == drawer.CurrentSession.Id).Select(m => (decimal?)m.Amount).Sum() ?? 0)
-                    : (db.CashSessions.Where(s => s.CashDrawerId == drawer.Id && s.ClosedAt != null).OrderByDescending(s => s.Id).Select(s => (decimal?)(s.ActualClosingCash ?? s.ExpectedCash)).FirstOrDefault() ?? drawer.OpeningBalance)
+                Expected = drawer.OpeningBalance + (db.CashMovements.Where(m => m.CashDrawerId == drawer.Id || (m.CashSession != null && m.CashSession.CashDrawerId == drawer.Id)).Select(m => (decimal?)m.Amount).Sum() ?? 0)
             }).ToArrayAsync(ct);
             foreach (var row in drawers.Where(row => row.CurrentCash != row.Expected))
             {

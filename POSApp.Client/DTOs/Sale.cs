@@ -40,6 +40,7 @@ public sealed record SalesOptions(
     public bool CanSetOpeningBalance { get; init; }
     public int? DefaultLocationId { get; init; }
     public int[] OpenLocationIds { get; init; } = [];
+    public bool CanBackdate { get; init; }
 }
 
 public sealed record SalesLine(
@@ -58,6 +59,7 @@ public sealed record SalesCommand(
     string? Notes)
 {
     public DateOnly? WorkingDate { get; init; }
+    public DateTimeOffset? TransactionTime { get; init; }
     public long Revision { get; init; }
     public PaymentInput[]? Payments { get; init; }
     public int? OriginalSaleId { get; init; }

@@ -20,15 +20,13 @@ public static class FinancialPosting
         }
         if (method == PaymentMethod.Cash)
         {
-            var session = cashSession ?? await CashDrawerService.RequireOpenAsync(db, actorId, ct, cashLocationId);
-            if (session.ClosedAt is not null || session.BusinessDate != date)
-            {
-                throw new System.ComponentModel.DataAnnotations.ValidationException("Use an open cash drawer for the selected working day.");
-            }
-            CashDrawerService.Append(db, session, new CashMovement
+            var drawer = await CashDrawerService.RequireDrawerAsync(db, actorId, ct, cashLocationId);
+            CashDrawerService.Append(db, drawer, new CashMovement
             {
                 RequestId = Guid.NewGuid(),
                 BusinessDate = date,
+                CashSession = cashSession,
+                CashSessionId = cashSession?.Id,
                 Kind = kind,
                 Amount = amount,
                 Notes = notes,

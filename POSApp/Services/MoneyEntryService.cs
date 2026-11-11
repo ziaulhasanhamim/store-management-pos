@@ -32,10 +32,7 @@ public sealed partial class MoneyEntryService(IServiceScopeFactory scopes, IConf
             day.ToDateTime(TimeOnly.MinValue, DateTimeKind.Unspecified), zone), TimeSpan.Zero);
         var from = Utc(selected);
         var through = Utc(selected.AddDays(1));
-        var month = new DateOnly(selected.Year, selected.Month, 1);
-        var closed = await db.FinanceClosings.AnyAsync(closing => closing.ClosedAt != null
-            && (closing.Kind == ClosingKind.Day && closing.Date == selected
-                || closing.Kind == ClosingKind.Month && closing.Date == month), ct);
+        var closed = false;
         ExpenseCategoryOption[] categories = kind == "expenses"
             ? await db.ExpenseCategories.AsNoTracking().OrderBy(category => category.Name)
                 .Select(category => new ExpenseCategoryOption(category.Id, category.Name, category.IsArchived)).ToArrayAsync(ct)
@@ -145,6 +142,7 @@ public sealed partial class MoneyEntryService(IServiceScopeFactory scopes, IConf
 
         return new(kind, working, selected, selected == working && !closed, admin, total, count, categories, parties, rows)
         {
+            CanBackdate = admin,
             Pagination = pagination,
             Locations = activeLocations,
             UserDefaultLocationId = userLocation

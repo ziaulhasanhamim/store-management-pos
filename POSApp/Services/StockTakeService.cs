@@ -59,7 +59,6 @@ public sealed partial class StockTakeService(IServiceScopeFactory scopes, IConfi
                 return previous.Id;
             }
             var date = await AccountingCalendar.SelectedAsync(db, actorId, configuration, ct);
-            AccountingCalendar.ValidateExpected(date, WorkingDayRequest.Date);
             await AccountingCalendar.EnsureOpenAsync(db, date, ct);
             if (!await db.StockLocations.AnyAsync(location => location.Id == input.LocationId && !location.IsDeleted, ct))
             {

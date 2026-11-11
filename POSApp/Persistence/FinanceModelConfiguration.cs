@@ -34,21 +34,46 @@ internal static class FinanceModelConfiguration
             entity.HasIndex(batch => batch.RequestId).IsUnique();
             entity.Property(batch => batch.Kind).HasMaxLength(32);
         });
-        builder.Entity<WorkingDay>().Property(day => day.Id).ValueGeneratedNever();
-        builder.Entity<DayFinance>(entity =>
-        {
-            entity.HasIndex(day => day.Date).IsUnique();
-            entity.HasIndex(day => day.FinanceClosingId).IsUnique();
-        });
+
         builder.Entity<CashDrawer>(entity =>
         {
             entity.HasIndex(drawer => drawer.StockLocationId).IsUnique();
             entity.HasMany(drawer => drawer.Sessions)
                 .WithOne(session => session.CashDrawer)
                 .HasForeignKey(session => session.CashDrawerId);
+            entity.HasMany(drawer => drawer.Movements)
+                .WithOne(move => move.CashDrawer)
+                .HasForeignKey(move => move.CashDrawerId);
+            entity.HasMany(drawer => drawer.Counts)
+                .WithOne(count => count.CashDrawer)
+                .HasForeignKey(count => count.CashDrawerId);
             entity.HasOne(drawer => drawer.CurrentSession)
                 .WithOne()
                 .HasForeignKey<CashDrawer>(drawer => drawer.CurrentSessionId);
+        });
+        builder.Entity<CashCount>(entity =>
+        {
+            entity.HasIndex(count => count.RequestId).IsUnique();
+            entity.HasIndex(count => new { count.CashDrawerId, count.CountedAt });
+            entity.HasIndex(count => new { count.StockLocationId, count.BusinessDate });
+            entity.Property(count => count.Notes).HasMaxLength(2000);
+            entity.Property(count => count.VoidReason).HasMaxLength(2000);
+            entity.HasOne(count => count.CashDrawer)
+                .WithMany(drawer => drawer.Counts)
+                .HasForeignKey(count => count.CashDrawerId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(count => count.StockLocation)
+                .WithMany()
+                .HasForeignKey(count => count.StockLocationId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(count => count.CountedByUser)
+                .WithMany()
+                .HasForeignKey(count => count.CountedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(count => count.VarianceMovement)
+                .WithMany()
+                .HasForeignKey(count => count.VarianceMovementId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
         builder.Entity<CashTransfer>(entity =>
         {
@@ -59,17 +84,27 @@ internal static class FinanceModelConfiguration
         builder.Entity<CashSession>(entity =>
         {
             entity.HasIndex(session => session.RequestId).IsUnique();
-            entity.HasIndex(session => new { session.CashDrawerId, session.BusinessDate });
             entity.HasIndex(session => new { session.CashDrawerId, session.OpenedAt });
             entity.Property(session => session.ClosingNotes).HasMaxLength(2000);
         });
         builder.Entity<CashMovement>(entity =>
         {
             entity.HasIndex(move => move.RequestId).IsUnique();
+            entity.HasIndex(move => move.BusinessDate);
+            entity.HasIndex(move => new { move.CashDrawerId, move.CreatedAt });
             entity.HasIndex(move => new { move.CashSessionId, move.Id });
             entity.HasIndex(move => move.PayrollEntryId).IsUnique();
             entity.HasIndex(move => move.ReversesMovementId).IsUnique();
             entity.Property(move => move.Notes).HasMaxLength(2000);
+            entity.HasOne(move => move.CashDrawer)
+                .WithMany(drawer => drawer.Movements)
+                .HasForeignKey(move => move.CashDrawerId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(move => move.CashSession)
+                .WithMany(session => session.Movements)
+                .HasForeignKey(move => move.CashSessionId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.SetNull);
         });
         builder.Entity<Expense>(entity =>
         {
@@ -152,12 +187,7 @@ internal static class FinanceModelConfiguration
             entity.HasIndex(move => move.ReversesMovementId).IsUnique();
             entity.Property(move => move.Notes).HasMaxLength(2000);
         });
-        builder.Entity<CashMovement>().HasIndex(move => move.BusinessDate);
-        builder.Entity<FinanceClosing>(entity =>
-        {
-            entity.HasIndex(closing => new { closing.Kind, closing.Date }).IsUnique();
-            entity.Property(closing => closing.Notes).HasMaxLength(2000);
-        });
+
         builder.Entity<StockTransfer>(entity =>
         {
             entity.HasIndex(transfer => transfer.RequestId).IsUnique();

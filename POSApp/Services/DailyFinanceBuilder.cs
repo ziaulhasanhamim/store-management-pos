@@ -38,7 +38,7 @@ internal static class DailyFinanceBuilder
         // Use active ledger postings so corrections and deleted invoices are counted once.
         // Drawer-to-drawer transfers are internal and do not change business funds.
         var cash = await db.CashMovements.AsNoTracking()
-            .Where(move => move.BusinessDate == date && move.CashTransferId == null
+            .Where(move => move.CreatedAt >= from && move.CreatedAt < through && move.CashTransferId == null
                 && move.ReversesMovementId == null
                 && !db.CashMovements.Any(reverse => reverse.ReversesMovementId == move.Id)
                 && (locationId == null || move.CashSession!.StockLocationId == locationId.Value))
@@ -53,7 +53,7 @@ internal static class DailyFinanceBuilder
                 PaymentMethod.Cash, move.Amount, move.Notes)).ToArrayAsync(ct);
         var bank = locationId == null
             ? await db.BankMovements.AsNoTracking()
-                .Where(move => move.BusinessDate == date && move.Kind != CashMovementKind.OpeningBalance
+                .Where(move => move.CreatedAt >= from && move.CreatedAt < through && move.Kind != CashMovementKind.OpeningBalance
                     && move.ReversesMovementId == null
                     && !db.BankMovements.Any(reverse => reverse.ReversesMovementId == move.Id))
                 .Select(move => new PaymentSnapshot(
@@ -295,7 +295,7 @@ internal static class DailyFinanceBuilder
 
         return new DailyFinanceDetails(categories, allPayments)
         {
-            AwaitingPayout = awaitingSummary,
+                        AwaitingPayout = awaitingSummary,
             StockActivity = stockActivity
         };
     }

@@ -99,8 +99,6 @@ public sealed class StockTransferService(IServiceScopeFactory scopes, IConfigura
                 return new(previous.Id, previous.Items.Count);
             }
             var date = await AccountingCalendar.SelectedAsync(db, actorId, configuration, ct);
-            AccountingCalendar.ValidateExpected(date, WorkingDayRequest.Date);
-            AccountingCalendar.ValidateExpected(date, input.WorkingDate);
             await AccountingCalendar.EnsureOpenAsync(db, date, ct);
             if (await db.StockLocations.CountAsync(location => !location.IsDeleted
                 && (location.Id == input.SourceLocationId || location.Id == input.DestinationLocationId), ct) != 2)

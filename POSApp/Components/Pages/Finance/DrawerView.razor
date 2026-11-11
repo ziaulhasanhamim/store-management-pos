@@ -1,5 +1,6 @@
 <nav class="mb-6 flex flex-wrap gap-2 no-print" aria-label="Cash drawer pages">
     <a href="/cash-drawer" class="@(View == "drawer" ? "filter-chip active" : "filter-chip")">Operate / count</a>
+    <a href="/cash-drawer?view=counts" class="@(View == "counts" ? "filter-chip active" : "filter-chip")">Count checkpoints</a>
     <a href="/cash-drawer?view=locations" class="@(View == "locations" ? "filter-chip active" : "filter-chip")">Locations</a>
     @if (Data.Admin)
     {
@@ -10,133 +11,165 @@
     {
         <a href="/reports/statements/cash" class="filter-chip">Cash statement</a>
     }
-    <a href="/cash-drawer?view=history" class="@(View == "history" ? "filter-chip active" : "filter-chip")">History & reconciliation</a>
+    <a href="/cash-drawer?view=history" class="@(View == "history" ? "filter-chip active" : "filter-chip")">Shift history</a>
 </nav>
 <DrawerControls Data="Data" View="@View" Location="Location" Transfer="Transfer" Assignment="Assignment" SelectLocationAsync="SelectLocationAsync" TransferAsync="TransferAsync" AssignAsync="AssignAsync" />
 
 
 @if (View == "drawer")
 {
-    @if ((Data?.Admin == true && Data.Viewed is { LocationId: null, ClosedAt: null } ? Data.Viewed : Data?.Current) is { ClosedAt: null } current)
+    var selectedLoc = Data?.Locations.FirstOrDefault(l => l.Id == Data.SelectedLocationId);
+    if (selectedLoc is not null)
     {
-        <h2 class="mb-4 font-semibold">@current.Location · @current.BusinessDate.ToString("dd MMM yyyy")</h2>
-        <div class="mb-6 grid gap-4 sm:grid-cols-3">
-            <div class="metric">
-                <p>Opening float</p>
-                <strong class="text-2xl!">@Money(current.Opening)</strong>
+        <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div>
+                <h2 class="text-xl font-bold text-slate-900">@selectedLoc.Name · Physical Cash Drawer</h2>
+                <p class="text-xs text-slate-500">Continuous cash drawer. Record sales, expenses, and physical cash counts at any time.</p>
             </div>
-            <div class="metric">
-                <p>Net cash movements</p>
-                <strong class="text-2xl!">@Money(current.Expected - current.Opening)</strong>
-            </div>
-            <div class="metric">
-                <p>Expected cash</p>
-                <strong class="text-2xl!">@Money(current.Expected)</strong>
+            <div>
+                @if (Data?.LastCount is not null)
+                {
+                    var ageHours = (DateTimeOffset.UtcNow - Data.LastCount.CountedAt).TotalHours;
+                    if (ageHours < 24)
+                    {
+                        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            <span class="size-2 rounded-full bg-emerald-500"></span> Counted today (@Time(Data.LastCount.CountedAt))
+                        </span>
+                    }
+                    else if (ageHours < 48)
+                    {
+                        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                            <span class="size-2 rounded-full bg-amber-500"></span> Counted yesterday (@Time(Data.LastCount.CountedAt))
+                        </span>
+                    }
+                    else
+                    {
+                        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+                            <span class="size-2 rounded-full bg-rose-500"></span> Count overdue (@Time(Data.LastCount.CountedAt))
+                        </span>
+                    }
+                }
+                else
+                {
+                    <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+                        <span class="size-2 rounded-full bg-rose-500"></span> Never counted
+                    </span>
+                }
             </div>
         </div>
+
+        <div class="mb-6 grid gap-4 sm:grid-cols-3">
+            <div class="metric">
+                <p>Current book cash</p>
+                <strong class="text-2xl!">@Money(Data.CurrentCash)</strong>
+            </div>
+            <div class="metric">
+                <p>Last physically counted</p>
+                <strong class="text-2xl!">@(Data.LastCount is not null ? Money(Data.LastCount.CountedCash) : "—")</strong>
+            </div>
+            <div class="metric">
+                <p>Pending variance</p>
+                <strong class="text-2xl! @(Data.PendingCount is null || Data.PendingCount.Variance == 0 ? "text-slate-900" : Data.PendingCount.Variance < 0 ? "text-rose-600" : "text-blue-600")">
+                    @(Data.PendingCount is not null ? Money(Data.PendingCount.Variance) : "৳0.00")
+                </strong>
+            </div>
+        </div>
+
+        @if (Data.PendingCount is not null)
+        {
+            <div class="mb-6 max-w-2xl rounded-xl border border-amber-200 bg-amber-50 p-5 text-amber-900 shadow-xs">
+                <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wider bg-amber-200 text-amber-900">Pending Review</span>
+                            <h3 class="font-bold text-slate-900">Physical Cash Count Variance: @Money(Data.PendingCount.Variance)</h3>
+                        </div>
+                        <p class="text-xs text-slate-700 mt-1">
+                            Counted by <strong>@Data.PendingCount.CountedBy</strong> on @Time(Data.PendingCount.CountedAt).
+                            Expected: <strong>@Money(Data.PendingCount.ExpectedCash)</strong> · Counted: <strong>@Money(Data.PendingCount.CountedCash)</strong>
+                        </p>
+                        @if (!string.IsNullOrWhiteSpace(Data.PendingCount.Notes))
+                        {
+                            <p class="text-xs text-slate-600 mt-2 bg-white/70 p-2 rounded border border-amber-100">
+                                <span class="font-semibold text-slate-700">Note:</span> @Data.PendingCount.Notes
+                            </p>
+                        }
+                        <p class="text-xs text-slate-500 mt-2">
+                            The drawer book balance remains unadjusted until an admin reviews and accepts this variance.
+                        </p>
+                    </div>
+                    @if (Data?.Admin == true)
+                    {
+                        <div class="shrink-0 flex flex-col gap-2">
+                            @if (Data.UndepositedServicingProfit > 0)
+                            {
+                                <div class="text-xs text-amber-800 font-medium">
+                                    ⚠️ Deposit servicing profit before accepting variance!
+                                </div>
+                            }
+                            <form method="post" @formname="cash-variance-accept" @onsubmit="AcceptVarianceAsync" data-enhance data-submit-indication="true">
+                                <AntiforgeryToken />
+                                <input type="hidden" name="AcceptVarianceInput.CountId" value="@Data.PendingCount.Id" />
+                                <input type="hidden" name="AcceptVarianceInput.CashCountId" value="@Data.PendingCount.Id" />
+                                <input type="hidden" name="AcceptVarianceInput.Confirmed" value="true" />
+                                <button type="submit" class="btn-primary text-xs py-2 px-3 whitespace-nowrap" data-pending-text="Accepting…" disabled="@(Data.UndepositedServicingProfit > 0)">
+                                    Accept Variance & Post Movement
+                                </button>
+                            </form>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+
+        @if (Data.UndepositedServicingProfit > 0)
+        {
+            <div class="mb-6 max-w-2xl rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900 shadow-xs">
+                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div class="flex items-start gap-3">
+                        <div class="rounded-lg bg-amber-100 p-2 text-amber-700">
+                            <Icon Name="service" Class="size-5" />
+                        </div>
+                        <div>
+                            <h3 class="font-semibold text-slate-900">Undeposited mobile servicing profit: @Money(Data.UndepositedServicingProfit)</h3>
+                            <p class="text-xs text-slate-600 mt-0.5">There is mobile servicing profit earned today that has not been deposited into this drawer yet. Deposit it before closing so your expected cash matches your physical count.</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2 shrink-0 sm:self-center">
+                        <form method="post" @formname="cash-deposit-servicing" @onsubmit="DepositServicingProfitAsync" data-enhance data-submit-indication="true">
+                            <AntiforgeryToken />
+                            <button type="submit" class="btn-primary text-xs py-2 px-3 whitespace-nowrap" data-pending-text="Depositing…">
+                                Deposit @Money(Data.UndepositedServicingProfit)
+                            </button>
+                        </form>
+                        <a href="/servicing" class="btn-secondary text-xs py-2 px-3 whitespace-nowrap">View jobs</a>
+                    </div>
+                </div>
+            </div>
+        }
+
         <div class="mb-6 max-w-2xl">
             <section class="panel p-6">
-                <h2 class="mb-4 font-semibold">Count and close shift #@current.Id</h2>
-                <form method="post" @formname="cash-close" @onsubmit="CloseAsync" data-enhance data-submit-indication="true">
+                <div class="flex items-center justify-between mb-4">
+                    <div>
+                        <h2 class="font-semibold text-lg text-slate-900">Physical Cash Count</h2>
+                        <p class="text-xs text-slate-500">Verify and record the physical cash currently in this drawer.</p>
+                    </div>
+                    <span class="text-xs font-semibold px-2.5 py-1 bg-slate-100 rounded text-slate-700">Book balance: @Money(Data.CurrentCash)</span>
+                </div>
+                <form method="post" @formname="cash-count" @onsubmit="SubmitCountAsync" data-enhance data-submit-indication="true">
                     <AntiforgeryToken />
-                    <input type="hidden" name="Close.SessionId" value="@current.Id" />
-                    <CashCount Value="Close.ActualCash" Expected="current.Expected" Currency="@Currency" @rendermode="InteractiveAuto" />
-                    <label class="field-label mt-4" for="close-notes">Reconciliation notes</label>
-                    <textarea id="close-notes" name="Close.Notes" class="field" maxlength="2000">@Close?.Notes</textarea>
-                    <p class="mt-2 text-xs text-slate-500">A shortage or overage requires a note. Closing saves the final count.</p>
-                    <button class="btn-primary mt-4" data-pending-text="Reviewing…">Review & close drawer</button>
+                    <input type="hidden" name="CountInput.CashDrawerId" value="@(Data.Viewed?.DrawerId ?? selectedLoc.Id)" />
+                    <CashCount Value="CountInput?.CountedCash" Expected="Data.CurrentCash" Currency="@Currency" FieldName="CountInput.CountedCash" @rendermode="InteractiveAuto" />
+                    <label class="field-label mt-4" for="count-notes">Count notes</label>
+                    <textarea id="count-notes" name="CountInput.Notes" class="field" rows="2" maxlength="2000" placeholder="Required if counted cash differs from book balance...">@CountInput?.Notes</textarea>
+                    <p class="mt-2 text-xs text-slate-500">If physical cash matches book cash, the count finishes immediately. If there is a variance, it is queued for admin approval.</p>
+                    <button class="btn-primary mt-4" data-pending-text="Saving count…">Submit Physical Count</button>
                 </form>
             </section>
         </div>
     }
-    else if (Data is not null && Data.SelectedLocationId is not null && Data.Locations.Any(location => location.Id == Data.SelectedLocationId && location.ClosedToday))
-    {
-        var loc = Data.Locations.First(location => location.Id == Data.SelectedLocationId);
-        var closedSession = Data.ClosedTodaySession;
-        var targetSessionId = closedSession?.Id ?? loc.ClosedSessionId;
-        <section class="panel mb-6 max-w-2xl p-6">
-            <div class="flex flex-wrap items-center justify-between pb-4 border-b border-slate-100 gap-3">
-                <div class="flex items-center gap-3">
-                    <span class="flex size-10 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 font-bold text-lg">✓</span>
-                    <div>
-                        <h2 class="text-xl font-semibold text-slate-900">Drawer closed for today</h2>
-                        <p class="text-xs text-slate-500">@loc.Name · Counted cash is finalized for the current working day.</p>
-                    </div>
-                </div>
-                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                    Counted & closed
-                </span>
-            </div>
-
-            @if (closedSession is not null)
-            {
-                <dl class="my-5 grid gap-3 sm:grid-cols-4">
-                    <div class="p-3 bg-slate-50 rounded-xl">
-                        <dt class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Opening Float</dt>
-                        <dd class="mt-1 text-lg font-bold text-slate-900 tabular-nums">@Money(closedSession.Opening)</dd>
-                    </div>
-                    <div class="p-3 bg-slate-50 rounded-xl">
-                        <dt class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Expected Cash</dt>
-                        <dd class="mt-1 text-lg font-bold text-slate-900 tabular-nums">@Money(closedSession.Expected)</dd>
-                    </div>
-                    <div class="p-3 bg-slate-50 rounded-xl">
-                        <dt class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Counted Cash</dt>
-                        <dd class="mt-1 text-lg font-bold text-slate-900 tabular-nums">@Money(closedSession.Actual ?? closedSession.Expected)</dd>
-                    </div>
-                    <div class="p-3 @(closedSession.Difference != 0 ? "bg-amber-50 text-amber-900 border border-amber-200" : "bg-slate-50") rounded-xl">
-                        <dt class="text-xs font-semibold @(closedSession.Difference != 0 ? "text-amber-700" : "text-slate-500") uppercase tracking-wider">Over / Short</dt>
-                        <dd class="mt-1 text-lg font-bold tabular-nums">@Money(closedSession.Difference ?? 0)</dd>
-                    </div>
-                </dl>
-                @if (!string.IsNullOrWhiteSpace(closedSession.Notes))
-                {
-                    <div class="mb-5 p-3 rounded-xl bg-slate-50 text-xs text-slate-600 border border-slate-100">
-                        <span class="font-semibold text-slate-700">Closing notes:</span> @closedSession.Notes
-                    </div>
-                }
-            }
-
-            <p class="mb-4 text-xs text-slate-500">
-                A counted closing is final. No further sales or cash entries can be recorded for this location today.
-            </p>
-            <div class="flex flex-wrap gap-3">
-                <a href="@($"/cash-drawer?view=history{(targetSessionId.HasValue ? $"&sessionId={targetSessionId.Value}" : "")}")" class="btn-secondary">
-                    View drawer details & movements
-                </a>
-                <a href="/cash-drawer?view=locations" class="btn-secondary">Switch location</a>
-                @if (Data.Admin && targetSessionId.HasValue)
-                {
-                    <a href="@($"/administration/reopen?kind=drawer&id={targetSessionId.Value}")" class="btn-secondary text-amber-700 border-amber-300">
-                        Reopen drawer
-                    </a>
-                }
-            </div>
-        </section>
-    }
-    else if (Data is not null && Data.SelectedLocationId is not null && !Data.Locations.Any(location => location.Id == Data.SelectedLocationId && location.ClosedToday))
-    {
-        <section class="panel mb-6 max-w-xl p-6">
-            <h2 class="mb-4 font-semibold">Open location drawer</h2>
-            <form method="post" @formname="cash-open" @onsubmit="OpenAsync" data-enhance data-submit-indication="true">
-                <AntiforgeryToken />
-                <input type="hidden" name="Open.RequestId" value="@Open!.RequestId" />
-                <input type="hidden" name="Open.StockLocationId" value="@Data.SelectedLocationId" />
-                @if (Data.Locations.SingleOrDefault(location => location.Id == Data.SelectedLocationId) is { Initialized: false })
-                {
-                    <label class="field-label mt-4" for="opening-cash">Initial cash already held here (@Currency)</label>
-                    <input id="opening-cash" name="Open.OpeningCash" class="field" inputmode="decimal" value="0" required />
-                    <p class="mt-2 text-xs text-slate-500">One-time setup only. After the first business day, fund a new location by transfer or cash-in.</p>
-                }
-                else
-                {
-                    <p class="mb-4 text-sm">Opening cash is carried automatically from the last closing.</p>
-                }
-                <button class="btn-primary" data-pending-text="Opening…">Open drawer</button>
-            </form>
-        </section>
-    }
-
-    @if (Data is { SelectedLocationId: null })
+    else
     {
         <section class="panel max-w-2xl p-6">
             <h2 class="mb-3 font-semibold">Choose a cash location</h2>
@@ -144,6 +177,89 @@
             <a href="/cash-drawer?view=locations" class="btn-primary">Select location</a>
         </section>
     }
+}
+@if (View == "counts")
+{
+    <section class="panel mb-6 table-scroll">
+        <div class="panel-heading">
+            <div>
+                <h2>Physical Cash Count Checkpoints</h2>
+                <p class="mt-1 text-xs text-slate-500">Audit trail of all physical cash counts, variances, and admin approvals.</p>
+            </div>
+        </div>
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Count #</th>
+                    <th>Time</th>
+                    <th>Counted by</th>
+                    <th class="text-right">Expected</th>
+                    <th class="text-right">Counted</th>
+                    <th class="text-right">Variance</th>
+                    <th>Status</th>
+                    <th>Notes / Review</th>
+                    @if (Data?.Admin == true)
+                    {
+                        <th>Action</th>
+                    }
+                </tr>
+            </thead>
+            <tbody>
+                @if (Data.CountHistory.Count == 0)
+                {
+                    <tr>
+                        <td colspan="9" class="p-4 text-center text-sm text-slate-500">No physical cash counts recorded yet.</td>
+                    </tr>
+                }
+                @foreach (var count in Data.CountHistory)
+                {
+                    <tr>
+                        <td>#@count.Id</td>
+                        <td>@Time(count.CountedAt)</td>
+                        <td>@count.CountedBy</td>
+                        <td class="text-right">@Money(count.ExpectedCash)</td>
+                        <td class="text-right font-medium">@Money(count.CountedCash)</td>
+                        <td class="text-right font-bold @(count.Variance == 0 ? "text-emerald-700" : count.Variance < 0 ? "text-rose-700" : "text-blue-700")">
+                            @(count.Variance == 0 ? "Balanced" : Money(count.Variance))
+                        </td>
+                        <td>
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold @(count.Status switch
+                            {
+                                CashCountStatus.Completed => "bg-emerald-100 text-emerald-800",
+                                CashCountStatus.PendingReview => "bg-amber-100 text-amber-800",
+                                CashCountStatus.VarianceAccepted => "bg-blue-100 text-blue-800",
+                                CashCountStatus.Voided => "bg-slate-100 text-slate-600",
+                                _ => "bg-slate-100 text-slate-700"
+                            })">
+                                @count.Status
+                            </span>
+                        </td>
+                        <td class="text-xs">
+                            @if (!string.IsNullOrWhiteSpace(count.Notes))
+                            {
+                                <div>@count.Notes</div>
+                            }
+                            @if (count.CompletedAt is not null && count.CompletedBy is not null)
+                            {
+                                <div class="text-slate-500 mt-0.5">Reviewed by @count.CompletedBy on @Time(count.CompletedAt.Value)</div>
+                            }
+                        </td>
+                        @if (Data?.Admin == true)
+                        {
+                            <td>
+                                @if (count.Status == CashCountStatus.PendingReview)
+                                {
+                                    <a href="/cash-drawer" class="btn-secondary text-xs py-1 px-2 whitespace-nowrap">
+                                        Review in Drawer
+                                    </a>
+                                }
+                            </td>
+                        }
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </section>
 }
 @if (View == "drawer" && Data is { Admin: true, Current: { } statementSession })
 {
@@ -186,7 +302,7 @@
                         @((viewed.Difference ?? 0) == 0 ? "Balanced" : viewed.Difference < 0 ? "Shortage" : "Overage") · @Money(Math.Abs(viewed.Difference ?? 0))
                     </p>
                     <p class="mt-1 text-sm text-slate-500">@viewed.Notes</p>
-                    @if (Data.Admin)
+                    @if (Data?.Admin == true)
                     {
                         <a href="@($"/finance/reopen?kind=drawer&id={viewed.Id}")" class="btn-secondary mt-4">Reopen drawer</a>
                     }
@@ -310,6 +426,18 @@
     [Parameter, EditorRequired]
     public AssignCashDrawerInput Assignment { get; set; } = default!;
 
+    [Parameter, EditorRequired]
+    public CashCountInput CountInput { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public AcceptVarianceInput AcceptVarianceInput { get; set; } = default!;
+
+    [Parameter]
+    public EventCallback SubmitCountAsync { get; set; }
+
+    [Parameter]
+    public EventCallback AcceptVarianceAsync { get; set; }
+
     [Parameter]
     public EventCallback SelectLocationAsync { get; set; }
 
@@ -318,6 +446,9 @@
 
     [Parameter]
     public EventCallback AssignAsync { get; set; }
+
+    [Parameter]
+    public EventCallback DepositServicingProfitAsync { get; set; }
 
     private string Currency => Configuration["CurrencyCode"] ?? "BDT";
 

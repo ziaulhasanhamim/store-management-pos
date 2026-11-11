@@ -98,6 +98,17 @@
                             <label class="field-label" for="notes">Notes</label>
                             <input id="notes" class="field" maxlength="2000" @bind="Notes" @bind:event="oninput" placeholder="Optional" />
                         </div>
+
+                        @if (Options.CanBackdate)
+                        {
+                            <div class="sm:col-span-2 rounded-xl border border-blue-200 bg-blue-50/70 p-3 space-y-1.5">
+                                <label class="block">
+                                    <span class="field-label text-blue-900">Transaction Date & Time (Admin Backdate)</span>
+                                    <input type="datetime-local" class="field bg-white" @bind="CustomTransactionTime" />
+                                </label>
+                                <p class="text-[11px] text-blue-700">Leave blank for current time. Backdated receipts land on their business date without interrupting live operations.</p>
+                            </div>
+                        }
                     </div>
                 </section>
 

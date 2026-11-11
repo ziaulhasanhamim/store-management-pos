@@ -37,7 +37,7 @@ public static class PostgreSqlTestDatabase
             else
             {
                 _container = new PostgreSqlBuilder("postgres:16-alpine")
-                    .WithDatabase("posapp_test")
+                    .WithDatabase("jasintstore_test")
                     .WithUsername("postgres")
                     .WithPassword("postgres")
                     .Build();
@@ -48,6 +48,7 @@ public static class PostgreSqlTestDatabase
 
             var options = new DbContextOptionsBuilder<AppDbContext>()
                 .UseNpgsql(ConnectionString)
+                .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning))
                 .Options;
 
             await using (var db = new AppDbContext(options))
@@ -216,24 +217,6 @@ public static class PostgreSqlTestDatabase
         };
         db.Customers.Add(customer);
 
-        // Seed Working Day and DayFinance
-        var workingDay = new WorkingDay
-        {
-            Id = 1,
-            Date = AccountingCalendar.Today(null)
-        };
-        db.WorkingDays.Add(workingDay);
-
-        var dayFinance = new DayFinance
-        {
-            Id = 1,
-            Date = AccountingCalendar.Today(null),
-            OpeningCash = 100000m,
-            ExpectedCash = 100000m,
-            CreatedByUserId = 1
-        };
-        db.DayFinances.Add(dayFinance);
-
         // Seed Default Product
         var product = new Product
         {
@@ -291,8 +274,6 @@ public static class PostgreSqlTestDatabase
             SELECT setval(pg_get_serial_sequence('""Categories""', 'Id'), coalesce(max(""Id""), 1)) FROM ""Categories"";
             SELECT setval(pg_get_serial_sequence('""Suppliers""', 'Id'), coalesce(max(""Id""), 1)) FROM ""Suppliers"";
             SELECT setval(pg_get_serial_sequence('""Customers""', 'Id'), coalesce(max(""Id""), 1)) FROM ""Customers"";
-            SELECT setval(pg_get_serial_sequence('""WorkingDays""', 'Id'), coalesce(max(""Id""), 1)) FROM ""WorkingDays"";
-            SELECT setval(pg_get_serial_sequence('""DayFinances""', 'Id'), coalesce(max(""Id""), 1)) FROM ""DayFinances"";
             SELECT setval(pg_get_serial_sequence('""Products""', 'Id'), coalesce(max(""Id""), 1)) FROM ""Products"";
             SELECT setval(pg_get_serial_sequence('""CashDrawers""', 'Id'), coalesce(max(""Id""), 1)) FROM ""CashDrawers"";
             SELECT setval(pg_get_serial_sequence('""CashSessions""', 'Id'), coalesce(max(""Id""), 1)) FROM ""CashSessions"";

@@ -159,7 +159,6 @@ public sealed class PaymentClearingService(IServiceScopeFactory scopes, IConfigu
                 ?? throw new ValidationException("Store location not found.");
 
             var workingDate = await AccountingCalendar.SelectedAsync(db, actorId, configuration, ct);
-            AccountingCalendar.ValidateExpected(workingDate, WorkingDayRequest.Date);
             await AccountingCalendar.EnsureOpenAsync(db, workingDate, ct);
 
             var entries = await db.PaymentClearingEntries

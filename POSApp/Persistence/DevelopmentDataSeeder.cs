@@ -318,15 +318,8 @@ public static class DevelopmentDataSeeder
 
         await db.SaveChangesAsync(cancellationToken);
 
-        // Ensure active working day
-        var activeDate = await AccountingCalendar.SelectedAsync(db, adminUserId ?? 1, configuration, cancellationToken);
-        var workingDay = await db.WorkingDays.SingleOrDefaultAsync(d => d.Id == 1, cancellationToken);
-        if (workingDay is null)
-        {
-            workingDay = new WorkingDay { Id = 1, Date = activeDate };
-            db.WorkingDays.Add(workingDay);
-            await db.SaveChangesAsync(cancellationToken);
-        }
+        // Active date for opening initial records
+        var activeDate = AccountingCalendar.Today(configuration);
 
         // Primary Selling Location
         var sellingLocationCode = data.CashDrawer?.Location
@@ -362,41 +355,19 @@ public static class DevelopmentDataSeeder
                 await db.SaveChangesAsync(cancellationToken);
             }
 
-            // Ensure DayFinance exists for active working day
-            var dayFinance = await db.DayFinances.SingleOrDefaultAsync(df => df.Date == activeDate, cancellationToken);
-            if (dayFinance is null)
-            {
-                dayFinance = new DayFinance
-                {
-                    Date = activeDate,
-                    OpeningCash = drawer.CurrentCash,
-                    ExpectedCash = drawer.CurrentCash,
-                    CreatedByUserId = adminUserId
-                };
-                db.DayFinances.Add(dayFinance);
-                await db.SaveChangesAsync(cancellationToken);
-            }
-            else
-            {
-                dayFinance.OpeningCash = drawer.CurrentCash;
-                dayFinance.ExpectedCash = drawer.CurrentCash;
-                await db.SaveChangesAsync(cancellationToken);
-            }
-
-            // Ensure CashSession is open for active working day
+            // Ensure CashSession is open for register
             if (drawer.CurrentSession is null)
             {
                 var openSession = await db.CashSessions
                     .SingleOrDefaultAsync(s => s.CashDrawerId == drawer.Id && s.ClosedAt == null, cancellationToken);
 
-                if (openSession is null && !await db.CashSessions.AnyAsync(s => s.CashDrawerId == drawer.Id && s.BusinessDate == activeDate, cancellationToken))
+                if (openSession is null)
                 {
                     openSession = new CashSession
                     {
                         RequestId = Guid.NewGuid(),
                         CashDrawerId = drawer.Id,
                         StockLocationId = mainSellingLocation.Id,
-                        BusinessDate = activeDate,
                         OpenedAt = DateTimeOffset.UtcNow,
                         OpeningCash = drawer.CurrentCash,
                         ExpectedCash = drawer.CurrentCash,
@@ -409,7 +380,7 @@ public static class DevelopmentDataSeeder
                     drawer.CurrentSession = openSession;
                     await db.SaveChangesAsync(cancellationToken);
                 }
-                else if (openSession is not null)
+                else
                 {
                     drawer.CurrentSessionId = openSession.Id;
                     drawer.CurrentSession = openSession;

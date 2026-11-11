@@ -1,19 +1,22 @@
 @attribute [StreamRendering]
 @inject ClosingService Closings
 @inject CashDrawerService Drawers
+@inject IConfiguration Configuration
 
 @if (Date is not null)
 {
     <div class="hidden sm:flex items-center gap-2">
         <AuthorizeView Policy="@AppPolicies.ManageUsers">
             <Authorized>
-                <a data-draft-owner="@HttpContext.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value" data-working-date="@Date?.ToString("yyyy-MM-dd")" href="/finance/day" class="inline-flex items-center rounded-lg bg-blue-50/70 px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100/70 transition">
-                    Working day @Date?.ToString("dd MMM yyyy")
+                <a href="/finance/summary" class="inline-flex items-center gap-1.5 rounded-lg bg-indigo-50/70 px-2.5 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-100/70 transition">
+                    <span class="size-2 rounded-full bg-emerald-500"></span>
+                    Today · @Date?.ToString("dd MMM")
                 </a>
             </Authorized>
             <NotAuthorized>
-                <span class="inline-flex items-center rounded-lg bg-blue-50/70 px-2 py-1 text-xs font-medium text-blue-700">
-                    Working day @Date?.ToString("dd MMM yyyy")
+                <span class="inline-flex items-center gap-1.5 rounded-lg bg-indigo-50/70 px-2.5 py-1 text-xs font-medium text-indigo-700">
+                    <span class="size-2 rounded-full bg-emerald-500"></span>
+                    Today · @Date?.ToString("dd MMM")
                 </span>
             </NotAuthorized>
         </AuthorizeView>
@@ -26,14 +29,14 @@
     <div class="flex sm:hidden items-center">
         <AuthorizeView Policy="@AppPolicies.ManageUsers">
             <Authorized>
-                <a data-draft-owner="@HttpContext.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value" data-working-date="@Date?.ToString("yyyy-MM-dd")" href="/finance/day" class="inline-flex items-center gap-1 rounded-md bg-blue-50 px-2 py-1 text-[11px] font-semibold text-blue-700" title="Working day @(Date?.ToString("dd MMM yyyy") ?? "…") · Cash: @(CashLocation ?? "select location")">
-                    <span class="size-1.5 rounded-full bg-blue-600"></span>
+                <a href="/finance/summary" class="inline-flex items-center gap-1 rounded-md bg-indigo-50 px-2 py-1 text-[11px] font-semibold text-indigo-700" title="Today · @(Date?.ToString("dd MMM yyyy") ?? "…") · Cash: @(CashLocation ?? "select location")">
+                    <span class="size-1.5 rounded-full bg-emerald-500"></span>
                     @(Date?.ToString("dd MMM") ?? "…")
                 </a>
             </Authorized>
             <NotAuthorized>
-                <span class="inline-flex items-center gap-1 rounded-md bg-blue-50 px-2 py-1 text-[11px] font-semibold text-blue-700" title="Working day @(Date?.ToString("dd MMM yyyy") ?? "…")">
-                    <span class="size-1.5 rounded-full bg-blue-600"></span>
+                <span class="inline-flex items-center gap-1 rounded-md bg-indigo-50 px-2 py-1 text-[11px] font-semibold text-indigo-700" title="Today · @(Date?.ToString("dd MMM yyyy") ?? "…")">
+                    <span class="size-1.5 rounded-full bg-emerald-500"></span>
                     @(Date?.ToString("dd MMM") ?? "…")
                 </span>
             </NotAuthorized>
@@ -50,20 +53,12 @@
 
     protected override async Task OnInitializedAsync()
     {
-        try
-        {
-            Date = await Closings.SelectedAsync(HttpContext.User, HttpContext.RequestAborted);
-        }
-        catch (UnauthorizedAccessException)
-        {
-            Date = null;
-        }
-
+        Date = AccountingCalendar.Today(Configuration);
         try
         {
             CashLocation = await Drawers.SelectedLocationNameAsync(HttpContext.User, HttpContext.RequestAborted);
         }
-        catch (UnauthorizedAccessException)
+        catch
         {
             CashLocation = null;
         }

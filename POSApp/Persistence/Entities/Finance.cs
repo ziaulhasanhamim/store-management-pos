@@ -7,19 +7,23 @@ public sealed class CashDrawer : AuditableEntity
     public decimal OpeningBalance { get; set; }
     public DateOnly? OpeningDate { get; set; }
     public decimal CurrentCash { get; set; }
+    public DateTimeOffset? LastCountedAt { get; set; }
+    public decimal? LastCountedCash { get; set; }
     public int? CurrentSessionId { get; set; }
     public CashSession? CurrentSession { get; set; }
     public ICollection<CashSession> Sessions { get; set; } = [];
+    public ICollection<CashCount> Counts { get; set; } = [];
+    public ICollection<CashMovement> Movements { get; set; } = [];
 }
 
 public sealed class CashSession : AuditableEntity
 {
     public Guid RequestId { get; set; }
-    public DateOnly BusinessDate { get; set; }
     public int CashDrawerId { get; set; }
     public CashDrawer? CashDrawer { get; set; }
     public int? StockLocationId { get; set; }
     public StockLocation? StockLocation { get; set; }
+    public DateOnly BusinessDate { get; set; }
     public DateTimeOffset OpenedAt { get; set; }
     public DateTimeOffset? ClosedAt { get; set; }
     public decimal OpeningCash { get; set; }
@@ -31,16 +35,47 @@ public sealed class CashSession : AuditableEntity
     public ICollection<CashMovement> Movements { get; set; } = [];
 }
 
+public sealed class CashCount : AuditableEntity
+{
+    public Guid RequestId { get; set; }
+    public int CashDrawerId { get; set; }
+    public CashDrawer? CashDrawer { get; set; }
+    public int StockLocationId { get; set; }
+    public StockLocation? StockLocation { get; set; }
+    public DateOnly BusinessDate { get; set; }
+    public DateTimeOffset CountedAt { get; set; }
+    public int CountedByUserId { get; set; }
+    public User? CountedByUser { get; set; }
+    public decimal CountedCash { get; set; }
+    public decimal ExpectedCash { get; set; }
+    public decimal Difference => CountedCash - ExpectedCash;
+    public string? Notes { get; set; }
+    public CashCountStatus Status { get; set; } = CashCountStatus.PendingReview;
+    public DateTimeOffset? CompletedAt { get; set; }
+    public int? CompletedByUserId { get; set; }
+    public DateTimeOffset? VarianceAcceptedAt { get; set; }
+    public int? VarianceAcceptedByUserId { get; set; }
+    public int? VarianceMovementId { get; set; }
+    public CashMovement? VarianceMovement { get; set; }
+    public bool IsVoided { get; set; }
+    public DateTimeOffset? VoidedAt { get; set; }
+    public int? VoidedByUserId { get; set; }
+    public string? VoidReason { get; set; }
+}
+
 public sealed class CashMovement : AuditableEntity
 {
     public Guid RequestId { get; set; }
+    public DateOnly BusinessDate { get; set; }
+    public int CashDrawerId { get; set; }
+    public CashDrawer? CashDrawer { get; set; }
     public int? CashTransferId { get; set; }
     public CashTransfer? CashTransfer { get; set; }
-    public int CashSessionId { get; set; }
+    public int? CashSessionId { get; set; }
     public CashSession? CashSession { get; set; }
-    public DateOnly BusinessDate { get; set; }
     public CashMovementKind Kind { get; set; }
     public decimal Amount { get; set; }
+    public decimal BalanceAfter { get; set; }
     public required string Notes { get; set; }
     public int? PaymentId { get; set; }
     public Payment? Payment { get; set; }
@@ -159,9 +194,9 @@ public sealed class BankMovement : AuditableEntity
 {
     public string? RequestHash { get; set; }
     public Guid RequestId { get; set; }
+    public DateOnly BusinessDate { get; set; }
     public int BankAccountId { get; set; }
     public BankAccount? BankAccount { get; set; }
-    public DateOnly BusinessDate { get; set; }
     public CashMovementKind Kind { get; set; }
     public PaymentMethod Method { get; set; }
     public decimal Amount { get; set; }
@@ -181,80 +216,14 @@ public sealed class BankMovement : AuditableEntity
     public BankMovement? ReversesMovement { get; set; }
 }
 
-public sealed class FinanceClosing : AuditableEntity
-{
-    public decimal OwnerContributions { get; set; }
-    public decimal OwnerWithdrawals { get; set; }
-    public decimal StockVariance { get; set; }
-    public decimal DebtBorrowed { get; set; }
-    public decimal DebtRepaid { get; set; }
-    public decimal OutstandingDebt { get; set; }
-    public string? MonthlyDetailsJson { get; set; }
-    public ClosingKind Kind { get; set; }
-    public DateOnly Date { get; set; }
-    public decimal OpeningCash { get; set; }
-    public decimal OpeningBank { get; set; }
-    public decimal OpeningStock { get; set; }
-    public decimal OpeningSupplierDue { get; set; }
-    public decimal OpeningCustomerDue { get; set; }
-    public decimal OpeningDebt { get; set; }
-    public decimal OpeningNetAssets { get; set; }
-    public bool OpeningAssetsCustomized { get; set; }
-    public decimal CashIn { get; set; }
-    public decimal CashOut { get; set; }
-    public decimal BankIn { get; set; }
-    public decimal BankOut { get; set; }
-    public decimal ClosingCash { get; set; }
-    public decimal ClosingBank { get; set; }
-    public decimal ClosingStock { get; set; }
-    public decimal ClosingSupplierDue { get; set; }
-    public decimal ClosingCustomerDue { get; set; }
-    public decimal ClosingDebt { get; set; }
-    public decimal ClosingNetAssets { get; set; }
-    public decimal AssetBuilt { get; set; }
-    public decimal Revenue { get; set; }
-    public decimal Cogs { get; set; }
-    public decimal Expenses { get; set; }
-    public decimal SalaryExpense { get; set; }
-    public decimal SupplierPaid { get; set; }
-    public decimal PayrollPaid { get; set; }
-    public decimal SupplierDue { get; set; }
-    public decimal CustomerDue { get; set; }
-    public decimal StockValue { get; set; }
-    public decimal SalesReceipts { get; set; }
-    public decimal CustomerCollections { get; set; }
-    public decimal PurchaseTotal { get; set; }
-    public decimal AdvancesPaid { get; set; }
-    public decimal CashVariance { get; set; }
-    public DateTimeOffset? ClosedAt { get; set; }
-    public string? Notes { get; set; }
-}
-
-public sealed class WorkingDay : Entity
-{
-    public DateOnly Date { get; set; }
-}
-
-public sealed class DayFinance : AuditableEntity
-{
-    public DateOnly Date { get; set; }
-    public decimal OpeningCash { get; set; }
-    public decimal ExpectedCash { get; set; }
-    public decimal? CountedCash { get; set; }
-    public decimal? Difference { get; set; }
-    public DateTimeOffset? ClosedAt { get; set; }
-    public int? FinanceClosingId { get; set; }
-    public FinanceClosing? FinanceClosing { get; set; }
-}
-
 public sealed class CashTransfer : AuditableEntity
 {
     public Guid RequestId { get; set; }
+    public DateOnly BusinessDate { get; set; }
     public int SourceDrawerId { get; set; }
     public CashDrawer? SourceDrawer { get; set; }
     public int DestinationDrawerId { get; set; }
     public CashDrawer? DestinationDrawer { get; set; }
-    public DateOnly BusinessDate { get; set; }
     public decimal Amount { get; set; }
     public required string Notes { get; set; }
     public bool IsVoided { get; set; }
@@ -262,4 +231,3 @@ public sealed class CashTransfer : AuditableEntity
     public int? VoidedByUserId { get; set; }
     public string? VoidReason { get; set; }
 }
-

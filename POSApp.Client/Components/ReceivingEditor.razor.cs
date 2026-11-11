@@ -64,6 +64,7 @@ public partial class ReceivingEditor
     private string? Dialog;
     private string? DialogError;
     private string? Invoice;
+    private DateTime? CustomTransactionTime;
     private bool AllowDuplicateInvoice;
     private string? Notes;
     private string? Phone;
@@ -377,12 +378,22 @@ public partial class ReceivingEditor
         Error = null;
         try
         {
+            DateTimeOffset? transactionTime = null;
+            if (CustomTransactionTime.HasValue)
+            {
+                var unspecified = DateTime.SpecifyKind(CustomTransactionTime.Value, DateTimeKind.Unspecified);
+                var zone = UserTimeZone.ResolveZone(null, "Asia/Dhaka");
+                var utc = TimeZoneInfo.ConvertTimeToUtc(unspecified, zone);
+                transactionTime = new DateTimeOffset(utc, TimeSpan.Zero);
+            }
+
             var lines = Lines.Select(line => new ReceiveLine(line.Product.Id, line.Quantity, line.Cost)).ToArray();
             var command = new ReceiveCommand(RequestId, SupplierId, LocationId, lines, 0, PaymentMethod.Cash, Invoice, Notes)
             {
                 AllowDuplicateInvoice = AllowDuplicateInvoice,
                 WorkingDate = Options.WorkingDate,
-                Payments = Payments.ToArray()
+                Payments = Payments.ToArray(),
+                TransactionTime = transactionTime
             };
             Completed = await Inventory.ReceiveAsync(command);
             Options = await Inventory.OptionsAsync();

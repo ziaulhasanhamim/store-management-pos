@@ -184,7 +184,7 @@ public class MonthlyFinanceDetailsTests
         await workbook.Worksheets.Count.Should().BeEqualTo(6);
         await workbook.Worksheets.Contains("Overview").Should().BeEqualTo(true);
         await workbook.Worksheets.Contains("Stock Locations").Should().BeEqualTo(true);
-        await workbook.Worksheets.Contains("Working Days").Should().BeEqualTo(true);
+        await workbook.Worksheets.Contains("Daily Breakdown").Should().BeEqualTo(true);
         await workbook.Worksheets.Contains("Suppliers").Should().BeEqualTo(true);
         await workbook.Worksheets.Contains("Expenses & Payroll").Should().BeEqualTo(true);
         await workbook.Worksheets.Contains("Balance Sheet").Should().BeEqualTo(true);

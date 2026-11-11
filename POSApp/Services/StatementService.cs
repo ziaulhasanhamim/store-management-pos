@@ -52,9 +52,10 @@ public sealed class StatementService(IServiceScopeFactory scopes, IConfiguration
                 }
                 var drawer = await db.CashDrawers.AsNoTracking().SingleOrDefaultAsync(drawer => drawer.Id == drawerId, ct);
                 name = options.FirstOrDefault(drawer => drawer.Id == drawerId)?.Name ?? "Cash drawer";
-                var moves = db.CashMovements.AsNoTracking().Where(move => move.CashSession!.CashDrawerId == drawerId);
+                var moves = db.CashMovements.AsNoTracking().Where(move => move.CashDrawerId == drawerId || (move.CashSession != null && move.CashSession.CashDrawerId == drawerId));
                 var counts = db.CashSessions.AsNoTracking().Where(session => session.CashDrawerId == drawerId
-                    && session.ClosedAt != null && session.Difference != null && session.Difference != 0);
+                    && session.ClosedAt != null && session.Difference != null && session.Difference != 0
+                    && !db.CashMovements.Any(m => (m.CashDrawerId == drawerId || (m.CashSession != null && m.CashSession.CashDrawerId == drawerId)) && m.Kind == CashMovementKind.Variance && m.CreatedAt == session.ClosedAt));
                 var initial = (drawer?.CurrentCash ?? 0)
                     - (await moves.Select(move => (decimal?)move.Amount).SumAsync(ct) ?? 0)
                     - (await counts.Select(session => session.Difference).SumAsync(ct) ?? 0);
@@ -69,7 +70,7 @@ public sealed class StatementService(IServiceScopeFactory scopes, IConfiguration
                     Amount = move.Amount,
                     Notes = move.Notes,
                     Reference = "Cash movement #" + move.Id,
-                    Reconciliation = false,
+                    Reconciliation = move.Kind == CashMovementKind.Variance,
                     Collection = move.Payment != null && move.Payment.SaleId == null
                 }).Concat(counts.Select(session => new Entry
                 {
@@ -164,8 +165,22 @@ public sealed class StatementService(IServiceScopeFactory scopes, IConfiguration
                 balance += row.Amount;
                 return new StatementRow(row.Date, row.At, Label(row), row.Reference, row.Notes, row.Amount, balance);
             }).ToArray();
+            var pendingCount = (account == "cash" && drawerId != null)
+                ? await db.CashCounts.AsNoTracking()
+                    .Where(c => c.CashDrawerId == drawerId.Value && c.Status == CashCountStatus.PendingReview && !c.IsVoided)
+                    .OrderByDescending(c => c.Id)
+                    .Select(c => new { c.Difference, c.Notes, c.CountedAt })
+                    .FirstOrDefaultAsync(ct)
+                : null;
+
             return new(name, range, drawers, drawerId, opening, moneyIn, moneyOut, opening + moneyIn - moneyOut,
-                contributions, withdrawals, result, count, currentPage) { PageOpening = opening + prefix };
+                contributions, withdrawals, result, count, currentPage)
+            {
+                PageOpening = opening + prefix,
+                PendingCountDifference = pendingCount?.Difference,
+                PendingCountNotes = pendingCount?.Notes,
+                PendingCountAt = pendingCount?.CountedAt
+            };
         }, ct);
     }
 
@@ -339,6 +354,7 @@ public sealed class StatementService(IServiceScopeFactory scopes, IConfiguration
             CashMovementKind.Transfer => row.Amount >= 0 ? "Transfer in" : "Transfer out",
             CashMovementKind.DebtBorrowing => "Money borrowed",
             CashMovementKind.DebtRepayment => "Debt repayment",
+            CashMovementKind.Variance => row.Amount >= 0 ? "Cash count overage" : "Cash count shortage",
             _ => "Transaction reversal"
         };
 

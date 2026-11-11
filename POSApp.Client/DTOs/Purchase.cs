@@ -8,6 +8,7 @@ public sealed record ReceivingOptions(
 {
     public DateOnly? WorkingDate { get; init; }
     public IReadOnlyList<ProductAttributeDefinitionOption> Attributes { get; init; } = [];
+    public bool CanBackdate { get; init; }
 }
 
 public sealed record ReceiveLine(int ProductId, decimal Quantity, decimal UnitCost);
@@ -25,6 +26,7 @@ public sealed record ReceiveCommand(
     public DateOnly? WorkingDate { get; init; }
     public bool AllowDuplicateInvoice { get; init; }
     public PaymentInput[]? Payments { get; init; }
+    public DateTimeOffset? TransactionTime { get; init; }
 }
 
 public sealed record ReceiveResult(

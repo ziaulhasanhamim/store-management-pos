@@ -5,7 +5,7 @@
 @inject DebtService DebtAccounts
 @inject NavigationManager Navigation
 
-<PageTitle>Borrowing & repayments · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
+<PageTitle>Borrowing & repayments · @(Configuration["StoreName"] ?? "JAS International")</PageTitle>
 <div class="page-heading">
     <h1>Borrowing & repayments</h1>
     <a href="/finance/debt" class="btn-secondary">Lenders</a>
@@ -26,9 +26,9 @@ else if (Data is not null)
             <strong class="text-2xl!">@Money(Selected?.Balance ?? Data.TotalOutstanding)</strong>
         </div>
         <div class="metric">
-            <p>Working day</p>
+            <p>Today's date</p>
             <strong>@Data.WorkingDate.ToString("dd MMM yyyy")</strong>
-            <a href="/accounting-date" class="metric-note text-blue-700">Manage working day</a>
+            <span class="metric-note text-emerald-700">Continuous timeline active</span>
         </div>
     </div>
     @if (Data.CanPost && Data.Lenders.Count > 0)
