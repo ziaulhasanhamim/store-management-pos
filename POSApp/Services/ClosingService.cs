@@ -125,7 +125,7 @@ public sealed class ClosingService(IServiceScopeFactory scopes, IConfiguration c
 
         var cash = await db.CashMovements.Where(move => move.CreatedAt >= from && move.CreatedAt < through && move.CashTransferId == null
                 && move.ReversesMovementId == null && !db.CashMovements.Any(reverse => reverse.ReversesMovementId == move.Id)
-                && (locationId == null || move.CashSession!.StockLocationId == locationId.Value))
+                && (locationId == null || (move.CashDrawer != null && move.CashDrawer.StockLocationId == locationId.Value) || (move.CashSession != null && move.CashSession.StockLocationId == locationId.Value)))
             .Select(move => new { move.Kind, move.Amount, IsCollection = move.Payment != null && move.Payment.SaleId == null }).ToListAsync(ct);
 
         var bank = locationId == null
@@ -163,6 +163,18 @@ public sealed class ClosingService(IServiceScopeFactory scopes, IConfiguration c
                 && (locationId == null || purchase.StockLocationId == locationId.Value))
             .Select(purchase => (decimal?)purchase.TotalAmount).SumAsync(ct) ?? 0;
 
+        var supplierPaidDirect = await db.SupplierPayments.AsNoTracking()
+            .Where(payment => !payment.IsVoided && payment.PaidAt >= from && payment.PaidAt < through
+                && (locationId == null
+                    || (payment.Purchase != null && payment.Purchase.StockLocationId == locationId.Value)
+                    || db.CashMovements.Any(m => m.SupplierPaymentId == payment.Id && m.CashDrawer != null && m.CashDrawer.StockLocationId == locationId.Value)))
+            .Select(payment => (decimal?)payment.Amount).SumAsync(ct) ?? 0m;
+
+        var supplierPaidLedger = -(cash.Where(move => move.Kind == CashMovementKind.SupplierPayment).Sum(move => move.Amount)
+            + bank.Where(move => move.Kind == CashMovementKind.SupplierPayment).Sum(move => move.Amount));
+
+        var supplierPaid = Math.Max(supplierPaidDirect, supplierPaidLedger);
+
         var (supplierDue, customerDue) = await FinancePositionReader.DuesAtAsync(db, through, ct);
         var stockValue = await FinancePositionReader.StockValueAtAsync(db, through, ct, locationId);
 
@@ -177,8 +189,7 @@ public sealed class ClosingService(IServiceScopeFactory scopes, IConfiguration c
 
         var totals = new ClosingTotals(start, end, openingCash, bankOpening, cashIn, cashOut, bankIn, bankOut,
             openingCash + cashIn - cashOut, bankOpening + bankIn - bankOut, revenue, cogs, expenses, salaries,
-            -(cash.Where(move => move.Kind == CashMovementKind.SupplierPayment).Sum(move => move.Amount)
-                + bank.Where(move => move.Kind == CashMovementKind.SupplierPayment).Sum(move => move.Amount)),
+            supplierPaid,
             -(cash.Where(move => move.Kind == CashMovementKind.Payroll).Sum(move => move.Amount)
                 + bank.Where(move => move.Kind == CashMovementKind.Payroll).Sum(move => move.Amount)),
             supplierDue, customerDue, stockValue, null, notes)

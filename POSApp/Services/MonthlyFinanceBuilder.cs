@@ -70,7 +70,7 @@ internal static class MonthlyFinanceBuilder
                 && move.CashTransferId == null
                 && move.ReversesMovementId == null
                 && !db.CashMovements.Any(reverse => reverse.ReversesMovementId == move.Id)
-                && (locationId == null || move.CashSession!.StockLocationId == locationId.Value))
+                && (locationId == null || (move.CashDrawer != null && move.CashDrawer.StockLocationId == locationId.Value) || (move.CashSession != null && move.CashSession.StockLocationId == locationId.Value)))
             .Select(move => new { move.BusinessDate, Amount = -move.Amount })
             .ToArrayAsync(ct);
 
@@ -87,6 +87,23 @@ internal static class MonthlyFinanceBuilder
         var dailySupplierPaid = cashSupplierPayments.Concat(bankSupplierPayments)
             .GroupBy(move => move.BusinessDate)
             .ToDictionary(group => group.Key, group => group.Sum(move => move.Amount));
+
+        var directSupplierPayments = await db.SupplierPayments.AsNoTracking()
+            .Where(payment => !payment.IsVoided && payment.PaidAt >= from && payment.PaidAt < through
+                && (locationId == null
+                    || (payment.Purchase != null && payment.Purchase.StockLocationId == locationId.Value)
+                    || db.CashMovements.Any(m => m.SupplierPaymentId == payment.Id && m.CashDrawer != null && m.CashDrawer.StockLocationId == locationId.Value)))
+            .Select(payment => new { payment.PaidAt, payment.Amount })
+            .ToArrayAsync(ct);
+
+        var directByDate = directSupplierPayments
+            .GroupBy(payment => Date(payment.PaidAt))
+            .ToDictionary(group => group.Key, group => group.Sum(p => p.Amount));
+
+        foreach (var (d, amt) in directByDate)
+        {
+            dailySupplierPaid[d] = Math.Max(dailySupplierPaid.GetValueOrDefault(d), amt);
+        }
 
         var purchases = await db.Purchases.AsNoTracking()
             .Where(purchase => !purchase.IsDeleted && purchase.ReceivedAt >= from && purchase.ReceivedAt < through
@@ -194,7 +211,7 @@ internal static class MonthlyFinanceBuilder
                 && m.CashTransferId == null
                 && m.ReversesMovementId == null
                 && !db.CashMovements.Any(r => r.ReversesMovementId == m.Id)
-                && (locationId == null || m.CashSession!.StockLocationId == locationId.Value))
+                && (locationId == null || (m.CashDrawer != null && m.CashDrawer.StockLocationId == locationId.Value) || (m.CashSession != null && m.CashSession.StockLocationId == locationId.Value)))
             .Select(m => new { m.SupplierPayment!.SupplierBalance!.SupplierId, Amount = -m.Amount })
             .ToArrayAsync(ct);
 
@@ -212,6 +229,19 @@ internal static class MonthlyFinanceBuilder
         var paymentsBySupplier = cashPaymentsBySupplier.Concat(bankPaymentsBySupplier)
             .GroupBy(x => x.SupplierId)
             .ToDictionary(g => g.Key, g => g.Sum(x => x.Amount));
+
+        var directPaymentsBySupplier = await db.SupplierPayments.AsNoTracking()
+            .Where(payment => !payment.IsVoided && payment.PaidAt >= from && payment.PaidAt < through
+                && (locationId == null
+                    || (payment.Purchase != null && payment.Purchase.StockLocationId == locationId.Value)
+                    || db.CashMovements.Any(m => m.SupplierPaymentId == payment.Id && m.CashDrawer != null && m.CashDrawer.StockLocationId == locationId.Value)))
+            .Select(payment => new { payment.SupplierBalance!.SupplierId, Amount = payment.Amount })
+            .ToArrayAsync(ct);
+
+        foreach (var group in directPaymentsBySupplier.GroupBy(x => x.SupplierId))
+        {
+            paymentsBySupplier[group.Key] = Math.Max(paymentsBySupplier.GetValueOrDefault(group.Key), group.Sum(x => x.Amount));
+        }
 
         var allSupplierIds = purchasesBySupplier.Keys.Concat(paymentsBySupplier.Keys).Distinct().ToList();
 

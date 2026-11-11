@@ -149,7 +149,7 @@ public sealed partial class MoneyEntryService
                     locationId ??= await db.CashMovements.Where(move =>
                             (kind == "expenses" ? move.ExpenseId == oldEntity.Id : kind == "supplier-payments" ? move.SupplierPaymentId == oldEntity.Id : move.PaymentId == oldEntity.Id)
                             && move.ReversesMovementId == null && !db.CashMovements.Any(reverse => reverse.ReversesMovementId == move.Id))
-                        .Select(move => move.CashSession!.StockLocationId).FirstOrDefaultAsync(ct);
+                        .Select(move => (int?)(move.CashDrawer != null ? move.CashDrawer.StockLocationId : (move.CashSession != null ? move.CashSession.StockLocationId : null))).FirstOrDefaultAsync(ct);
                     if (kind != "customer-payments")
                     {
                         await ReversePostingsAsync(db, kind, oldEntity.Id, actorId, date, ct);

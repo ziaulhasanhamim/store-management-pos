@@ -1436,7 +1436,8 @@ public sealed class InventoryService(IServiceScopeFactory scopes, IConfiguration
                 };
 
                 await FinancialPosting.PostAsync(db, actorId, allocation.Method, -allocation.Amount,
-                    CashMovementKind.SupplierPayment, $"Purchase payment · {number}", businessDate, ct, supplierPayment: payment);
+                    CashMovementKind.SupplierPayment, $"Purchase payment · {number}", businessDate, ct,
+                    supplierPayment: payment, cashLocationId: purchase.StockLocationId, occurredAt: effectiveAt);
 
                 balance.CurrentBalance -= allocation.Amount;
                 balance.Entries.Add(new SupplierBalanceEntry

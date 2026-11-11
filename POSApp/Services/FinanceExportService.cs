@@ -523,7 +523,7 @@ public static class FinanceExportService
         DrawKpiTable("2. DUE & PAY STATUS",
         [
             ("Total supplier payments made (tSupPayment)", monthly?.TotalSupplierPaid ?? totals.SupplierPaid, false, false),
-            ("Total stock inventory received (tStok In)", monthly?.TotalStockReceived ?? totals.PurchaseTotal, false, false),
+            ("Total stock inventory received (Stock in)", monthly?.TotalStockReceived ?? totals.PurchaseTotal, false, false),
             ("Outstanding suppliers due (Payable)", monthly?.ClosingAssets.SupplierDue ?? totals.SupplierDue, true, true),
             ("Customer balance due (Receivable)", monthly?.ClosingAssets.CustomerDue ?? totals.CustomerDue, false, false)
         ]);

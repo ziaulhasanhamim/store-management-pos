@@ -41,7 +41,7 @@ internal static class DailyFinanceBuilder
             .Where(move => move.CreatedAt >= from && move.CreatedAt < through && move.CashTransferId == null
                 && move.ReversesMovementId == null
                 && !db.CashMovements.Any(reverse => reverse.ReversesMovementId == move.Id)
-                && (locationId == null || move.CashSession!.StockLocationId == locationId.Value))
+                && (locationId == null || (move.CashDrawer != null && move.CashDrawer.StockLocationId == locationId.Value) || (move.CashSession != null && move.CashSession.StockLocationId == locationId.Value)))
             .Select(move => new PaymentSnapshot(
                 move.CreatedAt, move.Kind,
                 move.Payment != null && move.Payment.SaleId == null,
@@ -49,7 +49,7 @@ internal static class DailyFinanceBuilder
                     : move.Payment != null ? (move.Payment.CustomerBalance == null ? "Walk-in" : move.Payment.CustomerBalance.Customer!.Name)
                     : move.PayrollEntry != null ? move.PayrollEntry.StaffAccount!.Employee!.Name
                     : move.DebtEntry != null ? move.DebtEntry.LenderBalance!.Lender!.Name : "",
-                move.CashSession!.StockLocation == null ? "Cash drawer" : move.CashSession.StockLocation.Name,
+                move.CashDrawer != null && move.CashDrawer.StockLocation != null ? move.CashDrawer.StockLocation.Name : (move.CashSession != null && move.CashSession.StockLocation != null ? move.CashSession.StockLocation.Name : "Cash drawer"),
                 PaymentMethod.Cash, move.Amount, move.Notes)).ToArrayAsync(ct);
         var bank = locationId == null
             ? await db.BankMovements.AsNoTracking()
@@ -65,6 +65,18 @@ internal static class DailyFinanceBuilder
                         : move.DebtEntry != null ? move.DebtEntry.LenderBalance!.Lender!.Name : "",
                     "Bank / digital", move.Method, move.Amount, move.Notes)).ToArrayAsync(ct)
             : [];
+
+        var directSupplierPayments = await db.SupplierPayments.AsNoTracking()
+            .Where(payment => !payment.IsVoided && payment.PaidAt >= from && payment.PaidAt < through
+                && (locationId == null || (payment.Purchase != null && payment.Purchase.StockLocationId == locationId.Value))
+                && !db.CashMovements.Any(m => m.SupplierPaymentId == payment.Id)
+                && !db.BankMovements.Any(m => m.SupplierPaymentId == payment.Id))
+            .Select(p => new PaymentSnapshot(
+                p.PaidAt, CashMovementKind.SupplierPayment, false,
+                p.SupplierBalance!.Supplier!.Name,
+                p.Purchase != null && p.Purchase.StockLocation != null ? p.Purchase.StockLocation.Name : "Supplier payment",
+                p.Method, -p.Amount, p.Notes ?? ""))
+            .ToListAsync(ct);
 
         // Purchases received on this day (Stock In)
         var purchases = await db.Purchases.AsNoTracking()
@@ -284,7 +296,7 @@ internal static class DailyFinanceBuilder
             clearingEntries.Count,
             clearingEntries.Count > 0 ? clearingEntries.Min(e => e.BusinessDate) : null);
 
-        var allPayments = cash.Concat(bank).Concat(purchaseSnapshots)
+        var allPayments = cash.Concat(bank).Concat(directSupplierPayments).Concat(purchaseSnapshots)
             .OrderBy(row => row.At)
             .Select(row => new DayPayment(row.At, Label(row.Kind, row.IsCollection), row.Party,
                 row.Account, row.Method, row.Amount, row.Notes)
