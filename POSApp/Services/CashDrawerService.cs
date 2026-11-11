@@ -45,6 +45,13 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
             var liveExp = await CalculateLiveBalanceAsync(db, selectedDrawer, pendingCountEntity.CountedAt, ct, configuration);
             var liveVar = pendingCountEntity.CountedCash - liveExp;
             var hasDrift = Math.Round(pendingCountEntity.ExpectedCash, 2) != Math.Round(liveExp, 2);
+
+            if (hasDrift)
+            {
+                pendingCountEntity.ExpectedCash = liveExp;
+                await db.SaveChangesAsync(ct);
+            }
+
             pendingCount = new CashCountRow(
                 pendingCountEntity.Id,
                 pendingCountEntity.StockLocationId,
@@ -52,8 +59,8 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
                 pendingCountEntity.CountedByUser?.UserName ?? "Staff",
                 pendingCountEntity.CountedAt,
                 pendingCountEntity.CountedCash,
-                pendingCountEntity.ExpectedCash,
-                pendingCountEntity.Difference,
+                liveExp,
+                liveVar,
                 pendingCountEntity.Status,
                 pendingCountEntity.Notes,
                 pendingCountEntity.CompletedAt,
@@ -305,16 +312,17 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
                     throw new ValidationException("Select the date and time when physical cash was counted.");
                 }
                 effectiveCountedAt = input.CountedAt.Value.ToUniversalTime();
+
+                var businessZone = AccountingCalendar.Zone(configuration);
                 if (effectiveCountedAt > now)
                 {
                     throw new ValidationException("Count date and time cannot be in the future.");
                 }
-                effectiveDate = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(effectiveCountedAt, AccountingCalendar.Zone(configuration)).DateTime);
+                effectiveDate = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(effectiveCountedAt, businessZone).DateTime);
                 if (lastAccepted is not null &&
                     (effectiveDate < lastAccepted.BusinessDate ||
                      (effectiveDate == lastAccepted.BusinessDate && effectiveCountedAt <= lastAccepted.CountedAt)))
                 {
-                    var businessZone = AccountingCalendar.Zone(configuration);
                     var lastTimeStr = TimeZoneInfo.ConvertTime(lastAccepted.CountedAt, businessZone).ToString("dd MMM yyyy, hh:mm tt");
                     throw new ValidationException($"A backdated count cannot be on or earlier than the last accepted count on {lastTimeStr}. Accepted counts are permanent anchors.");
                 }

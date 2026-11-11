@@ -19,7 +19,36 @@
     let activePopover = null;
     let activeInput = null;
 
+    function updatePopoverPosition() {
+        if (!activePopover || !activeInput) return;
+        const rect = activeInput.getBoundingClientRect();
+        if (rect.width === 0 && rect.height === 0) return;
+
+        const popoverHeight = activePopover.offsetHeight || 330;
+        const popoverWidth = activePopover.offsetWidth || 288;
+        const spaceBelow = window.innerHeight - rect.bottom;
+        const spaceAbove = rect.top;
+
+        if (spaceBelow < popoverHeight && spaceAbove > spaceBelow) {
+            // Flip above the input
+            const top = Math.max(8, rect.top - popoverHeight - 6);
+            activePopover.style.top = top + "px";
+        } else {
+            // Open below the input
+            const top = Math.min(window.innerHeight - popoverHeight - 8, rect.bottom + 6);
+            activePopover.style.top = top + "px";
+        }
+
+        let left = rect.left;
+        if (left + popoverWidth > window.innerWidth - 12) {
+            left = Math.max(12, window.innerWidth - popoverWidth - 12);
+        }
+        activePopover.style.left = left + "px";
+    }
+
     function closeActivePopover() {
+        window.removeEventListener("scroll", updatePopoverPosition, true);
+        window.removeEventListener("resize", updatePopoverPosition);
         if (activePopover) {
             activePopover.remove();
             activePopover = null;
@@ -72,7 +101,7 @@
         let currentMinute = current.minute;
 
         const popover = document.createElement("div");
-        popover.className = "jas-datetime-popover absolute z-[9999] mt-1 w-72 rounded-xl border border-slate-200 bg-white p-3.5 shadow-2xl transition-all select-none text-slate-800 text-xs font-sans";
+        popover.className = "jas-datetime-popover fixed z-[99999] w-72 rounded-xl border border-slate-200 bg-white p-3 shadow-2xl select-none text-slate-800 text-xs font-sans max-h-[92vh] overflow-y-auto";
         popover.setAttribute("data-datetime-popover", "true");
 
         function renderCalendar() {
@@ -144,6 +173,7 @@
             `;
 
             attachEvents();
+            updatePopoverPosition();
         }
 
         function attachEvents() {
@@ -233,15 +263,12 @@
             closeActivePopover();
         }
 
-        const parent = input.parentElement;
-        if (getComputedStyle(parent).position === "static") {
-            parent.style.position = "relative";
-        }
-
-        renderCalendar();
-        parent.appendChild(popover);
+        document.body.appendChild(popover);
         activePopover = popover;
         activeInput = input;
+        renderCalendar();
+        window.addEventListener("scroll", updatePopoverPosition, true);
+        window.addEventListener("resize", updatePopoverPosition);
     }
 
     // Document-level event delegation: handles ANY datetime-local or data-datetime-picker input
