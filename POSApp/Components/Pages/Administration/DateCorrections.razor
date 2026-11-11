@@ -120,9 +120,11 @@
             <table class="data-table">
                 <thead>
                     <tr>
-                        <th class="w-24 cursor-pointer select-none" id="th-date-corrections-select-all" title="Click to select or deselect all visible records">
+                        <th class="w-24 cursor-pointer select-none" id="th-date-corrections-select-all" title="Click to select or deselect all visible records"
+                            onclick="if (event.target.id !== 'select-all-records') { var m = document.getElementById('select-all-records'); if (m) { m.checked = !m.checked; toggleSelectAllDateCorrections(m); } }">
                             <div class="flex items-center gap-1.5">
-                                <input type="checkbox" id="select-all-records" title="Select all visible" class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer" />
+                                <input type="checkbox" id="select-all-records" title="Select all visible" class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                                       onclick="toggleSelectAllDateCorrections(this); event.stopPropagation();" />
                                 <span class="font-bold text-slate-800">ID</span>
                             </div>
                         </th>
@@ -178,6 +180,31 @@
                 </tbody>
             </table>
         </div>
+
+        <script>
+            function toggleSelectAllDateCorrections(master) {
+                var boxes = document.querySelectorAll('.record-select-cb');
+                for (var i = 0; i < boxes.length; i++) {
+                    boxes[i].checked = master.checked;
+                }
+                updateSelectedDateCorrectionCount();
+            }
+            function updateSelectedDateCorrectionCount() {
+                var checked = document.querySelectorAll('.record-select-cb:checked');
+                var all = document.querySelectorAll('.record-select-cb');
+                var badge = document.getElementById('selected-count-badge');
+                var btn = document.getElementById('btn-apply-correction');
+                var master = document.getElementById('select-all-records');
+                if (badge) badge.textContent = checked.length;
+                if (btn) btn.textContent = checked.length > 0 ? ('Apply Date Correction (' + checked.length + ')') : 'Apply Date Correction';
+                if (master && all.length > 0) {
+                    master.checked = checked.length === all.length;
+                    master.indeterminate = checked.length > 0 && checked.length < all.length;
+                }
+            }
+            window.toggleSelectAllDateCorrections = toggleSelectAllDateCorrections;
+            window.updateSelectedDateCorrectionCount = updateSelectedDateCorrectionCount;
+        </script>
 
         <details class="mt-4 pt-3 border-t border-slate-100">
             <summary class="text-xs text-slate-500 hover:text-slate-800 cursor-pointer select-none">

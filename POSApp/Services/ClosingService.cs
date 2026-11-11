@@ -178,9 +178,19 @@ public sealed class ClosingService(IServiceScopeFactory scopes, IConfiguration c
         var (supplierDue, customerDue) = await FinancePositionReader.DuesAtAsync(db, through, ct);
         var stockValue = await FinancePositionReader.StockValueAtAsync(db, through, ct, locationId);
 
-        var variance = await db.CashSessions.Where(session => session.OpenedAt >= from && session.OpenedAt < through && session.ClosedAt != null
+        var sessionVariance = await db.CashSessions.Where(session => session.OpenedAt >= from && session.OpenedAt < through && session.ClosedAt != null
                 && (locationId == null || session.StockLocationId == locationId.Value))
             .Select(session => session.Difference ?? 0).SumAsync(ct);
+
+        var countVariance = (await db.CashCounts.Where(c => c.CountedAt >= from && c.CountedAt < through
+                && (c.Status == CashCountStatus.Completed || c.Status == CashCountStatus.VarianceAccepted || c.Status == CashCountStatus.Accepted)
+                && !c.IsVoided
+                && (locationId == null || c.StockLocationId == locationId.Value))
+            .Select(c => c.AcceptedVariance ?? (c.CountedCash - c.ExpectedCash))
+            .ToArrayAsync(ct))
+            .Sum();
+
+        var variance = sessionVariance + countVariance;
 
         var cashIn = cash.Where(move => move.Amount > 0).Sum(move => move.Amount);
         var cashOut = -cash.Where(move => move.Amount < 0).Sum(move => move.Amount);

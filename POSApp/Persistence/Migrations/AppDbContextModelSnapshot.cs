@@ -194,7 +194,7 @@ namespace POSApp.Persistence.Migrations
                     b.HasIndex("Code")
                         .IsUnique();
 
-                    b.ToTable("BankAccounts", (string)null);
+                    b.ToTable("BankAccounts");
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.BankMovement", b =>
@@ -291,7 +291,7 @@ namespace POSApp.Persistence.Migrations
 
                     b.HasIndex("SupplierPaymentId");
 
-                    b.ToTable("BankMovements", (string)null);
+                    b.ToTable("BankMovements");
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.CashCount", b =>
@@ -301,6 +301,10 @@ namespace POSApp.Persistence.Migrations
                         .HasColumnType("integer");
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<decimal?>("AcceptedVariance")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
 
                     b.Property<DateOnly>("BusinessDate")
                         .HasColumnType("date");
@@ -340,6 +344,11 @@ namespace POSApp.Persistence.Migrations
                     b.Property<string>("Notes")
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
+
+                    b.Property<DateTimeOffset>("RecordedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("now()");
 
                     b.Property<Guid>("RequestId")
                         .HasColumnType("uuid");
@@ -388,7 +397,7 @@ namespace POSApp.Persistence.Migrations
 
                     b.HasIndex("StockLocationId", "BusinessDate");
 
-                    b.ToTable("CashCounts", (string)null);
+                    b.ToTable("CashCounts");
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.CashDrawer", b =>
@@ -443,7 +452,7 @@ namespace POSApp.Persistence.Migrations
                     b.HasIndex("StockLocationId")
                         .IsUnique();
 
-                    b.ToTable("CashDrawers", (string)null);
+                    b.ToTable("CashDrawers");
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.CashMovement", b =>
@@ -543,7 +552,7 @@ namespace POSApp.Persistence.Migrations
 
                     b.HasIndex("CashSessionId", "Id");
 
-                    b.ToTable("CashMovements", (string)null);
+                    b.ToTable("CashMovements");
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.CashSession", b =>
@@ -617,7 +626,7 @@ namespace POSApp.Persistence.Migrations
 
                     b.HasIndex("CashDrawerId", "OpenedAt");
 
-                    b.ToTable("CashSessions", (string)null);
+                    b.ToTable("CashSessions");
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.CashTransfer", b =>
@@ -683,7 +692,7 @@ namespace POSApp.Persistence.Migrations
 
                     b.HasIndex("SourceDrawerId");
 
-                    b.ToTable("CashTransfers", (string)null);
+                    b.ToTable("CashTransfers");
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.Category", b =>
@@ -731,7 +740,7 @@ namespace POSApp.Persistence.Migrations
 
                     b.HasIndex("NormalizedName");
 
-                    b.ToTable("Categories", (string)null);
+                    b.ToTable("Categories");
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.Customer", b =>
@@ -782,7 +791,7 @@ namespace POSApp.Persistence.Migrations
 
                     b.HasIndex("NormalizedName");
 
-                    b.ToTable("Customers", (string)null);
+                    b.ToTable("Customers");
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.CustomerBalance", b =>
@@ -824,7 +833,7 @@ namespace POSApp.Persistence.Migrations
                     b.HasIndex("CustomerId")
                         .IsUnique();
 
-                    b.ToTable("CustomerBalances", (string)null);
+                    b.ToTable("CustomerBalances");
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.CustomerBalanceEntry", b =>
@@ -894,7 +903,7 @@ namespace POSApp.Persistence.Migrations
                     b.HasIndex("SaleId")
                         .IsUnique();
 
-                    b.ToTable("CustomerBalanceEntries", (string)null);
+                    b.ToTable("CustomerBalanceEntries");
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.DebtEntry", b =>
@@ -976,7 +985,7 @@ namespace POSApp.Persistence.Migrations
 
                     b.HasIndex("LenderBalanceId", "BusinessDate");
 
-                    b.ToTable("DebtEntries", (string)null);
+                    b.ToTable("DebtEntries");
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.EditorDraft", b =>
@@ -1014,7 +1023,7 @@ namespace POSApp.Persistence.Migrations
                     b.HasIndex("UserId", "Kind")
                         .IsUnique();
 
-                    b.ToTable("EditorDrafts", (string)null);
+                    b.ToTable("EditorDrafts");
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.Employee", b =>
@@ -1065,7 +1074,7 @@ namespace POSApp.Persistence.Migrations
 
                     b.HasIndex("NormalizedName");
 
-                    b.ToTable("Employees", (string)null);
+                    b.ToTable("Employees");
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.Expense", b =>
@@ -1147,7 +1156,7 @@ namespace POSApp.Persistence.Migrations
 
                     b.HasIndex("StockLocationId", "OccurredAt");
 
-                    b.ToTable("Expenses", (string)null);
+                    b.ToTable("Expenses");
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.ExpenseCategoryDefinition", b =>
@@ -1181,7 +1190,7 @@ namespace POSApp.Persistence.Migrations
 
                     b.HasIndex("NormalizedName");
 
-                    b.ToTable("ExpenseCategories", (string)null);
+                    b.ToTable("ExpenseCategories");
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.FinancialEntryBatch", b =>
@@ -1224,7 +1233,7 @@ namespace POSApp.Persistence.Migrations
                     b.HasIndex("RequestId")
                         .IsUnique();
 
-                    b.ToTable("FinancialEntryBatches", (string)null);
+                    b.ToTable("FinancialEntryBatches");
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.ImportJob", b =>
@@ -1292,7 +1301,7 @@ namespace POSApp.Persistence.Migrations
 
                     b.HasIndex("Kind", "CreatedAt");
 
-                    b.ToTable("ImportJobs", (string)null);
+                    b.ToTable("ImportJobs");
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.InventoryBalance", b =>
@@ -1332,7 +1341,7 @@ namespace POSApp.Persistence.Migrations
                     b.HasIndex("StockLocationId", "ProductId")
                         .IsUnique();
 
-                    b.ToTable("InventoryBalances", (string)null);
+                    b.ToTable("InventoryBalances");
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.InventoryMovement", b =>
@@ -1411,7 +1420,7 @@ namespace POSApp.Persistence.Migrations
 
                     b.HasIndex("StockLocationId", "ProductId", "OccurredAt");
 
-                    b.ToTable("InventoryMovements", (string)null);
+                    b.ToTable("InventoryMovements");
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.Lender", b =>
@@ -1464,7 +1473,7 @@ namespace POSApp.Persistence.Migrations
                     b.HasIndex("RequestId")
                         .IsUnique();
 
-                    b.ToTable("Lenders", (string)null);
+                    b.ToTable("Lenders");
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.LenderBalance", b =>
@@ -1509,7 +1518,7 @@ namespace POSApp.Persistence.Migrations
                     b.HasIndex("LenderId")
                         .IsUnique();
 
-                    b.ToTable("LenderBalances", (string)null);
+                    b.ToTable("LenderBalances");
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.MonthlySalary", b =>
@@ -1572,7 +1581,7 @@ namespace POSApp.Persistence.Migrations
                     b.HasIndex("EmployeeId", "Month")
                         .IsUnique();
 
-                    b.ToTable("MonthlySalaries", (string)null);
+                    b.ToTable("MonthlySalaries");
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.Payment", b =>
@@ -1649,7 +1658,7 @@ namespace POSApp.Persistence.Migrations
 
                     b.HasIndex("SaleId", "PaidAt");
 
-                    b.ToTable("Payments", (string)null);
+                    b.ToTable("Payments");
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.PaymentClearingEntry", b =>
@@ -1725,7 +1734,7 @@ namespace POSApp.Persistence.Migrations
 
                     b.HasIndex("Status", "StockLocationId", "Method", "BusinessDate");
 
-                    b.ToTable("PaymentClearingEntries", (string)null);
+                    b.ToTable("PaymentClearingEntries");
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.PaymentPayout", b =>
@@ -1810,7 +1819,7 @@ namespace POSApp.Persistence.Migrations
 
                     b.HasIndex("StockLocationId", "BusinessDate");
 
-                    b.ToTable("PaymentPayouts", (string)null);
+                    b.ToTable("PaymentPayouts");
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.PayrollEntry", b =>
@@ -1907,7 +1916,7 @@ namespace POSApp.Persistence.Migrations
 
                     b.HasIndex("StaffAccountId", "OccurredAt");
 
-                    b.ToTable("PayrollEntries", (string)null);
+                    b.ToTable("PayrollEntries");
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.Product", b =>
@@ -1995,7 +2004,7 @@ namespace POSApp.Persistence.Migrations
 
                     b.HasIndex("SupplierId");
 
-                    b.ToTable("Products", (string)null);
+                    b.ToTable("Products");
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.ProductAttributeDefinition", b =>
@@ -2063,7 +2072,7 @@ namespace POSApp.Persistence.Migrations
                     b.HasIndex("Key")
                         .IsUnique();
 
-                    b.ToTable("ProductAttributeDefinitions", (string)null);
+                    b.ToTable("ProductAttributeDefinitions");
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.ProductAttributeOption", b =>
@@ -2095,7 +2104,7 @@ namespace POSApp.Persistence.Migrations
                     b.HasIndex("ProductAttributeDefinitionId", "Value")
                         .IsUnique();
 
-                    b.ToTable("ProductAttributeOptions", (string)null);
+                    b.ToTable("ProductAttributeOptions");
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.ProductAttributeValue", b =>
@@ -2128,7 +2137,7 @@ namespace POSApp.Persistence.Migrations
                     b.HasIndex("ProductId", "ProductAttributeDefinitionId")
                         .IsUnique();
 
-                    b.ToTable("ProductAttributeValues", (string)null);
+                    b.ToTable("ProductAttributeValues");
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.ProductCostHistory", b =>
@@ -2174,7 +2183,7 @@ namespace POSApp.Persistence.Migrations
 
                     b.HasIndex("ProductId", "CreatedAt");
 
-                    b.ToTable("ProductCostHistories", (string)null);
+                    b.ToTable("ProductCostHistories");
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.Purchase", b =>
@@ -2258,7 +2267,7 @@ namespace POSApp.Persistence.Migrations
 
                     b.HasIndex("SupplierId", "SupplierInvoiceNumber");
 
-                    b.ToTable("Purchases", (string)null);
+                    b.ToTable("Purchases");
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.PurchaseItem", b =>
@@ -2305,7 +2314,7 @@ namespace POSApp.Persistence.Migrations
 
                     b.HasIndex("PurchaseId");
 
-                    b.ToTable("PurchaseItems", (string)null);
+                    b.ToTable("PurchaseItems");
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.RecordChange", b =>
@@ -2364,7 +2373,7 @@ namespace POSApp.Persistence.Migrations
 
                     b.HasIndex("RecordType", "RecordId", "Id");
 
-                    b.ToTable("RecordChanges", (string)null);
+                    b.ToTable("RecordChanges");
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.RolePermission", b =>
@@ -2405,7 +2414,7 @@ namespace POSApp.Persistence.Migrations
                     b.HasIndex("RoleName", "PolicyName")
                         .IsUnique();
 
-                    b.ToTable("RolePermissions", (string)null);
+                    b.ToTable("RolePermissions");
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.Sale", b =>
@@ -2509,7 +2518,7 @@ namespace POSApp.Persistence.Migrations
 
                     b.HasIndex("StockLocationId", "SoldAt");
 
-                    b.ToTable("Sales", (string)null);
+                    b.ToTable("Sales");
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.SaleDraftPayment", b =>
@@ -2534,7 +2543,7 @@ namespace POSApp.Persistence.Migrations
 
                     b.HasIndex("SaleId");
 
-                    b.ToTable("SaleDraftPayments", (string)null);
+                    b.ToTable("SaleDraftPayments");
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.SaleItem", b =>
@@ -2591,7 +2600,7 @@ namespace POSApp.Persistence.Migrations
 
                     b.HasIndex("SaleId");
 
-                    b.ToTable("SaleItems", (string)null);
+                    b.ToTable("SaleItems");
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.StaffAccount", b =>
@@ -2626,7 +2635,7 @@ namespace POSApp.Persistence.Migrations
                     b.HasIndex("EmployeeId")
                         .IsUnique();
 
-                    b.ToTable("StaffAccounts", (string)null);
+                    b.ToTable("StaffAccounts");
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.StockAdjustment", b =>
@@ -2683,7 +2692,7 @@ namespace POSApp.Persistence.Migrations
 
                     b.HasIndex("StockLocationId", "Date");
 
-                    b.ToTable("StockAdjustments", (string)null);
+                    b.ToTable("StockAdjustments");
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.StockAdjustmentItem", b =>
@@ -2729,7 +2738,7 @@ namespace POSApp.Persistence.Migrations
                     b.HasIndex("StockAdjustmentId", "ProductId")
                         .IsUnique();
 
-                    b.ToTable("StockAdjustmentItems", (string)null);
+                    b.ToTable("StockAdjustmentItems");
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.StockLocation", b =>
@@ -2790,7 +2799,7 @@ namespace POSApp.Persistence.Migrations
 
                     b.HasIndex("NormalizedName");
 
-                    b.ToTable("StockLocations", (string)null);
+                    b.ToTable("StockLocations");
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.StockTake", b =>
@@ -2860,7 +2869,7 @@ namespace POSApp.Persistence.Migrations
 
                     b.HasIndex("StockLocationId", "BusinessDate");
 
-                    b.ToTable("StockTakes", (string)null);
+                    b.ToTable("StockTakes");
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.StockTakeItem", b =>
@@ -2919,7 +2928,7 @@ namespace POSApp.Persistence.Migrations
                     b.HasIndex("StockTakeId", "ProductId")
                         .IsUnique();
 
-                    b.ToTable("StockTakeItems", (string)null);
+                    b.ToTable("StockTakeItems");
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.StockTransfer", b =>
@@ -2983,7 +2992,7 @@ namespace POSApp.Persistence.Migrations
 
                     b.HasIndex("SourceLocationId", "OccurredAt");
 
-                    b.ToTable("StockTransfers", (string)null);
+                    b.ToTable("StockTransfers");
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.StockTransferItem", b =>
@@ -3015,7 +3024,7 @@ namespace POSApp.Persistence.Migrations
                     b.HasIndex("StockTransferId", "ProductId")
                         .IsUnique();
 
-                    b.ToTable("StockTransferItems", (string)null);
+                    b.ToTable("StockTransferItems");
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.Supplier", b =>
@@ -3075,7 +3084,7 @@ namespace POSApp.Persistence.Migrations
 
                     b.HasIndex("NormalizedName");
 
-                    b.ToTable("Suppliers", (string)null);
+                    b.ToTable("Suppliers");
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.SupplierBalance", b =>
@@ -3117,7 +3126,7 @@ namespace POSApp.Persistence.Migrations
                     b.HasIndex("SupplierId")
                         .IsUnique();
 
-                    b.ToTable("SupplierBalances", (string)null);
+                    b.ToTable("SupplierBalances");
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.SupplierBalanceEntry", b =>
@@ -3187,7 +3196,7 @@ namespace POSApp.Persistence.Migrations
                     b.HasIndex("SupplierPaymentId")
                         .IsUnique();
 
-                    b.ToTable("SupplierBalanceEntries", (string)null);
+                    b.ToTable("SupplierBalanceEntries");
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.SupplierPayment", b =>
@@ -3260,7 +3269,7 @@ namespace POSApp.Persistence.Migrations
 
                     b.HasIndex("SupplierBalanceId", "PaidAt");
 
-                    b.ToTable("SupplierPayments", (string)null);
+                    b.ToTable("SupplierPayments");
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.User", b =>

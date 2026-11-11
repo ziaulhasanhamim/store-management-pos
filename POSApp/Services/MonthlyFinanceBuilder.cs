@@ -144,7 +144,16 @@ internal static class MonthlyFinanceBuilder
             .Select(session => new { CreatedAt = session.OpenedAt, Difference = session.Difference!.Value })
             .ToListAsync(ct);
 
-        var sessionVariances = varianceMovements.Concat(legacySessions)
+        var acceptedCounts = await db.CashCounts.AsNoTracking()
+            .Where(c => c.CountedAt >= from && c.CountedAt <= through
+                && (c.Status == CashCountStatus.Completed || c.Status == CashCountStatus.VarianceAccepted || c.Status == CashCountStatus.Accepted)
+                && !c.IsVoided
+                && (locationId == null || c.StockLocationId == locationId.Value)
+                && !db.CashMovements.Any(m => m.Kind == CashMovementKind.Variance && m.CreatedAt == c.CountedAt))
+            .Select(c => new { CreatedAt = c.CountedAt, Difference = c.AcceptedVariance ?? c.Difference })
+            .ToListAsync(ct);
+
+        var sessionVariances = varianceMovements.Concat(legacySessions).Concat(acceptedCounts)
             .GroupBy(s => Date(s.CreatedAt))
             .ToDictionary(g => g.Key, g => g.Sum(s => s.Difference));
 

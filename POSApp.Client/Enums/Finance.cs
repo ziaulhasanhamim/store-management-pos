@@ -55,5 +55,6 @@ public enum CashCountStatus
     PendingReview = 2,
     Completed = 3,
     VarianceAccepted = 4,
+    Accepted = 4,
     Voided = 5
 }

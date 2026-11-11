@@ -95,7 +95,7 @@
                             </p>
                         }
                         <p class="text-xs text-slate-500 mt-2">
-                            The drawer book balance remains unadjusted until an admin reviews and accepts this variance.
+                            The drawer book balance remains unadjusted until an admin reviews and accepts this variance. Accepting establishes an immutable physical cash anchor without posting synthetic movements.
                         </p>
                     </div>
                     @if (Data?.Admin == true)
@@ -113,7 +113,7 @@
                                 <input type="hidden" name="AcceptVarianceInput.CashCountId" value="@Data.PendingCount.Id" />
                                 <input type="hidden" name="AcceptVarianceInput.Confirmed" value="true" />
                                 <button type="submit" class="btn-primary text-xs py-2 px-3 whitespace-nowrap" data-pending-text="Accepting…" disabled="@(Data.UndepositedServicingProfit > 0)">
-                                    Accept Variance & Post Movement
+                                    Accept Variance (Set Anchor)
                                 </button>
                             </form>
                         </div>
@@ -163,11 +163,22 @@
                     <CashCount Value="CountInput?.CountedCash" Expected="Data.CurrentCash" Currency="@Currency" FieldName="CountInput.CountedCash" @rendermode="InteractiveAuto" />
                     @if (Data.Admin)
                     {
-                        <div class="mt-4">
-                            <label class="field-label" for="count-time">Count date &amp; time (optional backdate)</label>
-                            <input type="datetime-local" id="count-time" name="CountInput.CountedAt" class="field max-w-xs text-sm"
-                                   value="@(CountInput?.CountedAt?.ToBusinessTime(Configuration).ToString("yyyy-MM-ddTHH:mm"))" />
-                            <p class="mt-1 text-xs text-slate-500">Leave blank for current time. Admins can record a physical count from a past date &amp; time (e.g. 9 Nov).</p>
+                        <div class="mt-3 pt-3 border-t border-slate-100">
+                            <label class="inline-flex items-center gap-2 cursor-pointer text-xs font-medium text-slate-600 hover:text-slate-800">
+                                <input type="checkbox" name="CountInput.IsBackdate" value="true" class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                                       checked="@CountInput?.IsBackdate"
+                                       onchange="var p = document.getElementById('backdate-count-box'); if (p) p.classList.toggle('hidden', !this.checked);" />
+                                <span>Record historical count (backdate)</span>
+                            </label>
+                            <div id="backdate-count-box" class="@(CountInput?.IsBackdate == true ? "" : "hidden") mt-2.5 p-3 rounded-lg bg-amber-50/60 border border-amber-200/80">
+                                <label class="field-label text-xs" for="count-time">Counted at (physical date & time)</label>
+                                <input type="datetime-local" id="count-time" name="CountInput.CountedAt" class="field text-xs max-w-xs"
+                                       min="@(Data.LastCount?.CountedAt.ToBusinessTime(Configuration).ToString("yyyy-MM-ddTHH:mm"))"
+                                       value="@(CountInput?.CountedAt?.ToBusinessTime(Configuration).ToString("yyyy-MM-ddTHH:mm"))" />
+                                <p class="mt-1 text-[11px] text-amber-800">
+                                    Must be after the last accepted count (@(Data.LastCount is not null ? Data.LastCount.CountedAt.ToBusinessTime(Configuration).ToString("dd MMM yyyy, hh:mm tt") : "start of drawer")). Historical expected cash will be calculated as of that moment.
+                                </p>
+                            </div>
                         </div>
                     }
                     <label class="field-label mt-4" for="count-notes">Count notes</label>
@@ -224,12 +235,27 @@
                 {
                     <tr>
                         <td>#@count.Id</td>
-                        <td>@Time(count.CountedAt)</td>
+                        <td>
+                            <div class="font-medium text-slate-800">@Time(count.CountedAt)</div>
+                            @if (count.RecordedAt != count.CountedAt)
+                            {
+                                <div class="text-[10px] text-slate-400 font-mono">Recorded: @Time(count.RecordedAt)</div>
+                            }
+                        </td>
                         <td>@count.CountedBy</td>
                         <td class="text-right">@Money(count.ExpectedCash)</td>
                         <td class="text-right font-medium">@Money(count.CountedCash)</td>
                         <td class="text-right font-bold @(count.Variance == 0 ? "text-emerald-700" : count.Variance < 0 ? "text-rose-700" : "text-blue-700")">
-                            @(count.Variance == 0 ? "Balanced" : Money(count.Variance))
+                            @if (count.HasVarianceDrift)
+                            {
+                                <div class="text-xs text-slate-500 font-normal">Accepted: @Money(count.AcceptedVariance ?? 0)</div>
+                                <div class="text-xs font-bold text-amber-700">Now: @Money(count.LiveVariance)</div>
+                                <div class="text-[10px] text-amber-600 font-normal">(Shifted by retroactive entries)</div>
+                            }
+                            else
+                            {
+                                @(count.Variance == 0 ? "Balanced" : Money(count.Variance))
+                            }
                         </td>
                         <td>
                             <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold @(count.Status switch

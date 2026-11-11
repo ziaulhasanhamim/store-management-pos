@@ -34,11 +34,13 @@ public sealed class CashCountInput
 {
     public Guid RequestId { get; set; } = Guid.NewGuid();
     public int LocationId { get; set; }
+    public int CashDrawerId { get; set; }
     [Required]
     public decimal? CountedCash { get; set; }
     public decimal? ExpectedCash { get; set; }
     public string? Notes { get; set; }
     public DateTimeOffset? CountedAt { get; set; }
+    public bool IsBackdate { get; set; }
 }
 
 public sealed class AcceptVarianceInput
@@ -68,7 +70,12 @@ public sealed record CashCountRow(
     DateTimeOffset? VarianceAcceptedAt,
     bool IsVoided)
 {
-    public decimal Variance => Difference;
+    public DateTimeOffset RecordedAt { get; init; } = CountedAt;
+    public decimal? AcceptedVariance { get; init; }
+    public decimal LiveExpectedCash { get; init; } = ExpectedCash;
+    public decimal LiveVariance { get; init; } = Difference;
+    public decimal Variance => AcceptedVariance ?? Difference;
+    public bool HasVarianceDrift => AcceptedVariance.HasValue && Math.Round(AcceptedVariance.Value, 2) != Math.Round(LiveVariance, 2);
     public string? CompletedBy { get; init; }
 }
 

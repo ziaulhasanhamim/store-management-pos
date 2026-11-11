@@ -434,14 +434,124 @@ public class CashDrawerAndFinanceServiceTests : PosIntegrationTestBase
 
         var reviewedCount = await db.CashCounts.AsNoTracking().Include(c => c.VarianceMovement).SingleAsync(c => c.Id == countId);
         await reviewedCount.Status.Should().BeEqualTo(CashCountStatus.VarianceAccepted);
-        await reviewedCount.VarianceMovementId.HasValue.Should().BeTrue();
-        await reviewedCount.VarianceMovement!.Amount.Should().BeEqualTo(-150m);
-        await reviewedCount.VarianceMovement.Kind.Should().BeEqualTo(CashMovementKind.Variance);
+        await reviewedCount.AcceptedVariance.Should().BeEqualTo(-150m);
+        await reviewedCount.VarianceMovementId.HasValue.Should().BeFalse(); // Never post a synthetic variance movement
 
-        // Drawer balance now matches the physical count
+        // Drawer balance now matches the physical count anchor
         var finalDrawer = await db.CashDrawers.AsNoTracking().SingleAsync(d => d.Id == drawer.Id);
         await finalDrawer.CurrentCash.Should().BeEqualTo(countedCash);
         await finalDrawer.LastCountedCash.Should().BeEqualTo(countedCash);
+    }
+
+    [Test]
+    public async Task PhysicalCashCount_BackdatedSaleBeforeAnchor_DoesNotAlterDrawerBalance_AndDetectsDrift()
+    {
+        await using var scope = CreateScope();
+        var drawerService = scope.ServiceProvider.GetRequiredService<CashDrawerService>();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var drawer = await db.CashDrawers.FirstAsync(d => d.StockLocationId == 1);
+        var anchorTime = DateTimeOffset.UtcNow.AddHours(-1);
+
+        // 1. Submit and accept an anchor count
+        var countId = await drawerService.SubmitCountAsync(AdminUser, new CashCountInput
+        {
+            LocationId = drawer.StockLocationId ?? 1,
+            CountedCash = 5000m,
+            CountedAt = anchorTime,
+            IsBackdate = true,
+            Notes = "Anchor physical count at 5000"
+        });
+
+        // 2. Accept variance to set the anchor
+        await drawerService.AcceptVarianceAsync(AdminUser, new AcceptVarianceInput
+        {
+            CountId = countId,
+            Confirmed = true,
+            Notes = "Manager confirmed anchor"
+        });
+
+        var drawerAfterAnchor = await db.CashDrawers.AsNoTracking().SingleAsync(d => d.Id == drawer.Id);
+        await drawerAfterAnchor.CurrentCash.Should().BeEqualTo(5000m);
+
+        // 3. Backfill a sale movement dated BEFORE the anchor
+        var backfilledMove = new CashMovement
+        {
+            RequestId = Guid.NewGuid(),
+            BusinessDate = AccountingCalendar.Today(null),
+            Kind = CashMovementKind.Sale,
+            Amount = 300m,
+            Notes = "Backfilled historical cash sale",
+            CreatedAt = anchorTime.AddMinutes(-10),
+            CreatedByUserId = 1
+        };
+        var trackedDrawer = await db.CashDrawers.SingleAsync(d => d.Id == drawer.Id);
+        CashDrawerService.Append(db, trackedDrawer, backfilledMove);
+        await db.SaveChangesAsync();
+
+        // 4. Current drawer balance MUST remain 5000 (unaltered by historical backfilling)
+        var drawerAfterBackfill = await db.CashDrawers.AsNoTracking().SingleAsync(d => d.Id == drawer.Id);
+        await drawerAfterBackfill.CurrentCash.Should().BeEqualTo(5000m);
+
+        // 5. ReadAsync should show the variance drift on the historical count
+        var page = await drawerService.ReadAsync(AdminUser);
+        var countRow = page.CountHistory.First(c => c.Id == countId);
+        await countRow.HasVarianceDrift.Should().BeTrue();
+    }
+
+    [Test]
+    public async Task PhysicalCashCount_BackdatedBeforeLastAccepted_ThrowsValidationException()
+    {
+        await using var scope = CreateScope();
+        var drawerService = scope.ServiceProvider.GetRequiredService<CashDrawerService>();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var drawer = await db.CashDrawers.FirstAsync(d => d.StockLocationId == 1);
+        var t1 = DateTimeOffset.UtcNow.AddHours(-2);
+
+        // Accept count at t1
+        var countId = await drawerService.SubmitCountAsync(AdminUser, new CashCountInput
+        {
+            LocationId = drawer.StockLocationId ?? 1,
+            CountedCash = drawer.CurrentCash,
+            CountedAt = t1,
+            IsBackdate = true,
+            Notes = "Baseline count"
+        });
+
+        // Try to backdate earlier than t1
+        var ex = await Assert.ThrowsAsync<ValidationException>(() => drawerService.SubmitCountAsync(AdminUser, new CashCountInput
+        {
+            LocationId = drawer.StockLocationId ?? 1,
+            CountedCash = 1000m,
+            CountedAt = t1.AddMinutes(-30),
+            IsBackdate = true,
+            Notes = "Impossible earlier count"
+        }));
+
+        await ex!.Message.Should().Contain("cannot be on or earlier than the last accepted count");
+    }
+
+    [Test]
+    public async Task PhysicalCashCount_ZeroVariance_AutoAcceptedAsAnchor()
+    {
+        await using var scope = CreateScope();
+        var drawerService = scope.ServiceProvider.GetRequiredService<CashDrawerService>();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var drawer = await db.CashDrawers.FirstAsync(d => d.StockLocationId == 1);
+
+        var countId = await drawerService.SubmitCountAsync(SalesUser, new CashCountInput
+        {
+            LocationId = drawer.StockLocationId ?? 1,
+            CountedCash = drawer.CurrentCash,
+            Notes = "Matched physical count"
+        });
+
+        var count = await db.CashCounts.AsNoTracking().SingleAsync(c => c.Id == countId);
+        await count.Status.Should().BeEqualTo(CashCountStatus.Completed);
+        await count.AcceptedVariance.Should().BeEqualTo(0m);
+        await count.CompletedAt.HasValue.Should().BeTrue();
     }
 
     [Test]

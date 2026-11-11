@@ -44,11 +44,13 @@ public sealed class CashCount : AuditableEntity
     public StockLocation? StockLocation { get; set; }
     public DateOnly BusinessDate { get; set; }
     public DateTimeOffset CountedAt { get; set; }
+    public DateTimeOffset RecordedAt { get; set; } = DateTimeOffset.UtcNow;
     public int CountedByUserId { get; set; }
     public User? CountedByUser { get; set; }
     public decimal CountedCash { get; set; }
     public decimal ExpectedCash { get; set; }
     public decimal Difference => CountedCash - ExpectedCash;
+    public decimal? AcceptedVariance { get; set; }
     public string? Notes { get; set; }
     public CashCountStatus Status { get; set; } = CashCountStatus.PendingReview;
     public DateTimeOffset? CompletedAt { get; set; }
