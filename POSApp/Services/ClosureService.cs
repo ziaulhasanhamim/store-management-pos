@@ -57,8 +57,9 @@ public sealed class ClosureService(IServiceScopeFactory scopes, IConfiguration c
         var date = AccountingCalendar.Today(configuration);
         var activeSessions = await db.CashSessions.Where(session => session.StockLocationId != null && session.ClosedAt == null)
             .Select(session => new { session.StockLocationId }).ToArrayAsync(ct);
+        var todayStartUtc = AccountingCalendar.At(date, TimeOnly.MinValue, configuration);
         var closedTodaySessions = await db.CashSessions.Where(session => session.StockLocationId != null && session.ClosedAt != null
-            && session.ClosedAt >= DateTimeOffset.UtcNow.Date)
+            && (session.BusinessDate == date || session.ClosedAt >= todayStartUtc))
             .Select(session => new { session.StockLocationId }).ToArrayAsync(ct);
         var locations = await db.StockLocations.Where(location => location.CanSell && !location.IsDeleted)
             .Select(location => location.Id).ToArrayAsync(ct);
@@ -161,7 +162,7 @@ public sealed class ClosureService(IServiceScopeFactory scopes, IConfiguration c
         {
             var session = await db.CashSessions.Include(session => session.CashDrawer).ThenInclude(drawer => drawer!.StockLocation)
                 .SingleOrDefaultAsync(session => session.Id == id, ct) ?? throw new ValidationException("Drawer session not found.");
-            var openDate = DateOnly.FromDateTime(session.OpenedAt.DateTime);
+            var openDate = session.BusinessDate;
             return new(session, openDate, session.CashDrawer!.StockLocation?.Name ?? $"Drawer #{session.CashDrawerId}",
                 session.ClosedAt, DrawerSnapshot(session));
         }

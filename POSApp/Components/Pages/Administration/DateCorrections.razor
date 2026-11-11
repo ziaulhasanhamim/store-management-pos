@@ -5,6 +5,7 @@
 @using Microsoft.EntityFrameworkCore
 @using POSApp.Persistence
 @using POSApp.Persistence.Entities
+@using POSApp.Services
 @inject DateCorrectionService CorrectionService
 @inject NavigationManager Navigation
 @inject IConfiguration Configuration
@@ -15,7 +16,7 @@
 <div class="page-heading">
     <div>
         <h1>Transaction Date Corrections</h1>
-        <p class="text-xs text-slate-500 mt-1">Backdate or adjust recorded transactions when something was entered on the wrong date</p>
+        <p class="text-xs text-slate-500 mt-1">Search, select, and adjust transaction dates when something was entered on the wrong date or time</p>
     </div>
 </div>
 
@@ -29,114 +30,264 @@
     <p class="error-panel mb-6" role="alert">@ErrorMessage</p>
 }
 
-<div class="grid gap-6 lg:grid-cols-3 mb-8">
-    <section class="panel p-6 lg:col-span-1">
-        <h2 class="text-base font-semibold text-slate-900 mb-4">Edit Transaction Date</h2>
-        <p class="text-xs text-slate-500 mb-5">Select a transaction and apply the corrected date and time. An immutable audit record will be logged with your reason.</p>
+<!-- Search & Filter Bar -->
+<section class="panel p-5 mb-6">
+    <div class="flex items-center justify-between mb-3">
+        <h2 class="text-sm font-semibold text-slate-900">Find Transactions to Correct</h2>
+        @if (!string.IsNullOrWhiteSpace(SearchQuery) || SearchFrom.HasValue || SearchTo.HasValue || (!string.IsNullOrWhiteSpace(SearchType) && SearchType != "sale"))
+        {
+            <a href="/admin/date-corrections" class="text-xs text-indigo-600 hover:text-indigo-800 font-medium">Reset filters</a>
+        }
+    </div>
 
-        <form method="post" @formname="date-correction-form" @onsubmit="ApplyCorrectionAsync" data-enhance data-submit-indication="true">
-            <AntiforgeryToken />
-
-            <div class="space-y-4">
-                <div>
-                    <label class="field-label" for="record-type">Transaction type</label>
-                    <select id="record-type" name="Input.RecordType" class="field" required>
-                        <option value="sale" selected="@(FormModel.RecordType == "sale")">Sale / Invoice</option>
-                        <option value="expense" selected="@(FormModel.RecordType == "expense")">Expense</option>
-                        <option value="supplier-payment" selected="@(FormModel.RecordType == "supplier-payment")">Supplier payment</option>
-                        <option value="payment" selected="@(FormModel.RecordType == "payment")">Customer payment</option>
-                        <option value="purchase" selected="@(FormModel.RecordType == "purchase")">Purchase / Receipt</option>
-                        <option value="stock-adjustment" selected="@(FormModel.RecordType == "stock-adjustment")">Stock adjustment</option>
-                        <option value="stock-transfer" selected="@(FormModel.RecordType == "stock-transfer")">Stock transfer</option>
-                                            </select>
-                </div>
-
-                <div>
-                    <label class="field-label" for="record-id">Record ID(s)</label>
-                    <input id="record-id" type="text" name="Input.RecordIds" class="field" value="@FormModel.RecordIds" placeholder="Single ID (104) or bulk (104, 105, 106)" required />
-                    <p class="mt-1 text-[11px] text-slate-500">Supports single ID or multiple comma/space separated IDs for bulk updating.</p>
-                </div>
-
-                <div>
-                    <label class="field-label" for="new-timestamp">New date & time</label>
-                    <input id="new-timestamp" type="datetime-local" name="Input.NewTimestamp" class="field" value="@FormModel.NewTimestamp" required />
-                </div>
-
-                <div>
-                    <label class="field-label" for="correction-reason">Audit reason</label>
-                    <textarea id="correction-reason" name="Input.Reason" class="field text-sm" rows="3" placeholder="Explain why this date is being changed..." required maxlength="2000">@FormModel.Reason</textarea>
-                </div>
-
-                <button type="submit" class="btn-primary w-full justify-center" data-pending-text="Updating date…">Update transaction date</button>
-            </div>
-        </form>
-    </section>
-
-    <section class="panel p-6 lg:col-span-2 table-scroll">
-        <div class="flex items-center justify-between mb-4">
-            <h2 class="text-base font-semibold text-slate-900">Recent Date Corrections Audit Log</h2>
-            <span class="text-xs text-slate-500">Filtered by EditDate actions</span>
+    <form method="get" data-enhance class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5 items-end">
+        <div>
+            <label class="field-label" for="search-type">Transaction type</label>
+            <select id="search-type" name="type" class="field">
+                <option value="sale" selected="@(EffectiveType == "sale")">Sales / Invoices</option>
+                <option value="expense" selected="@(EffectiveType == "expense")">Expenses</option>
+                <option value="payment" selected="@(EffectiveType == "payment")">Customer Payments</option>
+                <option value="supplier-payment" selected="@(EffectiveType == "supplier-payment")">Supplier Payments</option>
+                <option value="purchase" selected="@(EffectiveType == "purchase")">Purchases / Receiving</option>
+                <option value="debt" selected="@(EffectiveType == "debt")">Debt / Borrowing</option>
+                <option value="payroll" selected="@(EffectiveType == "payroll")">Payroll Entries</option>
+                <option value="stock-transfer" selected="@(EffectiveType == "stock-transfer")">Stock Transfers</option>
+                <option value="cash-transfer" selected="@(EffectiveType == "cash-transfer")">Cash Transfers</option>
+            </select>
         </div>
 
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th>Date changed</th>
-                    <th>Record</th>
-                    <th>Previous date</th>
-                    <th>New date</th>
-                    <th>Reason / Admin</th>
-                </tr>
-            </thead>
-            <tbody>
-                @if (AuditLogs is null)
-                {
-                    <TableStatusRow Columns="5" Message="Loading date corrections…" Loading="true" />
-                }
-                else if (AuditLogs.Count == 0)
-                {
+        <div>
+            <label class="field-label" for="search-q">Search keyword or ID</label>
+            <input id="search-q" type="text" name="q" class="field" value="@SearchQuery" placeholder="Receipt #, party, note, ID..." />
+        </div>
+
+        <div>
+            <label class="field-label" for="search-from">From date</label>
+            <input id="search-from" type="date" name="from" class="field" value="@(SearchFrom?.ToString("yyyy-MM-dd"))" />
+        </div>
+
+        <div>
+            <label class="field-label" for="search-to">To date</label>
+            <input id="search-to" type="date" name="to" class="field" value="@(SearchTo?.ToString("yyyy-MM-dd"))" />
+        </div>
+
+        <div>
+            <button type="submit" class="btn-primary w-full justify-center">
+                <svg class="size-4 mr-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                Search Records
+            </button>
+        </div>
+    </form>
+</section>
+
+<!-- Date Correction Application Form -->
+<form method="post" @formname="date-correction-form" @onsubmit="ApplyCorrectionAsync" data-enhance data-submit-indication="true">
+    <AntiforgeryToken />
+    <input type="hidden" name="Input.RecordType" value="@EffectiveType" />
+
+    <section class="panel p-5 mb-8">
+        <div class="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 pb-4 mb-4">
+            <div class="flex items-center gap-3">
+                <h2 class="text-base font-semibold text-slate-900">
+                    Matching @FormatTypeLabel(EffectiveType) Records
+                </h2>
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
+                    @(Candidates?.Count ?? 0) found
+                </span>
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                    Selected: <span id="selected-count-badge" class="ml-1">0</span>
+                </span>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-3">
+                <div>
+                    <label class="sr-only" for="new-timestamp">New date and time</label>
+                    <input id="new-timestamp" type="datetime-local" name="Input.NewTimestamp" class="field text-sm" value="@FormModel.NewTimestamp" required title="New date & time in business timezone" />
+                </div>
+                <div class="min-w-[220px]">
+                    <label class="sr-only" for="correction-reason">Audit reason</label>
+                    <input id="correction-reason" type="text" name="Input.Reason" class="field text-sm" value="@FormModel.Reason" placeholder="Reason (e.g. Backdating mistake)" required maxlength="2000" />
+                </div>
+                <button type="submit" id="btn-apply-correction" class="btn-primary" data-pending-text="Applying update…">
+                    Apply Date Correction
+                </button>
+            </div>
+        </div>
+
+        <div class="table-scroll">
+            <table class="data-table">
+                <thead>
                     <tr>
-                        <td colspan="5" class="p-6 text-center text-sm text-slate-500">No date corrections have been recorded yet.</td>
+                        <th class="w-10 text-center">
+                            <input type="checkbox" id="select-all-records" onchange="toggleSelectAllDateCorrections(this)" title="Select all visible" class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" />
+                        </th>
+                        <th class="w-20">ID</th>
+                        <th>Transaction details</th>
+                        <th>Current timestamp (Dhaka)</th>
+                        <th>Business date</th>
+                        <th class="text-right">Amount</th>
                     </tr>
-                }
-                else
-                {
-                    @foreach (var log in AuditLogs)
+                </thead>
+                <tbody>
+                    @if (Candidates is null)
+                    {
+                        <TableStatusRow Columns="6" Message="Searching transactions…" Loading="true" />
+                    }
+                    else if (Candidates.Count == 0)
                     {
                         <tr>
-                            <td class="whitespace-nowrap text-xs text-slate-600">
-                                @log.CreatedAt.ToBusinessTime(Configuration).ToString("dd MMM yyyy, HH:mm")
-                            </td>
-                            <td class="font-medium text-slate-900">
-                                <span class="capitalize">@log.RecordType</span> #@log.RecordId
-                            </td>
-                            <td class="text-xs text-slate-600 font-mono">
-                                @log.Before
-                            </td>
-                            <td class="text-xs font-semibold text-indigo-700 font-mono">
-                                @log.After
-                            </td>
-                            <td class="text-xs text-slate-700">
-                                <div>@log.Reason</div>
-                                <div class="text-[11px] text-slate-400 mt-0.5">By user #@log.CreatedByUserId</div>
+                            <td colspan="6" class="p-8 text-center text-sm text-slate-500">
+                                No @FormatTypeLabel(EffectiveType).ToLowerInvariant() records found matching your filters.
                             </td>
                         </tr>
                     }
-                }
-            </tbody>
-        </table>
+                    else
+                    {
+                        @foreach (var candidate in Candidates)
+                        {
+                            <tr class="hover:bg-slate-50/75">
+                                <td class="text-center">
+                                    <input type="checkbox" name="Input.SelectedIds" value="@candidate.Id" class="record-select-cb rounded border-slate-300 text-indigo-600 focus:ring-indigo-500" onchange="updateSelectedDateCorrectionCount()" />
+                                </td>
+                                <td class="font-mono text-xs font-semibold text-slate-700">
+                                    #@candidate.Id
+                                </td>
+                                <td>
+                                    <div class="font-medium text-slate-900">@candidate.DisplayTitle</div>
+                                    @if (!string.IsNullOrWhiteSpace(candidate.Details))
+                                    {
+                                        <div class="text-xs text-slate-500 mt-0.5">@candidate.Details</div>
+                                    }
+                                </td>
+                                <td class="whitespace-nowrap text-xs text-slate-700 font-mono">
+                                    @candidate.CurrentTimestamp.ToBusinessTime(Configuration).ToString("dd MMM yyyy, hh:mm tt")
+                                </td>
+                                <td class="whitespace-nowrap text-xs text-slate-600">
+                                    @candidate.BusinessDate.ToString("dd MMM yyyy")
+                                </td>
+                                <td class="whitespace-nowrap text-right font-medium text-slate-900">
+                                    BDT @candidate.Amount.ToString("N2")
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <details class="mt-4 pt-3 border-t border-slate-100">
+            <summary class="text-xs text-slate-500 hover:text-slate-800 cursor-pointer select-none">
+                Advanced manual ID entry (comma-separated IDs)
+            </summary>
+            <div class="mt-2 max-w-md">
+                <input type="text" name="Input.RecordIds" class="field text-xs" value="@FormModel.RecordIds" placeholder="e.g. 101, 102, 103" />
+                <p class="text-[11px] text-slate-400 mt-1">You can enter IDs manually here if you prefer typing them.</p>
+            </div>
+        </details>
     </section>
-</div>
+</form>
+
+<!-- Recent Date Corrections Audit Log -->
+<section class="panel p-6 table-scroll">
+    <div class="flex items-center justify-between mb-4">
+        <div>
+            <h2 class="text-base font-semibold text-slate-900">Date Corrections Audit Trail</h2>
+            <p class="text-xs text-slate-500 mt-0.5">Immutable audit log of all date backdating and correction operations</p>
+        </div>
+        <span class="text-xs text-slate-500">Last 50 entries</span>
+    </div>
+
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Date changed</th>
+                <th>Record</th>
+                <th>Previous recorded date</th>
+                <th>Corrected date</th>
+                <th>Reason / Changed by</th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (AuditLogs is null)
+            {
+                <TableStatusRow Columns="5" Message="Loading date corrections audit trail…" Loading="true" />
+            }
+            else if (AuditLogs.Count == 0)
+            {
+                <tr>
+                    <td colspan="5" class="p-6 text-center text-sm text-slate-500">No date corrections have been recorded yet.</td>
+                </tr>
+            }
+            else
+            {
+                @foreach (var log in AuditLogs)
+                {
+                    <tr>
+                        <td class="whitespace-nowrap text-xs text-slate-600">
+                            @log.CreatedAt.ToBusinessTime(Configuration).ToString("dd MMM yyyy, HH:mm")
+                        </td>
+                        <td class="font-medium text-slate-900">
+                            <span class="capitalize">@log.RecordType</span> #@log.RecordId
+                        </td>
+                        <td class="text-xs text-slate-600 font-mono">
+                            @log.Before
+                        </td>
+                        <td class="text-xs font-semibold text-indigo-700 font-mono">
+                            @log.After
+                        </td>
+                        <td class="text-xs text-slate-700">
+                            <div>@log.Reason</div>
+                            <div class="text-[11px] text-slate-400 mt-0.5">By user #@log.CreatedByUserId</div>
+                        </td>
+                    </tr>
+                }
+            }
+        </tbody>
+    </table>
+</section>
+
+<script>
+    function updateSelectedDateCorrectionCount() {
+        var checked = document.querySelectorAll('.record-select-cb:checked');
+        var badge = document.getElementById('selected-count-badge');
+        var btn = document.getElementById('btn-apply-correction');
+        if (badge) badge.textContent = checked.length;
+        if (btn) {
+            btn.textContent = checked.length > 0 ? ('Apply Date Correction (' + checked.length + ')') : 'Apply Date Correction';
+        }
+    }
+    function toggleSelectAllDateCorrections(master) {
+        var boxes = document.querySelectorAll('.record-select-cb');
+        boxes.forEach(function(b) { b.checked = master.checked; });
+        updateSelectedDateCorrectionCount();
+    }
+</script>
 
 @code {
     [CascadingParameter]
     private HttpContext HttpContext { get; set; } = default!;
 
+    [SupplyParameterFromQuery(Name = "type")]
+    public string? SearchType { get; set; }
+
+    [SupplyParameterFromQuery(Name = "q")]
+    public string? SearchQuery { get; set; }
+
+    [SupplyParameterFromQuery(Name = "from")]
+    public DateOnly? SearchFrom { get; set; }
+
+    [SupplyParameterFromQuery(Name = "to")]
+    public DateOnly? SearchTo { get; set; }
+
     [SupplyParameterFromForm(FormName = "date-correction-form")]
     private CorrectionModel? Input { get; set; }
 
     private CorrectionModel FormModel => Input ??= new();
+    private string EffectiveType => !string.IsNullOrWhiteSpace(SearchType) ? SearchType : (FormModel.RecordType ?? "sale");
 
+    private IReadOnlyList<DateCorrectionCandidate>? Candidates;
     private IReadOnlyList<RecordChange>? AuditLogs;
     private string? SuccessMessage;
     private string? ErrorMessage;
@@ -144,25 +295,46 @@
     public sealed class CorrectionModel
     {
         public string RecordType { get; set; } = "sale";
+        public List<int> SelectedIds { get; set; } = [];
         public string RecordIds { get; set; } = "";
         public int RecordId { get; set; }
-        public string NewTimestamp { get; set; } = DateTimeOffset.UtcNow.ToString("yyyy-MM-ddTHH:mm");
+        public string NewTimestamp { get; set; } = "";
         public string Reason { get; set; } = "";
     }
 
-    protected override void OnParametersSet()
+    protected override async Task OnParametersSetAsync()
     {
         Input ??= new();
+        if (string.IsNullOrWhiteSpace(Input.NewTimestamp))
+        {
+            Input.NewTimestamp = AccountingCalendar.Now(Configuration).ToString("yyyy-MM-ddTHH:mm");
+        }
+        if (string.IsNullOrWhiteSpace(Input.RecordType))
+        {
+            Input.RecordType = EffectiveType;
+        }
+
+        await LoadDataAsync();
     }
 
-    protected override async Task OnInitializedAsync()
+    private async Task LoadDataAsync()
     {
-        Input ??= new();
-        await LoadLogsAsync();
-    }
+        try
+        {
+            Candidates = await CorrectionService.SearchCandidatesAsync(
+                HttpContext.User,
+                EffectiveType,
+                SearchQuery,
+                SearchFrom,
+                SearchTo,
+                50,
+                HttpContext.RequestAborted);
+        }
+        catch
+        {
+            Candidates = [];
+        }
 
-    private async Task LoadLogsAsync()
-    {
         AuditLogs = await DbContext.RecordChanges
             .AsNoTracking()
             .Where(r => r.Action == "EditDate")
@@ -176,63 +348,51 @@
         try
         {
             var model = FormModel;
-            if (string.IsNullOrWhiteSpace(model.NewTimestamp) || !DateTimeOffset.TryParse(model.NewTimestamp, out var parsedTimestamp))
+            if (string.IsNullOrWhiteSpace(model.NewTimestamp) || !DateTimeOffset.TryParse(model.NewTimestamp, out _))
             {
                 throw new ValidationException("Please choose a valid date and time.");
             }
 
+            var ids = new HashSet<int>(model.SelectedIds ?? []);
+            if (!string.IsNullOrWhiteSpace(model.RecordIds))
+            {
+                var manual = model.RecordIds
+                    .Split(new[] { ',', ' ', ';', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries)
+                    .Select(s => int.TryParse(s.Trim(), out var id) ? id : (int?)null)
+                    .Where(x => x.HasValue)
+                    .Select(x => x!.Value);
+                foreach (var id in manual) ids.Add(id);
+            }
+            if (model.RecordId > 0) ids.Add(model.RecordId);
+
+            if (ids.Count == 0)
+            {
+                throw new ValidationException("Please select at least one transaction record or enter record ID(s).");
+            }
+
             var zone = AccountingCalendar.Zone(Configuration);
-            // Convert input to UTC offset matching business zone
             var unspecified = DateTime.SpecifyKind(DateTime.Parse(model.NewTimestamp), DateTimeKind.Unspecified);
             var utcInstant = TimeZoneInfo.ConvertTimeToUtc(unspecified, zone);
             var finalOffset = new DateTimeOffset(utcInstant, TimeSpan.Zero);
 
-            var rawIds = (model.RecordIds ?? "")
-                .Split(new[] { ',', ' ', ';', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries)
-                .Select(s => int.TryParse(s.Trim(), out var parsed) ? parsed : (int?)null)
-                .Where(x => x.HasValue)
-                .Select(x => x!.Value)
-                .Distinct()
-                .ToList();
+            var typeToUpdate = !string.IsNullOrWhiteSpace(model.RecordType) ? model.RecordType : EffectiveType;
 
-            if (rawIds.Count == 0 && model.RecordId > 0)
-            {
-                rawIds.Add(model.RecordId);
-            }
+            var updatedCount = await CorrectionService.BulkChangeDateAsync(
+                HttpContext.User,
+                typeToUpdate,
+                ids.ToList(),
+                finalOffset,
+                model.Reason,
+                HttpContext.RequestAborted);
 
-            if (rawIds.Count == 0)
-            {
-                throw new ValidationException("Please enter at least one valid numeric record ID.");
-            }
-
-            if (rawIds.Count == 1)
-            {
-                await CorrectionService.ChangeDateAsync(
-                    HttpContext.User,
-                    model.RecordType,
-                    rawIds[0],
-                    finalOffset,
-                    model.Reason,
-                    HttpContext.RequestAborted);
-
-                SuccessMessage = $"Successfully updated {model.RecordType} #{rawIds[0]} date to {model.NewTimestamp}.";
-            }
-            else
-            {
-                var updatedCount = await CorrectionService.BulkChangeDateAsync(
-                    HttpContext.User,
-                    model.RecordType,
-                    rawIds,
-                    finalOffset,
-                    model.Reason,
-                    HttpContext.RequestAborted);
-
-                SuccessMessage = $"Successfully updated {updatedCount} {model.RecordType} records to {model.NewTimestamp}.";
-            }
-
+            SuccessMessage = $"Successfully updated {updatedCount} {FormatTypeLabel(typeToUpdate)} record(s) to {model.NewTimestamp} ({zone.Id}).";
             ErrorMessage = null;
-            Input = new();
-            await LoadLogsAsync();
+            Input = new()
+            {
+                RecordType = typeToUpdate,
+                NewTimestamp = AccountingCalendar.Now(Configuration).ToString("yyyy-MM-ddTHH:mm")
+            };
+            await LoadDataAsync();
         }
         catch (ValidationException ex)
         {
@@ -245,4 +405,18 @@
             SuccessMessage = null;
         }
     }
+
+    private static string FormatTypeLabel(string? type) => (type ?? "").ToLowerInvariant() switch
+    {
+        "sale" => "Sale",
+        "expense" => "Expense",
+        "payment" or "customer-payment" => "Customer Payment",
+        "supplier-payment" or "supplierpayment" => "Supplier Payment",
+        "purchase" or "receiving" => "Purchase",
+        "debt" or "debtentry" => "Debt",
+        "payroll" => "Payroll",
+        "stock-transfer" => "Stock Transfer",
+        "cash-transfer" => "Cash Transfer",
+        _ => "Transaction"
+    };
 }

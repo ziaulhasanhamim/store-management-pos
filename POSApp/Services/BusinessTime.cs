@@ -14,17 +14,28 @@ public static class BusinessTime
 
     public static UserTimeZone ResolveUserTimeZone(HttpContext? httpContext, IConfiguration configuration)
     {
-        var fallbackId = configuration["BusinessTimeZone"] ?? "Asia/Dhaka";
-        var preferredId = httpContext?.User?.FindFirst("tz")?.Value
-            ?? (httpContext?.Request.Cookies.TryGetValue("pos_tz", out var cookieTz) == true ? Uri.UnescapeDataString(cookieTz) : null);
-        var zone = UserTimeZone.ResolveZone(preferredId, fallbackId);
+        var businessZoneId = configuration["BusinessTimeZone"] ?? "Asia/Dhaka";
+        var userClaimTz = httpContext?.User?.FindFirst("tz")?.Value;
+        var cookieTz = httpContext?.Request.Cookies.TryGetValue("pos_tz", out var c) == true ? Uri.UnescapeDataString(c) : null;
+
+        // Explicit user claim takes priority. Ignore generic UTC cookie when a business zone is configured.
+        string? effectiveId = userClaimTz;
+        if (string.IsNullOrWhiteSpace(effectiveId) && !string.IsNullOrWhiteSpace(cookieTz) && !string.Equals(cookieTz, "UTC", StringComparison.OrdinalIgnoreCase))
+        {
+            effectiveId = cookieTz;
+        }
+        if (string.IsNullOrWhiteSpace(effectiveId))
+        {
+            effectiveId = businessZoneId;
+        }
+
+        var zone = UserTimeZone.ResolveZone(effectiveId, businessZoneId);
         return new UserTimeZone(zone, zone.Id);
     }
 
-    public static DateTimeOffset ToBusinessTime(this DateTimeOffset value, IConfiguration configuration)
+    public static DateTimeOffset ToBusinessTime(this DateTimeOffset value, IConfiguration? configuration)
     {
-        var zone = CurrentUserZone.Value
-            ?? UserTimeZone.ResolveZone(null, configuration["BusinessTimeZone"] ?? "Asia/Dhaka");
+        var zone = AccountingCalendar.Zone(configuration);
         return TimeZoneInfo.ConvertTime(value.ToUniversalTime(), zone);
     }
 }

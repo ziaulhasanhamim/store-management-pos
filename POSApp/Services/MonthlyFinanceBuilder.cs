@@ -128,7 +128,7 @@ internal static class MonthlyFinanceBuilder
             .ToListAsync(ct);
 
         var sessionVariances = varianceMovements.Concat(legacySessions)
-            .GroupBy(s => DateOnly.FromDateTime(s.CreatedAt.DateTime))
+            .GroupBy(s => Date(s.CreatedAt))
             .ToDictionary(g => g.Key, g => g.Sum(s => s.Difference));
 
         var totalDays = totals.End.DayNumber - totals.Start.DayNumber + 1;

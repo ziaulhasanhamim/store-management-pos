@@ -222,14 +222,14 @@ public sealed class ClosingService(IServiceScopeFactory scopes, IConfiguration c
 
         var sessions = await db.CashSessions.Where(session => (locationId == null || session.StockLocationId == locationId.Value))
             .OrderByDescending(session => session.OpenedAt)
-            .Select(session => new { session.Id, session.CashDrawerId, session.OpenedAt, session.OpeningCash, session.ExpectedCash, session.ActualClosingCash, session.Difference, session.ClosedAt })
+            .Select(session => new { session.Id, session.CashDrawerId, session.BusinessDate, session.OpenedAt, session.OpeningCash, session.ExpectedCash, session.ActualClosingCash, session.Difference, session.ClosedAt })
             .Take(100)
             .ToArrayAsync(ct);
 
         return drawers.Select(drawer =>
         {
             var session = sessions.Where(session => session.CashDrawerId == drawer.Id).FirstOrDefault();
-            if (session != null && DateOnly.FromDateTime(session.OpenedAt.DateTime) == date)
+            if (session != null && session.BusinessDate == date)
             {
                 return new LocationCashClosing(drawer.Name, session.Id, session.ClosedAt == null ? "Open" : "Counted and closed",
                     session.OpeningCash, session.ExpectedCash, session.ActualClosingCash, session.Difference);

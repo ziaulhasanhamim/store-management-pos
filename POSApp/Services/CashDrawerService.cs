@@ -114,7 +114,8 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
 
 
         // Sessions fallback for legacy inspection
-        var sessions = await db.CashSessions.Where(session => session.OpenedAt >= DateTimeOffset.UtcNow.Date)
+        var todayStartUtc = AccountingCalendar.At(date, TimeOnly.MinValue, configuration);
+        var sessions = await db.CashSessions.Where(session => session.BusinessDate == date || session.OpenedAt >= todayStartUtc)
             .Select(session => new { session.CashDrawerId, session.Id, session.ClosedAt }).ToArrayAsync(ct);
         var visible = db.CashSessions.Where(session => admin || session.CashDrawer!.StockLocationId == selected);
         var recent = await Rows(db, visible.OrderByDescending(session => session.Id)).ToPageAsync(sessionPage, pageSize, ct);
@@ -181,7 +182,7 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
         DrawerId = session.CashDrawerId,
         LocationId = session.CashDrawer!.StockLocationId,
         Location = session.CashDrawer.StockLocation == null ? "Legacy / unassigned" : session.CashDrawer.StockLocation.Name,
-        BusinessDate = DateOnly.FromDateTime(session.OpenedAt.DateTime)
+        BusinessDate = session.BusinessDate
     });
 
     public async Task<int> SubmitCountAsync(ClaimsPrincipal actor, CashCountInput input, CancellationToken ct = default)
@@ -777,7 +778,7 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
             {
                 StockLocationId = id,
                 OpeningBalance = 0m,
-                OpeningDate = DateOnly.FromDateTime(DateTimeOffset.UtcNow.DateTime),
+                OpeningDate = AccountingCalendar.Today(null),
                 CurrentCash = 0m,
                 CreatedByUserId = actorId
             };

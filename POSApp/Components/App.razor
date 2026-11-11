@@ -13,7 +13,7 @@
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <ImportMap />
-    <script>try{var tz=Intl.DateTimeFormat().resolvedOptions().timeZone;if(tz&&document.cookie.indexOf('pos_tz='+encodeURIComponent(tz))===-1)document.cookie='pos_tz='+encodeURIComponent(tz)+';path=/;max-age=31536000;SameSite=Lax';}catch{}</script>
+    <script>try{var tz=Intl.DateTimeFormat().resolvedOptions().timeZone;if(tz&&tz!=='UTC'&&tz!=='Etc/UTC'&&document.cookie.indexOf('pos_tz='+encodeURIComponent(tz))===-1)document.cookie='pos_tz='+encodeURIComponent(tz)+';path=/;max-age=31536000;SameSite=Lax';}catch{}</script>
     <HeadOutlet />
 </head>
 
