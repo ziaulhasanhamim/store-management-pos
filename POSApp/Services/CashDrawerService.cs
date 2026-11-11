@@ -397,7 +397,7 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
             var actorId = await StoreAccess.RequireAsync(db, actor, AppRoles.Admin, ct);
             await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
 
-            var count = await db.CashCounts.Include(c => c.CashDrawer)
+            var count = await db.CashCounts.Include(c => c.CashDrawer).Include(c => c.VarianceMovement)
                 .SingleOrDefaultAsync(c => c.Id == input.CountId, ct)
                 ?? throw new ValidationException("Cash count record not found.");
 
@@ -419,8 +419,6 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
             var liveExpected = await CalculateLiveBalanceAsync(db, count.CashDrawer!, count.CountedAt, ct);
             var liveVariance = count.CountedCash - liveExpected;
 
-            // NEVER post a stored CashMovementKind.Variance movement!
-            // The count itself is the permanent anchor.
             count.AcceptedVariance = liveVariance;
             count.ExpectedCash = liveExpected;
             count.Status = CashCountStatus.VarianceAccepted;
@@ -432,17 +430,52 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
             count.UpdatedAt = now;
             count.UpdatedByUserId = actorId;
 
+            // Post or update the physical cash count variance adjustment movement so statements reconcile:
+            // Opening + Movements = Current Cash
+            if (liveVariance != 0)
+            {
+                var varianceDesc = liveVariance < 0
+                    ? $"Physical cash count #{count.Id}: missing BDT {Math.Abs(liveVariance):N2} (Note: {note})"
+                    : $"Physical cash count #{count.Id}: extra BDT {liveVariance:N2} (Note: {note})";
+
+                if (count.VarianceMovement is not null)
+                {
+                    count.VarianceMovement.Amount = liveVariance;
+                    count.VarianceMovement.Notes = varianceDesc;
+                    count.VarianceMovement.BusinessDate = count.BusinessDate;
+                    count.VarianceMovement.CreatedAt = count.CountedAt;
+                    count.VarianceMovement.UpdatedAt = now;
+                    count.VarianceMovement.UpdatedByUserId = actorId;
+                }
+                else
+                {
+                    var varianceMove = new CashMovement
+                    {
+                        RequestId = Guid.NewGuid(),
+                        CashDrawerId = count.CashDrawerId,
+                        BusinessDate = count.BusinessDate,
+                        CreatedAt = count.CountedAt,
+                        Kind = CashMovementKind.Variance,
+                        Amount = liveVariance,
+                        Notes = varianceDesc,
+                        CreatedByUserId = actorId
+                    };
+                    db.CashMovements.Add(varianceMove);
+                    count.VarianceMovement = varianceMove;
+                }
+            }
+            else if (count.VarianceMovement is not null)
+            {
+                db.CashMovements.Remove(count.VarianceMovement);
+                count.VarianceMovement = null;
+                count.VarianceMovementId = null;
+            }
+
             if (count.CashDrawer != null)
             {
                 count.CashDrawer.LastCountedAt = count.CountedAt;
                 count.CashDrawer.LastCountedCash = count.CountedCash;
-                var deltaAfter = await db.CashMovements.AsNoTracking()
-                    .Where(m => (m.CashDrawerId == count.CashDrawer.Id || (m.CashSession != null && m.CashSession.CashDrawerId == count.CashDrawer.Id))
-                        && (m.BusinessDate > count.BusinessDate || (m.BusinessDate == count.BusinessDate && (m.CreatedAt > count.CountedAt || (m.CreatedAt == count.CountedAt && m.Id > count.Id))))
-                        && m.CreatedAt <= now
-                        && m.Kind != CashMovementKind.Variance)
-                    .SumAsync(m => (decimal?)m.Amount, ct) ?? 0m;
-                count.CashDrawer.CurrentCash = count.CountedCash + deltaAfter;
+                count.CashDrawer.CurrentCash = await CalculateLiveBalanceAsync(db, count.CashDrawer, null, ct);
                 count.CashDrawer.UpdatedAt = now;
                 count.CashDrawer.UpdatedByUserId = actorId;
             }
@@ -643,8 +676,13 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
     {
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        await StoreAccess.RequireAsync(db, actor, AppRoles.SalesAssociate, ct);
+        var actorId = await StoreAccess.RequireAsync(db, actor, AppRoles.SalesAssociate, ct);
+        if (locationId <= 0)
+        {
+            locationId = await ResolveLocationAsync(db, actorId, ct);
+        }
         var drawer = await db.CashDrawers.AsNoTracking().FirstOrDefaultAsync(d => d.StockLocationId == locationId, ct)
+            ?? await db.CashDrawers.AsNoTracking().FirstOrDefaultAsync(ct)
             ?? throw new ValidationException("Cash drawer not found for location.");
         return await CalculateLiveBalanceAsync(db, drawer, asOf, ct);
     }
@@ -1119,17 +1157,60 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
                 ?? await db.CashDrawers.SingleOrDefaultAsync(d => d.Id == drawerId, ct)
                 ?? await RequireDrawerAsync(db, actorId, ct, locationId ?? movement.CashSession?.StockLocationId);
 
+            // Reversal takes the original entry's business date and time (+1ms), falling in the same interval
             Append(db, drawer, new CashMovement
             {
                 RequestId = Guid.NewGuid(),
-                BusinessDate = activeDate,
+                BusinessDate = movement.BusinessDate,
+                CreatedAt = movement.CreatedAt.AddMilliseconds(1),
                 Kind = CashMovementKind.Reversal,
                 Amount = -movement.Amount,
-                Notes = reason,
+                Notes = $"Deletion of {kind} #{id}: {reason}",
                 ReversesMovementId = movement.Id,
                 CreatedByUserId = actorId
             });
+
+            await db.SaveChangesAsync(ct);
+
+            await SyncCountsAndDrawerBalanceAsync(db, drawer, movement.CreatedAt, ct);
         }
+    }
+
+    internal static async Task SyncCountsAndDrawerBalanceAsync(AppDbContext db, CashDrawer drawer, DateTimeOffset afterTime, CancellationToken ct)
+    {
+        var affectedCounts = await db.CashCounts
+            .Include(c => c.VarianceMovement)
+            .Where(c => c.CashDrawerId == drawer.Id
+                && (c.Status == CashCountStatus.Completed || c.Status == CashCountStatus.VarianceAccepted || c.Status == CashCountStatus.Accepted)
+                && !c.IsVoided
+                && c.CountedAt >= afterTime)
+            .OrderBy(c => c.CountedAt)
+            .ThenBy(c => c.Id)
+            .ToListAsync(ct);
+
+        foreach (var count in affectedCounts)
+        {
+            var liveExp = await CalculateLiveBalanceAsync(db, drawer, count.CountedAt, ct);
+            var liveVar = count.CountedCash - liveExp;
+
+            if (count.VarianceMovement is not null)
+            {
+                if (liveVar != 0)
+                {
+                    count.VarianceMovement.Amount = liveVar;
+                    count.VarianceMovement.Notes = $"Physical cash count #{count.Id}: {(liveVar < 0 ? $"missing BDT {Math.Abs(liveVar):N2}" : $"extra BDT {liveVar:N2}")}";
+                }
+                else
+                {
+                    count.VarianceMovement.Amount = 0m;
+                    count.VarianceMovement.Notes = $"Physical cash count #{count.Id}: balanced (retroactively corrected)";
+                }
+            }
+        }
+
+        drawer.CurrentCash = await CalculateLiveBalanceAsync(db, drawer, null, ct);
+        drawer.UpdatedAt = DateTimeOffset.UtcNow;
+        await db.SaveChangesAsync(ct);
     }
 
     internal static Task<bool> IsAdminAsync(AppDbContext db, int actorId, CancellationToken ct) => db.UserRoles.AnyAsync(

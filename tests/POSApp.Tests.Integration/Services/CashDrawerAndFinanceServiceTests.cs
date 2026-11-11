@@ -435,7 +435,10 @@ public class CashDrawerAndFinanceServiceTests : PosIntegrationTestBase
         var reviewedCount = await db.CashCounts.AsNoTracking().Include(c => c.VarianceMovement).SingleAsync(c => c.Id == countId);
         await reviewedCount.Status.Should().BeEqualTo(CashCountStatus.VarianceAccepted);
         await reviewedCount.AcceptedVariance.Should().BeEqualTo(-150m);
-        await reviewedCount.VarianceMovementId.HasValue.Should().BeFalse(); // Never post a synthetic variance movement
+        await reviewedCount.VarianceMovementId.HasValue.Should().BeTrue();
+        await reviewedCount.VarianceMovement!.Amount.Should().BeEqualTo(-150m);
+        await reviewedCount.VarianceMovement.Kind.Should().BeEqualTo(CashMovementKind.Variance);
+        await reviewedCount.VarianceMovement.Notes.Should().Contain("missing BDT 150.00");
 
         // Drawer balance now matches the physical count anchor
         var finalDrawer = await db.CashDrawers.AsNoTracking().SingleAsync(d => d.Id == drawer.Id);
@@ -724,5 +727,119 @@ public class CashDrawerAndFinanceServiceTests : PosIntegrationTestBase
         await drawerAfter.LastCountedAt.Should().BeEqualTo(t0);
         await drawerAfter.LastCountedCash.Should().BeEqualTo(baseCash + 1000m);
         await drawerAfter.CurrentCash.Should().BeEqualTo(baseCash + 1200m);
+    }
+
+    [Test]
+    public async Task PhysicalCashCount_RetroactiveVoid_PlacesReversalInInterval_AndUpdatesVarianceDrift()
+    {
+        await using var scope = CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var drawerService = scope.ServiceProvider.GetRequiredService<CashDrawerService>();
+
+        var drawer = await db.CashDrawers.FirstAsync(d => d.StockLocationId == 1);
+        var baseCash = drawer.CurrentCash;
+
+        var zone = AccountingCalendar.Zone(null);
+        var t0 = DateTimeOffset.UtcNow.AddHours(-6);
+
+        // Step 1: Create a sale, payment and movement at T0
+        var sale = new Sale
+        {
+            ReceiptNumber = "REC-TEST-001",
+            CashierId = 1,
+            CustomerId = 1,
+            StockLocationId = 1,
+            Subtotal = 500m,
+            TotalAmount = 500m,
+            TenderedAmount = 500m,
+            Status = SaleStatus.Completed,
+            SoldAt = t0,
+            CreatedAt = t0,
+            CreatedByUserId = 1
+        };
+        db.Sales.Add(sale);
+        await db.SaveChangesAsync();
+
+        var salePayment = new Payment
+        {
+            SaleId = sale.Id,
+            Amount = 500m,
+            Method = PaymentMethod.Cash,
+            PaidAt = t0,
+            CreatedByUserId = 1
+        };
+        db.Payments.Add(salePayment);
+
+        var saleMove = new CashMovement
+        {
+            RequestId = Guid.NewGuid(),
+            CashDrawerId = drawer.Id,
+            BusinessDate = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(t0, zone).DateTime),
+            CreatedAt = t0,
+            Kind = CashMovementKind.Sale,
+            Amount = 500m,
+            BalanceAfter = baseCash + 500m,
+            Notes = $"Test Sale #{sale.Id}",
+            Payment = salePayment,
+            CreatedByUserId = 1
+        };
+        db.CashMovements.Add(saleMove);
+        drawer.CurrentCash += 500m;
+        await db.SaveChangesAsync();
+
+        // Step 2: Accept physical cash count at T0 + 1 hour with shortage of -500 (counted = baseCash, expected = baseCash + 500)
+        var t1 = t0.AddHours(1);
+        var countId = await drawerService.SubmitCountAsync(AdminUser, new CashCountInput
+        {
+            LocationId = drawer.StockLocationId ?? 1,
+            CountedCash = baseCash,
+            CountedAt = t1,
+            IsBackdate = true,
+            Notes = "Short by 500"
+        });
+
+        // Admin accepts the -500 shortage
+        await drawerService.AcceptVarianceAsync(AdminUser, new AcceptVarianceInput
+        {
+            CountId = countId,
+            Confirmed = true,
+            Notes = "Shortage approved"
+        });
+
+        var acceptedCount = await db.CashCounts.Include(c => c.VarianceMovement).AsNoTracking().FirstAsync(c => c.Id == countId);
+        await acceptedCount.AcceptedVariance.Should().BeEqualTo(-500m);
+        await acceptedCount.VarianceMovementId.HasValue.Should().BeTrue();
+        await acceptedCount.VarianceMovement!.Amount.Should().BeEqualTo(-500m);
+
+        // Drawer balance should be anchored to baseCash
+        var drawerCurrent = await db.CashDrawers.AsNoTracking().FirstAsync(d => d.Id == drawer.Id);
+        await drawerCurrent.CurrentCash.Should().BeEqualTo(baseCash);
+
+        // Step 3: Admin retroactively voids the sale at a later time (e.g., T0 + 3 hours)
+        await CashDrawerService.ReverseAsync(db, "sale", sale.Id, 1, "Customer cancelled mistakenly", saleMove.BusinessDate, drawer.StockLocationId, default);
+
+        // Verify the reversal movement:
+        // 1. Reversal must take the original BusinessDate
+        // 2. CreatedAt must sort directly after the original (+1ms)
+        var reversal = await db.CashMovements.AsNoTracking().FirstAsync(m => m.ReversesMovementId == saleMove.Id);
+        await reversal.BusinessDate.Should().BeEqualTo(saleMove.BusinessDate);
+        await reversal.CreatedAt.Should().BeEqualTo(saleMove.CreatedAt.AddMilliseconds(1));
+        await reversal.Kind.Should().BeEqualTo(CashMovementKind.Reversal);
+        await reversal.Amount.Should().BeEqualTo(-500m);
+
+        // Step 4: Verify variance drift on the count
+        // Net movements before count are now (sale +500 + reversal -500) = 0.
+        // Live expected cash is now baseCash + 0 = baseCash.
+        // Live variance is now baseCash - baseCash = 0.
+        // Accepted variance was -500, but live variance is now 0 (Variance drift!).
+        var refreshedPage = await drawerService.ReadAsync(AdminUser);
+        var reviewedCount = refreshedPage.CountHistory.First(c => c.Id == countId);
+        await reviewedCount.AcceptedVariance.Should().BeEqualTo(-500m);
+        await reviewedCount.HasVarianceDrift.Should().BeTrue();
+        await reviewedCount.LiveVariance.Should().BeEqualTo(0m);
+
+        // The count's variance movement amount should have synced to 0
+        var syncedVarMove = await db.CashMovements.AsNoTracking().FirstAsync(m => m.Id == acceptedCount.VarianceMovementId!.Value);
+        await syncedVarMove.Amount.Should().BeEqualTo(0m);
     }
 }

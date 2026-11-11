@@ -3,6 +3,7 @@
 @attribute [Authorize(Policy = AppPolicies.MakeSales)]
 @attribute [StreamRendering]
 @inject SalesService Sales
+@inject RecordAdministration Records
 
 <PageTitle>Invoice #@Id · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
 
@@ -47,12 +48,43 @@
     </div>
 </div>
 
-<AuthorizeView Policy="@AppPolicies.ManageUsers">
-    <a href="@($"/admin/records/sale/{Id}/edit")" class="no-print btn-secondary mb-5 inline-flex items-center gap-2">
-        <Icon Name="edit" />
-        Admin correction / delete
-    </a>
-</AuthorizeView>
+<div class="flex items-center gap-2 mb-5 no-print">
+    @if (Data?.CanVoid == true)
+    {
+        <button type="button" class="btn-secondary text-rose-600 border-rose-200 hover:bg-rose-50 inline-flex items-center gap-2"
+                onclick="document.getElementById('void-sale-modal')?.classList.remove('hidden')">
+            <Icon Name="trash" />
+            Void sale
+        </button>
+    }
+    <AuthorizeView Policy="@AppPolicies.ManageUsers">
+        <a href="@($"/admin/records/sale/{Id}/edit")" class="btn-secondary inline-flex items-center gap-2">
+            <Icon Name="edit" />
+            Admin correction / delete
+        </a>
+    </AuthorizeView>
+</div>
+
+@if (Data?.CanVoid == true)
+{
+    <div id="void-sale-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
+        <div class="panel max-w-md w-full p-6 shadow-2xl bg-white rounded-2xl border border-slate-200">
+            <h3 class="text-lg font-bold text-slate-900 mb-2">Void Invoice #@Id</h3>
+            <p class="text-xs text-slate-500 mb-4">
+                Are you sure you want to void this sale? All inventory and payment postings will be reversed as of the original sale date and time.
+            </p>
+            <form method="post" @formname="void-sale" @onsubmit="VoidSaleAsync" data-enhance>
+                <AntiforgeryToken />
+                <label class="field-label text-xs mb-1" for="void-reason">Reason for voiding</label>
+                <input id="void-reason" name="VoidReason" @bind="VoidReason" class="field text-xs w-full mb-4" placeholder="e.g. Cashier error, customer returned..." required />
+                <div class="flex items-center justify-end gap-2">
+                    <button type="button" class="btn-secondary" onclick="document.getElementById('void-sale-modal')?.classList.add('hidden')">Cancel</button>
+                    <button type="submit" class="btn-danger bg-rose-600 hover:bg-rose-700 text-white font-semibold px-4 py-2 rounded-xl text-xs">Confirm Void</button>
+                </div>
+            </form>
+        </div>
+    </div>
+}
 
 @if (Loading)
 {
@@ -406,9 +438,19 @@ else
     private SaleBill? Data;
     private bool Loading = true;
 
+    [SupplyParameterFromForm(FormName = "void-sale")]
+    private string? VoidReason { get; set; }
+
     protected override async Task OnParametersSetAsync()
     {
         Data = await Sales.BillAsync(HttpContext.User, Id, HttpContext.RequestAborted);
         Loading = false;
+    }
+
+    private async Task VoidSaleAsync()
+    {
+        var reason = string.IsNullOrWhiteSpace(VoidReason) ? "Voided by user" : VoidReason.Trim();
+        await Records.ChangeAsync(HttpContext.User, "sale", Id, new RecordCorrectionInput { Reason = reason }, delete: true, HttpContext.RequestAborted);
+        Data = await Sales.BillAsync(HttpContext.User, Id, HttpContext.RequestAborted);
     }
 }

@@ -148,4 +148,6 @@ public sealed record SaleBill(
     public string? CustomerPhone { get; init; }
     public string? CustomerAddress { get; init; }
     public decimal PreviousDue { get; init; }
+    public bool CanVoid { get; init; }
+    public int CashierId { get; init; }
 }

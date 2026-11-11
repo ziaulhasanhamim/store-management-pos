@@ -243,10 +243,7 @@
                     <div class="rounded-xl border border-blue-200 bg-blue-50/70 p-3 space-y-1.5">
                         <label class="block">
                             <span class="field-label text-blue-900">Transaction Date & Time (Admin Backdate)</span>
-                            <div class="flex items-center gap-1.5 mt-1">
-                                <input type="datetime-local" class="field bg-white" @bind="CustomTransactionTime" />
-                                <button type="button" class="btn-secondary text-xs px-2.5 py-1.5 shrink-0" onclick="this.previousElementSibling.blur()" title="Confirm date selection">Done</button>
-                            </div>
+                            <input type="datetime-local" class="field bg-white mt-1" @bind="CustomTransactionTime" />
                         </label>
                         <p class="text-[11px] text-blue-700">Leave blank for current time. Backfills land on earlier dates without interrupting live sales.</p>
                     </div>

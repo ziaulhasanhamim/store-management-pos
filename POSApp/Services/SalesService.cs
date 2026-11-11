@@ -539,6 +539,15 @@ public sealed class SalesService(IServiceScopeFactory scopes, IConfiguration? co
             ? Math.Max(0m, invoiceEntry.BalanceAfter - invoiceEntry.Amount)
             : Math.Max(0m, currentCustomerBalance - unpaidThisSale);
 
+        var isAdmin = actor.IsInRole(AppRoles.Admin);
+        if (!isAdmin)
+        {
+            isAdmin = await db.UserRoles.AnyAsync(membership => membership.UserId == actorId && db.Roles.Any(role => role.Id == membership.RoleId && role.Name == AppRoles.Admin), ct);
+        }
+        var activeDate = await AccountingCalendar.SelectedAsync(db, actorId, null, ct);
+        var saleDate = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(sale.SoldAt, AccountingCalendar.Zone(null)).DateTime);
+        var canVoid = !sale.IsDeleted && sale.Status != SaleStatus.Voided && (isAdmin || (sale.CashierId == actorId && saleDate == activeDate));
+
         return new(sale.Id, sale.ReceiptNumber, sale.SoldAt, sale.Customer?.Name,
             sale.StockLocation!.Name, sale.Cashier!.UserName!,
             sale.Items.Select(item => new BillLine(item.ProductName, item.ProductSku,
@@ -558,7 +567,9 @@ public sealed class SalesService(IServiceScopeFactory scopes, IConfiguration? co
             VoidedAt = sale.DeletedAt,
             CustomerPhone = sale.Customer?.Phone,
             CustomerAddress = sale.Customer?.Address,
-            PreviousDue = previousDue
+            PreviousDue = previousDue,
+            CanVoid = canVoid,
+            CashierId = sale.CashierId
         };
     }
 }

@@ -171,21 +171,25 @@
                             <label class="inline-flex items-center gap-2 cursor-pointer text-xs font-medium text-slate-600 hover:text-slate-800">
                                 <input type="checkbox" name="CountInput.IsBackdate" value="true" class="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                                        checked="@CountInput?.IsBackdate"
-                                       onchange="var p = document.getElementById('backdate-count-box'); if (p) p.classList.toggle('hidden', !this.checked);" />
+                                       onchange="toggleBackdateCount(this, @(Data.SelectedLocationId ?? 0))" />
                                 <span>Record historical count (backdate)</span>
                             </label>
                             <div id="backdate-count-box" class="@(CountInput?.IsBackdate == true ? "" : "hidden") mt-2.5 p-3 rounded-lg bg-amber-50/60 border border-amber-200/80">
                                 <label class="field-label text-xs" for="count-time">Counted at (physical date & time)</label>
-                                <div class="flex items-center gap-2">
-                                    <input type="datetime-local" id="count-time" name="CountInput.CountedAt" class="field text-xs max-w-xs"
+                                <div class="relative max-w-xs flex items-center">
+                                    <input type="datetime-local" id="count-time" name="CountInput.CountedAt" class="field text-xs w-full pr-8"
                                            min="@(Data.LastCount?.CountedAt.ToBusinessTime(Configuration).ToString("yyyy-MM-ddTHH:mm"))"
                                            value="@(CountInput?.CountedAt?.ToBusinessTime(Configuration).ToString("yyyy-MM-ddTHH:mm"))"
-                                           onchange="fetchHistoricalExpectedCash(this.value, @(Data.SelectedLocationId ?? 0))" />
-                                    <button type="button" class="btn-secondary text-xs px-2.5 py-1.5 shrink-0" onclick="document.getElementById('count-time').blur();" title="Done selecting date & time">Done</button>
+                                           oninput="fetchHistoricalExpectedCash(this.value, @(Data.SelectedLocationId ?? 0))"
+                                           onchange="fetchHistoricalExpectedCash(this.value, @(Data.SelectedLocationId ?? 0))"
+                                           data-onchange-callback="fetchHistoricalExpectedCash" />
+                                    <button type="button" data-datetime-trigger="count-time" class="absolute right-2 text-slate-400 hover:text-slate-600 cursor-pointer p-1" title="Open calendar with Done button">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                                    </button>
                                 </div>
                                 <div id="historical-expected-cash-banner" class="hidden mt-2 p-2.5 rounded-lg bg-amber-100/80 border border-amber-300/80 text-amber-950 text-xs">
                                     <span class="font-medium">Expected book cash at selected time:</span> <strong id="historical-expected-amount" class="text-sm font-bold">BDT 0.00</strong>
-                                    <p class="text-[11px] text-amber-800 mt-0.5">Based on the accepted anchor before this timestamp and net movements up to this moment.</p>
+                                    <p id="historical-expected-note" class="text-[11px] text-amber-800 mt-0.5">Based on the accepted anchor before this timestamp and net movements up to this moment.</p>
                                 </div>
                                 <p class="mt-1 text-[11px] text-amber-800">
                                     Must be after the last accepted count (@(Data.LastCount is not null ? Data.LastCount.CountedAt.ToBusinessTime(Configuration).ToString("dd MMM yyyy, hh:mm tt") : "start of drawer")). Historical expected cash will be calculated as of that moment.
@@ -566,6 +570,7 @@
         CashMovementKind.DebtRepayment => "Debt repayments",
         CashMovementKind.OpeningBalance => "Opening balance",
         CashMovementKind.Reversal => "Transaction reversals",
+        CashMovementKind.Variance => "Cash count adjustment (shortage / overage)",
         _ => "Other movement"
     };
 
@@ -579,26 +584,66 @@
 </form>
 
 <script>
+    function toggleBackdateCount(checkbox, locId) {
+        var p = document.getElementById('backdate-count-box');
+        if (p) p.classList.toggle('hidden', !checkbox.checked);
+        if (checkbox.checked) {
+            var inputEl = document.getElementById('count-time');
+            if (inputEl && !inputEl.value) {
+                var now = new Date();
+                var yr = now.getFullYear();
+                var mo = ('0' + (now.getMonth() + 1)).slice(-2);
+                var da = ('0' + now.getDate()).slice(-2);
+                var hr = ('0' + now.getHours()).slice(-2);
+                var mi = ('0' + now.getMinutes()).slice(-2);
+                inputEl.value = yr + '-' + mo + '-' + da + 'T' + hr + ':' + mi;
+                inputEl.dispatchEvent(new Event('input', { bubbles: true }));
+                inputEl.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+            fetchHistoricalExpectedCash(inputEl ? inputEl.value : '', locId);
+        }
+    }
+
     function fetchHistoricalExpectedCash(timeVal, locId) {
         var banner = document.getElementById('historical-expected-cash-banner');
         var amountEl = document.getElementById('historical-expected-amount');
-        if (!timeVal || !locId) {
+        var noteEl = document.getElementById('historical-expected-note');
+        if (!timeVal) {
+            var inputEl = document.getElementById('count-time');
+            if (inputEl) timeVal = inputEl.value;
+        }
+        if (!timeVal) {
             if (banner) banner.classList.add('hidden');
             return;
         }
-        fetch('/api/finance/cash-drawer/expected-at?locationId=' + encodeURIComponent(locId) + '&asOf=' + encodeURIComponent(timeVal))
+        if (banner && amountEl) {
+            banner.classList.remove('hidden');
+            amountEl.textContent = 'Calculating…';
+            if (noteEl) noteEl.textContent = 'Querying expected book cash as of selected moment…';
+        }
+        fetch('/api/finance/cash-drawer/expected-at?locationId=' + encodeURIComponent(locId || 0) + '&asOf=' + encodeURIComponent(timeVal), {
+            headers: { 'Accept': 'application/json' },
+            credentials: 'same-origin'
+        })
             .then(function(res) {
-                if (!res.ok) throw new Error('Failed to fetch expected cash');
+                if (!res.ok) throw new Error('HTTP ' + res.status);
                 return res.json();
             })
             .then(function(data) {
                 if (banner && amountEl && data.expectedCash !== undefined) {
                     amountEl.textContent = 'BDT ' + Number(data.expectedCash).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                    if (noteEl) noteEl.textContent = 'Based on the accepted anchor before this timestamp and net movements up to this moment.';
                     banner.classList.remove('hidden');
                 }
             })
             .catch(function(err) {
-                console.error(err);
+                if (banner && amountEl) {
+                    amountEl.textContent = 'Unavailable';
+                    if (noteEl) noteEl.textContent = 'Could not calculate expected cash: ' + err.message;
+                }
             });
     }
+
+    window.toggleBackdateCount = toggleBackdateCount;
+    window.fetchHistoricalExpectedCash = fetchHistoricalExpectedCash;
 </script>

@@ -111,16 +111,15 @@ public static class FinancialPosting
             .ToListAsync(ct);
         foreach (var movement in originals)
         {
-            var businessDateToUse = movement.BusinessDate == activeDate ? movement.BusinessDate : activeDate;
-            await AccountingCalendar.EnsureOpenAsync(db, businessDateToUse, ct);
             await BankAsync(db, new BankMovement
             {
                 RequestId = Guid.NewGuid(),
-                BusinessDate = businessDateToUse,
+                BusinessDate = movement.BusinessDate,
+                CreatedAt = movement.CreatedAt.AddMilliseconds(1),
                 Kind = CashMovementKind.Reversal,
                 Method = movement.Method,
                 Amount = -movement.Amount,
-                Notes = reason,
+                Notes = $"Deletion of {kind} #{id}: {reason}",
                 ReversesMovementId = movement.Id,
                 CreatedByUserId = actorId
             }, ct);

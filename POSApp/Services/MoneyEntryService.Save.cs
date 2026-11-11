@@ -353,10 +353,17 @@ public sealed partial class MoneyEntryService
 
             CashDrawerService.Append(db, drawer, new CashMovement
             {
-                RequestId = Guid.NewGuid(), BusinessDate = date, Kind = CashMovementKind.Reversal,
-                Amount = -move.Amount, Notes = $"Reversal {kind} #{id}: previous cash posting",
-                ReversesMovementId = move.Id, CreatedByUserId = actorId
+                RequestId = Guid.NewGuid(),
+                BusinessDate = move.BusinessDate,
+                CreatedAt = move.CreatedAt.AddMilliseconds(1),
+                Kind = CashMovementKind.Reversal,
+                Amount = -move.Amount,
+                Notes = $"Deletion of {kind} #{id}: previous cash posting",
+                ReversesMovementId = move.Id,
+                CreatedByUserId = actorId
             });
+
+            await CashDrawerService.SyncCountsAndDrawerBalanceAsync(db, drawer, move.CreatedAt, ct);
         }
         var bank = await db.BankMovements.Where(move =>
                 (kind == "expenses" ? move.ExpenseId == id : kind == "supplier-payments" ? move.SupplierPaymentId == id : move.PaymentId == id)
@@ -366,9 +373,15 @@ public sealed partial class MoneyEntryService
         {
             await FinancialPosting.BankAsync(db, new BankMovement
             {
-                RequestId = Guid.NewGuid(), BusinessDate = date, Kind = CashMovementKind.Reversal,
-                Method = move.Method, Amount = -move.Amount, Notes = $"Reversal {kind} #{id}: previous bank posting",
-                ReversesMovementId = move.Id, CreatedByUserId = actorId
+                RequestId = Guid.NewGuid(),
+                BusinessDate = move.BusinessDate,
+                CreatedAt = move.CreatedAt.AddMilliseconds(1),
+                Kind = CashMovementKind.Reversal,
+                Method = move.Method,
+                Amount = -move.Amount,
+                Notes = $"Deletion of {kind} #{id}: previous bank posting",
+                ReversesMovementId = move.Id,
+                CreatedByUserId = actorId
             }, ct);
         }
         if (kind == "customer-payments")
@@ -421,13 +434,15 @@ public sealed partial class MoneyEntryService
                 }
 
                 var occurred = payment.PaidAt;
-                if (DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(occurred, AccountingCalendar.Zone(configuration)).DateTime) != date)
+                var entryDate = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(occurred, AccountingCalendar.Zone(configuration)).DateTime);
+                if (!admin && entryDate != date)
                 {
-                    throw new ValidationException("Only entries in the current open working day can be voided.");
+                    throw new ValidationException("Only entries in the current open working day can be voided. Voiding earlier entries requires an administrator.");
                 }
+                await AccountingCalendar.EnsureOpenAsync(db, entryDate, ct);
 
                 var before = Snapshot(payment);
-                await ReversePostingsAsync(db, kind, payment.Id, actorId, date, ct);
+                await ReversePostingsAsync(db, kind, payment.Id, actorId, entryDate, ct);
 
                 var balance = payment.SupplierBalance ?? await db.SupplierBalances.SingleOrDefaultAsync(b => b.Id == payment.SupplierBalanceId, ct);
                 if (balance != null)
@@ -439,7 +454,7 @@ public sealed partial class MoneyEntryService
                     db.SupplierBalanceEntries.Add(new SupplierBalanceEntry
                     {
                         SupplierBalanceId = balance.Id,
-                        OccurredAt = at,
+                        OccurredAt = payment.PaidAt.AddMilliseconds(1),
                         Type = BalanceEntryType.Adjustment,
                         Amount = payment.Amount,
                         BalanceAfter = balance.CurrentBalance,
@@ -487,8 +502,16 @@ public sealed partial class MoneyEntryService
                     throw new UnauthorizedAccessException("Only the creator or admin can void this expense.");
                 }
 
+                var occurred = expense.OccurredAt;
+                var entryDate = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(occurred, AccountingCalendar.Zone(configuration)).DateTime);
+                if (!admin && entryDate != date)
+                {
+                    throw new ValidationException("Only entries in the current open working day can be voided. Voiding earlier entries requires an administrator.");
+                }
+                await AccountingCalendar.EnsureOpenAsync(db, entryDate, ct);
+
                 var before = Snapshot(expense);
-                await ReversePostingsAsync(db, kind, expense.Id, actorId, date, ct);
+                await ReversePostingsAsync(db, kind, expense.Id, actorId, entryDate, ct);
 
                 var voidReason = $"Voided expense #{expense.Id} of {expense.Amount:N2}";
                 expense.IsVoided = true;
@@ -525,10 +548,12 @@ public sealed partial class MoneyEntryService
                 }
 
                 var occurred = payment.PaidAt;
-                if (DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(occurred, AccountingCalendar.Zone(configuration)).DateTime) != date)
+                var entryDate = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(occurred, AccountingCalendar.Zone(configuration)).DateTime);
+                if (!admin && entryDate != date)
                 {
-                    throw new ValidationException("Only entries in the current open working day can be voided.");
+                    throw new ValidationException("Only entries in the current open working day can be voided. Voiding earlier entries requires an administrator.");
                 }
+                await AccountingCalendar.EnsureOpenAsync(db, entryDate, ct);
 
                 var before = Snapshot(payment);
                 var voidReason = $"Voided customer collection #{payment.Id} of {payment.Amount:N2}";
@@ -536,9 +561,9 @@ public sealed partial class MoneyEntryService
                 // Reverse settled clearing payouts too if this non-cash collection was already cleared
                 if (await db.PaymentClearingEntries.AnyAsync(e => e.PaymentId == payment.Id && e.Status == PaymentClearingStatus.Settled, ct))
                 {
-                    await FinancialPosting.ReverseClearingByPaymentAsync(db, payment.Id, actorId, voidReason, date, configuration, ct);
+                    await FinancialPosting.ReverseClearingByPaymentAsync(db, payment.Id, actorId, voidReason, entryDate, configuration, ct);
                 }
-                await ReversePostingsAsync(db, kind, payment.Id, actorId, date, ct);
+                await ReversePostingsAsync(db, kind, payment.Id, actorId, entryDate, ct);
 
                 var balance = payment.CustomerBalance ?? await db.CustomerBalances.SingleOrDefaultAsync(b => b.Id == payment.CustomerBalanceId, ct);
                 if (balance != null)
@@ -550,7 +575,7 @@ public sealed partial class MoneyEntryService
                     db.CustomerBalanceEntries.Add(new CustomerBalanceEntry
                     {
                         CustomerBalanceId = balance.Id,
-                        OccurredAt = at,
+                        OccurredAt = payment.PaidAt.AddMilliseconds(1),
                         Type = BalanceEntryType.Adjustment,
                         Amount = payment.Amount,
                         BalanceAfter = balance.CurrentBalance,

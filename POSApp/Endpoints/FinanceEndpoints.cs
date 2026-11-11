@@ -15,9 +15,40 @@ public static class FinanceEndpoints
     }
 
     public static async Task<IResult> GetHistoricalExpectedCashAsync(
-        int locationId, DateTimeOffset asOf, HttpContext context, CashDrawerService drawerService)
+        int? locationId, string asOf, HttpContext context, CashDrawerService drawerService, IConfiguration config)
     {
-        var expected = await drawerService.GetExpectedAtAsync(context.User, locationId, asOf, context.RequestAborted);
+        if (string.IsNullOrWhiteSpace(asOf))
+        {
+            return Results.BadRequest(new { error = "asOf timestamp is required." });
+        }
+
+        DateTimeOffset targetTime;
+        var zone = AccountingCalendar.Zone(config);
+
+        if (DateTimeOffset.TryParse(asOf, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var parsedOffset))
+        {
+            if (!asOf.Contains("+") && !asOf.EndsWith("Z", StringComparison.OrdinalIgnoreCase) && !(asOf.Length > 19 && (asOf[19] == '-' || asOf[19] == '+')))
+            {
+                var dt = DateTime.Parse(asOf, System.Globalization.CultureInfo.InvariantCulture);
+                var offset = zone.GetUtcOffset(dt);
+                targetTime = new DateTimeOffset(dt, offset);
+            }
+            else
+            {
+                targetTime = parsedOffset;
+            }
+        }
+        else if (DateTime.TryParse(asOf, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var parsedDt))
+        {
+            var offset = zone.GetUtcOffset(parsedDt);
+            targetTime = new DateTimeOffset(parsedDt, offset);
+        }
+        else
+        {
+            return Results.BadRequest(new { error = "Invalid date/time format." });
+        }
+
+        var expected = await drawerService.GetExpectedAtAsync(context.User, locationId ?? 0, targetTime, context.RequestAborted);
         return Results.Ok(new { expectedCash = expected });
     }
 

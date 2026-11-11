@@ -246,7 +246,15 @@ public sealed class RecordAdministration(IServiceScopeFactory scopes, IConfigura
             }
             await using var scope = scopes.CreateAsyncScope();
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            var actorId = await StoreAccess.RequireAsync(db, actor, AppRoles.Admin, ct);
+            var actorId = await StoreAccess.RequireAsync(db, actor, AppRoles.SalesAssociate, ct);
+            var isAdmin = await CashDrawerService.IsAdminAsync(db, actorId, ct);
+            if (!isAdmin)
+            {
+                if (kind != "sale" || !delete)
+                {
+                    throw new UnauthorizedAccessException("Only administrators can perform this action.");
+                }
+            }
             var activeDate = await AccountingCalendar.SelectedAsync(db, actorId, configuration, ct);
             var effectiveAt = AccountingCalendar.At(activeDate, configuration);
             await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
@@ -276,6 +284,13 @@ public sealed class RecordAdministration(IServiceScopeFactory scopes, IConfigura
                     }
                     ValidateRevision(sale, sale.IsDeleted || sale.Status == SaleStatus.Voided, input);
                     var saleDate = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(sale.SoldAt, zone).DateTime);
+                    if (!isAdmin)
+                    {
+                        if (sale.CashierId != actorId || saleDate != activeDate)
+                        {
+                            throw new UnauthorizedAccessException("Cashiers can only void their own sales in the current open working day. Voiding older sales or sales made by other staff requires an administrator with a reason.");
+                        }
+                    }
                     // Enforce closed-period immutability on BOTH edit and void
                     await AccountingCalendar.EnsureOpenAsync(db, saleDate, ct);
                     if (delete && activeDate != saleDate)
@@ -297,18 +312,21 @@ public sealed class RecordAdministration(IServiceScopeFactory scopes, IConfigura
                     var note = $"Sale {(delete ? "void" : "customer change")} #{id}: {reasonText}";
                     if (sale.Status == SaleStatus.Completed && delete)
                     {
+                        // Voiding a transaction takes the original entry's date and time (+1ms), so all effects fall in the same interval
+                        var saleEffectiveAt = sale.SoldAt.AddMilliseconds(1);
+
                         // Symmetric party ledger reversals: credit the invoice total (-Total), then debit back any payment (+Paid)
                         if (sale.CustomerId is not null)
                         {
                             if (sale.TotalAmount != 0)
                             {
                                 await CustomerAdjustmentAsync(db, sale.CustomerId, -sale.TotalAmount,
-                                    $"Void invoice #{id}: {reasonText}", actorId, effectiveAt, ct);
+                                    $"Void invoice #{id}: {reasonText}", actorId, saleEffectiveAt, ct);
                             }
                             if (paid != 0)
                             {
                                 await CustomerAdjustmentAsync(db, sale.CustomerId, paid,
-                                    $"Void payment(s) on sale #{id}: {reasonText}", actorId, effectiveAt, ct);
+                                    $"Void payment(s) on sale #{id}: {reasonText}", actorId, saleEffectiveAt, ct);
                             }
                         }
                         foreach (var payment in activeSalePayments)
@@ -323,9 +341,9 @@ public sealed class RecordAdministration(IServiceScopeFactory scopes, IConfigura
                         sale.Status = SaleStatus.Voided;
                         sale.IsDeleted = true;
                         sale.DeletedAt = now;
-                        await CashDrawerService.ReverseAsync(db, "sale", id, actorId, note, activeDate, sale.StockLocationId, ct);
-                        await FinancialPosting.ReverseBankAsync(db, "sale", id, actorId, note, activeDate, ct);
-                        await FinancialPosting.ReverseClearingAsync(db, id, actorId, note, activeDate, configuration, ct);
+                        await CashDrawerService.ReverseAsync(db, "sale", id, actorId, note, saleDate, sale.StockLocationId, ct);
+                        await FinancialPosting.ReverseBankAsync(db, "sale", id, actorId, note, saleDate, ct);
+                        await FinancialPosting.ReverseClearingAsync(db, id, actorId, note, saleDate, configuration, ct);
                         affectedProducts = sale.Items.Select(item => item.ProductId).Distinct().ToArray();
                         costReason = $"Reversal of sale #{id}";
                         costReferenceType = "SaleReversal";
@@ -335,7 +353,7 @@ public sealed class RecordAdministration(IServiceScopeFactory scopes, IConfigura
                         foreach (var item in sale.Items.Where(item => !nonStockedIds.Contains(item.ProductId)).OrderBy(item => item.Quantity < 0))
                         {
                             await ReverseStockAsync(db, item.ProductId, sale.StockLocationId, item.Quantity,
-                                item.UnitCost, note, actorId, effectiveAt, ct);
+                                item.UnitCost, note, actorId, saleEffectiveAt, ct);
                         }
                     }
                     else if (!delete)
@@ -387,16 +405,19 @@ public sealed class RecordAdministration(IServiceScopeFactory scopes, IConfigura
                     var supplierPaid = activeSupplierPayments.Sum(payment => payment.Amount);
                     if (purchase.Status == PurchaseStatus.Received && delete)
                     {
+                        // Voiding receiving takes the original entry's date and time (+1ms)
+                        var purchaseEffectiveAt = (purchase.ReceivedAt ?? purchase.OrderedAt).AddMilliseconds(1);
+
                         // Symmetric party ledger reversals: debit the bill total (-Total), then credit back any payment (+Paid)
                         if (purchase.TotalAmount != 0)
                         {
                             await SupplierAdjustmentAsync(db, purchase.SupplierId, -purchase.TotalAmount,
-                                $"Void bill #{id}: {reasonText}", actorId, effectiveAt, ct);
+                                $"Void bill #{id}: {reasonText}", actorId, purchaseEffectiveAt, ct);
                         }
                         if (supplierPaid != 0)
                         {
                             await SupplierAdjustmentAsync(db, purchase.SupplierId, supplierPaid,
-                                $"Void payment(s) on receiving #{id}: {reasonText}", actorId, effectiveAt, ct);
+                                $"Void payment(s) on receiving #{id}: {reasonText}", actorId, purchaseEffectiveAt, ct);
                         }
                         foreach (var payment in activeSupplierPayments)
                         {
@@ -410,8 +431,8 @@ public sealed class RecordAdministration(IServiceScopeFactory scopes, IConfigura
                         purchase.Status = PurchaseStatus.Cancelled;
                         purchase.IsDeleted = true;
                         purchase.DeletedAt = now;
-                        await CashDrawerService.ReverseAsync(db, "purchase", id, actorId, supplierNote, activeDate, purchase.StockLocationId, ct);
-                        await FinancialPosting.ReverseBankAsync(db, "purchase", id, actorId, supplierNote, activeDate, ct);
+                        await CashDrawerService.ReverseAsync(db, "purchase", id, actorId, supplierNote, purchaseDate, purchase.StockLocationId, ct);
+                        await FinancialPosting.ReverseBankAsync(db, "purchase", id, actorId, supplierNote, purchaseDate, ct);
                         affectedProducts = purchase.Items.Select(item => item.ProductId).Distinct().ToArray();
                         var purchaseRef = !string.IsNullOrWhiteSpace(purchase.PurchaseNumber) && !(purchase.PurchaseNumber.StartsWith("REC-", StringComparison.OrdinalIgnoreCase) && purchase.PurchaseNumber.Length > 20)
                             ? purchase.PurchaseNumber
@@ -423,7 +444,7 @@ public sealed class RecordAdministration(IServiceScopeFactory scopes, IConfigura
                         foreach (var item in purchase.Items.OrderBy(item => item.Quantity > 0))
                         {
                             await ReverseStockAsync(db, item.ProductId, purchase.StockLocationId, -item.Quantity,
-                                item.UnitCost, supplierNote, actorId, effectiveAt, ct);
+                                item.UnitCost, supplierNote, actorId, purchaseEffectiveAt, ct);
                         }
                     }
                     else if (!delete)
@@ -930,13 +951,16 @@ public sealed class RecordAdministration(IServiceScopeFactory scopes, IConfigura
             CashDrawerService.Append(db, drawerToUse, new CashMovement
             {
                 RequestId = Guid.NewGuid(),
-                BusinessDate = activeDate,
+                BusinessDate = move.BusinessDate,
+                CreatedAt = move.CreatedAt.AddMilliseconds(1),
                 Kind = CashMovementKind.Reversal,
                 Amount = -move.Amount,
-                Notes = reason,
+                Notes = $"Deletion of {kind} #{id}: {reason}",
                 ReversesMovementId = move.Id,
                 CreatedByUserId = actorId
             });
+
+            await CashDrawerService.SyncCountsAndDrawerBalanceAsync(db, drawerToUse, move.CreatedAt, ct);
         }
 
         if (kind is "payroll" or "debt")
@@ -948,15 +972,15 @@ public sealed class RecordAdministration(IServiceScopeFactory scopes, IConfigura
                 .ToListAsync(ct);
             foreach (var move in bankMovements)
             {
-                var businessDateToUse = move.BusinessDate == activeDate ? move.BusinessDate : activeDate;
                 await FinancialPosting.BankAsync(db, new BankMovement
                 {
                     RequestId = Guid.NewGuid(),
-                    BusinessDate = businessDateToUse,
+                    BusinessDate = move.BusinessDate,
+                    CreatedAt = move.CreatedAt.AddMilliseconds(1),
                     Kind = CashMovementKind.Reversal,
                     Method = move.Method,
                     Amount = -move.Amount,
-                    Notes = reason,
+                    Notes = $"Deletion of {kind} #{id}: {reason}",
                     ReversesMovementId = move.Id,
                     CreatedByUserId = actorId
                 }, ct);

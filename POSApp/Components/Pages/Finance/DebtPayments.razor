@@ -84,11 +84,8 @@ else if (Data is not null)
                     {
                         <div>
                             <label for="debt-time" class="field-label">Transaction Date & Time (Optional backdate)</label>
-                            <div class="flex items-center gap-1.5">
-                                <input id="debt-time" type="datetime-local" class="field" name="Input.TransactionTime"
-                                       value="@(Input?.TransactionTime?.ToString("yyyy-MM-ddTHH:mm"))" />
-                                <button type="button" class="btn-secondary text-xs px-2.5 py-2 shrink-0" onclick="document.getElementById('debt-time').blur()" title="Confirm date selection">Done</button>
-                            </div>
+                            <input id="debt-time" type="datetime-local" class="field" name="Input.TransactionTime"
+                                   value="@(Input?.TransactionTime?.ToString("yyyy-MM-ddTHH:mm"))" />
                         </div>
                     }
                     <div class="@(CanBackdate ? "" : "sm:col-span-2")">
