@@ -223,7 +223,8 @@
 
             if (input.dataset.onchangeCallback && typeof window[input.dataset.onchangeCallback] === "function") {
                 try {
-                    window[input.dataset.onchangeCallback](finalIso, input);
+                    var cbLocId = input.dataset.locationId ? Number(input.dataset.locationId) : 0;
+                    window[input.dataset.onchangeCallback](finalIso, cbLocId);
                 } catch (err) {
                     console.error("Callback error:", err);
                 }
@@ -332,10 +333,21 @@
         var banner = document.getElementById('historical-expected-cash-banner');
         var amountEl = document.getElementById('historical-expected-amount');
         var noteEl = document.getElementById('historical-expected-note');
-        if (!timeVal) {
-            var inputEl = document.getElementById('count-time');
-            if (inputEl) timeVal = inputEl.value;
+        var inputEl = document.getElementById('count-time');
+
+        if (!timeVal && inputEl) {
+            timeVal = inputEl.value;
         }
+        if ((!locId || isNaN(Number(locId))) && inputEl && inputEl.dataset && inputEl.dataset.locationId) {
+            locId = Number(inputEl.dataset.locationId);
+        }
+        if (!locId || isNaN(Number(locId))) {
+            var hiddenLoc = document.querySelector('[name="CountInput.CashDrawerId"]') || document.querySelector('[name="CountInput.LocationId"]');
+            if (hiddenLoc && !isNaN(Number(hiddenLoc.value))) {
+                locId = Number(hiddenLoc.value);
+            }
+        }
+        locId = locId || 0;
         if (!timeVal) {
             if (banner) banner.classList.add('hidden');
             return;
@@ -345,7 +357,7 @@
             amountEl.textContent = 'Calculating…';
             if (noteEl) noteEl.textContent = 'Querying expected book cash as of selected moment…';
         }
-        fetch('/api/finance/cash-drawer/expected-at?locationId=' + encodeURIComponent(locId || 0) + '&asOf=' + encodeURIComponent(timeVal), {
+        fetch('/api/finance/cash-drawer/expected-at?locationId=' + encodeURIComponent(locId) + '&asOf=' + encodeURIComponent(timeVal), {
             headers: { 'Accept': 'application/json' },
             credentials: 'same-origin'
         })

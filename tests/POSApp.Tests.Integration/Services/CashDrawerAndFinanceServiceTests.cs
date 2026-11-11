@@ -737,10 +737,11 @@ public class CashDrawerAndFinanceServiceTests : PosIntegrationTestBase
         var drawerService = scope.ServiceProvider.GetRequiredService<CashDrawerService>();
 
         var drawer = await db.CashDrawers.FirstAsync(d => d.StockLocationId == 1);
-        var baseCash = drawer.CurrentCash;
-
         var zone = AccountingCalendar.Zone(null);
         var t0 = DateTimeOffset.UtcNow.AddHours(-6);
+        drawer.OpeningDate = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(t0, zone).DateTime).AddDays(-1);
+        await db.SaveChangesAsync();
+        var baseCash = drawer.CurrentCash;
 
         // Step 1: Create a sale, payment and movement at T0
         var sale = new Sale
@@ -841,5 +842,88 @@ public class CashDrawerAndFinanceServiceTests : PosIntegrationTestBase
         // The count's variance movement amount should have synced to 0
         var syncedVarMove = await db.CashMovements.AsNoTracking().FirstAsync(m => m.Id == acceptedCount.VarianceMovementId!.Value);
         await syncedVarMove.Amount.Should().BeEqualTo(0m);
+    }
+
+    [Test]
+    public async Task CashDrawer_ExpectedAt_FollowsLedgerIntervalOrder_MatchingStatementDayOpening()
+    {
+        await using var scope = CreateScope();
+        var drawerService = scope.ServiceProvider.GetRequiredService<CashDrawerService>();
+        var statementService = scope.ServiceProvider.GetRequiredService<StatementService>();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var drawer = await db.CashDrawers.FirstAsync(d => d.StockLocationId == 1);
+        var baseCash = drawer.CurrentCash;
+
+        var day1Date = new DateOnly(2026, 11, 9);
+        var day2Date = new DateOnly(2026, 11, 10);
+        var day1Time = new DateTimeOffset(2026, 11, 9, 13, 0, 0, TimeSpan.FromHours(6));
+        var day2Midnight = new DateTimeOffset(2026, 11, 10, 0, 0, 0, TimeSpan.FromHours(6));
+        var day2Night = new DateTimeOffset(2026, 11, 10, 20, 36, 0, TimeSpan.FromHours(6));
+
+        // Day 1: Add cash movement +3,600
+        var m1 = new CashMovement
+        {
+            RequestId = Guid.NewGuid(),
+            CashDrawerId = drawer.Id,
+            BusinessDate = day1Date,
+            CreatedAt = day1Time,
+            Kind = CashMovementKind.OwnerContribution,
+            Amount = 3600m,
+            Notes = "Day 1 Cash In",
+            CreatedByUserId = 1
+        };
+        db.CashMovements.Add(m1);
+
+        // Day 2 (evening): Add supplier payments totaling -2,500
+        var m2 = new CashMovement
+        {
+            RequestId = Guid.NewGuid(),
+            CashDrawerId = drawer.Id,
+            BusinessDate = day2Date,
+            CreatedAt = day2Night,
+            Kind = CashMovementKind.SupplierPayment,
+            Amount = -1000m,
+            Notes = "Supplier payment #31",
+            CreatedByUserId = 1
+        };
+        var m3 = new CashMovement
+        {
+            RequestId = Guid.NewGuid(),
+            CashDrawerId = drawer.Id,
+            BusinessDate = day2Date,
+            CreatedAt = day2Night,
+            Kind = CashMovementKind.SupplierPayment,
+            Amount = -1000m,
+            Notes = "Supplier payment #18",
+            CreatedByUserId = 1
+        };
+        var m4 = new CashMovement
+        {
+            RequestId = Guid.NewGuid(),
+            CashDrawerId = drawer.Id,
+            BusinessDate = day2Date,
+            CreatedAt = day2Night,
+            Kind = CashMovementKind.SupplierPayment,
+            Amount = -500m,
+            Notes = "Supplier payment #66",
+            CreatedByUserId = 1
+        };
+        db.CashMovements.AddRange(m2, m3, m4);
+        drawer.CurrentCash += (3600m - 2500m);
+        await db.SaveChangesAsync();
+
+        // 1. Calculate expected book cash as of Day 2 midnight (12:00 AM)
+        var expectedAtMidnight = await drawerService.GetExpectedAtAsync(AdminUser, drawer.StockLocationId ?? 1, day2Midnight);
+
+        // Expected book cash at midnight of Day 2 must include Day 1 movements (+3600), but EXCLUDE Day 2 20:36 night movements!
+        // It also correctly excludes drawer opening balance since drawer.OpeningDate is today (after 10 Nov 2026).
+        await expectedAtMidnight.Should().BeEqualTo(3600m);
+
+        // 2. Query Statement for Day 2 (10 Nov 2026 - 12 Nov 2026)
+        var statement = await statementService.ReadAsync(AdminUser, "cash", "custom", start: day2Date, end: new DateOnly(2026, 11, 12), drawerId: drawer.Id);
+
+        // Opening balance in statement for 10 Nov must exactly match expectedAtMidnight
+        await statement.Opening.Should().BeEqualTo(expectedAtMidnight);
     }
 }

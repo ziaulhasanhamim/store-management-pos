@@ -178,6 +178,7 @@
                                 <label class="field-label text-xs" for="count-time">Counted at (physical date & time)</label>
                                 <div class="relative max-w-xs flex items-center">
                                     <input type="datetime-local" id="count-time" name="CountInput.CountedAt" class="field text-xs w-full pr-8"
+                                           data-location-id="@(Data.SelectedLocationId ?? 0)"
                                            min="@(Data.LastCount?.CountedAt.ToBusinessTime(Configuration).ToString("yyyy-MM-ddTHH:mm"))"
                                            value="@(CountInput?.CountedAt?.ToBusinessTime(Configuration).ToString("yyyy-MM-ddTHH:mm"))"
                                            oninput="fetchHistoricalExpectedCash(this.value, @(Data.SelectedLocationId ?? 0))"
@@ -608,10 +609,21 @@
         var banner = document.getElementById('historical-expected-cash-banner');
         var amountEl = document.getElementById('historical-expected-amount');
         var noteEl = document.getElementById('historical-expected-note');
-        if (!timeVal) {
-            var inputEl = document.getElementById('count-time');
-            if (inputEl) timeVal = inputEl.value;
+        var inputEl = document.getElementById('count-time');
+
+        if (!timeVal && inputEl) {
+            timeVal = inputEl.value;
         }
+        if ((!locId || isNaN(Number(locId))) && inputEl && inputEl.dataset && inputEl.dataset.locationId) {
+            locId = Number(inputEl.dataset.locationId);
+        }
+        if (!locId || isNaN(Number(locId))) {
+            var hiddenLoc = document.querySelector('[name="CountInput.CashDrawerId"]') || document.querySelector('[name="CountInput.LocationId"]');
+            if (hiddenLoc && !isNaN(Number(hiddenLoc.value))) {
+                locId = Number(hiddenLoc.value);
+            }
+        }
+        locId = locId || 0;
         if (!timeVal) {
             if (banner) banner.classList.add('hidden');
             return;
@@ -621,7 +633,7 @@
             amountEl.textContent = 'Calculating…';
             if (noteEl) noteEl.textContent = 'Querying expected book cash as of selected moment…';
         }
-        fetch('/api/finance/cash-drawer/expected-at?locationId=' + encodeURIComponent(locId || 0) + '&asOf=' + encodeURIComponent(timeVal), {
+        fetch('/api/finance/cash-drawer/expected-at?locationId=' + encodeURIComponent(locId) + '&asOf=' + encodeURIComponent(timeVal), {
             headers: { 'Accept': 'application/json' },
             credentials: 'same-origin'
         })

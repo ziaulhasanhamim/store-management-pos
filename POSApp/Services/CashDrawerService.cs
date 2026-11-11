@@ -42,7 +42,7 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
         if (pendingCountEntity is not null && selectedDrawer is not null)
         {
             var locName = selectedDrawer.StockLocationId != null ? locations.FirstOrDefault(l => l.Id == selectedDrawer.StockLocationId)?.Name ?? "Drawer" : "Drawer";
-            var liveExp = await CalculateLiveBalanceAsync(db, selectedDrawer, pendingCountEntity.CountedAt, ct);
+            var liveExp = await CalculateLiveBalanceAsync(db, selectedDrawer, pendingCountEntity.CountedAt, ct, configuration);
             var liveVar = pendingCountEntity.CountedCash - liveExp;
             var hasDrift = Math.Round(pendingCountEntity.ExpectedCash, 2) != Math.Round(liveExp, 2);
             pendingCount = new CashCountRow(
@@ -71,7 +71,8 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
         var lastCountEntity = drawerId is null ? null : await db.CashCounts.AsNoTracking()
             .Where(c => c.CashDrawerId == drawerId.Value && (c.Status == CashCountStatus.Completed || c.Status == CashCountStatus.VarianceAccepted || c.Status == CashCountStatus.Accepted) && !c.IsVoided)
             .Include(c => c.CountedByUser)
-            .OrderByDescending(c => c.CountedAt)
+            .OrderByDescending(c => c.BusinessDate)
+            .ThenByDescending(c => c.CountedAt)
             .ThenByDescending(c => c.Id)
             .FirstOrDefaultAsync(ct);
 
@@ -79,7 +80,7 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
         if (lastCountEntity is not null && selectedDrawer is not null)
         {
             var locName = selectedDrawer.StockLocationId != null ? locations.FirstOrDefault(l => l.Id == selectedDrawer.StockLocationId)?.Name ?? "Drawer" : "Drawer";
-            var liveExp = await CalculateLiveBalanceAsync(db, selectedDrawer, lastCountEntity.CountedAt, ct);
+            var liveExp = await CalculateLiveBalanceAsync(db, selectedDrawer, lastCountEntity.CountedAt, ct, configuration);
             var liveVar = lastCountEntity.CountedCash - liveExp;
             lastCount = new CashCountRow(
                 lastCountEntity.Id,
@@ -134,7 +135,7 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
         foreach (var c in countHistoryEntities)
         {
             var drw = c.CashDrawer ?? (selectedDrawer?.Id == c.CashDrawerId ? selectedDrawer : drawers.FirstOrDefault(d => d.Id == c.CashDrawerId));
-            var liveExp = drw is not null ? await CalculateLiveBalanceAsync(db, drw, c.CountedAt, ct) : c.ExpectedCash;
+            var liveExp = drw is not null ? await CalculateLiveBalanceAsync(db, drw, c.CountedAt, ct, configuration) : c.ExpectedCash;
             var liveVar = c.CountedCash - liveExp;
 
             countHistoryList.Add(new CashCountRow(
@@ -206,7 +207,7 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
             };
         }
 
-        var liveDrawerCash = selectedDrawer != null ? await CalculateLiveBalanceAsync(db, selectedDrawer, null, ct) : 0m;
+        var liveDrawerCash = selectedDrawer != null ? await CalculateLiveBalanceAsync(db, selectedDrawer, null, ct, configuration) : 0m;
         if (selectedDrawer != null && selectedDrawer.CurrentCash != liveDrawerCash)
         {
             var trackedDrawer = await db.CashDrawers.FindAsync([selectedDrawer.Id], ct);
@@ -292,7 +293,8 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
                 .Where(c => c.CashDrawerId == drawer.Id
                     && (c.Status == CashCountStatus.Completed || c.Status == CashCountStatus.VarianceAccepted || c.Status == CashCountStatus.Accepted)
                     && !c.IsVoided)
-                .OrderByDescending(c => c.CountedAt)
+                .OrderByDescending(c => c.BusinessDate)
+                .ThenByDescending(c => c.CountedAt)
                 .ThenByDescending(c => c.Id)
                 .FirstOrDefaultAsync(ct);
 
@@ -307,13 +309,15 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
                 {
                     throw new ValidationException("Count date and time cannot be in the future.");
                 }
-                if (lastAccepted is not null && effectiveCountedAt <= lastAccepted.CountedAt)
+                effectiveDate = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(effectiveCountedAt, AccountingCalendar.Zone(configuration)).DateTime);
+                if (lastAccepted is not null &&
+                    (effectiveDate < lastAccepted.BusinessDate ||
+                     (effectiveDate == lastAccepted.BusinessDate && effectiveCountedAt <= lastAccepted.CountedAt)))
                 {
                     var businessZone = AccountingCalendar.Zone(configuration);
                     var lastTimeStr = TimeZoneInfo.ConvertTime(lastAccepted.CountedAt, businessZone).ToString("dd MMM yyyy, hh:mm tt");
                     throw new ValidationException($"A backdated count cannot be on or earlier than the last accepted count on {lastTimeStr}. Accepted counts are permanent anchors.");
                 }
-                effectiveDate = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(effectiveCountedAt, AccountingCalendar.Zone(configuration)).DateTime);
             }
             else
             {
@@ -322,7 +326,7 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
             }
 
             // Expected cash AT THE TIME of the count (not now!)
-            var expected = await CalculateLiveBalanceAsync(db, drawer, effectiveCountedAt, ct);
+            var expected = await CalculateLiveBalanceAsync(db, drawer, effectiveCountedAt, ct, configuration);
             var difference = counted - expected;
             if (difference != 0 && string.IsNullOrWhiteSpace(input.Notes))
             {
@@ -358,10 +362,11 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
             {
                 drawer.LastCountedAt = effectiveCountedAt;
                 drawer.LastCountedCash = counted;
+                var today = AccountingCalendar.Today(configuration);
                 var deltaAfter = await db.CashMovements.AsNoTracking()
                     .Where(m => (m.CashDrawerId == drawer.Id || (m.CashSession != null && m.CashSession.CashDrawerId == drawer.Id))
-                        && m.CreatedAt > effectiveCountedAt
-                        && m.CreatedAt <= now
+                        && (m.BusinessDate > effectiveDate || (m.BusinessDate == effectiveDate && m.CreatedAt > effectiveCountedAt))
+                        && (m.BusinessDate < today || (m.BusinessDate == today && m.CreatedAt <= now))
                         && m.Kind != CashMovementKind.Variance)
                     .SumAsync(m => (decimal?)m.Amount, ct) ?? 0m;
                 drawer.CurrentCash = counted + deltaAfter;
@@ -416,7 +421,7 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
 
             // Derived live variance at the time of the count:
             // variance = counted - (previous accepted anchor's counted + net movements between the two anchors)
-            var liveExpected = await CalculateLiveBalanceAsync(db, count.CashDrawer!, count.CountedAt, ct);
+            var liveExpected = await CalculateLiveBalanceAsync(db, count.CashDrawer!, count.CountedAt, ct, configuration);
             var liveVariance = count.CountedCash - liveExpected;
 
             count.AcceptedVariance = liveVariance;
@@ -475,7 +480,7 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
             {
                 count.CashDrawer.LastCountedAt = count.CountedAt;
                 count.CashDrawer.LastCountedCash = count.CountedCash;
-                count.CashDrawer.CurrentCash = await CalculateLiveBalanceAsync(db, count.CashDrawer, null, ct);
+                count.CashDrawer.CurrentCash = await CalculateLiveBalanceAsync(db, count.CashDrawer, null, ct, configuration);
                 count.CashDrawer.UpdatedAt = now;
                 count.CashDrawer.UpdatedByUserId = actorId;
             }
@@ -547,13 +552,14 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
             {
                 var remainingAnchor = await db.CashCounts.AsNoTracking()
                     .Where(c => c.CashDrawerId == count.CashDrawerId && (c.Status == CashCountStatus.Completed || c.Status == CashCountStatus.VarianceAccepted || c.Status == CashCountStatus.Accepted) && !c.IsVoided && c.Id != count.Id)
-                    .OrderByDescending(c => c.CountedAt)
+                    .OrderByDescending(c => c.BusinessDate)
+                    .ThenByDescending(c => c.CountedAt)
                     .ThenByDescending(c => c.Id)
                     .FirstOrDefaultAsync(ct);
 
                 count.CashDrawer.LastCountedAt = remainingAnchor?.CountedAt;
                 count.CashDrawer.LastCountedCash = remainingAnchor?.CountedCash;
-                count.CashDrawer.CurrentCash = await CalculateLiveBalanceAsync(db, count.CashDrawer, null, ct);
+                count.CashDrawer.CurrentCash = await CalculateLiveBalanceAsync(db, count.CashDrawer, null, ct, configuration);
                 count.CashDrawer.UpdatedAt = DateTimeOffset.UtcNow;
                 count.CashDrawer.UpdatedByUserId = actorId;
             }
@@ -604,7 +610,7 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
                 drawer.LastCountedCash = remainingAnchor?.CountedCash;
                 if (wasAccepted)
                 {
-                    drawer.CurrentCash = await CalculateLiveBalanceAsync(db, drawer, null, ct);
+                    drawer.CurrentCash = await CalculateLiveBalanceAsync(db, drawer, null, ct, configuration);
                 }
                 drawer.UpdatedAt = DateTimeOffset.UtcNow;
                 drawer.UpdatedByUserId = actorId;
@@ -615,16 +621,23 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
         }, ct);
     }
 
-    public static async Task<decimal> CalculateLiveBalanceAsync(AppDbContext db, CashDrawer drawer, DateTimeOffset? asOf = null, CancellationToken ct = default)
+    public static async Task<decimal> CalculateLiveBalanceAsync(
+        AppDbContext db,
+        CashDrawer drawer,
+        DateTimeOffset? asOf = null,
+        CancellationToken ct = default,
+        IConfiguration? configuration = null)
     {
         var effectiveAsOf = asOf ?? DateTimeOffset.UtcNow;
+        var zone = AccountingCalendar.Zone(configuration);
+        var asOfDate = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(effectiveAsOf, zone).DateTime);
 
         // Check local tracked entities first
         var localAnchor = db.CashCounts.Local
             .Where(c => c.CashDrawerId == drawer.Id
                 && (c.Status == CashCountStatus.Completed || c.Status == CashCountStatus.VarianceAccepted || c.Status == CashCountStatus.Accepted)
                 && !c.IsVoided
-                && c.CountedAt <= effectiveAsOf)
+                && (c.BusinessDate < asOfDate || (c.BusinessDate == asOfDate && c.CountedAt <= effectiveAsOf)))
             .OrderByDescending(c => c.BusinessDate)
             .ThenByDescending(c => c.CountedAt)
             .ThenByDescending(c => c.Id)
@@ -635,7 +648,7 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
             .Where(c => c.CashDrawerId == drawer.Id
                 && (c.Status == CashCountStatus.Completed || c.Status == CashCountStatus.VarianceAccepted || c.Status == CashCountStatus.Accepted)
                 && !c.IsVoided
-                && c.CountedAt <= effectiveAsOf)
+                && (c.BusinessDate < asOfDate || (c.BusinessDate == asOfDate && c.CountedAt <= effectiveAsOf)))
             .OrderByDescending(c => c.BusinessDate)
             .ThenByDescending(c => c.CountedAt)
             .ThenByDescending(c => c.Id)
@@ -643,7 +656,32 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
             .FirstOrDefaultAsync(ct);
 
         var anchor = localAnchor ?? dbAnchor;
-        var baseBalance = anchor?.CountedCash ?? drawer.OpeningBalance;
+
+        decimal baseBalance = 0m;
+        if (anchor != null)
+        {
+            baseBalance = anchor.CountedCash;
+        }
+        else
+        {
+            var openingCash = drawer.OpeningBalance;
+            if (openingCash == 0m && drawer.CurrentCash != 0m)
+            {
+                var movesSum = await db.CashMovements.AsNoTracking()
+                    .Where(m => m.CashDrawerId == drawer.Id || (m.CashSession != null && m.CashSession.CashDrawerId == drawer.Id))
+                    .SumAsync(m => (decimal?)m.Amount, ct) ?? 0m;
+                var countsSum = await db.CashSessions.AsNoTracking()
+                    .Where(s => s.CashDrawerId == drawer.Id && s.ClosedAt != null && s.Difference != null && s.Difference != 0
+                        && !db.CashMovements.Any(m => (m.CashDrawerId == drawer.Id || (m.CashSession != null && m.CashSession.CashDrawerId == drawer.Id)) && m.Kind == CashMovementKind.Variance && m.CreatedAt == s.ClosedAt))
+                    .SumAsync(s => s.Difference, ct) ?? 0m;
+                openingCash = drawer.CurrentCash - movesSum - countsSum;
+            }
+
+            if (openingCash != 0m && (drawer.OpeningDate == null || drawer.OpeningDate.Value <= asOfDate))
+            {
+                baseBalance = openingCash;
+            }
+        }
 
         // Movement ordering is (BusinessDate, CreatedAt, Id). A movement belongs to an interval by that order.
         decimal delta;
@@ -656,7 +694,7 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
             delta = await db.CashMovements.AsNoTracking()
                 .Where(m => (m.CashDrawerId == drawer.Id || (m.CashSession != null && m.CashSession.CashDrawerId == drawer.Id))
                     && (m.BusinessDate > aDate || (m.BusinessDate == aDate && (m.CreatedAt > aTime || (m.CreatedAt == aTime && m.Id > aId))))
-                    && m.CreatedAt <= effectiveAsOf
+                    && (m.BusinessDate < asOfDate || (m.BusinessDate == asOfDate && m.CreatedAt <= effectiveAsOf))
                     && m.Kind != CashMovementKind.Variance)
                 .SumAsync(m => (decimal?)m.Amount, ct) ?? 0m;
         }
@@ -664,7 +702,7 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
         {
             delta = await db.CashMovements.AsNoTracking()
                 .Where(m => (m.CashDrawerId == drawer.Id || (m.CashSession != null && m.CashSession.CashDrawerId == drawer.Id))
-                    && m.CreatedAt <= effectiveAsOf
+                    && (m.BusinessDate < asOfDate || (m.BusinessDate == asOfDate && m.CreatedAt <= effectiveAsOf))
                     && m.Kind != CashMovementKind.Variance)
                 .SumAsync(m => (decimal?)m.Amount, ct) ?? 0m;
         }
@@ -679,19 +717,28 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
         var actorId = await StoreAccess.RequireAsync(db, actor, AppRoles.SalesAssociate, ct);
         if (locationId <= 0)
         {
-            locationId = await ResolveLocationAsync(db, actorId, ct);
+            try
+            {
+                locationId = await ResolveLocationAsync(db, actorId, ct);
+            }
+            catch
+            {
+                // Fall back to primary selling drawer if multiple locations exist for unassigned admin
+            }
         }
-        var drawer = await db.CashDrawers.AsNoTracking().FirstOrDefaultAsync(d => d.StockLocationId == locationId, ct)
-            ?? await db.CashDrawers.AsNoTracking().FirstOrDefaultAsync(ct)
+        var drawer = locationId > 0
+            ? await db.CashDrawers.AsNoTracking().FirstOrDefaultAsync(d => d.StockLocationId == locationId, ct)
+            : null;
+        drawer ??= await db.CashDrawers.AsNoTracking().FirstOrDefaultAsync(ct)
             ?? throw new ValidationException("Cash drawer not found for location.");
-        return await CalculateLiveBalanceAsync(db, drawer, asOf, ct);
+        return await CalculateLiveBalanceAsync(db, drawer, asOf, ct, configuration);
     }
 
-    public static async Task<decimal> GetCashBalanceAtAsync(AppDbContext db, int drawerId, DateTimeOffset asOf, CancellationToken ct = default)
+    public static async Task<decimal> GetCashBalanceAtAsync(AppDbContext db, int drawerId, DateTimeOffset asOf, CancellationToken ct = default, IConfiguration? configuration = null)
     {
         var drawer = await db.CashDrawers.AsNoTracking().SingleOrDefaultAsync(d => d.Id == drawerId, ct);
         if (drawer is null) return 0m;
-        return await CalculateLiveBalanceAsync(db, drawer, asOf, ct);
+        return await CalculateLiveBalanceAsync(db, drawer, asOf, ct, configuration);
     }
 
     public async Task<decimal> GetCashBalanceAtAsync(ClaimsPrincipal actor, int drawerId, DateTimeOffset asOf, CancellationToken ct = default)
@@ -699,7 +746,7 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         await StoreAccess.RequireAsync(db, actor, AppRoles.InventoryManager, ct);
-        return await GetCashBalanceAtAsync(db, drawerId, asOf, ct);
+        return await GetCashBalanceAtAsync(db, drawerId, asOf, ct, configuration);
     }
 
     public async Task SelectLocationAsync(ClaimsPrincipal actor, int locationId, CancellationToken ct = default)
