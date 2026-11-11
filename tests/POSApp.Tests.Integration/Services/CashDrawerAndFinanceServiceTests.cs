@@ -475,18 +475,19 @@ public class CashDrawerAndFinanceServiceTests : PosIntegrationTestBase
         await drawerAfterAnchor.CurrentCash.Should().BeEqualTo(5000m);
 
         // 3. Backfill a sale movement dated BEFORE the anchor
+        var backfillTime = anchorTime.AddMinutes(-10);
         var backfilledMove = new CashMovement
         {
             RequestId = Guid.NewGuid(),
-            BusinessDate = AccountingCalendar.Today(null),
+            BusinessDate = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(backfillTime, AccountingCalendar.Zone(null)).DateTime),
             Kind = CashMovementKind.Sale,
             Amount = 300m,
             Notes = "Backfilled historical cash sale",
-            CreatedAt = anchorTime.AddMinutes(-10),
+            CreatedAt = backfillTime,
             CreatedByUserId = 1
         };
-        var trackedDrawer = await db.CashDrawers.SingleAsync(d => d.Id == drawer.Id);
-        CashDrawerService.Append(db, trackedDrawer, backfilledMove);
+        await db.Entry(drawer).ReloadAsync();
+        CashDrawerService.Append(db, drawer, backfilledMove);
         await db.SaveChangesAsync();
 
         // 4. Current drawer balance MUST remain 5000 (unaltered by historical backfilling)
