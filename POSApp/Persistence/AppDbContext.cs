@@ -2,7 +2,9 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using POSApp.Client.Enums;
 using POSApp.Persistence.Entities;
+using POSApp.Services;
 using System.Text.Json;
 
 namespace POSApp.Persistence;
@@ -69,11 +71,69 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
         return base.SaveChanges(acceptAllChangesOnSuccess);
     }
 
-    public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+    private bool _isSyncingCounts = false;
+
+    public override async Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
     {
         NormalizeDateTimeOffsets();
         CaptureFinancialCorrections();
-        return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+
+        if (_isSyncingCounts)
+        {
+            return await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+        }
+
+        var affectedMovements = ChangeTracker.Entries<CashMovement>()
+            .Where(entry => (entry.State is EntityState.Added or EntityState.Modified or EntityState.Deleted)
+                && entry.Entity.Kind != CashMovementKind.Variance)
+            .Select(entry => entry.Entity)
+            .ToArray();
+
+        var result = await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+
+        if (affectedMovements.Length > 0)
+        {
+            var drawerGroups = affectedMovements
+                .Select(m => new
+                {
+                    DrawerId = m.CashDrawerId != 0 ? m.CashDrawerId : (m.CashDrawer?.Id ?? (m.CashSession?.CashDrawerId ?? 0)),
+                    m.CreatedAt,
+                    m.BusinessDate
+                })
+                .Where(x => x.DrawerId != 0)
+                .GroupBy(x => x.DrawerId);
+
+            foreach (var group in drawerGroups)
+            {
+                var drawerId = group.Key;
+                var minTime = group.Min(x => x.CreatedAt);
+                var minDate = group.Min(x => x.BusinessDate);
+
+                var hasAcceptedCount = await CashCounts.AnyAsync(c => c.CashDrawerId == drawerId
+                    && (c.Status == CashCountStatus.Completed || c.Status == CashCountStatus.VarianceAccepted || c.Status == CashCountStatus.Accepted)
+                    && !c.IsVoided
+                    && (c.BusinessDate > minDate || (c.BusinessDate == minDate && c.CountedAt >= minTime)), cancellationToken);
+
+                if (hasAcceptedCount)
+                {
+                    var drawer = await CashDrawers.FirstOrDefaultAsync(d => d.Id == drawerId, cancellationToken);
+                    if (drawer != null)
+                    {
+                        try
+                        {
+                            _isSyncingCounts = true;
+                            await CashDrawerService.SyncCountsAndDrawerBalanceAsync(this, drawer, minDate, minTime, cancellationToken);
+                        }
+                        finally
+                        {
+                            _isSyncingCounts = false;
+                        }
+                    }
+                }
+            }
+        }
+
+        return result;
     }
 
     private void NormalizeDateTimeOffsets()

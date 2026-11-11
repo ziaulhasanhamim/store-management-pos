@@ -123,13 +123,14 @@ public sealed class ClosingService(IServiceScopeFactory scopes, IConfiguration c
         var from = Utc(start);
         var through = Utc(end.AddDays(1));
 
-        var cash = await db.CashMovements.Where(move => move.CreatedAt >= from && move.CreatedAt < through && move.CashTransferId == null
+        var cash = await db.CashMovements.Where(move => ((move.BusinessDate >= start && move.BusinessDate <= end) || (move.CreatedAt >= from && move.CreatedAt < through))
+                && move.CashTransferId == null
                 && move.ReversesMovementId == null && !db.CashMovements.Any(reverse => reverse.ReversesMovementId == move.Id)
                 && (locationId == null || (move.CashDrawer != null && move.CashDrawer.StockLocationId == locationId.Value) || (move.CashSession != null && move.CashSession.StockLocationId == locationId.Value)))
             .Select(move => new { move.Kind, move.Amount, IsCollection = move.Payment != null && move.Payment.SaleId == null }).ToListAsync(ct);
 
         var bank = locationId == null
-            ? await db.BankMovements.Where(move => move.CreatedAt >= from && move.CreatedAt < through
+            ? await db.BankMovements.Where(move => ((move.BusinessDate >= start && move.BusinessDate <= end) || (move.CreatedAt >= from && move.CreatedAt < through))
                     && move.Kind != CashMovementKind.OpeningBalance && move.ReversesMovementId == null
                     && !db.BankMovements.Any(reverse => reverse.ReversesMovementId == move.Id))
                 .Select(move => new { move.Kind, move.Amount, IsCollection = move.Payment != null && move.Payment.SaleId == null }).ToListAsync(ct)
@@ -164,7 +165,10 @@ public sealed class ClosingService(IServiceScopeFactory scopes, IConfiguration c
             .Select(purchase => (decimal?)purchase.TotalAmount).SumAsync(ct) ?? 0;
 
         var supplierPaidDirect = await db.SupplierPayments.AsNoTracking()
-            .Where(payment => !payment.IsVoided && payment.PaidAt >= from && payment.PaidAt < through
+            .Where(payment => !payment.IsVoided
+                && ((payment.PaidAt >= from && payment.PaidAt < through)
+                    || db.CashMovements.Any(m => m.SupplierPaymentId == payment.Id && m.BusinessDate >= start && m.BusinessDate <= end)
+                    || db.BankMovements.Any(m => m.SupplierPaymentId == payment.Id && m.BusinessDate >= start && m.BusinessDate <= end))
                 && (locationId == null
                     || (payment.Purchase != null && payment.Purchase.StockLocationId == locationId.Value)
                     || db.CashMovements.Any(m => m.SupplierPaymentId == payment.Id && m.CashDrawer != null && m.CashDrawer.StockLocationId == locationId.Value)))

@@ -56,9 +56,11 @@ public sealed class StatementService(IServiceScopeFactory scopes, IConfiguration
                 var counts = db.CashSessions.AsNoTracking().Where(session => session.CashDrawerId == drawerId
                     && session.ClosedAt != null && session.Difference != null && session.Difference != 0
                     && !db.CashMovements.Any(m => (m.CashDrawerId == drawerId || (m.CashSession != null && m.CashSession.CashDrawerId == drawerId)) && m.Kind == CashMovementKind.Variance && m.CreatedAt == session.ClosedAt));
-                var initial = (drawer?.CurrentCash ?? 0)
-                    - (await moves.Select(move => (decimal?)move.Amount).SumAsync(ct) ?? 0)
-                    - (await counts.Select(session => session.Difference).SumAsync(ct) ?? 0);
+                var initial = (drawer != null && drawer.OpeningBalance != 0)
+                    ? drawer.OpeningBalance
+                    : ((drawer?.CurrentCash ?? 0)
+                        - (await moves.Select(move => (decimal?)move.Amount).SumAsync(ct) ?? 0)
+                        - (await counts.Select(session => session.Difference).SumAsync(ct) ?? 0));
                 undatedOpening = drawer?.OpeningDate is null ? initial : 0;
                 events = moves.Select(move => new Entry
                 {
@@ -88,15 +90,15 @@ public sealed class StatementService(IServiceScopeFactory scopes, IConfiguration
                     .Select(item => new Entry
                     {
                         Id = item.Id,
-                    Date = item.OpeningDate!.Value,
-                    At = item.CreatedAt,
-                    Priority = 0,
+                        Date = item.OpeningDate!.Value,
+                        At = item.CreatedAt,
+                        Priority = 0,
                         Kind = CashMovementKind.OpeningBalance,
-                    Amount = initial,
-                    Notes = "Initial drawer cash",
+                        Amount = item.OpeningBalance != 0 ? item.OpeningBalance : initial,
+                        Notes = "Initial drawer cash",
                         Reference = "Opening balance",
-                    Reconciliation = false,
-                    Collection = false
+                        Reconciliation = false,
+                        Collection = false
                     }));
             }
             else
@@ -104,7 +106,9 @@ public sealed class StatementService(IServiceScopeFactory scopes, IConfiguration
                 var bank = await db.BankAccounts.AsNoTracking().SingleOrDefaultAsync(bank => bank.Code == "MAIN", ct);
                 name = "Bank & digital balance";
                 var moves = db.BankMovements.AsNoTracking().Where(move => move.BankAccountId == (bank == null ? -1 : bank.Id));
-                var initial = (bank?.CurrentBalance ?? 0) - (await moves.Select(move => (decimal?)move.Amount).SumAsync(ct) ?? 0);
+                var initial = (bank != null && bank.OpeningBalance != 0)
+                    ? bank.OpeningBalance
+                    : ((bank?.CurrentBalance ?? 0) - (await moves.Select(move => (decimal?)move.Amount).SumAsync(ct) ?? 0));
                 undatedOpening = bank?.OpeningDate is null ? initial : 0;
                 events = moves.Select(move => new Entry
                 {
@@ -122,15 +126,15 @@ public sealed class StatementService(IServiceScopeFactory scopes, IConfiguration
                     .Select(item => new Entry
                     {
                         Id = item.Id,
-                    Date = item.OpeningDate!.Value,
-                    At = item.CreatedAt,
-                    Priority = 0,
+                        Date = item.OpeningDate!.Value,
+                        At = item.CreatedAt,
+                        Priority = 0,
                         Kind = CashMovementKind.OpeningBalance,
-                    Amount = initial,
-                    Notes = "Imported bank balance",
+                        Amount = item.OpeningBalance != 0 ? item.OpeningBalance : initial,
+                        Notes = "Imported bank balance",
                         Reference = "Opening balance",
-                    Reconciliation = false,
-                    Collection = false
+                        Reconciliation = false,
+                        Collection = false
                     }));
                 drawerId = null;
             }

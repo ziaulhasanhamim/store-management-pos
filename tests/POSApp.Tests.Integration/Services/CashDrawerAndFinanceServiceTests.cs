@@ -926,4 +926,104 @@ public class CashDrawerAndFinanceServiceTests : PosIntegrationTestBase
         // Opening balance in statement for 10 Nov must exactly match expectedAtMidnight
         await statement.Opening.Should().BeEqualTo(expectedAtMidnight);
     }
+
+    [Test]
+    public async Task PhysicalCashCount_AcceptedVariance_DoesNotDriftToZero_WithoutRetroactiveEntries()
+    {
+        await using var scope = CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var drawerService = scope.ServiceProvider.GetRequiredService<CashDrawerService>();
+        var drawer = await db.CashDrawers.FirstAsync(d => d.StockLocationId == 1);
+
+        var countTime = DateTimeOffset.UtcNow.AddHours(-1);
+        var expectedBefore = drawer.CurrentCash;
+        var countedCash = expectedBefore - 100m; // Shortage of -100
+
+        var countId = await drawerService.SubmitCountAsync(AdminUser, new CashCountInput
+        {
+            LocationId = drawer.StockLocationId ?? 1,
+            CountedCash = countedCash,
+            CountedAt = countTime,
+            IsBackdate = true,
+            Notes = "Count with shortage"
+        });
+        await drawerService.AcceptVarianceAsync(AdminUser, new AcceptVarianceInput
+        {
+            CountId = countId,
+            Confirmed = true,
+            Notes = "Approved shortage"
+        });
+
+        var read = await drawerService.ReadAsync(AdminUser);
+        var countRow = read.CountHistory.First(c => c.Id == countId);
+
+        await countRow.AcceptedVariance.Should().BeEqualTo(-100m);
+        await countRow.LiveVariance.Should().BeEqualTo(-100m);
+        await countRow.HasVarianceDrift.Should().BeFalse();
+    }
+
+    [Test]
+    public async Task PhysicalCashCount_RetroactiveSale_ShiftsNextCountVariance_AndPreservesHistoricalStatementBalances()
+    {
+        await using var scope = CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var drawerService = scope.ServiceProvider.GetRequiredService<CashDrawerService>();
+        var statementService = scope.ServiceProvider.GetRequiredService<StatementService>();
+        var drawer = await db.CashDrawers.FirstAsync(d => d.StockLocationId == 1);
+        drawer.OpeningBalance = 3600m;
+        drawer.OpeningDate = new DateOnly(2026, 11, 8);
+        drawer.CurrentCash = 3600m;
+        await db.SaveChangesAsync();
+
+        var day2Time = new DateTimeOffset(2026, 11, 10, 6, 36, 0, TimeSpan.FromHours(6));
+        var countId = await drawerService.SubmitCountAsync(AdminUser, new CashCountInput
+        {
+            LocationId = drawer.StockLocationId ?? 1,
+            CountedCash = 3500m,
+            CountedAt = day2Time,
+            IsBackdate = true,
+            Notes = "Initial count shortage"
+        });
+        await drawerService.AcceptVarianceAsync(AdminUser, new AcceptVarianceInput
+        {
+            CountId = countId,
+            Confirmed = true,
+            Notes = "Approved shortage"
+        });
+
+        // Add backdated cash movement on 09 Nov (+850)
+        var day1Date = new DateOnly(2026, 11, 9);
+        var day1Time = new DateTimeOffset(2026, 11, 9, 14, 0, 0, TimeSpan.FromHours(6));
+        var backdatedSale = new CashMovement
+        {
+            RequestId = Guid.NewGuid(),
+            CashDrawerId = drawer.Id,
+            BusinessDate = day1Date,
+            CreatedAt = day1Time,
+            Kind = CashMovementKind.Sale,
+            Amount = 850m,
+            Notes = "Backdated cash sale",
+            CreatedByUserId = 1
+        };
+        db.CashMovements.Add(backdatedSale);
+        await db.SaveChangesAsync();
+
+        // 1. Verify Count #7 variance drifted from -100 to -950
+        var read = await drawerService.ReadAsync(AdminUser);
+        var countRow = read.CountHistory.First(c => c.Id == countId);
+        await countRow.AcceptedVariance.Should().BeEqualTo(-100m);
+        await countRow.LiveVariance.Should().BeEqualTo(-950m);
+        await countRow.HasVarianceDrift.Should().BeTrue();
+
+        // 2. Verify Count's variance movement amount in database was updated to -950
+        var countInDb = await db.CashCounts.Include(c => c.VarianceMovement).SingleAsync(c => c.Id == countId);
+        await countInDb.VarianceMovement.Should().NotBeNull();
+        await countInDb.VarianceMovement!.Amount.Should().BeEqualTo(-950m);
+
+        // 3. Verify Statement preserves 3600 before the sale and reflects 4450 after the sale
+        var statement = await statementService.ReadAsync(AdminUser, "cash", "custom", start: day1Date, end: new DateOnly(2026, 11, 12), drawerId: drawer.Id);
+        var saleRow = statement.Rows.FirstOrDefault(r => r.Notes == "Backdated cash sale");
+        await saleRow.Should().NotBeNull();
+        await saleRow!.Balance.Should().BeEqualTo(4450m); // 3600 (prior) + 850 (sale)
+    }
 }
