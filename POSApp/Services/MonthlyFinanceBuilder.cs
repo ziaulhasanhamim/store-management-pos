@@ -130,17 +130,17 @@ internal static class MonthlyFinanceBuilder
                     .ToArray());
 
         var varianceMovements = await db.CashMovements.AsNoTracking()
-            .Where(m => m.CreatedAt >= from && m.CreatedAt <= through
+            .Where(m => m.OccurredAt >= from && m.OccurredAt <= through
                 && m.Kind == CashMovementKind.Variance
                 && (locationId == null || (m.CashDrawer != null && m.CashDrawer.StockLocationId == locationId.Value)))
-            .Select(m => new { m.CreatedAt, Difference = m.Amount })
+            .Select(m => new { CreatedAt = m.OccurredAt, Difference = m.Amount })
             .ToListAsync(ct);
 
         var legacySessions = await db.CashSessions.AsNoTracking()
             .Where(session => session.OpenedAt >= from && session.OpenedAt <= through
                 && session.ClosedAt != null && session.Difference != null
                 && (locationId == null || session.StockLocationId == locationId.Value || (session.CashDrawer != null && session.CashDrawer.StockLocationId == locationId.Value))
-                && !db.CashMovements.Any(m => m.Kind == CashMovementKind.Variance && m.CreatedAt == session.ClosedAt))
+                && !db.CashMovements.Any(m => m.Kind == CashMovementKind.Variance && m.OccurredAt == session.ClosedAt))
             .Select(session => new { CreatedAt = session.OpenedAt, Difference = session.Difference!.Value })
             .ToListAsync(ct);
 
@@ -149,7 +149,7 @@ internal static class MonthlyFinanceBuilder
                 && (c.Status == CashCountStatus.Completed || c.Status == CashCountStatus.VarianceAccepted || c.Status == CashCountStatus.Accepted)
                 && !c.IsDeleted
                 && (locationId == null || c.StockLocationId == locationId.Value)
-                && !db.CashMovements.Any(m => m.Kind == CashMovementKind.Variance && m.CreatedAt == c.CountedAt))
+                && !db.CashMovements.Any(m => m.Kind == CashMovementKind.Variance && m.OccurredAt == c.CountedAt))
             .Select(c => new { CreatedAt = c.CountedAt, Difference = c.AcceptedVariance ?? c.Difference })
             .ToListAsync(ct);
 

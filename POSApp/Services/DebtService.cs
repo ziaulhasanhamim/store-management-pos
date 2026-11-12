@@ -168,7 +168,7 @@ public sealed class DebtService(IServiceScopeFactory scopes, IConfiguration conf
                 RequestId = input.RequestId,
                 LenderBalance = balance,
                 BusinessDate = date,
-                CreatedAt = at,
+                OccurredAt = at,
                 Kind = input.Kind,
                 Amount = amount,
                 BalanceAfter = balance.CurrentBalance,

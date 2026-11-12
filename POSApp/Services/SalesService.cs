@@ -383,7 +383,7 @@ public sealed class SalesService(IServiceScopeFactory scopes, IConfiguration? co
                     sale.Payments.Add(payment);
                     db.Payments.Add(payment);
                     await FinancialPosting.PostAsync(db, actorId, allocation.Method, allocation.Amount,
-                        CashMovementKind.Sale, $"Sale · {number}", businessDate, ct, payment: payment, cashLocationId: command.LocationId);
+                        CashMovementKind.Sale, $"Sale · {number}", businessDate, ct, payment: payment, cashLocationId: command.LocationId, occurredAt: effectiveAt);
                     if (balance is not null)
                     {
                         balance.CurrentBalance -= allocation.Amount;

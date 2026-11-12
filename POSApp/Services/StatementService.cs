@@ -55,7 +55,7 @@ public sealed class StatementService(IServiceScopeFactory scopes, IConfiguration
                 var moves = db.CashMovements.AsNoTracking().Where(move => move.CashDrawerId == drawerId || (move.CashSession != null && move.CashSession.CashDrawerId == drawerId));
                 var counts = db.CashSessions.AsNoTracking().Where(session => session.CashDrawerId == drawerId
                     && session.ClosedAt != null && session.Difference != null && session.Difference != 0
-                    && !db.CashMovements.Any(m => (m.CashDrawerId == drawerId || (m.CashSession != null && m.CashSession.CashDrawerId == drawerId)) && m.Kind == CashMovementKind.Variance && m.CreatedAt == session.ClosedAt));
+                    && !db.CashMovements.Any(m => (m.CashDrawerId == drawerId || (m.CashSession != null && m.CashSession.CashDrawerId == drawerId)) && m.Kind == CashMovementKind.Variance && m.OccurredAt == session.ClosedAt));
                 var initial = (drawer != null && drawer.OpeningBalance != 0)
                     ? drawer.OpeningBalance
                     : ((drawer?.CurrentCash ?? 0)
@@ -66,7 +66,8 @@ public sealed class StatementService(IServiceScopeFactory scopes, IConfiguration
                 {
                     Id = move.Id,
                     Date = move.BusinessDate,
-                    At = move.CreatedAt,
+                    At = move.OccurredAt,
+                    RecordedAt = move.CreatedAt,
                     Priority = 1,
                     Kind = move.Kind,
                     Amount = move.Amount,
@@ -79,6 +80,7 @@ public sealed class StatementService(IServiceScopeFactory scopes, IConfiguration
                     Id = session.Id,
                     Date = session.BusinessDate,
                     At = session.ClosedAt!.Value,
+                    RecordedAt = session.ClosedAt,
                     Priority = 1,
                     Kind = CashMovementKind.Reversal,
                     Amount = session.Difference!.Value,
@@ -92,6 +94,7 @@ public sealed class StatementService(IServiceScopeFactory scopes, IConfiguration
                         Id = item.Id,
                         Date = item.OpeningDate!.Value,
                         At = item.CreatedAt,
+                        RecordedAt = item.CreatedAt,
                         Priority = 0,
                         Kind = CashMovementKind.OpeningBalance,
                         Amount = item.OpeningBalance != 0 ? item.OpeningBalance : initial,
@@ -114,7 +117,8 @@ public sealed class StatementService(IServiceScopeFactory scopes, IConfiguration
                 {
                     Id = move.Id,
                     Date = move.BusinessDate,
-                    At = move.CreatedAt,
+                    At = move.OccurredAt,
+                    RecordedAt = move.CreatedAt,
                     Priority = 1,
                     Kind = move.Kind,
                     Amount = move.Amount,
@@ -128,6 +132,7 @@ public sealed class StatementService(IServiceScopeFactory scopes, IConfiguration
                         Id = item.Id,
                         Date = item.OpeningDate!.Value,
                         At = item.CreatedAt,
+                        RecordedAt = item.CreatedAt,
                         Priority = 0,
                         Kind = CashMovementKind.OpeningBalance,
                         Amount = item.OpeningBalance != 0 ? item.OpeningBalance : initial,
@@ -167,7 +172,10 @@ public sealed class StatementService(IServiceScopeFactory scopes, IConfiguration
             var result = rows.Select(row =>
             {
                 balance += row.Amount;
-                return new StatementRow(row.Date, row.At, Label(row), row.Reference, row.Notes, row.Amount, balance);
+                return new StatementRow(row.Date, row.At, Label(row), row.Reference, row.Notes, row.Amount, balance)
+                {
+                    RecordedAt = row.RecordedAt
+                };
             }).ToArray();
             var pendingCount = (account == "cash" && drawerId != null)
                 ? await db.CashCounts.AsNoTracking()
@@ -367,6 +375,7 @@ public sealed class StatementService(IServiceScopeFactory scopes, IConfiguration
         public int Id { get; set; }
         public DateOnly Date { get; set; }
         public DateTimeOffset At { get; set; }
+        public DateTimeOffset? RecordedAt { get; set; }
         public int Priority { get; set; }
         public CashMovementKind Kind { get; set; }
         public decimal Amount { get; set; }

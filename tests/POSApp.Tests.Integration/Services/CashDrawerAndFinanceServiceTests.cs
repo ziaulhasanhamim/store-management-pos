@@ -487,7 +487,7 @@ public class CashDrawerAndFinanceServiceTests : PosIntegrationTestBase
             Kind = CashMovementKind.Sale,
             Amount = 300m,
             Notes = "Backfilled historical cash sale",
-            CreatedAt = backfillTime,
+            OccurredAt = backfillTime,
             CreatedByUserId = 1
         };
         await db.Entry(drawer).ReloadAsync();
@@ -636,7 +636,7 @@ public class CashDrawerAndFinanceServiceTests : PosIntegrationTestBase
             Amount = 350m,
             BalanceAfter = baseCash + 350m,
             BusinessDate = date1,
-            CreatedAt = t1,
+            OccurredAt = t1,
             Notes = "Midday float addition"
         };
         db.CashMovements.Add(movement);
@@ -686,7 +686,7 @@ public class CashDrawerAndFinanceServiceTests : PosIntegrationTestBase
             RequestId = Guid.NewGuid(),
             CashDrawerId = drawer.Id,
             BusinessDate = DateOnly.FromDateTime(t0.UtcDateTime),
-            CreatedAt = t0.AddHours(1),
+            OccurredAt = t0.AddHours(1),
             Kind = CashMovementKind.Sale,
             Amount = 200m,
             BalanceAfter = baseCash + 1200m,
@@ -777,7 +777,7 @@ public class CashDrawerAndFinanceServiceTests : PosIntegrationTestBase
             RequestId = Guid.NewGuid(),
             CashDrawerId = drawer.Id,
             BusinessDate = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(t0, zone).DateTime),
-            CreatedAt = t0,
+            OccurredAt = t0,
             Kind = CashMovementKind.Sale,
             Amount = 500m,
             BalanceAfter = baseCash + 500m,
@@ -822,10 +822,10 @@ public class CashDrawerAndFinanceServiceTests : PosIntegrationTestBase
 
         // Verify the reversal movement:
         // 1. Reversal must take the original BusinessDate
-        // 2. CreatedAt must sort directly after the original (+1ms)
+        // 2. OccurredAt must sort directly after the original (+1ms)
         var reversal = await db.CashMovements.AsNoTracking().FirstAsync(m => m.ReversesMovementId == saleMove.Id);
         await reversal.BusinessDate.Should().BeEqualTo(saleMove.BusinessDate);
-        await reversal.CreatedAt.Should().BeEqualTo(saleMove.CreatedAt.AddMilliseconds(1));
+        await reversal.OccurredAt.Should().BeEqualTo(saleMove.OccurredAt.AddMilliseconds(1));
         await reversal.Kind.Should().BeEqualTo(CashMovementKind.Reversal);
         await reversal.Amount.Should().BeEqualTo(-500m);
 
@@ -868,7 +868,7 @@ public class CashDrawerAndFinanceServiceTests : PosIntegrationTestBase
             RequestId = Guid.NewGuid(),
             CashDrawerId = drawer.Id,
             BusinessDate = day1Date,
-            CreatedAt = day1Time,
+            OccurredAt = day1Time,
             Kind = CashMovementKind.OwnerContribution,
             Amount = 3600m,
             Notes = "Day 1 Cash In",
@@ -882,7 +882,7 @@ public class CashDrawerAndFinanceServiceTests : PosIntegrationTestBase
             RequestId = Guid.NewGuid(),
             CashDrawerId = drawer.Id,
             BusinessDate = day2Date,
-            CreatedAt = day2Night,
+            OccurredAt = day2Night,
             Kind = CashMovementKind.SupplierPayment,
             Amount = -1000m,
             Notes = "Supplier payment #31",
@@ -893,7 +893,7 @@ public class CashDrawerAndFinanceServiceTests : PosIntegrationTestBase
             RequestId = Guid.NewGuid(),
             CashDrawerId = drawer.Id,
             BusinessDate = day2Date,
-            CreatedAt = day2Night,
+            OccurredAt = day2Night,
             Kind = CashMovementKind.SupplierPayment,
             Amount = -1000m,
             Notes = "Supplier payment #18",
@@ -904,7 +904,7 @@ public class CashDrawerAndFinanceServiceTests : PosIntegrationTestBase
             RequestId = Guid.NewGuid(),
             CashDrawerId = drawer.Id,
             BusinessDate = day2Date,
-            CreatedAt = day2Night,
+            OccurredAt = day2Night,
             Kind = CashMovementKind.SupplierPayment,
             Amount = -500m,
             Notes = "Supplier payment #66",
@@ -1000,7 +1000,7 @@ public class CashDrawerAndFinanceServiceTests : PosIntegrationTestBase
             RequestId = Guid.NewGuid(),
             CashDrawerId = drawer.Id,
             BusinessDate = day1Date,
-            CreatedAt = day1Time,
+            OccurredAt = day1Time,
             Kind = CashMovementKind.Sale,
             Amount = 850m,
             Notes = "Backdated cash sale",
@@ -1069,5 +1069,28 @@ public class CashDrawerAndFinanceServiceTests : PosIntegrationTestBase
         await countEntity.IsDeleted.Should().BeFalse();
         await countEntity.ExpectedCash.Should().BeEqualTo(expectedCashAtTime);
         await countEntity.Difference.Should().BeEqualTo(100m);
+    }
+
+    [Test]
+    public async Task CashMovement_OccurredAtSeparatedFromCreatedAt_CreatedAtRemainsImmutable()
+    {
+        await using var scope = CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var drawer = await db.CashDrawers.FirstAsync(d => d.StockLocationId == 1);
+        var historicalTime = new DateTimeOffset(2026, 11, 10, 10, 8, 0, TimeSpan.Zero); // 16:08 Dhaka
+
+        var beforeInsert = DateTimeOffset.UtcNow.AddSeconds(-2);
+
+        // Post a backdated financial transaction
+        await FinancialPosting.PostAsync(db, 1, PaymentMethod.Cash, 1500m,
+            CashMovementKind.Sale, "Backdated cash sale test", new DateOnly(2026, 11, 10), default,
+            cashLocationId: drawer.StockLocationId, occurredAt: historicalTime);
+        await db.SaveChangesAsync();
+
+        var movement = await db.CashMovements.OrderByDescending(m => m.Id).FirstAsync();
+        await movement.OccurredAt.Should().BeEqualTo(historicalTime);
+        await movement.CreatedAt.Should().BeGreaterThanOrEqualTo(beforeInsert);
+        await movement.CreatedAt.Should().NotBeEqualTo(movement.OccurredAt);
     }
 }

@@ -74,7 +74,7 @@ public sealed class FinanceService(IServiceScopeFactory scopes, IConfiguration c
             };
             db.Expenses.Add(expense);
             await FinancialPosting.PostAsync(db, actorId, input.Method, -input.Amount, CashMovementKind.Expense,
-                input.Notes.Trim(), date, ct, expense: expense, cashLocationId: locationId);
+                input.Notes.Trim(), date, ct, expense: expense, cashLocationId: locationId, occurredAt: at);
             await db.SaveChangesAsync(ct);
             await transaction.CommitAsync(ct);
             return expense.Id;
@@ -169,7 +169,7 @@ public sealed class FinanceService(IServiceScopeFactory scopes, IConfiguration c
             if (entry.PaidAmount != 0)
             {
                 await FinancialPosting.PostAsync(db, actorId, input.Method, -entry.PaidAmount, CashMovementKind.Payroll,
-                    $"{entry.Kind} · {employee.Name} · {month:MMM yyyy}", date, ct, payroll: entry);
+                    $"{entry.Kind} · {employee.Name} · {month:MMM yyyy}", date, ct, payroll: entry, occurredAt: at);
             }
             await db.SaveChangesAsync(ct);
             await transaction.CommitAsync(ct);

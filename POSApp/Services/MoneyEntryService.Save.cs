@@ -355,7 +355,7 @@ public sealed partial class MoneyEntryService
             {
                 RequestId = Guid.NewGuid(),
                 BusinessDate = move.BusinessDate,
-                CreatedAt = move.CreatedAt.AddMilliseconds(1),
+                OccurredAt = move.OccurredAt.AddMilliseconds(1),
                 Kind = CashMovementKind.Reversal,
                 Amount = -move.Amount,
                 Notes = $"Deletion of {kind} #{id}: previous cash posting",
@@ -373,7 +373,7 @@ public sealed partial class MoneyEntryService
             {
                 RequestId = Guid.NewGuid(),
                 BusinessDate = move.BusinessDate,
-                CreatedAt = move.CreatedAt.AddMilliseconds(1),
+                OccurredAt = move.OccurredAt.AddMilliseconds(1),
                 Kind = CashMovementKind.Reversal,
                 Method = move.Method,
                 Amount = -move.Amount,

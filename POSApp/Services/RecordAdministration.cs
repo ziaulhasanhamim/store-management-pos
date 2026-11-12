@@ -952,7 +952,7 @@ public sealed class RecordAdministration(IServiceScopeFactory scopes, IConfigura
             {
                 RequestId = Guid.NewGuid(),
                 BusinessDate = move.BusinessDate,
-                CreatedAt = move.CreatedAt.AddMilliseconds(1),
+                OccurredAt = move.OccurredAt.AddMilliseconds(1),
                 Kind = CashMovementKind.Reversal,
                 Amount = -move.Amount,
                 Notes = $"Deletion of {kind} #{id}: {reason}",
@@ -974,7 +974,7 @@ public sealed class RecordAdministration(IServiceScopeFactory scopes, IConfigura
                 {
                     RequestId = Guid.NewGuid(),
                     BusinessDate = move.BusinessDate,
-                    CreatedAt = move.CreatedAt.AddMilliseconds(1),
+                    OccurredAt = move.OccurredAt.AddMilliseconds(1),
                     Kind = CashMovementKind.Reversal,
                     Method = move.Method,
                     Amount = -move.Amount,

@@ -37,7 +37,7 @@ public sealed class ClosingService(IServiceScopeFactory scopes, IConfiguration c
             var from = Utc(today);
             var through = Utc(today.AddDays(1));
             var opening = await db.CashDrawers.Select(d => (decimal?)d.CurrentCash).SumAsync(ct) ?? 0m;
-            var cash = await db.CashMovements.Where(move => move.CreatedAt >= from && move.CreatedAt < through && move.CashTransferId == null && move.ReversesMovementId == null
+            var cash = await db.CashMovements.Where(move => move.OccurredAt >= from && move.OccurredAt < through && move.CashTransferId == null && move.ReversesMovementId == null
                     && !db.CashMovements.Any(reverse => reverse.ReversesMovementId == move.Id))
                 .GroupBy(move => 1).Select(group => new
                 {
@@ -123,14 +123,14 @@ public sealed class ClosingService(IServiceScopeFactory scopes, IConfiguration c
         var from = Utc(start);
         var through = Utc(end.AddDays(1));
 
-        var cash = await db.CashMovements.Where(move => ((move.BusinessDate >= start && move.BusinessDate <= end) || (move.CreatedAt >= from && move.CreatedAt < through))
+        var cash = await db.CashMovements.Where(move => ((move.BusinessDate >= start && move.BusinessDate <= end) || (move.OccurredAt >= from && move.OccurredAt < through))
                 && move.CashTransferId == null
                 && move.ReversesMovementId == null && !db.CashMovements.Any(reverse => reverse.ReversesMovementId == move.Id)
                 && (locationId == null || (move.CashDrawer != null && move.CashDrawer.StockLocationId == locationId.Value) || (move.CashSession != null && move.CashSession.StockLocationId == locationId.Value)))
             .Select(move => new { move.Kind, move.Amount, IsCollection = move.Payment != null && move.Payment.SaleId == null }).ToListAsync(ct);
 
         var bank = locationId == null
-            ? await db.BankMovements.Where(move => ((move.BusinessDate >= start && move.BusinessDate <= end) || (move.CreatedAt >= from && move.CreatedAt < through))
+            ? await db.BankMovements.Where(move => ((move.BusinessDate >= start && move.BusinessDate <= end) || (move.OccurredAt >= from && move.OccurredAt < through))
                     && move.Kind != CashMovementKind.OpeningBalance && move.ReversesMovementId == null
                     && !db.BankMovements.Any(reverse => reverse.ReversesMovementId == move.Id))
                 .Select(move => new { move.Kind, move.Amount, IsCollection = move.Payment != null && move.Payment.SaleId == null }).ToListAsync(ct)
@@ -138,7 +138,7 @@ public sealed class ClosingService(IServiceScopeFactory scopes, IConfiguration c
 
         var account = await db.BankAccounts.AsNoTracking().SingleOrDefaultAsync(a => a.Code == "MAIN", ct);
         var bankOpening = (account?.OpeningDate <= end ? account.OpeningBalance : 0)
-            + (await db.BankMovements.Where(move => move.CreatedAt < from && move.Kind != CashMovementKind.OpeningBalance)
+            + (await db.BankMovements.Where(move => move.OccurredAt < from && move.Kind != CashMovementKind.OpeningBalance)
                 .Select(move => (decimal?)move.Amount).SumAsync(ct) ?? 0);
 
         var sales = db.Sales.Where(sale => !sale.IsDeleted && sale.Status == SaleStatus.Completed && sale.SoldAt >= from && sale.SoldAt < through

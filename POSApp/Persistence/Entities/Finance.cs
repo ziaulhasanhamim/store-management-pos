@@ -74,6 +74,7 @@ public sealed class CashMovement : AuditableEntity
 {
     public Guid RequestId { get; set; }
     public DateOnly BusinessDate { get; set; }
+    public DateTimeOffset OccurredAt { get; set; } = DateTimeOffset.UtcNow;
     public int CashDrawerId { get; set; }
     public CashDrawer? CashDrawer { get; set; }
     public int? CashTransferId { get; set; }
@@ -202,6 +203,7 @@ public sealed class BankMovement : AuditableEntity
     public string? RequestHash { get; set; }
     public Guid RequestId { get; set; }
     public DateOnly BusinessDate { get; set; }
+    public DateTimeOffset OccurredAt { get; set; } = DateTimeOffset.UtcNow;
     public int BankAccountId { get; set; }
     public BankAccount? BankAccount { get; set; }
     public CashMovementKind Kind { get; set; }

@@ -242,6 +242,9 @@ namespace POSApp.Persistence.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
 
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<int?>("PaymentId")
                         .HasColumnType("integer");
 
@@ -269,14 +272,14 @@ namespace POSApp.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("BankAccountId");
-
                     b.HasIndex("BusinessDate");
 
                     b.HasIndex("DebtEntryId")
                         .IsUnique();
 
                     b.HasIndex("ExpenseId");
+
+                    b.HasIndex("OccurredAt");
 
                     b.HasIndex("PaymentId");
 
@@ -290,6 +293,8 @@ namespace POSApp.Persistence.Migrations
                         .IsUnique();
 
                     b.HasIndex("SupplierPaymentId");
+
+                    b.HasIndex("BankAccountId", "OccurredAt");
 
                     b.ToTable("BankMovements");
                 });
@@ -334,21 +339,21 @@ namespace POSApp.Persistence.Migrations
                     b.Property<int?>("CreatedByUserId")
                         .HasColumnType("integer");
 
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("VoidedAt");
+
                     b.Property<decimal>("ExpectedCash")
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
 
-                    b.Property<bool>("IsVoided")
-                        .HasColumnType("boolean");
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean")
+                        .HasColumnName("IsVoided");
 
                     b.Property<string>("Notes")
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
-
-                    b.Property<DateTimeOffset>("RecordedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasDefaultValueSql("now()");
 
                     b.Property<Guid>("RequestId")
                         .HasColumnType("uuid");
@@ -377,9 +382,6 @@ namespace POSApp.Persistence.Migrations
                     b.Property<string>("VoidReason")
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
-
-                    b.Property<DateTimeOffset?>("VoidedAt")
-                        .HasColumnType("timestamp with time zone");
 
                     b.Property<int?>("VoidedByUserId")
                         .HasColumnType("integer");
@@ -505,6 +507,9 @@ namespace POSApp.Persistence.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
 
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<int?>("PaymentId")
                         .HasColumnType("integer");
 
@@ -537,6 +542,8 @@ namespace POSApp.Persistence.Migrations
 
                     b.HasIndex("ExpenseId");
 
+                    b.HasIndex("OccurredAt");
+
                     b.HasIndex("PaymentId");
 
                     b.HasIndex("PayrollEntryId")
@@ -550,13 +557,13 @@ namespace POSApp.Persistence.Migrations
 
                     b.HasIndex("SupplierPaymentId");
 
-                    b.HasIndex("CashDrawerId", "CreatedAt");
+                    b.HasIndex("CashDrawerId", "OccurredAt");
 
                     b.HasIndex("CashSessionId", "Id");
 
-                    b.HasIndex("CashDrawerId", "BusinessDate", "CreatedAt", "Id");
+                    b.HasIndex("CashDrawerId", "BusinessDate", "OccurredAt", "Id");
 
-                    NpgsqlIndexBuilderExtensions.IncludeProperties(b.HasIndex("CashDrawerId", "BusinessDate", "CreatedAt", "Id"), new[] { "Amount", "Kind" });
+                    NpgsqlIndexBuilderExtensions.IncludeProperties(b.HasIndex("CashDrawerId", "BusinessDate", "OccurredAt", "Id"), new[] { "Amount", "Kind" });
 
                     b.ToTable("CashMovements");
                 });
@@ -957,6 +964,9 @@ namespace POSApp.Persistence.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
 
+                    b.Property<DateTimeOffset>("OccurredAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("RequestHash")
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
@@ -985,6 +995,8 @@ namespace POSApp.Persistence.Migrations
                     b.HasIndex("BusinessDate");
 
                     b.HasIndex("CashLocationId");
+
+                    b.HasIndex("OccurredAt");
 
                     b.HasIndex("RequestId")
                         .IsUnique();

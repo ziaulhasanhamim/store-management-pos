@@ -136,7 +136,6 @@ public sealed class SupplierService(IServiceScopeFactory scopes, IConfiguration?
                 Amount = input.Amount,
                 Method = input.Method,
                 PaidAt = at,
-                CreatedAt = at,
                 Reference = reference,
                 Notes = input.Notes,
                 CreatedByUserId = actorId
@@ -154,7 +153,6 @@ public sealed class SupplierService(IServiceScopeFactory scopes, IConfiguration?
                 BalanceAfter = balance.CurrentBalance,
                 SupplierPayment = payment,
                 OccurredAt = at,
-                CreatedAt = at,
                 Notes = input.Notes,
                 CreatedByUserId = actorId
             });

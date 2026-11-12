@@ -85,7 +85,6 @@ public sealed class PartyAccountService(IServiceScopeFactory scopes, IConfigurat
                 TenderedAmount = input.Amount,
                 Method = input.Method,
                 PaidAt = at,
-                CreatedAt = at,
                 Reference = reference,
                 Notes = input.Notes.Trim(),
                 CreatedByUserId = actorId
@@ -100,7 +99,6 @@ public sealed class PartyAccountService(IServiceScopeFactory scopes, IConfigurat
                 Amount = -input.Amount,
                 BalanceAfter = balance.CurrentBalance,
                 OccurredAt = at,
-                CreatedAt = at,
                 Notes = input.Notes.Trim(),
                 CreatedByUserId = actorId
             });

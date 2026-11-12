@@ -80,6 +80,7 @@ public sealed class DebtEntry : BalanceEntry
     public int LenderBalanceId { get; set; }
     public LenderBalance? LenderBalance { get; set; }
     public DateOnly BusinessDate { get; set; }
+    public DateTimeOffset OccurredAt { get; set; } = DateTimeOffset.UtcNow;
     public DebtEntryKind Kind { get; set; }
     public PaymentMethod? Method { get; set; }
     public int? CashLocationId { get; set; }

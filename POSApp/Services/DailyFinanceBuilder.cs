@@ -38,12 +38,12 @@ internal static class DailyFinanceBuilder
         // Use active ledger postings so corrections and deleted invoices are counted once.
         // Drawer-to-drawer transfers are internal and do not change business funds.
         var cash = await db.CashMovements.AsNoTracking()
-            .Where(move => move.CreatedAt >= from && move.CreatedAt < through && move.CashTransferId == null
+            .Where(move => move.OccurredAt >= from && move.OccurredAt < through && move.CashTransferId == null
                 && move.ReversesMovementId == null
                 && !db.CashMovements.Any(reverse => reverse.ReversesMovementId == move.Id)
                 && (locationId == null || (move.CashDrawer != null && move.CashDrawer.StockLocationId == locationId.Value) || (move.CashSession != null && move.CashSession.StockLocationId == locationId.Value)))
             .Select(move => new PaymentSnapshot(
-                move.CreatedAt, move.Kind,
+                move.OccurredAt, move.Kind,
                 move.Payment != null && move.Payment.SaleId == null,
                 move.SupplierPayment != null ? move.SupplierPayment.SupplierBalance!.Supplier!.Name
                     : move.Payment != null ? (move.Payment.CustomerBalance == null ? "Walk-in" : move.Payment.CustomerBalance.Customer!.Name)
@@ -53,11 +53,11 @@ internal static class DailyFinanceBuilder
                 PaymentMethod.Cash, move.Amount, move.Notes)).ToArrayAsync(ct);
         var bank = locationId == null
             ? await db.BankMovements.AsNoTracking()
-                .Where(move => move.CreatedAt >= from && move.CreatedAt < through && move.Kind != CashMovementKind.OpeningBalance
+                .Where(move => move.OccurredAt >= from && move.OccurredAt < through && move.Kind != CashMovementKind.OpeningBalance
                     && move.ReversesMovementId == null
                     && !db.BankMovements.Any(reverse => reverse.ReversesMovementId == move.Id))
                 .Select(move => new PaymentSnapshot(
-                    move.CreatedAt, move.Kind,
+                    move.OccurredAt, move.Kind,
                     move.Payment != null && move.Payment.SaleId == null,
                     move.SupplierPayment != null ? move.SupplierPayment.SupplierBalance!.Supplier!.Name
                         : move.Payment != null ? (move.Payment.CustomerBalance == null ? "Walk-in" : move.Payment.CustomerBalance.Customer!.Name)

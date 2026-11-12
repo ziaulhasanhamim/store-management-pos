@@ -595,7 +595,7 @@ public sealed class DateCorrectionService(IServiceScopeFactory scopes, IConfigur
                         .ToListAsync(ct);
                     foreach (var m in cashMovements)
                     {
-                        m.CreatedAt = newTimestamp;
+                        m.OccurredAt = newTimestamp;
                         m.BusinessDate = newDateOnly;
                     }
 
@@ -604,7 +604,7 @@ public sealed class DateCorrectionService(IServiceScopeFactory scopes, IConfigur
                         .ToListAsync(ct);
                     foreach (var m in bankMovements)
                     {
-                        m.CreatedAt = newTimestamp;
+                        m.OccurredAt = newTimestamp;
                         m.BusinessDate = newDateOnly;
                     }
                 }
@@ -622,14 +622,14 @@ public sealed class DateCorrectionService(IServiceScopeFactory scopes, IConfigur
                 var cashMovements = await db.CashMovements.Where(m => m.ExpenseId == recordId).ToListAsync(ct);
                 foreach (var m in cashMovements)
                 {
-                    m.CreatedAt = newTimestamp;
+                    m.OccurredAt = newTimestamp;
                     m.BusinessDate = newDateOnly;
                 }
 
                 var bankMovements = await db.BankMovements.Where(m => m.ExpenseId == recordId).ToListAsync(ct);
                 foreach (var m in bankMovements)
                 {
-                    m.CreatedAt = newTimestamp;
+                    m.OccurredAt = newTimestamp;
                     m.BusinessDate = newDateOnly;
                 }
 
@@ -650,14 +650,14 @@ public sealed class DateCorrectionService(IServiceScopeFactory scopes, IConfigur
                 var cashMovements = await db.CashMovements.Where(m => m.SupplierPaymentId == recordId).ToListAsync(ct);
                 foreach (var m in cashMovements)
                 {
-                    m.CreatedAt = newTimestamp;
+                    m.OccurredAt = newTimestamp;
                     m.BusinessDate = newDateOnly;
                 }
 
                 var bankMovements = await db.BankMovements.Where(m => m.SupplierPaymentId == recordId).ToListAsync(ct);
                 foreach (var m in bankMovements)
                 {
-                    m.CreatedAt = newTimestamp;
+                    m.OccurredAt = newTimestamp;
                     m.BusinessDate = newDateOnly;
                 }
 
@@ -679,14 +679,14 @@ public sealed class DateCorrectionService(IServiceScopeFactory scopes, IConfigur
                 var cashMovements = await db.CashMovements.Where(m => m.PaymentId == recordId).ToListAsync(ct);
                 foreach (var m in cashMovements)
                 {
-                    m.CreatedAt = newTimestamp;
+                    m.OccurredAt = newTimestamp;
                     m.BusinessDate = newDateOnly;
                 }
 
                 var bankMovements = await db.BankMovements.Where(m => m.PaymentId == recordId).ToListAsync(ct);
                 foreach (var m in bankMovements)
                 {
-                    m.CreatedAt = newTimestamp;
+                    m.OccurredAt = newTimestamp;
                     m.BusinessDate = newDateOnly;
                 }
 
@@ -725,13 +725,13 @@ public sealed class DateCorrectionService(IServiceScopeFactory scopes, IConfigur
                     var cash = await db.CashMovements.Where(m => m.SupplierPaymentId == p.Id).ToListAsync(ct);
                     foreach (var c in cash)
                     {
-                        c.CreatedAt = newTimestamp;
+                        c.OccurredAt = newTimestamp;
                         c.BusinessDate = newDateOnly;
                     }
                     var bank = await db.BankMovements.Where(m => m.SupplierPaymentId == p.Id).ToListAsync(ct);
                     foreach (var b in bank)
                     {
-                        b.CreatedAt = newTimestamp;
+                        b.OccurredAt = newTimestamp;
                         b.BusinessDate = newDateOnly;
                     }
                 }
@@ -746,21 +746,21 @@ public sealed class DateCorrectionService(IServiceScopeFactory scopes, IConfigur
                     .SingleOrDefaultAsync(d => d.Id == recordId, ct)
                     ?? throw new ValidationException($"Debt entry #{recordId} not found.");
 
-                beforeStr = debt.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss zzz");
+                beforeStr = debt.OccurredAt.ToString("yyyy-MM-dd HH:mm:ss zzz");
                 debt.BusinessDate = newDateOnly;
-                debt.CreatedAt = newTimestamp;
+                debt.OccurredAt = newTimestamp;
 
                 var cashMovements = await db.CashMovements.Where(m => m.DebtEntryId == recordId).ToListAsync(ct);
                 foreach (var m in cashMovements)
                 {
-                    m.CreatedAt = newTimestamp;
+                    m.OccurredAt = newTimestamp;
                     m.BusinessDate = newDateOnly;
                 }
 
                 var bankMovements = await db.BankMovements.Where(m => m.DebtEntryId == recordId).ToListAsync(ct);
                 foreach (var m in bankMovements)
                 {
-                    m.CreatedAt = newTimestamp;
+                    m.OccurredAt = newTimestamp;
                     m.BusinessDate = newDateOnly;
                 }
 
@@ -777,14 +777,14 @@ public sealed class DateCorrectionService(IServiceScopeFactory scopes, IConfigur
                 var cashMovements = await db.CashMovements.Where(m => m.PayrollEntryId == recordId).ToListAsync(ct);
                 foreach (var m in cashMovements)
                 {
-                    m.CreatedAt = newTimestamp;
+                    m.OccurredAt = newTimestamp;
                     m.BusinessDate = newDateOnly;
                 }
 
                 var bankMovements = await db.BankMovements.Where(m => m.PayrollEntryId == recordId).ToListAsync(ct);
                 foreach (var m in bankMovements)
                 {
-                    m.CreatedAt = newTimestamp;
+                    m.OccurredAt = newTimestamp;
                     m.BusinessDate = newDateOnly;
                 }
 
@@ -816,12 +816,11 @@ public sealed class DateCorrectionService(IServiceScopeFactory scopes, IConfigur
 
                 beforeStr = transfer.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss zzz");
                 transfer.BusinessDate = newDateOnly;
-                transfer.CreatedAt = newTimestamp;
 
                 var cashMovements = await db.CashMovements.Where(m => m.CashTransferId == recordId).ToListAsync(ct);
                 foreach (var m in cashMovements)
                 {
-                    m.CreatedAt = newTimestamp;
+                    m.OccurredAt = newTimestamp;
                     m.BusinessDate = newDateOnly;
                 }
 

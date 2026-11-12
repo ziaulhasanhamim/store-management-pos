@@ -27,7 +27,7 @@ public static class FinancialPosting
             {
                 RequestId = Guid.NewGuid(),
                 BusinessDate = date,
-                CreatedAt = timestamp,
+                OccurredAt = timestamp,
                 CashSession = cashSession,
                 CashSessionId = cashSession?.Id,
                 Kind = kind,
@@ -70,7 +70,7 @@ public static class FinancialPosting
             {
                 RequestId = Guid.NewGuid(),
                 BusinessDate = date,
-                CreatedAt = timestamp,
+                OccurredAt = timestamp,
                 Method = method,
                 Kind = kind,
                 Amount = amount,
@@ -115,7 +115,7 @@ public static class FinancialPosting
             {
                 RequestId = Guid.NewGuid(),
                 BusinessDate = movement.BusinessDate,
-                CreatedAt = movement.CreatedAt.AddMilliseconds(1),
+                OccurredAt = movement.OccurredAt.AddMilliseconds(1),
                 Kind = CashMovementKind.Reversal,
                 Method = movement.Method,
                 Amount = -movement.Amount,

@@ -16,6 +16,7 @@ internal static class FinanceModelConfiguration
         builder.Entity<DebtEntry>(entity =>
         {
             entity.HasIndex(entry => entry.RequestId).IsUnique();
+            entity.HasIndex(entry => entry.OccurredAt);
             entity.HasIndex(entry => new { entry.LenderBalanceId, entry.BusinessDate });
             entity.HasIndex(entry => entry.BusinessDate);
             entity.Property(entry => entry.RequestId).IsRequired();
@@ -98,8 +99,9 @@ internal static class FinanceModelConfiguration
         {
             entity.HasIndex(move => move.RequestId).IsUnique();
             entity.HasIndex(move => move.BusinessDate);
-            entity.HasIndex(move => new { move.CashDrawerId, move.CreatedAt });
-            entity.HasIndex(move => new { move.CashDrawerId, move.BusinessDate, move.CreatedAt, move.Id })
+            entity.HasIndex(move => move.OccurredAt);
+            entity.HasIndex(move => new { move.CashDrawerId, move.OccurredAt });
+            entity.HasIndex(move => new { move.CashDrawerId, move.BusinessDate, move.OccurredAt, move.Id })
                 .IncludeProperties(move => new { move.Amount, move.Kind });
             entity.HasIndex(move => new { move.CashSessionId, move.Id });
             entity.HasIndex(move => move.PayrollEntryId).IsUnique();
@@ -192,6 +194,8 @@ internal static class FinanceModelConfiguration
         {
             entity.HasIndex(move => move.RequestId).IsUnique();
             entity.HasIndex(move => move.BusinessDate);
+            entity.HasIndex(move => move.OccurredAt);
+            entity.HasIndex(move => new { move.BankAccountId, move.OccurredAt });
             entity.HasIndex(move => move.PayrollEntryId).IsUnique();
             entity.HasIndex(move => move.ReversesMovementId).IsUnique();
             entity.Property(move => move.Notes).HasMaxLength(2000);

@@ -135,9 +135,13 @@ else
     private Task AdjustAsync() => SubmitAsync(() => Drawers.AdjustAsync(HttpContext.User, Adjustment!, HttpContext.RequestAborted), "/cash-drawer?view=transfer");
     private Task SubmitCountAsync() => SubmitAsync(() =>
     {
-        if (CountInput?.CountedAt.HasValue == true)
+        if (CountInput?.IsBackdate == true && CountInput?.CountedAt.HasValue == true)
         {
             CountInput.CountedAt = BusinessTime.FromBusinessWallClockToUtc(CountInput.CountedAt.Value.DateTime, Configuration);
+        }
+        else if (CountInput?.IsBackdate != true && CountInput is not null)
+        {
+            CountInput.CountedAt = null;
         }
         return Drawers.SubmitCountAsync(HttpContext.User, CountInput!, HttpContext.RequestAborted);
     }, "/cash-drawer");

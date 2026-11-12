@@ -176,7 +176,7 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
 
         var movements = drawerId is null && sessionId is null ? null : await movementsQuery
             .OrderByDescending(move => move.Id)
-            .Select(move => new CashMovementRow(move.CreatedAt, move.Kind, move.Amount, move.Notes))
+            .Select(move => new CashMovementRow(move.OccurredAt, move.Kind, move.Amount, move.Notes))
             .ToPageAsync(movementPage, pageSize, ct);
 
         var breakdown = drawerId is null && sessionId is null ? [] : await movementsQuery
@@ -373,8 +373,8 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
                 var today = AccountingCalendar.Today(configuration);
                 var deltaAfter = await db.CashMovements.AsNoTracking()
                     .Where(m => (m.CashDrawerId == drawer.Id || (m.CashSession != null && m.CashSession.CashDrawerId == drawer.Id))
-                        && (m.BusinessDate > effectiveDate || (m.BusinessDate == effectiveDate && m.CreatedAt > effectiveCountedAt))
-                        && (m.BusinessDate < today || (m.BusinessDate == today && m.CreatedAt <= now))
+                        && (m.BusinessDate > effectiveDate || (m.BusinessDate == effectiveDate && m.OccurredAt > effectiveCountedAt))
+                        && (m.BusinessDate < today || (m.BusinessDate == today && m.OccurredAt <= now))
                         && m.Kind != CashMovementKind.Variance)
                     .SumAsync(m => (decimal?)m.Amount, ct) ?? 0m;
                 drawer.CurrentCash = counted + deltaAfter;
@@ -456,7 +456,7 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
                     count.VarianceMovement.Amount = liveVariance;
                     count.VarianceMovement.Notes = varianceDesc;
                     count.VarianceMovement.BusinessDate = count.BusinessDate;
-                    count.VarianceMovement.CreatedAt = count.CountedAt;
+                    count.VarianceMovement.OccurredAt = count.CountedAt;
                     count.VarianceMovement.UpdatedAt = now;
                     count.VarianceMovement.UpdatedByUserId = actorId;
                 }
@@ -467,7 +467,7 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
                         RequestId = Guid.NewGuid(),
                         CashDrawerId = count.CashDrawerId,
                         BusinessDate = count.BusinessDate,
-                        CreatedAt = count.CountedAt,
+                        OccurredAt = count.CountedAt,
                         Kind = CashMovementKind.Variance,
                         Amount = liveVariance,
                         Notes = varianceDesc,
@@ -701,7 +701,7 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
                     .SumAsync(m => (decimal?)m.Amount, ct) ?? 0m;
                 var countsSum = await db.CashSessions.AsNoTracking()
                     .Where(s => s.CashDrawerId == drawer.Id && s.ClosedAt != null && s.Difference != null && s.Difference != 0
-                        && !db.CashMovements.Any(m => (m.CashDrawerId == drawer.Id || (m.CashSession != null && m.CashSession.CashDrawerId == drawer.Id)) && m.Kind == CashMovementKind.Variance && m.CreatedAt == s.ClosedAt))
+                        && !db.CashMovements.Any(m => (m.CashDrawerId == drawer.Id || (m.CashSession != null && m.CashSession.CashDrawerId == drawer.Id)) && m.Kind == CashMovementKind.Variance && m.OccurredAt == s.ClosedAt))
                     .SumAsync(s => s.Difference, ct) ?? 0m;
                 openingCash = drawer.CurrentCash - movesSum - countsSum;
             }
@@ -712,7 +712,7 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
             }
         }
 
-        // Movement ordering is (BusinessDate, CreatedAt, Id). A movement belongs to an interval by that order.
+        // Movement ordering is (BusinessDate, OccurredAt, Id). A movement belongs to an interval by that order.
         decimal delta;
         if (anchor != null)
         {
@@ -722,8 +722,8 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
 
             delta = await db.CashMovements.AsNoTracking()
                 .Where(m => (m.CashDrawerId == drawer.Id || (m.CashSession != null && m.CashSession.CashDrawerId == drawer.Id))
-                    && (m.BusinessDate > aDate || (m.BusinessDate == aDate && (m.CreatedAt > aTime || (m.CreatedAt == aTime && m.Id > aId))))
-                    && (m.BusinessDate < asOfDate || (m.BusinessDate == asOfDate && m.CreatedAt <= effectiveAsOf))
+                    && (m.BusinessDate > aDate || (m.BusinessDate == aDate && (m.OccurredAt > aTime || (m.OccurredAt == aTime && m.Id > aId))))
+                    && (m.BusinessDate < asOfDate || (m.BusinessDate == asOfDate && m.OccurredAt <= effectiveAsOf))
                     && m.Kind != CashMovementKind.Variance)
                 .SumAsync(m => (decimal?)m.Amount, ct) ?? 0m;
         }
@@ -731,7 +731,7 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
         {
             delta = await db.CashMovements.AsNoTracking()
                 .Where(m => (m.CashDrawerId == drawer.Id || (m.CashSession != null && m.CashSession.CashDrawerId == drawer.Id))
-                    && (m.BusinessDate < asOfDate || (m.BusinessDate == asOfDate && m.CreatedAt <= effectiveAsOf))
+                    && (m.BusinessDate < asOfDate || (m.BusinessDate == asOfDate && m.OccurredAt <= effectiveAsOf))
                     && m.Kind != CashMovementKind.Variance)
                 .SumAsync(m => (decimal?)m.Amount, ct) ?? 0m;
         }
@@ -1161,7 +1161,7 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
 
         var isHistorical = latestAnchor != null &&
             (movement.BusinessDate < latestAnchor.BusinessDate ||
-             (movement.BusinessDate == latestAnchor.BusinessDate && movement.CreatedAt <= latestAnchor.CountedAt));
+             (movement.BusinessDate == latestAnchor.BusinessDate && movement.OccurredAt <= latestAnchor.CountedAt));
 
         if (!isHistorical)
         {
@@ -1238,7 +1238,7 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
             {
                 RequestId = Guid.NewGuid(),
                 BusinessDate = movement.BusinessDate,
-                CreatedAt = movement.CreatedAt.AddMilliseconds(1),
+                OccurredAt = movement.OccurredAt.AddMilliseconds(1),
                 Kind = CashMovementKind.Reversal,
                 Amount = -movement.Amount,
                 Notes = $"Deletion of {kind} #{id}: {reason}",

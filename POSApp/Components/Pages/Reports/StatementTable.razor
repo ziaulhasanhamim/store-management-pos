@@ -41,7 +41,11 @@
                     <tr>
                         <td>
                             @row.Date.ToString("dd MMM yyyy")
-                            <span class="mt-1 block text-xs text-slate-400">Posted @row.PostedAt.ToBusinessTime(Configuration).ToString("dd MMM, HH:mm:ss")</span>
+                            <span class="mt-1 block text-xs text-slate-400">@row.PostedAt.ToBusinessTime(Configuration).ToString("dd MMM, HH:mm:ss")</span>
+                            @if (row.RecordedAt.HasValue && Math.Abs((row.RecordedAt.Value - row.PostedAt).TotalMinutes) > 1)
+                            {
+                                <span class="block text-[10px] text-slate-400/80">Recorded: @row.RecordedAt.Value.ToBusinessTime(Configuration).ToString("dd MMM, HH:mm")</span>
+                            }
                         </td>
                         <td>
                             <strong>@row.Type</strong>
