@@ -5,7 +5,6 @@ using Microsoft.EntityFrameworkCore;
 using POSApp.Client.Enums;
 using POSApp.Persistence.Entities;
 using POSApp.Services;
-using System.Text.Json;
 
 namespace POSApp.Persistence;
 
@@ -67,14 +66,12 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
         NormalizeDateTimeOffsets();
-        CaptureFinancialCorrections();
         return base.SaveChanges(acceptAllChangesOnSuccess);
     }
 
     public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
     {
         NormalizeDateTimeOffsets();
-        CaptureFinancialCorrections();
         return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
     }
 
@@ -92,45 +89,6 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
                     }
                 }
             }
-        }
-    }
-
-    private void CaptureFinancialCorrections()
-    {
-        ChangeTracker.DetectChanges();
-        var corrections = ChangeTracker.Entries<AuditableEntity>()
-            .Where(entry => entry.State is EntityState.Modified or EntityState.Deleted
-                && entry.Entity is Expense or SupplierPayment or Payment or PayrollEntry)
-            .ToArray();
-        foreach (var entry in corrections)
-        {
-            var (batchKind, singularKind) = entry.Entity switch
-            {
-                Expense => ("expenses", "expense"),
-                SupplierPayment => ("supplier-payments", "supplierPayment"),
-                Payment => ("customer-payments", "payment"),
-                _ => ("payroll", "payroll")
-            };
-            if (RecordChanges.Local.Any(change => (change.RecordType == batchKind || change.RecordType == singularKind)
-                && change.RecordId == entry.Entity.Id && Entry(change).State == EntityState.Added))
-            {
-                continue;
-            }
-            var properties = entry.Properties.Where(property => !property.Metadata.IsShadowProperty()).ToArray();
-            var before = properties.ToDictionary(property => property.Metadata.Name, property => property.OriginalValue);
-            var after = entry.State == EntityState.Deleted ? null
-                : properties.ToDictionary(property => property.Metadata.Name, property => property.CurrentValue);
-            RecordChanges.Add(new RecordChange
-            {
-                RequestId = Guid.NewGuid(),
-                RecordType = singularKind,
-                RecordId = entry.Entity.Id,
-                Action = entry.State == EntityState.Deleted ? "Remove" : "Correct",
-                Reason = "Financial entry correction; original and replacement movement history retained",
-                Before = JsonSerializer.Serialize(before),
-                After = JsonSerializer.Serialize(after),
-                CreatedByUserId = entry.Entity.UpdatedByUserId ?? entry.Entity.CreatedByUserId
-            });
         }
     }
 
