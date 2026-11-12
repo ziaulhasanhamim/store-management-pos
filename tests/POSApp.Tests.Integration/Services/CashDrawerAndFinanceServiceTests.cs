@@ -839,9 +839,9 @@ public class CashDrawerAndFinanceServiceTests : PosIntegrationTestBase
         await reviewedCount.HasVarianceDrift.Should().BeTrue();
         await reviewedCount.LiveVariance.Should().BeEqualTo(0m);
 
-        // The count's variance movement amount should have synced to 0
-        var syncedVarMove = await db.CashMovements.AsNoTracking().FirstAsync(m => m.Id == acceptedCount.VarianceMovementId!.Value);
-        await syncedVarMove.Amount.Should().BeEqualTo(0m);
+        // Under pure dynamic calculation, the original accepted variance movement in the database remains immutable (-500m)
+        var originalVarMove = await db.CashMovements.AsNoTracking().FirstAsync(m => m.Id == acceptedCount.VarianceMovementId!.Value);
+        await originalVarMove.Amount.Should().BeEqualTo(-500m);
     }
 
     [Test]
@@ -1015,10 +1015,10 @@ public class CashDrawerAndFinanceServiceTests : PosIntegrationTestBase
         await countRow.LiveVariance.Should().BeEqualTo(-950m);
         await countRow.HasVarianceDrift.Should().BeTrue();
 
-        // 2. Verify Count's variance movement amount in database was updated to -950
+        // 2. Verify Count's original accepted variance movement in database remains immutable (-100)
         var countInDb = await db.CashCounts.Include(c => c.VarianceMovement).SingleAsync(c => c.Id == countId);
         await countInDb.VarianceMovement.Should().NotBeNull();
-        await countInDb.VarianceMovement!.Amount.Should().BeEqualTo(-950m);
+        await countInDb.VarianceMovement!.Amount.Should().BeEqualTo(-100m);
 
         // 3. Verify Statement preserves 3600 before the sale and reflects 4450 after the sale
         var statement = await statementService.ReadAsync(AdminUser, "cash", "custom", start: day1Date, end: new DateOnly(2026, 11, 12), drawerId: drawer.Id);

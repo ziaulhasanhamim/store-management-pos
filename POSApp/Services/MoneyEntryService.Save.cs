@@ -362,8 +362,6 @@ public sealed partial class MoneyEntryService
                 ReversesMovementId = move.Id,
                 CreatedByUserId = actorId
             });
-
-            await CashDrawerService.SyncCountsAndDrawerBalanceAsync(db, drawer, move.CreatedAt, ct);
         }
         var bank = await db.BankMovements.Where(move =>
                 (kind == "expenses" ? move.ExpenseId == id : kind == "supplier-payments" ? move.SupplierPaymentId == id : move.PaymentId == id)

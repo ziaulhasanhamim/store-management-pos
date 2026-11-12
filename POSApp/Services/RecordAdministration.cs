@@ -959,8 +959,6 @@ public sealed class RecordAdministration(IServiceScopeFactory scopes, IConfigura
                 ReversesMovementId = move.Id,
                 CreatedByUserId = actorId
             });
-
-            await CashDrawerService.SyncCountsAndDrawerBalanceAsync(db, drawerToUse, move.CreatedAt, ct);
         }
 
         if (kind is "payroll" or "debt")
