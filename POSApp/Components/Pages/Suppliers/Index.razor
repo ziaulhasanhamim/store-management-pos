@@ -17,7 +17,6 @@
 </div>
 
 <form method="get" action="/suppliers" class="mb-5 flex max-w-lg gap-3" data-enhance data-auto-search="true">
-    <input type="hidden" name="pageSize" value="@PageSize" />
     <input id="suppliers-search" name="search" value="@Search" class="field" placeholder="Search suppliers" aria-label="Search suppliers" data-auto-search="true" autocomplete="off" data-permanent />
     <button class="btn-secondary">Search</button>
 </form>
@@ -39,56 +38,37 @@
     </form>
 </details>
 
-    <div class="panel table-scroll">
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>Supplier</th>
-                    <th>Phone</th>
-                    <th class="text-right">Opening balance</th>
-                    <th class="text-right">Current balance</th>
-                    <th class="text-right">Assigned stock value</th>
-                    <th>Payment</th>
-                </tr>
-            </thead>
-            <tbody>
-                @if (Rows is null)
-                {
-                    <TableStatusRow Columns="7" Loading="true" Message="Loading suppliers…" />
-                }
-                else if (Rows.Count == 0)
-                {
-                    <TableStatusRow Columns="7" Message="No suppliers found." />
-                }
-                else
-                {
-                    @foreach (var supplier in Rows)
-                    {
-                        <tr>
-                            <td>@supplier.Id</td>
-                            <td>
-                                <a href="@($"/suppliers/{supplier.Id}")" class="font-semibold text-blue-700">@supplier.Name</a>
-                            </td>
-                            <td>@(supplier.Phone ?? "—")</td>
-                            <td class="text-right">@Money(supplier.OpeningBalance)</td>
-                            <td class="text-right font-semibold">@Money(supplier.Balance)</td>
-                            <td class="text-right">
-                                <a href="@($"/reports/inventory?supplierId={supplier.Id}")" class="text-blue-700">@Money(supplier.StockValue)</a>
-                            </td>
-                            <td>
-                                <a href="@($"/suppliers/payments?supplierId={supplier.Id}")" class="icon-button" aria-label="@($"Pay {supplier.Name}")">
-                                    <Icon Name="wallet" />
-                                </a>
-                            </td>
-                        </tr>
-                    }
-                }
-            </tbody>
-        </table>
-        @if (Pagination is not null)
+    <div class="panel table-scroll p-4">
+        @if (Rows is null)
         {
-            <PageNavigation Info="Pagination" Label="suppliers" />
+            <TableStatusRow Columns="7" Loading="true" Message="Loading suppliers…" />
+        }
+        else if (Rows.Count == 0)
+        {
+            <p class="p-6 text-center text-sm text-slate-500">No suppliers found.</p>
+        }
+        else
+        {
+            <QuickGrid Items="@SuppliersQuery" Pagination="@Pagination" class="data-table">
+                <PropertyColumn Property="s => s.Id" Sortable="true" Title="ID" />
+                <TemplateColumn Title="Supplier" SortBy="@sortByName" Sortable="true">
+                    <a href="@($"/suppliers/{context.Id}")" class="font-semibold text-blue-700">@context.Name</a>
+                </TemplateColumn>
+                <TemplateColumn Title="Phone">
+                    @(context.Phone ?? "—")
+                </TemplateColumn>
+                <PropertyColumn Property="s => s.OpeningBalance" Sortable="true" Title="Opening balance" Align="Align.Right" Format="N2" />
+                <PropertyColumn Property="s => s.Balance" Sortable="true" Title="Current balance" Align="Align.Right" Format="N2" />
+                <TemplateColumn Title="Assigned stock value" SortBy="@sortByStock" Sortable="true" Align="Align.Right">
+                    <a href="@($"/reports/inventory?supplierId={context.Id}")" class="text-blue-700">@Money(context.StockValue)</a>
+                </TemplateColumn>
+                <TemplateColumn Title="Payment" Align="Align.Center">
+                    <a href="@($"/suppliers/payments?supplierId={context.Id}")" class="icon-button" aria-label="@($"Pay {context.Name}")">
+                        <Icon Name="wallet" />
+                    </a>
+                </TemplateColumn>
+            </QuickGrid>
+            <Paginator State="@Pagination" />
         }
     </div>
 
@@ -99,24 +79,20 @@
     [SupplyParameterFromQuery]
     public string? Search { get; set; }
 
-    [SupplyParameterFromQuery]
-    public int Page { get; set; } = 1;
+    private PaginationState Pagination = new() { ItemsPerPage = 30 };
 
-    [SupplyParameterFromQuery]
-    public int PageSize { get; set; } = 30;
-
-    private PageInfo? Pagination;
+    private readonly GridSort<SupplierRow> sortByName = GridSort<SupplierRow>.ByAscending(s => s.Name);
+    private readonly GridSort<SupplierRow> sortByStock = GridSort<SupplierRow>.ByAscending(s => s.StockValue);
 
     private static readonly string[] ExportColumns = ["Supplier ID", "Supplier", "Phone", "Opening balance", "Current balance", "Assigned stock value"];
 
     private IReadOnlyList<SupplierRow>? Rows;
+    private IQueryable<SupplierRow>? SuppliersQuery => Rows?.AsQueryable();
 
     protected override async Task OnParametersSetAsync()
     {
         Rows = null;
-        var result = await Suppliers.PageAsync(HttpContext.User, Search, Page, PageSize, HttpContext.RequestAborted);
-        Rows = result.Items;
-        Pagination = result.Pagination;
+        Rows = await Suppliers.ListAsync(HttpContext.User, Search, HttpContext.RequestAborted);
     }
 
     private string Money(decimal amount) => $"{amount:N2} {Configuration["CurrencyCode"] ?? "BDT"}";

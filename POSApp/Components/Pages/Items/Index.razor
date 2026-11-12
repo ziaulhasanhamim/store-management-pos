@@ -30,7 +30,8 @@
 <div class="mb-4 sm:mb-6 w-full max-w-xs">
     <ItemLocationSelector Locations="@Locations.ToArray()"
                           SelectedLocationId="@LocationId"
-                          @rendermode="InteractiveAuto" />
+                          Search="@Search"
+                          Sort="@Sort" />
 </div>
 
 <AuthorizeView Policy="@AppPolicies.MakeSales">

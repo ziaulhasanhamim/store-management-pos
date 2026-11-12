@@ -1,15 +1,22 @@
-@inject NavigationManager Navigation
-
-<label for="items-location" class="field-label">Stock location</label>
-<select id="items-location" class="field" value="@SelectedLocationId"
-        @onchange="ChangeLocation">
-    @foreach (var location in Locations)
+<form method="get" action="/items" data-enhance class="w-full">
+    @if (!string.IsNullOrWhiteSpace(Search))
     {
-        <option value="@location.Id" selected="@(location.Id == SelectedLocationId)">
-            @location.Name
-        </option>
+        <input type="hidden" name="search" value="@Search" />
     }
-</select>
+    @if (!string.IsNullOrWhiteSpace(Sort))
+    {
+        <input type="hidden" name="sort" value="@Sort" />
+    }
+    <label for="items-location" class="field-label">Stock location</label>
+    <select id="items-location" name="locationId" class="field" onchange="this.form.requestSubmit()">
+        @foreach (var location in Locations)
+        {
+            <option value="@location.Id" selected="@(location.Id == SelectedLocationId)">
+                @location.Name
+            </option>
+        }
+    </select>
+</form>
 
 @code {
     [Parameter]
@@ -18,21 +25,9 @@
     [Parameter]
     public int? SelectedLocationId { get; set; }
 
-    private void ChangeLocation(ChangeEventArgs args)
-    {
-        if (!int.TryParse(args.Value?.ToString(), out var locationId) ||
-            locationId == SelectedLocationId ||
-            !Locations.Any(location => location.Id == locationId))
-        {
-            return;
-        }
+    [Parameter]
+    public string? Search { get; set; }
 
-        var uri = Navigation.GetUriWithQueryParameters(new Dictionary<string, object?>
-        {
-            ["locationId"] = locationId,
-            ["page"] = 1
-        });
-
-        Navigation.NavigateTo(uri);
-    }
+    [Parameter]
+    public string? Sort { get; set; }
 }

@@ -1,9 +1,6 @@
-@inject NavigationManager Navigation
-
-<div class="flex min-w-48 flex-col gap-2">
+<form method="get" action="@($"/items/{ProductId}")" data-enhance class="flex min-w-48 flex-col gap-2">
     <label class="text-xs text-slate-500" for="history-location">Stock location</label>
-    <select id="history-location" class="field" value="@SelectedLocationId"
-            disabled="@(!RendererInfo.IsInteractive)" @onchange="ChangeLocation">
+    <select id="history-location" name="locationId" class="field" onchange="this.form.requestSubmit()">
         @foreach (var location in Locations)
         {
             <option value="@location.Id" selected="@(location.Id == SelectedLocationId)">
@@ -11,7 +8,7 @@
             </option>
         }
     </select>
-</div>
+</form>
 
 @code {
     [Parameter]
@@ -22,14 +19,4 @@
 
     [Parameter]
     public int? SelectedLocationId { get; set; }
-
-    private void ChangeLocation(ChangeEventArgs args)
-    {
-        if (int.TryParse(args.Value?.ToString(), out var locationId) &&
-            locationId != SelectedLocationId &&
-            Locations.Any(location => location.Id == locationId))
-        {
-            Navigation.NavigateTo($"/items/{ProductId}?locationId={locationId}#stock-history");
-        }
-    }
 }
