@@ -19,14 +19,13 @@ public static class FinancialPosting
         {
             await AccountingCalendar.EnsureOpenAsync(db, date, ct);
         }
-        var timestamp = occurredAt?.ToUniversalTime() ?? DateTimeOffset.UtcNow;
+        var timestamp = occurredAt?.ToUniversalTime() ?? (date != default ? AccountingCalendar.At(date, null) : DateTimeOffset.UtcNow);
         if (method == PaymentMethod.Cash)
         {
             var drawer = await CashDrawerService.RequireDrawerAsync(db, actorId, ct, cashLocationId);
             CashDrawerService.Append(db, drawer, new CashMovement
             {
                 RequestId = Guid.NewGuid(),
-                BusinessDate = date,
                 OccurredAt = timestamp,
                 CashSession = cashSession,
                 CashSessionId = cashSession?.Id,
@@ -114,7 +113,6 @@ public static class FinancialPosting
             await BankAsync(db, new BankMovement
             {
                 RequestId = Guid.NewGuid(),
-                BusinessDate = movement.BusinessDate,
                 OccurredAt = movement.OccurredAt.AddMilliseconds(1),
                 Kind = CashMovementKind.Reversal,
                 Method = movement.Method,
@@ -180,7 +178,7 @@ public static class FinancialPosting
                 var grossReversal = new BankMovement
                 {
                     RequestId = Guid.NewGuid(),
-                    BusinessDate = activeDate,
+                    OccurredAt = AccountingCalendar.At(activeDate, configuration),
                     Method = PaymentMethod.BankTransfer,
                     Kind = CashMovementKind.Payout,
                     Amount = -entry.GrossAmount,
@@ -229,7 +227,7 @@ public static class FinancialPosting
                     var feeReversal = new BankMovement
                     {
                         RequestId = Guid.NewGuid(),
-                        BusinessDate = activeDate,
+                        OccurredAt = AccountingCalendar.At(activeDate, configuration),
                         Method = PaymentMethod.BankTransfer,
                         Kind = CashMovementKind.Expense,
                         Amount = entryFee,

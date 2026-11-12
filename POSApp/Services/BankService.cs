@@ -16,12 +16,15 @@ public sealed class BankService(IServiceScopeFactory scopes, IConfiguration conf
         var workingDate = await AccountingCalendar.SelectedAsync(db, actorId, configuration, ct);
         var monthStart = new DateOnly(workingDate.Year, workingDate.Month, 1);
         var account = await db.BankAccounts.AsNoTracking().SingleOrDefaultAsync(account => account.Code == "MAIN", ct);
-        var history = await db.BankMovements.OrderByDescending(move => move.Id).Take(100)
-            .Select(move => new BankRow(move.BusinessDate, move.Kind.ToString(), move.Method, move.Amount, move.BalanceAfter, move.Notes)).ToArrayAsync(ct);
+        var rawHistory = await db.BankMovements.OrderByDescending(move => move.Id).Take(100)
+            .Select(move => new { move.OccurredAt, Kind = move.Kind.ToString(), move.Method, move.Amount, move.BalanceAfter, move.Notes }).ToArrayAsync(ct);
+        var history = rawHistory
+            .Select(move => new BankRow(DateOnly.FromDateTime(move.OccurredAt.ToBusinessTime(configuration).DateTime), move.Kind, move.Method, move.Amount, move.BalanceAfter, move.Notes)).ToArray();
 
+        var monthStartUtc = AccountingCalendar.At(monthStart, TimeOnly.MinValue, configuration);
         decimal openingBeforeMonth = (account?.OpeningDate is not null && account.OpeningDate <= monthStart) ? account.OpeningBalance : 0m;
         decimal movementsBeforeMonth = await db.BankMovements.AsNoTracking()
-            .Where(move => move.BusinessDate < monthStart && move.Kind != CashMovementKind.OpeningBalance
+            .Where(move => move.OccurredAt < monthStartUtc && move.Kind != CashMovementKind.OpeningBalance
                 && move.ReversesMovementId == null
                 && !db.BankMovements.Any(r => r.ReversesMovementId == move.Id))
             .SumAsync(move => (decimal?)move.Amount, ct) ?? 0m;

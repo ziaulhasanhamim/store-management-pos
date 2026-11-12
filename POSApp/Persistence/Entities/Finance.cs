@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations.Schema;
+using POSApp.Services;
 
 namespace POSApp.Persistence.Entities;
 
@@ -73,7 +74,18 @@ public sealed class CashCount : SoftDeletableEntity
 public sealed class CashMovement : AuditableEntity
 {
     public Guid RequestId { get; set; }
-    public DateOnly BusinessDate { get; set; }
+    [NotMapped]
+    public DateOnly BusinessDate
+    {
+        get => DateOnly.FromDateTime(OccurredAt.ToBusinessTime().DateTime);
+        init
+        {
+            if (value != default)
+            {
+                OccurredAt = AccountingCalendar.At(value, null);
+            }
+        }
+    }
     public DateTimeOffset OccurredAt { get; set; } = DateTimeOffset.UtcNow;
     public int CashDrawerId { get; set; }
     public CashDrawer? CashDrawer { get; set; }
@@ -202,7 +214,18 @@ public sealed class BankMovement : AuditableEntity
 {
     public string? RequestHash { get; set; }
     public Guid RequestId { get; set; }
-    public DateOnly BusinessDate { get; set; }
+    [NotMapped]
+    public DateOnly BusinessDate
+    {
+        get => DateOnly.FromDateTime(OccurredAt.ToBusinessTime().DateTime);
+        init
+        {
+            if (value != default)
+            {
+                OccurredAt = AccountingCalendar.At(value, null);
+            }
+        }
+    }
     public DateTimeOffset OccurredAt { get; set; } = DateTimeOffset.UtcNow;
     public int BankAccountId { get; set; }
     public BankAccount? BankAccount { get; set; }

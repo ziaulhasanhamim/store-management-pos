@@ -62,10 +62,10 @@ public sealed class StatementService(IServiceScopeFactory scopes, IConfiguration
                         - (await moves.Select(move => (decimal?)move.Amount).SumAsync(ct) ?? 0)
                         - (await counts.Select(session => session.Difference).SumAsync(ct) ?? 0));
                 undatedOpening = drawer?.OpeningDate is null ? initial : 0;
+                var openingAt = drawer?.OpeningDate != null ? AccountingCalendar.At(drawer.OpeningDate.Value, TimeOnly.MinValue, configuration) : (drawer?.CreatedAt ?? DateTimeOffset.MinValue);
                 events = moves.Select(move => new Entry
                 {
                     Id = move.Id,
-                    Date = move.BusinessDate,
                     At = move.OccurredAt,
                     RecordedAt = move.CreatedAt,
                     Priority = 1,
@@ -78,7 +78,6 @@ public sealed class StatementService(IServiceScopeFactory scopes, IConfiguration
                 }).Concat(counts.Select(session => new Entry
                 {
                     Id = session.Id,
-                    Date = session.BusinessDate,
                     At = session.ClosedAt!.Value,
                     RecordedAt = session.ClosedAt,
                     Priority = 1,
@@ -92,8 +91,7 @@ public sealed class StatementService(IServiceScopeFactory scopes, IConfiguration
                     .Select(item => new Entry
                     {
                         Id = item.Id,
-                        Date = item.OpeningDate!.Value,
-                        At = item.CreatedAt,
+                        At = openingAt,
                         RecordedAt = item.CreatedAt,
                         Priority = 0,
                         Kind = CashMovementKind.OpeningBalance,
@@ -113,10 +111,10 @@ public sealed class StatementService(IServiceScopeFactory scopes, IConfiguration
                     ? bank.OpeningBalance
                     : ((bank?.CurrentBalance ?? 0) - (await moves.Select(move => (decimal?)move.Amount).SumAsync(ct) ?? 0));
                 undatedOpening = bank?.OpeningDate is null ? initial : 0;
+                var bankOpeningAt = bank?.OpeningDate != null ? AccountingCalendar.At(bank.OpeningDate.Value, TimeOnly.MinValue, configuration) : (bank?.CreatedAt ?? DateTimeOffset.MinValue);
                 events = moves.Select(move => new Entry
                 {
                     Id = move.Id,
-                    Date = move.BusinessDate,
                     At = move.OccurredAt,
                     RecordedAt = move.CreatedAt,
                     Priority = 1,
@@ -130,8 +128,7 @@ public sealed class StatementService(IServiceScopeFactory scopes, IConfiguration
                     .Select(item => new Entry
                     {
                         Id = item.Id,
-                        Date = item.OpeningDate!.Value,
-                        At = item.CreatedAt,
+                        At = bankOpeningAt,
                         RecordedAt = item.CreatedAt,
                         Priority = 0,
                         Kind = CashMovementKind.OpeningBalance,
@@ -143,12 +140,15 @@ public sealed class StatementService(IServiceScopeFactory scopes, IConfiguration
                     }));
                 drawerId = null;
             }
+            var startUtc = AccountingCalendar.At(range.Start, TimeOnly.MinValue, configuration);
+            var endUtc = AccountingCalendar.At(range.End.AddDays(1), TimeOnly.MinValue, configuration);
+
             // Initial migration balances on the first day are opening funds, not that day's receipts.
-            var opening = undatedOpening + (await events.Where(row => row.Date < range.Start
-                    || (row.Date == range.Start && row.Kind == CashMovementKind.OpeningBalance))
+            var opening = undatedOpening + (await events.Where(row => row.At < startUtc
+                    || (row.At == startUtc && row.Priority == 0))
                 .Select(row => (decimal?)row.Amount).SumAsync(ct) ?? 0);
-            var visible = events.Where(row => row.Date >= range.Start && row.Date <= range.End
-                && !(row.Date == range.Start && row.Kind == CashMovementKind.OpeningBalance));
+            var visible = events.Where(row => row.At >= startUtc && row.At < endUtc
+                && !(row.At == startUtc && row.Priority == 0));
             var totals = await visible.GroupBy(row => 1).Select(group => new
             {
                 Count = group.Count(),
@@ -159,7 +159,7 @@ public sealed class StatementService(IServiceScopeFactory scopes, IConfiguration
             }).SingleOrDefaultAsync(ct);
             var count = totals?.Count ?? 0;
             var currentPage = Math.Clamp(page, 1, Math.Max(1, (count + 49) / 50));
-            var ordered = visible.OrderBy(row => row.Date).ThenBy(row => row.Priority).ThenBy(row => row.At)
+            var ordered = visible.OrderBy(row => row.At).ThenBy(row => row.Priority)
                 .ThenBy(row => row.Reconciliation).ThenBy(row => row.Id);
             var prefix = currentPage == 1 ? 0
                 : await ordered.Take((currentPage - 1) * 50).Select(row => (decimal?)row.Amount).SumAsync(ct) ?? 0;
@@ -172,7 +172,8 @@ public sealed class StatementService(IServiceScopeFactory scopes, IConfiguration
             var result = rows.Select(row =>
             {
                 balance += row.Amount;
-                return new StatementRow(row.Date, row.At, Label(row), row.Reference, row.Notes, row.Amount, balance)
+                var rowDate = DateOnly.FromDateTime(row.At.ToBusinessTime(configuration).DateTime);
+                return new StatementRow(rowDate, row.At, Label(row), row.Reference, row.Notes, row.Amount, balance)
                 {
                     RecordedAt = row.RecordedAt
                 };
@@ -373,7 +374,6 @@ public sealed class StatementService(IServiceScopeFactory scopes, IConfiguration
     private sealed class Entry
     {
         public int Id { get; set; }
-        public DateOnly Date { get; set; }
         public DateTimeOffset At { get; set; }
         public DateTimeOffset? RecordedAt { get; set; }
         public int Priority { get; set; }

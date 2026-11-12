@@ -33,7 +33,7 @@ public static class BusinessTime
         return new UserTimeZone(zone, zone.Id);
     }
 
-    public static DateTimeOffset ToBusinessTime(this DateTimeOffset value, IConfiguration? configuration)
+    public static DateTimeOffset ToBusinessTime(this DateTimeOffset value, IConfiguration? configuration = null)
     {
         var zone = AccountingCalendar.Zone(configuration);
         return TimeZoneInfo.ConvertTime(value.ToUniversalTime(), zone);

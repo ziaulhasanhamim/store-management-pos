@@ -97,8 +97,10 @@ public class PaymentClearingIntegrationTests : PosIntegrationTestBase
 
         // 7. Verify Bank Movements:
         //    Must contain GROSS deposit (+850) and FEE deduction (-50)
+        var todayStart = AccountingCalendar.At(today, TimeOnly.MinValue, null);
+        var todayEnd = AccountingCalendar.At(today.AddDays(1), TimeOnly.MinValue, null);
         var bankMovements = await db.BankMovements.AsNoTracking()
-            .Where(m => m.BusinessDate == today)
+            .Where(m => m.OccurredAt >= todayStart && m.OccurredAt < todayEnd)
             .OrderBy(m => m.Id)
             .ToListAsync();
 

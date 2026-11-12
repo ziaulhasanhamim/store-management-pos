@@ -216,9 +216,6 @@ namespace POSApp.Persistence.Migrations
                     b.Property<int>("BankAccountId")
                         .HasColumnType("integer");
 
-                    b.Property<DateOnly>("BusinessDate")
-                        .HasColumnType("date");
-
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -271,8 +268,6 @@ namespace POSApp.Persistence.Migrations
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("BusinessDate");
 
                     b.HasIndex("DebtEntryId")
                         .IsUnique();
@@ -475,9 +470,6 @@ namespace POSApp.Persistence.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
 
-                    b.Property<DateOnly>("BusinessDate")
-                        .HasColumnType("date");
-
                     b.Property<int>("CashDrawerId")
                         .HasColumnType("integer");
 
@@ -533,8 +525,6 @@ namespace POSApp.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("BusinessDate");
-
                     b.HasIndex("CashTransferId");
 
                     b.HasIndex("DebtEntryId")
@@ -561,9 +551,9 @@ namespace POSApp.Persistence.Migrations
 
                     b.HasIndex("CashSessionId", "Id");
 
-                    b.HasIndex("CashDrawerId", "BusinessDate", "OccurredAt", "Id");
+                    b.HasIndex("CashDrawerId", "OccurredAt", "Id");
 
-                    NpgsqlIndexBuilderExtensions.IncludeProperties(b.HasIndex("CashDrawerId", "BusinessDate", "OccurredAt", "Id"), new[] { "Amount", "Kind" });
+                    NpgsqlIndexBuilderExtensions.IncludeProperties(b.HasIndex("CashDrawerId", "OccurredAt", "Id"), new[] { "Amount", "Kind" });
 
                     b.ToTable("CashMovements");
                 });

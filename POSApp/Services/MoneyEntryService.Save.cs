@@ -354,7 +354,6 @@ public sealed partial class MoneyEntryService
             CashDrawerService.Append(db, drawer, new CashMovement
             {
                 RequestId = Guid.NewGuid(),
-                BusinessDate = move.BusinessDate,
                 OccurredAt = move.OccurredAt.AddMilliseconds(1),
                 Kind = CashMovementKind.Reversal,
                 Amount = -move.Amount,
@@ -372,7 +371,6 @@ public sealed partial class MoneyEntryService
             await FinancialPosting.BankAsync(db, new BankMovement
             {
                 RequestId = Guid.NewGuid(),
-                BusinessDate = move.BusinessDate,
                 OccurredAt = move.OccurredAt.AddMilliseconds(1),
                 Kind = CashMovementKind.Reversal,
                 Method = move.Method,

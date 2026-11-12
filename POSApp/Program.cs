@@ -179,6 +179,7 @@ if (app.Configuration.GetValue("AutoMigrate", false) ||
 }
 
 await AdminSeeder.SeedAsync(app.Services, app.Configuration);
+await MovementTimestampRepair.RepairAsync(app.Services, app.Configuration);
 
 if (app.Environment.IsDevelopment())
 {

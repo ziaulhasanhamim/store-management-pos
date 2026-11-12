@@ -65,27 +65,27 @@ internal static class MonthlyFinanceBuilder
         var dailyPayroll = payroll.GroupBy(entry => Date(entry.OccurredAt)).ToDictionary(group => group.Key, group => group.Sum(entry => entry.PaidAmount));
 
         var cashSupplierPayments = await db.CashMovements.AsNoTracking()
-            .Where(move => move.BusinessDate >= totals.Start && move.BusinessDate <= totals.End
+            .Where(move => move.OccurredAt >= from && move.OccurredAt < through
                 && move.Kind == CashMovementKind.SupplierPayment
                 && move.CashTransferId == null
                 && move.ReversesMovementId == null
                 && !db.CashMovements.Any(reverse => reverse.ReversesMovementId == move.Id)
                 && (locationId == null || (move.CashDrawer != null && move.CashDrawer.StockLocationId == locationId.Value) || (move.CashSession != null && move.CashSession.StockLocationId == locationId.Value)))
-            .Select(move => new { move.BusinessDate, Amount = -move.Amount })
+            .Select(move => new { move.OccurredAt, Amount = -move.Amount })
             .ToArrayAsync(ct);
 
         var bankSupplierPayments = locationId == null
             ? await db.BankMovements.AsNoTracking()
-                .Where(move => move.BusinessDate >= totals.Start && move.BusinessDate <= totals.End
+                .Where(move => move.OccurredAt >= from && move.OccurredAt < through
                     && move.Kind == CashMovementKind.SupplierPayment
                     && move.ReversesMovementId == null
                     && !db.BankMovements.Any(reverse => reverse.ReversesMovementId == move.Id))
-                .Select(move => new { move.BusinessDate, Amount = -move.Amount })
+                .Select(move => new { move.OccurredAt, Amount = -move.Amount })
                 .ToArrayAsync(ct)
             : [];
 
         var dailySupplierPaid = cashSupplierPayments.Concat(bankSupplierPayments)
-            .GroupBy(move => move.BusinessDate)
+            .GroupBy(move => Date(move.OccurredAt))
             .ToDictionary(group => group.Key, group => group.Sum(move => move.Amount));
 
         var directSupplierPayments = await db.SupplierPayments.AsNoTracking()
@@ -214,7 +214,7 @@ internal static class MonthlyFinanceBuilder
 
         // Supplier payments by supplier in this month (cash + bank)
         var cashPaymentsBySupplier = await db.CashMovements.AsNoTracking()
-            .Where(m => m.BusinessDate >= totals.Start && m.BusinessDate <= totals.End
+            .Where(m => m.OccurredAt >= from && m.OccurredAt < through
                 && m.Kind == CashMovementKind.SupplierPayment
                 && m.SupplierPaymentId != null
                 && m.CashTransferId == null
@@ -226,7 +226,7 @@ internal static class MonthlyFinanceBuilder
 
         var bankPaymentsBySupplier = locationId == null
             ? await db.BankMovements.AsNoTracking()
-                .Where(m => m.BusinessDate >= totals.Start && m.BusinessDate <= totals.End
+                .Where(m => m.OccurredAt >= from && m.OccurredAt < through
                     && m.Kind == CashMovementKind.SupplierPayment
                     && m.SupplierPaymentId != null
                     && m.ReversesMovementId == null
@@ -394,10 +394,11 @@ internal static class MonthlyFinanceBuilder
         var drawers = await db.CashDrawers.Where(drawer => drawer.OpeningDate < before)
             .Select(drawer => new { drawer.Id, drawer.OpeningBalance }).ToArrayAsync(ct);
         decimal total = 0m;
+        var beforeUtc = AccountingCalendar.At(before, TimeOnly.MinValue, null);
         foreach (var drawer in drawers)
         {
             var moves = await db.CashMovements.AsNoTracking()
-                .Where(m => (m.CashDrawerId == drawer.Id || (m.CashSession != null && m.CashSession.CashDrawerId == drawer.Id)) && m.BusinessDate < before)
+                .Where(m => (m.CashDrawerId == drawer.Id || (m.CashSession != null && m.CashSession.CashDrawerId == drawer.Id)) && m.OccurredAt < beforeUtc)
                 .SumAsync(m => (decimal?)m.Amount, ct) ?? 0m;
             total += drawer.OpeningBalance + moves;
         }

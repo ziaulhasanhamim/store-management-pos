@@ -513,6 +513,8 @@ public class CashDrawerAndFinanceServiceTests : PosIntegrationTestBase
 
         var drawer = await db.CashDrawers.FirstAsync(d => d.StockLocationId == 1);
         var t1 = DateTimeOffset.UtcNow.AddHours(-2);
+        drawer.OpeningDate = DateOnly.FromDateTime(t1.ToBusinessTime().DateTime).AddDays(-1);
+        await db.SaveChangesAsync();
 
         // Accept count at t1
         var countId = await drawerService.SubmitCountAsync(AdminUser, new CashCountInput
@@ -937,6 +939,9 @@ public class CashDrawerAndFinanceServiceTests : PosIntegrationTestBase
         var drawer = await db.CashDrawers.FirstAsync(d => d.StockLocationId == 1);
 
         var countTime = DateTimeOffset.UtcNow.AddHours(-1);
+        drawer.OpeningDate = DateOnly.FromDateTime(countTime.ToBusinessTime().DateTime).AddDays(-1);
+        await db.SaveChangesAsync();
+
         var expectedBefore = drawer.CurrentCash;
         var countedCash = expectedBefore - 100m; // Shortage of -100
 

@@ -951,7 +951,6 @@ public sealed class RecordAdministration(IServiceScopeFactory scopes, IConfigura
             CashDrawerService.Append(db, drawerToUse, new CashMovement
             {
                 RequestId = Guid.NewGuid(),
-                BusinessDate = move.BusinessDate,
                 OccurredAt = move.OccurredAt.AddMilliseconds(1),
                 Kind = CashMovementKind.Reversal,
                 Amount = -move.Amount,
@@ -973,7 +972,6 @@ public sealed class RecordAdministration(IServiceScopeFactory scopes, IConfigura
                 await FinancialPosting.BankAsync(db, new BankMovement
                 {
                     RequestId = Guid.NewGuid(),
-                    BusinessDate = move.BusinessDate,
                     OccurredAt = move.OccurredAt.AddMilliseconds(1),
                     Kind = CashMovementKind.Reversal,
                     Method = move.Method,

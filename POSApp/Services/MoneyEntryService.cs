@@ -49,7 +49,9 @@ public sealed partial class MoneyEntryService(IServiceScopeFactory scopes, IConf
         PageInfo? pagination;
         decimal total;
         int count;
-        var cashClosedIds = await db.CashMovements.Where(move => move.BusinessDate == selected && move.CashSession!.ClosedAt != null
+        var fromUtc = AccountingCalendar.At(selected, TimeOnly.MinValue, configuration);
+        var toUtc = AccountingCalendar.At(selected.AddDays(1), TimeOnly.MinValue, configuration);
+        var cashClosedIds = await db.CashMovements.Where(move => move.OccurredAt >= fromUtc && move.OccurredAt < toUtc && move.CashSession!.ClosedAt != null
                 && move.ReversesMovementId == null && !db.CashMovements.Any(reverse => reverse.ReversesMovementId == move.Id))
             .Select(move => kind == "expenses" ? move.ExpenseId : kind == "supplier-payments" ? move.SupplierPaymentId : move.PaymentId)
             .Where(id => id != null).ToArrayAsync(ct);
