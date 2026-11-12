@@ -40,6 +40,8 @@ public static class WorkspaceNavigation
             || path.StartsWith("/finance/bank") || path.StartsWith("/finance/debt") => "/finance/accounts",
         "finance" => "/finance",
         "inventory" when path.StartsWith("/stock/takes") => "/stock/takes",
+        "inventory" when path.StartsWith("/stock/waste") || path.StartsWith("/stock/damage") => "/stock/waste",
+        "inventory" when path.StartsWith("/stock/adjustments") || path.StartsWith("/stock/opening") => "/stock/adjustments",
         "inventory" when path.StartsWith("/items") => "/items",
         "inventory" when path.StartsWith("/receiving") || path.StartsWith("/stock/transfers") => "/receiving",
         "inventory" when path.StartsWith("/suppliers") => "/suppliers",

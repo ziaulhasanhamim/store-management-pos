@@ -11,7 +11,10 @@
         <p class="eyebrow">Inventory</p>
         <h1>Stock adjustments</h1>
     </div>
-    <a href="/items" class="btn-secondary">Items</a>
+    <div class="flex gap-2">
+        <a href="/stock/waste" class="btn-secondary">Damage & waste</a>
+        <a href="/items" class="btn-secondary">Items</a>
+    </div>
 </div>
 <p class="mb-6 text-sm text-slate-500">Add products to stock without a supplier invoice or payment. Use this for existing stock or other stock additions.</p>
 @if (Error is not null)

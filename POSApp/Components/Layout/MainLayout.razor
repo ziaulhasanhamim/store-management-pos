@@ -70,7 +70,8 @@
                         <NavLink href="/stock/takes">Physical stock takes</NavLink>
                     </AuthorizeView>
                     <AuthorizeView Policy="@AppPolicies.ManageStockAdjustment" Context="adjAuth">
-                        <NavLink href="/stock/adjustments">Stock additions & waste</NavLink>
+                        <NavLink href="/stock/adjustments">Stock additions</NavLink>
+                        <NavLink href="/stock/waste">Damage & waste write-offs</NavLink>
                     </AuthorizeView>
                 </SidebarGroup>
 
