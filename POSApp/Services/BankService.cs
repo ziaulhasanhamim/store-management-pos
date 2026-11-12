@@ -48,11 +48,27 @@ public sealed class BankService(IServiceScopeFactory scopes, IConfiguration conf
             {
                 throw new ValidationException("Enter a valid bank movement.");
             }
+            if (!input.IsBackdate || input.Action is not ("deposit" or "withdraw"))
+            {
+                input.OccurredAt = null;
+            }
+            if (input.IsBackdate && input.Action is "deposit" or "withdraw")
+            {
+                if (!input.OccurredAt.HasValue)
+                {
+                    throw new ValidationException("Select the date and time for the transfer.");
+                }
+                var effective = input.OccurredAt.Value.ToUniversalTime();
+                if (effective > DateTimeOffset.UtcNow)
+                {
+                    throw new ValidationException("Transfer date and time cannot be in the future.");
+                }
+            }
             await using var scope = scopes.CreateAsyncScope();
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             var actorId = await StoreAccess.RequireAsync(db, actor, AppRoles.Admin, ct);
             await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
-            var hash = StoreOperation.Fingerprint(new { input.RequestId, input.Amount, input.Action, input.Notes });
+            var hash = StoreOperation.Fingerprint(new { input.RequestId, input.Amount, input.Action, input.Notes, input.IsBackdate, input.OccurredAt });
             var previous = await db.BankMovements.SingleOrDefaultAsync(move => move.RequestId == input.RequestId, ct);
             if (previous is not null)
             {
@@ -63,9 +79,14 @@ public sealed class BankService(IServiceScopeFactory scopes, IConfiguration conf
                 }
                 // Resubmitted form or reused RequestId with different values: assign a fresh RequestId so the new movement succeeds
                 input.RequestId = Guid.NewGuid();
-                hash = StoreOperation.Fingerprint(new { input.RequestId, input.Amount, input.Action, input.Notes });
+                hash = StoreOperation.Fingerprint(new { input.RequestId, input.Amount, input.Action, input.Notes, input.IsBackdate, input.OccurredAt });
             }
-            var date = await AccountingCalendar.SelectedAsync(db, actorId, configuration, ct);
+            var effectiveAt = (input.IsBackdate && input.OccurredAt.HasValue)
+                ? input.OccurredAt.Value.ToUniversalTime()
+                : DateTimeOffset.UtcNow;
+            var date = (input.IsBackdate && input.OccurredAt.HasValue)
+                ? DateOnly.FromDateTime(effectiveAt.ToBusinessTime(configuration).DateTime)
+                : await AccountingCalendar.SelectedAsync(db, actorId, configuration, ct);
             await AccountingCalendar.EnsureOpenAsync(db, date, ct);
             var account = await db.BankAccounts.SingleOrDefaultAsync(account => account.Code == "MAIN", ct);
             if (input.Action == "opening" && account?.OpeningDate is not null)
@@ -87,7 +108,7 @@ public sealed class BankService(IServiceScopeFactory scopes, IConfiguration conf
                 CashDrawerService.Append(db, drawer, new CashMovement
                 {
                     RequestId = Guid.NewGuid(),
-                    BusinessDate = date,
+                    OccurredAt = effectiveAt,
                     Kind = CashMovementKind.Transfer,
                     Amount = -amount,
                     Notes = input.Notes.Trim(),
@@ -98,7 +119,7 @@ public sealed class BankService(IServiceScopeFactory scopes, IConfiguration conf
             {
                 RequestId = input.RequestId,
                 RequestHash = hash,
-                BusinessDate = date,
+                OccurredAt = effectiveAt,
                 Kind = kind,
                 Method = PaymentMethod.BankTransfer,
                 Amount = amount,

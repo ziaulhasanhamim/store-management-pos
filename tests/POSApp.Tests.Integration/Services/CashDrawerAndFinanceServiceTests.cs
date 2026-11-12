@@ -242,6 +242,108 @@ public class CashDrawerAndFinanceServiceTests : PosIntegrationTestBase
     }
 
     [Test]
+    public async Task BankService_SaveAsync_BackdatedDeposit_SetsOccurredAtOnBothCashAndBankMovements()
+    {
+        await using var scope = CreateScope();
+        var bankService = scope.ServiceProvider.GetRequiredService<BankService>();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var backdateTimestamp = DateTimeOffset.UtcNow.AddHours(-3);
+        var input = new BankInput
+        {
+            RequestId = Guid.NewGuid(),
+            Action = "deposit",
+            Amount = 500m,
+            Notes = "Afternoon cash deposit backdated",
+            IsBackdate = true,
+            OccurredAt = backdateTimestamp
+        };
+
+        await bankService.SaveAsync(AdminUser, input);
+
+        var bankMovement = await db.BankMovements.SingleOrDefaultAsync(m => m.RequestId == input.RequestId);
+        await bankMovement.Should().NotBeNull();
+        await bankMovement!.Amount.Should().BeEqualTo(500m);
+        await bankMovement.OccurredAt.Should().BeEqualTo(backdateTimestamp);
+
+        var cashMovement = await db.CashMovements
+            .SingleOrDefaultAsync(m => m.Kind == CashMovementKind.Transfer && m.OccurredAt == backdateTimestamp && m.Amount == -500m);
+        await cashMovement.Should().NotBeNull();
+        await cashMovement!.Notes.Should().BeEqualTo("Afternoon cash deposit backdated");
+    }
+
+    [Test]
+    public async Task BankService_SaveAsync_BackdatedWithdrawal_SetsOccurredAtOnBothCashAndBankMovements()
+    {
+        await using var scope = CreateScope();
+        var bankService = scope.ServiceProvider.GetRequiredService<BankService>();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var backdateTimestamp = DateTimeOffset.UtcNow.AddHours(-2);
+        var input = new BankInput
+        {
+            RequestId = Guid.NewGuid(),
+            Action = "withdraw",
+            Amount = 200m,
+            Notes = "Cash withdrawal backdated",
+            IsBackdate = true,
+            OccurredAt = backdateTimestamp
+        };
+
+        await bankService.SaveAsync(AdminUser, input);
+
+        var bankMovement = await db.BankMovements.SingleOrDefaultAsync(m => m.RequestId == input.RequestId);
+        await bankMovement.Should().NotBeNull();
+        await bankMovement!.Amount.Should().BeEqualTo(-200m);
+        await bankMovement.OccurredAt.Should().BeEqualTo(backdateTimestamp);
+
+        var cashMovement = await db.CashMovements
+            .SingleOrDefaultAsync(m => m.Kind == CashMovementKind.Transfer && m.OccurredAt == backdateTimestamp && m.Amount == 200m);
+        await cashMovement.Should().NotBeNull();
+        await cashMovement!.Notes.Should().BeEqualTo("Cash withdrawal backdated");
+    }
+
+    [Test]
+    public async Task BankService_SaveAsync_BackdatedFutureDate_ThrowsValidationException()
+    {
+        await using var scope = CreateScope();
+        var bankService = scope.ServiceProvider.GetRequiredService<BankService>();
+
+        var input = new BankInput
+        {
+            RequestId = Guid.NewGuid(),
+            Action = "deposit",
+            Amount = 100m,
+            Notes = "Future deposit",
+            IsBackdate = true,
+            OccurredAt = DateTimeOffset.UtcNow.AddDays(1)
+        };
+
+        var ex = await Assert.ThrowsAsync<ValidationException>(() => bankService.SaveAsync(AdminUser, input));
+        await ex.Message.Should().Contain("future");
+    }
+
+    [Test]
+    public async Task BankService_SaveAsync_BackdateWithoutTimestamp_ThrowsValidationException()
+    {
+        await using var scope = CreateScope();
+        var bankService = scope.ServiceProvider.GetRequiredService<BankService>();
+
+        var input = new BankInput
+        {
+            RequestId = Guid.NewGuid(),
+            Action = "deposit",
+            Amount = 100m,
+            Notes = "Missing timestamp",
+            IsBackdate = true,
+            OccurredAt = null
+        };
+
+        var ex = await Assert.ThrowsAsync<ValidationException>(() => bankService.SaveAsync(AdminUser, input));
+        await ex.Message.Should().Contain("Select the date and time");
+    }
+
+    [Test]
     public async Task MoneyEntryService_DeleteAsync_VoidSupplierPayment_ReversesMovementsAndRestoresBalance()
     {
         int paymentId;

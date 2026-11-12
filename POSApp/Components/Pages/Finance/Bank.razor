@@ -86,6 +86,27 @@ else
                 </div>
                 <label class="field-label mt-4" for="bank-notes">Reason / reference</label>
                 <input id="bank-notes" name="Input.Notes" class="field" maxlength="2000" placeholder="e.g. Daily cash deposit to main account" required />
+
+                <div class="mt-4 rounded-xl border border-blue-200 bg-blue-50/70 p-3 space-y-2">
+                    <label class="inline-flex items-center gap-2 cursor-pointer text-xs font-semibold text-blue-900 select-none">
+                        <input type="checkbox" id="bank-backdate-toggle" name="Input.IsBackdate" value="true" class="rounded border-blue-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                               checked="@(Input?.IsBackdate == true)"
+                               onchange="document.getElementById('bank-backdate-box').classList.toggle('hidden', !this.checked)" />
+                        <span>Record historical transfer (backdate)</span>
+                    </label>
+                    <div id="bank-backdate-box" class="@(Input?.IsBackdate == true ? "" : "hidden")">
+                        <label class="field-label text-blue-900 text-xs" for="bank-time">Transfer Date & Time</label>
+                        <div class="relative max-w-xs flex items-center">
+                            <input id="bank-time" type="datetime-local" name="Input.OccurredAt" class="field bg-white mt-1 text-xs w-full pr-8"
+                                   value="@(Input?.OccurredAt?.ToBusinessTime(Configuration).ToString("yyyy-MM-ddTHH:mm"))" />
+                            <button type="button" data-datetime-trigger="bank-time" class="absolute right-2 top-2 text-slate-400 hover:text-slate-600 cursor-pointer p-1" title="Open calendar with Done button">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                            </button>
+                        </div>
+                        <p class="text-[11px] text-blue-700 mt-1">Backfills land on earlier dates without interrupting live accounts.</p>
+                    </div>
+                </div>
+
                 <button class="btn-primary mt-5" data-pending-text="Transferring…">Transfer funds</button>
             </form>
         }
@@ -159,6 +180,14 @@ else
     {
         try
         {
+            if (Input?.IsBackdate == true && Input?.OccurredAt.HasValue == true)
+            {
+                Input.OccurredAt = BusinessTime.FromBusinessWallClockToUtc(Input.OccurredAt.Value.DateTime, Configuration);
+            }
+            else if (Input?.IsBackdate != true && Input is not null)
+            {
+                Input.OccurredAt = null;
+            }
             Input!.RequestId = Guid.NewGuid();
             await Banks.SaveAsync(HttpContext.User, Input!, HttpContext.RequestAborted);
             Navigation.NavigateTo($"/finance/bank?tab={ActiveTab}&saved=true");

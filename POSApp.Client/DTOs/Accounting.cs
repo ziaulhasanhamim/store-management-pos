@@ -9,6 +9,8 @@ public sealed class BankInput
     public DateOnly Date { get; set; }
     public string Notes { get; set; } = "";
     public string Action { get; set; } = "opening";
+    public bool IsBackdate { get; set; }
+    public DateTimeOffset? OccurredAt { get; set; }
 }
 
 public sealed record BankRow(DateOnly Date, string Kind, PaymentMethod Method, decimal Amount, decimal BalanceAfter, string Notes);
