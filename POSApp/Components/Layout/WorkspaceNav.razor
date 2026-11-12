@@ -41,8 +41,9 @@
         ],
         "finance" =>
         [
-            ("/finance/summary", "Summary", AppPolicies.ManageUsers),
             ("/finance", "Finance hub", AppPolicies.MakeSales),
+            ("/finance/day", "Daily summary", AppPolicies.ManageUsers),
+            ("/finance/month", "Monthly summary", AppPolicies.ManageUsers),
             ("/finance/clearing", "Card & wallet clearing", AppPolicies.MakeSales),
             ("/finance/payments", "Payments", AppPolicies.MakeSales),
             ("/finance/people", "People & payroll", AppPolicies.MakeSales),

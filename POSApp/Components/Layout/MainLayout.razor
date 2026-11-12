@@ -105,11 +105,11 @@
 
                 <!-- Finance & Books -->
                 <AuthorizeView Policy="@AppPolicies.ManageDrawer" Context="financeAuth">
-                    <SidebarGroup Title="Finance & Books" IconName="wallet" Href="/finance/summary" Prefix="/finance" AlternatePrefix="/reports/statements/cash,/reports/statements/bank,/cash-drawer?view=transfer">
+                    <SidebarGroup Title="Finance & Books" IconName="wallet" Href="/finance" Prefix="/finance" AlternatePrefix="/reports/statements/cash,/reports/statements/bank,/cash-drawer?view=transfer">
+                        <NavLink href="/finance" Match="NavLinkMatch.All">Finance overview</NavLink>
                         <AuthorizeView Policy="@AppPolicies.ManageInventory" Context="closeAuth">
-                            <NavLink href="/finance/summary">Financial summary</NavLink>
-                            <NavLink href="/finance/day">Daily breakdown</NavLink>
-                            <NavLink href="/finance/month">Monthly breakdown</NavLink>
+                            <NavLink href="/finance/day">Daily financial summary</NavLink>
+                            <NavLink href="/finance/month">Monthly financial summary</NavLink>
                         </AuthorizeView>
                         <AuthorizeView Policy="@AppPolicies.ManageUsers" Context="bankAuth">
                             <NavLink href="/finance/bank">Bank & digital accounts</NavLink>
