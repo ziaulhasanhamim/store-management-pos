@@ -353,6 +353,18 @@
                 inputEl.dispatchEvent(new Event('change', { bubbles: true }));
             }
             fetchHistoricalExpectedCash(inputEl ? inputEl.value : '', locId);
+        } else {
+            window.historicalExpectedCash = null;
+            if (typeof historicalExpectedCash !== 'undefined') historicalExpectedCash = null;
+            var hiddenExp = document.getElementById('historical-expected-cash-input');
+            if (hiddenExp) hiddenExp.value = '';
+            var banner = document.getElementById('historical-expected-cash-banner');
+            if (banner) banner.classList.add('hidden');
+            var histCompRow = document.getElementById('historical-comparison-row');
+            if (histCompRow) histCompRow.classList.add('hidden');
+            if (typeof window.recalculateCountVariance === 'function') {
+                window.recalculateCountVariance();
+            }
         }
     }
 
@@ -376,7 +388,12 @@
         }
         locId = locId || 0;
         if (!timeVal) {
+            window.historicalExpectedCash = null;
+            if (typeof historicalExpectedCash !== 'undefined') historicalExpectedCash = null;
             if (banner) banner.classList.add('hidden');
+            if (typeof window.recalculateCountVariance === 'function') {
+                window.recalculateCountVariance();
+            }
             return;
         }
         if (banner && amountEl) {
@@ -393,16 +410,31 @@
                 return res.json();
             })
             .then(function (data) {
-                if (banner && amountEl && data.expectedCash !== undefined) {
-                    amountEl.textContent = 'BDT ' + Number(data.expectedCash).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                    if (noteEl) noteEl.textContent = 'Based on the accepted anchor before this timestamp and net movements up to this moment.';
-                    banner.classList.remove('hidden');
+                if (data.expectedCash !== undefined) {
+                    var parsed = Number(data.expectedCash);
+                    window.historicalExpectedCash = parsed;
+                    if (typeof historicalExpectedCash !== 'undefined') historicalExpectedCash = parsed;
+                    var hiddenExp = document.getElementById('historical-expected-cash-input');
+                    if (hiddenExp) hiddenExp.value = parsed;
+                    if (banner && amountEl) {
+                        amountEl.textContent = 'BDT ' + parsed.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                        if (noteEl) noteEl.textContent = 'Based on the accepted anchor before this timestamp and net movements up to this moment.';
+                        banner.classList.remove('hidden');
+                    }
+                    if (typeof window.recalculateCountVariance === 'function') {
+                        window.recalculateCountVariance();
+                    }
                 }
             })
             .catch(function (err) {
+                window.historicalExpectedCash = null;
+                if (typeof historicalExpectedCash !== 'undefined') historicalExpectedCash = null;
                 if (banner && amountEl) {
                     amountEl.textContent = 'Unavailable';
                     if (noteEl) noteEl.textContent = 'Could not calculate expected cash: ' + err.message;
+                }
+                if (typeof window.recalculateCountVariance === 'function') {
+                    window.recalculateCountVariance();
                 }
             });
     }

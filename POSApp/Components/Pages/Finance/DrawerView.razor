@@ -70,7 +70,22 @@
             <div class="metric">
                 <p>Pending variance</p>
                 <strong class="text-2xl! @(Data.PendingCount is null || Data.PendingCount.Variance == 0 ? "text-slate-900" : Data.PendingCount.Variance < 0 ? "text-rose-600" : "text-blue-600")">
-                    @(Data.PendingCount is not null ? Money(Data.PendingCount.Variance) : "৳0.00")
+                    @if (Data.PendingCount is null)
+                    {
+                        @("৳0.00")
+                    }
+                    else if (Data.PendingCount.Variance < 0)
+                    {
+                        <span class="text-rose-600">Shortage @Money(Math.Abs(Data.PendingCount.Variance))</span>
+                    }
+                    else if (Data.PendingCount.Variance > 0)
+                    {
+                        <span class="text-blue-600">Over @Money(Data.PendingCount.Variance)</span>
+                    }
+                    else
+                    {
+                        <span class="text-emerald-600">Balanced</span>
+                    }
                 </strong>
             </div>
         </div>
@@ -82,11 +97,28 @@
                     <div>
                         <div class="flex items-center gap-2">
                             <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wider bg-amber-200 text-amber-900">Pending Review</span>
-                            <h3 class="font-bold text-slate-900">Physical Cash Count Variance: @Money(Data.PendingCount.Variance)</h3>
+                            <h3 class="font-bold text-slate-900">
+                                @if (Data.PendingCount.Variance < 0)
+                                {
+                                    <span class="text-rose-700">Cash Shortage: @Money(Math.Abs(Data.PendingCount.Variance)) missing</span>
+                                }
+                                else if (Data.PendingCount.Variance > 0)
+                                {
+                                    <span class="text-blue-700">Cash Over: @Money(Data.PendingCount.Variance) extra</span>
+                                }
+                                else
+                                {
+                                    <span class="text-emerald-700">Cash Count Balanced</span>
+                                }
+                            </h3>
                         </div>
                         <p class="text-xs text-slate-700 mt-1">
                             Counted by <strong>@Data.PendingCount.CountedBy</strong> on @Time(Data.PendingCount.CountedAt).
                             Expected: <strong>@Money(Data.PendingCount.ExpectedCash)</strong> · Counted: <strong>@Money(Data.PendingCount.CountedCash)</strong>
+                            · Discrepancy:
+                            <strong class="@(Data.PendingCount.Variance < 0 ? "text-rose-700" : Data.PendingCount.Variance > 0 ? "text-blue-700" : "text-emerald-700")">
+                                @(Data.PendingCount.Variance < 0 ? $"Shortage of {Money(Math.Abs(Data.PendingCount.Variance))} missing" : Data.PendingCount.Variance > 0 ? $"Over of {Money(Data.PendingCount.Variance)} extra" : "Balanced")
+                            </strong>
                         </p>
                         @if (!string.IsNullOrWhiteSpace(Data.PendingCount.Notes))
                         {
@@ -164,17 +196,24 @@
                 <form method="post" @formname="cash-count" @onsubmit="SubmitCountAsync" data-enhance data-submit-indication="true">
                     <AntiforgeryToken />
                     <input type="hidden" name="CountInput.CashDrawerId" value="@(Data.Viewed?.DrawerId ?? selectedLoc.Id)" />
-                    <div class="mb-4">
+                    <div class="mb-4 space-y-2">
                         <label class="field-label" for="counted-cash">Counted cash (@Currency)</label>
-                        <input id="counted-cash" name="CountInput.CountedCash" class="field" type="number" step="0.01" min="0"
+                        <input id="counted-cash" name="CountInput.CountedCash" class="field font-semibold text-lg" type="number" step="0.01" min="0"
                                placeholder="0.00" value="@(CountInput?.CountedCash?.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture))"
                                data-select-on-focus="true" required
                                oninput="recalculateCountVariance()" />
                         <input type="hidden" id="historical-expected-cash-input" name="CountInput.ExpectedCash" value="" />
 
-                        <div id="count-variance-badge" class="mt-2.5 text-sm font-semibold hidden" role="status">
-                            <span id="count-variance-status">Balanced</span> · @Currency <span id="count-variance-amount">0.00</span>
-                            <span id="count-variance-detail" class="text-xs font-normal text-slate-500 ml-1"></span>
+                        <!-- Prominent Shortage / Over / Balanced live calculation card -->
+                        <div id="count-variance-card" class="rounded-xl border p-3.5 text-xs transition-colors hidden" role="status">
+                            <div class="flex items-center justify-between font-bold text-sm">
+                                <span id="count-variance-status" class="flex items-center gap-1.5">
+                                    <span id="count-variance-icon"></span>
+                                    <span id="count-variance-title">Balanced</span>
+                                </span>
+                                <span id="count-variance-amount" class="text-base font-bold"></span>
+                            </div>
+                            <div id="count-variance-detail" class="mt-1 text-xs opacity-90"></div>
                         </div>
                     </div>
                     @if (Data.Admin)
@@ -200,9 +239,16 @@
                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
                                     </button>
                                 </div>
-                                <div id="historical-expected-cash-banner" class="hidden mt-2 p-2.5 rounded-lg bg-amber-100/80 border border-amber-300/80 text-amber-950 text-xs">
-                                    <span class="font-medium">Expected book cash at selected time:</span> <strong id="historical-expected-amount" class="text-sm font-bold">BDT 0.00</strong>
-                                    <p id="historical-expected-note" class="text-[11px] text-amber-800 mt-0.5">Based on the accepted anchor before this timestamp and net movements up to this moment.</p>
+                                <div id="historical-expected-cash-banner" class="hidden mt-2.5 p-3 rounded-lg bg-amber-100/90 border border-amber-300 text-amber-950 text-xs space-y-1.5">
+                                    <div class="flex items-center justify-between">
+                                        <span class="font-medium text-amber-900">Expected book cash at selected time:</span>
+                                        <strong id="historical-expected-amount" class="text-sm font-bold text-amber-950">BDT 0.00</strong>
+                                    </div>
+                                    <div id="historical-comparison-row" class="hidden pt-1.5 border-t border-amber-200/80 flex items-center justify-between font-semibold">
+                                        <span class="text-amber-900">Discrepancy at selected time:</span>
+                                        <span id="historical-comparison-val" class="font-bold"></span>
+                                    </div>
+                                    <p id="historical-expected-note" class="text-[11px] text-amber-800">Based on the accepted anchor before this timestamp and net movements up to this moment.</p>
                                 </div>
                                 <p class="mt-1 text-[11px] text-amber-800">
                                     Must be after the last accepted count (@(Data.LastCount is not null ? Data.LastCount.CountedAt.ToBusinessTime(Configuration).ToString("dd MMM yyyy, hh:mm tt") : "start of drawer")). Historical expected cash will be calculated as of that moment.
@@ -290,16 +336,55 @@
                         <td>@count.CountedBy</td>
                         <td class="text-right">@Money(count.ExpectedCash)</td>
                         <td class="text-right font-medium">@Money(count.CountedCash)</td>
-                        <td class="text-right font-bold @(count.Variance == 0 ? "text-emerald-700" : count.Variance < 0 ? "text-rose-700" : "text-blue-700")">
+                        <td class="text-right">
                             @if (count.HasVarianceDrift)
                             {
-                                <div class="text-xs text-slate-500 font-normal">Accepted: @Money(count.AcceptedVariance ?? 0)</div>
-                                <div class="text-xs font-bold text-amber-700">Now: @Money(count.LiveVariance)</div>
+                                <div class="text-xs text-slate-500 font-normal">
+                                    Accepted:
+                                    @if (count.AcceptedVariance == 0)
+                                    {
+                                        <span class="font-semibold text-emerald-700">Balanced</span>
+                                    }
+                                    else if (count.AcceptedVariance < 0)
+                                    {
+                                        <span class="font-semibold text-rose-700">Shortage @Money(Math.Abs(count.AcceptedVariance ?? 0))</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="font-semibold text-blue-700">Over @Money(count.AcceptedVariance ?? 0)</span>
+                                    }
+                                </div>
+                                <div class="text-xs font-bold mt-0.5">
+                                    Now:
+                                    @if (count.LiveVariance == 0)
+                                    {
+                                        <span class="text-emerald-700">Balanced (0.00)</span>
+                                    }
+                                    else if (count.LiveVariance < 0)
+                                    {
+                                        <span class="text-rose-700">Shortage @Money(Math.Abs(count.LiveVariance))</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-blue-700">Over @Money(count.LiveVariance)</span>
+                                    }
+                                </div>
                                 <div class="text-[10px] text-amber-600 font-normal">(Shifted by retroactive entries)</div>
                             }
                             else
                             {
-                                @(count.Variance == 0 ? "Balanced" : Money(count.Variance))
+                                @if (count.Variance == 0)
+                                {
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-emerald-100 text-emerald-800">Balanced</span>
+                                }
+                                else if (count.Variance < 0)
+                                {
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-rose-100 text-rose-800">Shortage @Money(Math.Abs(count.Variance))</span>
+                                }
+                                else
+                                {
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-blue-100 text-blue-800">Over @Money(count.Variance)</span>
+                                }
                             }
                         </td>
                         <td>
@@ -584,6 +669,7 @@
         CashMovementKind.OpeningBalance => "Opening balance",
         CashMovementKind.Reversal => "Transaction reversals",
         CashMovementKind.Variance => "Cash count adjustment (shortage / overage)",
+        CashMovementKind.ServicingProfit => "Servicing profit",
         _ => "Other movement"
     };
 
@@ -602,56 +688,98 @@
 
     function recalculateCountVariance() {
         var countInput = document.getElementById('counted-cash');
-        var badge = document.getElementById('count-variance-badge');
-        var statusEl = document.getElementById('count-variance-status');
+        var card = document.getElementById('count-variance-card');
+        var iconEl = document.getElementById('count-variance-icon');
+        var titleEl = document.getElementById('count-variance-title');
         var amountEl = document.getElementById('count-variance-amount');
         var detailEl = document.getElementById('count-variance-detail');
         var notesEl = document.getElementById('count-notes');
         var backdateCheckbox = document.querySelector('input[name="CountInput.IsBackdate"]');
         var isBackdate = backdateCheckbox && backdateCheckbox.checked;
 
-        if (!countInput || !badge) return;
+        var histCompRow = document.getElementById('historical-comparison-row');
+        var histCompVal = document.getElementById('historical-comparison-val');
+
+        if (!countInput) return;
         var val = parseFloat(countInput.value);
+
         if (isNaN(val) || val < 0) {
-            badge.classList.add('hidden');
+            if (card) card.classList.add('hidden');
+            if (histCompRow) {
+                if (isBackdate && historicalExpectedCash !== null) {
+                    histCompRow.classList.remove('hidden');
+                    if (histCompVal) histCompVal.innerHTML = '<span class="text-amber-800 text-xs font-normal">(Enter counted cash above to see shortage/over)</span>';
+                } else {
+                    histCompRow.classList.add('hidden');
+                }
+            }
             return;
         }
 
         var expected = (isBackdate && historicalExpectedCash !== null) ? historicalExpectedCash : currentBookCash;
         var diff = Math.round((val - expected) * 100) / 100;
 
-        badge.classList.remove('hidden', 'text-emerald-700', 'text-amber-700', 'text-rose-600', 'text-blue-700');
-        if (diff === 0) {
-            badge.classList.add('text-emerald-700');
-            statusEl.textContent = 'Balanced';
-            amountEl.textContent = '0.00';
-            if (detailEl) detailEl.textContent = isBackdate ? '(matches expected cash at count moment)' : '(matches current drawer balance)';
-            if (notesEl && !notesEl.value) {
-                notesEl.placeholder = 'Optional: physical cash matches book cash.';
+        if (card) {
+            card.classList.remove('hidden', 'bg-emerald-50', 'border-emerald-300', 'text-emerald-950', 'bg-rose-50', 'border-rose-300', 'text-rose-950', 'bg-blue-50', 'border-blue-300', 'text-blue-950');
+
+            if (diff === 0) {
+                card.classList.add('bg-emerald-50', 'border-emerald-300', 'text-emerald-950');
+                if (iconEl) iconEl.innerHTML = '<svg class="w-4 h-4 text-emerald-600 inline shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>';
+                if (titleEl) titleEl.textContent = isBackdate ? 'Balanced (Historical Count)' : 'Cash Count Balanced';
+                if (amountEl) amountEl.innerHTML = '<span class="text-emerald-700 font-extrabold text-base">BDT 0.00</span>';
+                if (detailEl) detailEl.textContent = isBackdate
+                    ? 'Counted cash exactly matches historical expected cash at the selected count time.'
+                    : 'Counted cash exactly matches current book cash balance.';
+                if (notesEl && !notesEl.value) {
+                    notesEl.placeholder = 'Optional: physical cash matches book cash.';
+                }
+            } else if (diff < 0) {
+                var missingAmount = Math.abs(diff).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                card.classList.add('bg-rose-50', 'border-rose-300', 'text-rose-950');
+                if (iconEl) iconEl.innerHTML = '<svg class="w-4 h-4 text-rose-600 inline shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>';
+                if (titleEl) titleEl.textContent = isBackdate ? 'Shortage (Historical Count)' : 'Cash Shortage (Missing Cash)';
+                if (amountEl) amountEl.innerHTML = '<span class="text-rose-700 font-extrabold text-base">Shortage: BDT ' + missingAmount + ' missing</span>';
+                if (detailEl) {
+                    detailEl.textContent = isBackdate
+                        ? 'Counted BDT ' + val.toFixed(2) + ' vs Historical Expected BDT ' + expected.toFixed(2) + ' at that time (-BDT ' + missingAmount + ' missing)'
+                        : 'Counted BDT ' + val.toFixed(2) + ' vs Current Book BDT ' + expected.toFixed(2) + ' (-BDT ' + missingAmount + ' missing)';
+                }
+                if (notesEl && !notesEl.value) {
+                    notesEl.placeholder = 'Required: explain why cash is short by BDT ' + missingAmount + '...';
+                }
+            } else {
+                var extraAmount = diff.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                card.classList.add('bg-blue-50', 'border-blue-300', 'text-blue-950');
+                if (iconEl) iconEl.innerHTML = '<svg class="w-4 h-4 text-blue-600 inline shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>';
+                if (titleEl) titleEl.textContent = isBackdate ? 'Over (Historical Count)' : 'Cash Over (Extra Cash)';
+                if (amountEl) amountEl.innerHTML = '<span class="text-blue-700 font-extrabold text-base">Over: BDT ' + extraAmount + ' extra</span>';
+                if (detailEl) {
+                    detailEl.textContent = isBackdate
+                        ? 'Counted BDT ' + val.toFixed(2) + ' vs Historical Expected BDT ' + expected.toFixed(2) + ' at that time (+BDT ' + extraAmount + ' extra)'
+                        : 'Counted BDT ' + val.toFixed(2) + ' vs Current Book BDT ' + expected.toFixed(2) + ' (+BDT ' + extraAmount + ' extra)';
+                }
+                if (notesEl && !notesEl.value) {
+                    notesEl.placeholder = 'Required: explain why cash has an extra BDT ' + extraAmount + '...';
+                }
             }
-        } else if (diff < 0) {
-            badge.classList.add('text-amber-700');
-            statusEl.textContent = 'Shortage';
-            amountEl.textContent = Math.abs(diff).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-            if (detailEl) {
-                detailEl.textContent = isBackdate
-                    ? '(Counted ' + val.toFixed(2) + ' vs Expected ' + expected.toFixed(2) + ' at that time)'
-                    : '(Counted ' + val.toFixed(2) + ' vs Current book ' + expected.toFixed(2) + ')';
-            }
-            if (notesEl && !notesEl.value) {
-                notesEl.placeholder = 'Required: explain the shortage of BDT ' + Math.abs(diff).toFixed(2);
-            }
-        } else {
-            badge.classList.add('text-blue-700');
-            statusEl.textContent = 'Overage';
-            amountEl.textContent = diff.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-            if (detailEl) {
-                detailEl.textContent = isBackdate
-                    ? '(Counted ' + val.toFixed(2) + ' vs Expected ' + expected.toFixed(2) + ' at that time)'
-                    : '(Counted ' + val.toFixed(2) + ' vs Current book ' + expected.toFixed(2) + ')';
-            }
-            if (notesEl && !notesEl.value) {
-                notesEl.placeholder = 'Required: explain the extra cash of BDT ' + diff.toFixed(2);
+        }
+
+        if (histCompRow) {
+            if (isBackdate && historicalExpectedCash !== null) {
+                histCompRow.classList.remove('hidden');
+                if (histCompVal) {
+                    if (diff === 0) {
+                        histCompVal.innerHTML = '<span class="text-emerald-700">Balanced (BDT 0.00)</span>';
+                    } else if (diff < 0) {
+                        var m = Math.abs(diff).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                        histCompVal.innerHTML = '<span class="text-rose-700">Shortage: BDT ' + m + ' missing</span>';
+                    } else {
+                        var e = diff.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                        histCompVal.innerHTML = '<span class="text-blue-700">Over: BDT ' + e + ' extra</span>';
+                    }
+                }
+            } else {
+                histCompRow.classList.add('hidden');
             }
         }
     }
@@ -679,6 +807,8 @@
             if (hiddenExp) hiddenExp.value = '';
             var banner = document.getElementById('historical-expected-cash-banner');
             if (banner) banner.classList.add('hidden');
+            var histCompRow = document.getElementById('historical-comparison-row');
+            if (histCompRow) histCompRow.classList.add('hidden');
             recalculateCountVariance();
         }
     }

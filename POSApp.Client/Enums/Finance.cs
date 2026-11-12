@@ -33,6 +33,7 @@ public enum CashMovementKind
     DebtRepayment,
     OwnerContribution,
     OwnerWithdrawal,
+    ServicingProfit,
     Variance
 }
 
