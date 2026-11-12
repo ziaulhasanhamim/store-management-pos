@@ -73,6 +73,9 @@ public sealed class CashCount : SoftDeletableEntity
 
 public sealed class CashMovement : AuditableEntity
 {
+    private DateTimeOffset _occurredAt = DateTimeOffset.UtcNow;
+    private bool _occurredAtSet;
+
     public Guid RequestId { get; set; }
     [NotMapped]
     public DateOnly BusinessDate
@@ -80,13 +83,21 @@ public sealed class CashMovement : AuditableEntity
         get => DateOnly.FromDateTime(OccurredAt.ToBusinessTime().DateTime);
         init
         {
-            if (value != default)
+            if (value != default && !_occurredAtSet)
             {
-                OccurredAt = AccountingCalendar.At(value, null);
+                _occurredAt = AccountingCalendar.At(value, null);
             }
         }
     }
-    public DateTimeOffset OccurredAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset OccurredAt
+    {
+        get => _occurredAt;
+        set
+        {
+            _occurredAt = value;
+            _occurredAtSet = true;
+        }
+    }
     public int CashDrawerId { get; set; }
     public CashDrawer? CashDrawer { get; set; }
     public int? CashTransferId { get; set; }
@@ -212,6 +223,9 @@ public sealed class BankAccount : AuditableEntity
 
 public sealed class BankMovement : AuditableEntity
 {
+    private DateTimeOffset _occurredAt = DateTimeOffset.UtcNow;
+    private bool _occurredAtSet;
+
     public string? RequestHash { get; set; }
     public Guid RequestId { get; set; }
     [NotMapped]
@@ -220,13 +234,21 @@ public sealed class BankMovement : AuditableEntity
         get => DateOnly.FromDateTime(OccurredAt.ToBusinessTime().DateTime);
         init
         {
-            if (value != default)
+            if (value != default && !_occurredAtSet)
             {
-                OccurredAt = AccountingCalendar.At(value, null);
+                _occurredAt = AccountingCalendar.At(value, null);
             }
         }
     }
-    public DateTimeOffset OccurredAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset OccurredAt
+    {
+        get => _occurredAt;
+        set
+        {
+            _occurredAt = value;
+            _occurredAtSet = true;
+        }
+    }
     public int BankAccountId { get; set; }
     public BankAccount? BankAccount { get; set; }
     public CashMovementKind Kind { get; set; }

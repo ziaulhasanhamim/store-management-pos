@@ -320,7 +320,7 @@ public class CashDrawerAndFinanceServiceTests : PosIntegrationTestBase
         };
 
         var ex = await Assert.ThrowsAsync<ValidationException>(() => bankService.SaveAsync(AdminUser, input));
-        await ex.Message.Should().Contain("future");
+        await ex!.Message.Should().Contain("future");
     }
 
     [Test]
@@ -340,7 +340,7 @@ public class CashDrawerAndFinanceServiceTests : PosIntegrationTestBase
         };
 
         var ex = await Assert.ThrowsAsync<ValidationException>(() => bankService.SaveAsync(AdminUser, input));
-        await ex.Message.Should().Contain("Select the date and time");
+        await ex!.Message.Should().Contain("Select the date and time");
     }
 
     [Test]

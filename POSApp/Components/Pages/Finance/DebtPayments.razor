@@ -99,7 +99,7 @@ else if (Data is not null)
                     }
                     <div class="sm:col-span-2">
                         <label for="debt-notes" class="field-label">Notes / reference (optional)</label>
-                        <textarea id="debt-notes" class="field" name="Input.Notes" maxlength="2000">@Input.Notes</textarea>
+                        <textarea id="debt-notes" class="field" name="Input.Notes" maxlength="2000">@Input?.Notes</textarea>
                     </div>
                 </div>
                 <button class="btn-primary mt-4" data-pending-text="Recording…">

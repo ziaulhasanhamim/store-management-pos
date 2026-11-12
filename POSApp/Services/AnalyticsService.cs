@@ -380,7 +380,7 @@ public sealed class AnalyticsService(IServiceScopeFactory scopes, IConfiguration
                 i.UnitCost,
                 i.TotalAmount,
                 i.SaleId,
-                SoldAt = i.Sale.SoldAt,
+                SoldAt = i.Sale != null ? i.Sale.SoldAt : default,
                 CategoryName = i.Product != null && i.Product.Category != null ? i.Product.Category.Name : "Uncategorized"
             })
             .ToListAsync(ct);

@@ -16,9 +16,9 @@
 <DrawerControls Data="Data" View="@View" Location="Location" Transfer="Transfer" Assignment="Assignment" SelectLocationAsync="SelectLocationAsync" TransferAsync="TransferAsync" AssignAsync="AssignAsync" />
 
 
-@if (View == "drawer")
+@if (View == "drawer" && Data is not null)
 {
-    var selectedLoc = Data?.Locations.FirstOrDefault(l => l.Id == Data.SelectedLocationId);
+    var selectedLoc = Data.Locations.FirstOrDefault(l => l.Id == Data.SelectedLocationId);
     if (selectedLoc is not null)
     {
         <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -27,7 +27,7 @@
                 <p class="text-xs text-slate-500">Continuous cash drawer. Record sales, expenses, and physical cash counts at any time.</p>
             </div>
             <div>
-                @if (Data?.LastCount is not null)
+                @if (Data.LastCount is not null)
                 {
                     var ageHours = (DateTimeOffset.UtcNow - Data.LastCount.CountedAt).TotalHours;
                     if (ageHours < 24)
@@ -134,7 +134,7 @@
                             The drawer book balance remains unadjusted until an admin reviews and accepts this variance. Accepting establishes an immutable physical cash anchor without posting synthetic movements.
                         </p>
                     </div>
-                    @if (Data?.Admin == true)
+                    @if (Data.Admin)
                     {
                         <div class="shrink-0 flex flex-col gap-2">
                             @if (Data.UndepositedServicingProfit > 0)
@@ -198,7 +198,7 @@
                     <span class="text-xs font-semibold px-2.5 py-1 bg-slate-100 rounded text-slate-700">Book balance: @Money(Data.CurrentCash)</span>
                 </div>
                 <form id="cash-count-form" method="post" @formname="cash-count" @onsubmit="SubmitCountAsync" data-enhance data-submit-indication="true"
-                      data-book-cash="@((Data?.CurrentCash ?? 0m).ToString("0.00", System.Globalization.CultureInfo.InvariantCulture))"
+                      data-book-cash="@(Data.CurrentCash.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture))"
                       data-currency="@Currency">
                     <AntiforgeryToken />
                     <input type="hidden" name="CountInput.CashDrawerId" value="@(Data.Viewed?.DrawerId ?? selectedLoc.Id)" />
@@ -279,7 +279,7 @@
         </section>
     }
 }
-@if (View == "counts")
+@if (View == "counts" && Data is not null)
 {
     <section class="panel mb-6 table-scroll">
         <div class="panel-heading flex flex-wrap items-center justify-between gap-3">
@@ -315,7 +315,7 @@
                     <th class="text-right">Variance</th>
                     <th>Status</th>
                     <th>Notes / Review</th>
-                    @if (Data?.Admin == true)
+                    @if (Data.Admin)
                     {
                         <th>Action</th>
                     }
@@ -415,7 +415,7 @@
                                 <div class="text-slate-500 mt-0.5">Reviewed by @count.CompletedBy on @Time(count.CompletedAt.Value)</div>
                             }
                         </td>
-                        @if (Data?.Admin == true)
+                        @if (Data.Admin)
                         {
                             <td>
                                 <div class="flex items-center gap-1.5">
@@ -470,9 +470,9 @@
 {
     <CashMovementForm SessionId="currentSession.Id" Adjustment="Adjustment" AdjustAsync="AdjustAsync" />
 }
-@if (View == "history")
+@if (View == "history" && Data is not null)
 {
-    @if (Data?.Viewed is not null)
+    @if (Data.Viewed is not null)
     {
         var viewed = Data.Viewed;
         <section class="panel mb-6">
@@ -503,7 +503,7 @@
                         @((viewed.Difference ?? 0) == 0 ? "Balanced" : viewed.Difference < 0 ? "Shortage" : "Overage") · @Money(Math.Abs(viewed.Difference ?? 0))
                     </p>
                     <p class="mt-1 text-sm text-slate-500">@viewed.Notes</p>
-                    @if (Data?.Admin == true)
+                    @if (Data.Admin)
                     {
                         <a href="@($"/finance/reopen?kind=drawer&id={viewed.Id}")" class="btn-secondary mt-4">Reopen drawer</a>
                     }

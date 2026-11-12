@@ -342,7 +342,7 @@ public sealed class PaymentClearingService(IServiceScopeFactory scopes, IConfigu
 
         var unsettled = await db.PaymentClearingEntries.AsNoTracking()
             .Include(e => e.StockLocation)
-            .Include(e => e.Payment).ThenInclude(p => p.Sale)
+            .Include(e => e.Payment).ThenInclude(p => p!.Sale)
             .Where(e => e.Status == PaymentClearingStatus.Unsettled
                 && (e.Payment == null || (!e.Payment.IsVoided && (e.Payment.SaleId == null || (!e.Payment.Sale!.IsDeleted && e.Payment.Sale.Status != SaleStatus.Voided)))))
             .ToListAsync(ct);

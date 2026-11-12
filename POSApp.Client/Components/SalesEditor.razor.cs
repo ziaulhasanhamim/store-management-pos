@@ -439,10 +439,7 @@ public partial class SalesEditor
             DateTimeOffset? transactionTime = null;
             if (Options.CanBackdate && IsBackdating && CustomTransactionTime.HasValue)
             {
-                var unspecified = DateTime.SpecifyKind(CustomTransactionTime.Value, DateTimeKind.Unspecified);
-                var zone = UserTimeZone.ResolveZone(null, "Asia/Dhaka");
-                var utc = TimeZoneInfo.ConvertTimeToUtc(unspecified, zone);
-                transactionTime = new DateTimeOffset(utc, TimeSpan.Zero);
+                transactionTime = UserTime.ToUtcFromLocal(CustomTransactionTime.Value);
             }
 
             var command = new SalesCommand(RequestId, LocationId, CustomerId,

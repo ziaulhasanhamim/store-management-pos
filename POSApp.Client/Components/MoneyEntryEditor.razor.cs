@@ -159,10 +159,7 @@ public partial class MoneyEntryEditor
         {
             if (Data.CanBackdate && IsBackdating && BatchTransactionTime.HasValue)
             {
-                var unspecified = DateTime.SpecifyKind(BatchTransactionTime.Value, DateTimeKind.Unspecified);
-                var zone = UserTimeZone.ResolveZone(null, "Asia/Dhaka");
-                var utc = TimeZoneInfo.ConvertTimeToUtc(unspecified, zone);
-                var converted = new DateTimeOffset(utc, TimeSpan.Zero);
+                var converted = UserTime.ToUtcFromLocal(BatchTransactionTime.Value);
                 foreach (var line in Lines)
                 {
                     line.Input.TransactionTime = converted;
