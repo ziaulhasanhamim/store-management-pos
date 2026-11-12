@@ -60,7 +60,11 @@ internal static class FinanceModelConfiguration
             entity.Property(count => count.Notes).HasMaxLength(2000);
             entity.Property(count => count.VoidReason).HasMaxLength(2000);
             entity.Property(count => count.AcceptedVariance).HasPrecision(18, 2);
-            entity.Property(count => count.RecordedAt).HasDefaultValueSql("now()");
+            entity.Property(count => count.IsDeleted).HasColumnName("IsVoided");
+            entity.Property(count => count.DeletedAt).HasColumnName("VoidedAt");
+            entity.Ignore(count => count.RecordedAt);
+            entity.Ignore(count => count.IsVoided);
+            entity.Ignore(count => count.VoidedAt);
             entity.HasOne(count => count.CashDrawer)
                 .WithMany(drawer => drawer.Counts)
                 .HasForeignKey(count => count.CashDrawerId)

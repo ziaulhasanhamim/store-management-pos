@@ -212,6 +212,10 @@ else
 
     private Task CollectAsync() => SubmitAsync(async () =>
     {
+        if (Collection?.IsBackdate == true && Collection?.TransactionTime.HasValue == true)
+        {
+            Collection.TransactionTime = BusinessTime.FromBusinessWallClockToUtc(Collection.TransactionTime.Value.DateTime, Configuration);
+        }
         await AccountsService.ReceiveAsync(HttpContext.User, Collection!, HttpContext.RequestAborted);
         Navigation.NavigateTo($"/accounts/customers?partyId={Collection!.CustomerId}");
     });

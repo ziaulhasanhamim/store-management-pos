@@ -188,7 +188,7 @@ public sealed class ClosingService(IServiceScopeFactory scopes, IConfiguration c
 
         var countVariance = (await db.CashCounts.Where(c => c.CountedAt >= from && c.CountedAt < through
                 && (c.Status == CashCountStatus.Completed || c.Status == CashCountStatus.VarianceAccepted || c.Status == CashCountStatus.Accepted)
-                && !c.IsVoided
+                && !c.IsDeleted
                 && (locationId == null || c.StockLocationId == locationId.Value))
             .Select(c => c.AcceptedVariance ?? (c.CountedCash - c.ExpectedCash))
             .ToArrayAsync(ct))

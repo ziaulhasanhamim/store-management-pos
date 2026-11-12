@@ -133,7 +133,14 @@ else
         }
     }
     private Task AdjustAsync() => SubmitAsync(() => Drawers.AdjustAsync(HttpContext.User, Adjustment!, HttpContext.RequestAborted), "/cash-drawer?view=transfer");
-    private Task SubmitCountAsync() => SubmitAsync(() => Drawers.SubmitCountAsync(HttpContext.User, CountInput!, HttpContext.RequestAborted), "/cash-drawer");
+    private Task SubmitCountAsync() => SubmitAsync(() =>
+    {
+        if (CountInput?.CountedAt.HasValue == true)
+        {
+            CountInput.CountedAt = BusinessTime.FromBusinessWallClockToUtc(CountInput.CountedAt.Value.DateTime, Configuration);
+        }
+        return Drawers.SubmitCountAsync(HttpContext.User, CountInput!, HttpContext.RequestAborted);
+    }, "/cash-drawer");
     private Task AcceptVarianceAsync() => SubmitAsync(() => Drawers.AcceptVarianceAsync(HttpContext.User, AcceptVarianceInput!, HttpContext.RequestAborted), "/cash-drawer");
     private Task DeleteCountAsync() => SubmitAsync(() => Drawers.DeleteCountAsync(HttpContext.User, DeleteCount!.CountId, HttpContext.RequestAborted), "/cash-drawer" + (View == "counts" ? "?view=counts" : ""));
     private Task DepositServicingProfitAsync() => Task.CompletedTask;

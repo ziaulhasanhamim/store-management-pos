@@ -63,35 +63,6 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<SupplierBalanceEntry> SupplierBalanceEntries { get; set; } = null!;
     public DbSet<RolePermission> RolePermissions { get; set; } = null!;
 
-    public override int SaveChanges(bool acceptAllChangesOnSuccess)
-    {
-        NormalizeDateTimeOffsets();
-        return base.SaveChanges(acceptAllChangesOnSuccess);
-    }
-
-    public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
-    {
-        NormalizeDateTimeOffsets();
-        return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
-    }
-
-    private void NormalizeDateTimeOffsets()
-    {
-        foreach (var entry in ChangeTracker.Entries())
-        {
-            if (entry.State is EntityState.Added or EntityState.Modified)
-            {
-                foreach (var prop in entry.Properties)
-                {
-                    if (prop.CurrentValue is DateTimeOffset dto && dto.Offset != TimeSpan.Zero)
-                    {
-                        prop.CurrentValue = dto.ToUniversalTime();
-                    }
-                }
-            }
-        }
-    }
-
     protected override void ConfigureConventions(ModelConfigurationBuilder builder)
     {
         base.ConfigureConventions(builder);

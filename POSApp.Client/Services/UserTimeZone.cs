@@ -42,6 +42,13 @@ public sealed class UserTimeZone
         return new DateTimeOffset(TimeZoneInfo.ConvertTimeToUtc(unspecified, Zone), TimeSpan.Zero);
     }
 
+    public DateTimeOffset ToUtcFromLocal(DateTime localWallClock)
+    {
+        var unspecified = DateTime.SpecifyKind(localWallClock, DateTimeKind.Unspecified);
+        var utc = TimeZoneInfo.ConvertTimeToUtc(unspecified, Zone);
+        return new DateTimeOffset(utc, TimeSpan.Zero);
+    }
+
     public string Format(DateTimeOffset utcValue, string format = "dd MMM yyyy, hh:mm tt")
         => ToUserTime(utcValue).ToString(format, CultureInfo.InvariantCulture);
 

@@ -33,7 +33,7 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
 
         // Pending count for the selected location (if any)
         var pendingCountEntity = drawerId is null ? null : await db.CashCounts.AsNoTracking()
-            .Where(c => c.CashDrawerId == drawerId.Value && c.Status == CashCountStatus.PendingReview && !c.IsVoided)
+            .Where(c => c.CashDrawerId == drawerId.Value && c.Status == CashCountStatus.PendingReview && !c.IsDeleted)
             .Include(c => c.CountedByUser)
             .OrderByDescending(c => c.Id)
             .FirstOrDefaultAsync(ct);
@@ -76,7 +76,7 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
 
         // Last completed or accepted count
         var lastCountEntity = drawerId is null ? null : await db.CashCounts.AsNoTracking()
-            .Where(c => c.CashDrawerId == drawerId.Value && (c.Status == CashCountStatus.Completed || c.Status == CashCountStatus.VarianceAccepted || c.Status == CashCountStatus.Accepted) && !c.IsVoided)
+            .Where(c => c.CashDrawerId == drawerId.Value && (c.Status == CashCountStatus.Completed || c.Status == CashCountStatus.VarianceAccepted || c.Status == CashCountStatus.Accepted) && !c.IsDeleted)
             .Include(c => c.CountedByUser)
             .OrderByDescending(c => c.BusinessDate)
             .ThenByDescending(c => c.CountedAt)
@@ -113,7 +113,7 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
 
         // Paginated & date-filtered cash counts history
         var countsBaseQuery = db.CashCounts.AsNoTracking()
-            .Where(c => admin || c.StockLocationId == selected);
+            .Where(c => !c.IsDeleted && (admin || c.StockLocationId == selected));
 
         if (countsFrom.HasValue)
         {
@@ -299,7 +299,7 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
             var lastAccepted = await db.CashCounts.AsNoTracking()
                 .Where(c => c.CashDrawerId == drawer.Id
                     && (c.Status == CashCountStatus.Completed || c.Status == CashCountStatus.VarianceAccepted || c.Status == CashCountStatus.Accepted)
-                    && !c.IsVoided)
+                    && !c.IsDeleted)
                 .OrderByDescending(c => c.BusinessDate)
                 .ThenByDescending(c => c.CountedAt)
                 .ThenByDescending(c => c.Id)
@@ -559,7 +559,7 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
             if (count.CashDrawer != null)
             {
                 var remainingAnchor = await db.CashCounts.AsNoTracking()
-                    .Where(c => c.CashDrawerId == count.CashDrawerId && (c.Status == CashCountStatus.Completed || c.Status == CashCountStatus.VarianceAccepted || c.Status == CashCountStatus.Accepted) && !c.IsVoided && c.Id != count.Id)
+                    .Where(c => c.CashDrawerId == count.CashDrawerId && (c.Status == CashCountStatus.Completed || c.Status == CashCountStatus.VarianceAccepted || c.Status == CashCountStatus.Accepted) && !c.IsDeleted && c.Id != count.Id)
                     .OrderByDescending(c => c.BusinessDate)
                     .ThenByDescending(c => c.CountedAt)
                     .ThenByDescending(c => c.Id)
@@ -602,13 +602,17 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
                 db.CashMovements.Remove(count.VarianceMovement);
             }
 
-            db.CashCounts.Remove(count);
+            count.IsDeleted = true;
+            count.DeletedAt = DateTimeOffset.UtcNow;
+            count.Status = CashCountStatus.Voided;
+            count.UpdatedAt = DateTimeOffset.UtcNow;
+            count.UpdatedByUserId = actorId;
             await db.SaveChangesAsync(ct);
 
             if (drawer != null)
             {
                 var remainingAnchor = await db.CashCounts.AsNoTracking()
-                    .Where(c => c.CashDrawerId == drawer.Id && c.Id != countId && (c.Status == CashCountStatus.Completed || c.Status == CashCountStatus.VarianceAccepted || c.Status == CashCountStatus.Accepted) && !c.IsVoided)
+                    .Where(c => c.CashDrawerId == drawer.Id && c.Id != countId && (c.Status == CashCountStatus.Completed || c.Status == CashCountStatus.VarianceAccepted || c.Status == CashCountStatus.Accepted) && !c.IsDeleted)
                     .OrderByDescending(c => c.BusinessDate)
                     .ThenByDescending(c => c.CountedAt)
                     .ThenByDescending(c => c.Id)
@@ -645,7 +649,7 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
         var localAnchorQuery = db.CashCounts.Local
             .Where(c => c.CashDrawerId == drawer.Id
                 && (c.Status == CashCountStatus.Completed || c.Status == CashCountStatus.VarianceAccepted || c.Status == CashCountStatus.Accepted)
-                && !c.IsVoided
+                && !c.IsDeleted
                 && (c.BusinessDate < asOfDate || (c.BusinessDate == asOfDate && c.CountedAt <= effectiveAsOf)));
 
         if (excludeCountId.HasValue)
@@ -664,7 +668,7 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
         var dbAnchorQuery = db.CashCounts.AsNoTracking()
             .Where(c => c.CashDrawerId == drawer.Id
                 && (c.Status == CashCountStatus.Completed || c.Status == CashCountStatus.VarianceAccepted || c.Status == CashCountStatus.Accepted)
-                && !c.IsVoided
+                && !c.IsDeleted
                 && (c.BusinessDate < asOfDate || (c.BusinessDate == asOfDate && c.CountedAt <= effectiveAsOf)));
 
         if (excludeCountId.HasValue)
@@ -1143,13 +1147,13 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
         // An accepted count is a permanent anchor: drawer balance after it = its counted amount + movements after it.
         // Retroactive historical entries (on or before the latest accepted count) do NOT change current drawer cash!
         var latestAnchor = db.CashCounts.Local
-            .Where(c => c.CashDrawerId == drawer.Id && (c.Status == CashCountStatus.Completed || c.Status == CashCountStatus.VarianceAccepted || c.Status == CashCountStatus.Accepted) && !c.IsVoided)
+            .Where(c => c.CashDrawerId == drawer.Id && (c.Status == CashCountStatus.Completed || c.Status == CashCountStatus.VarianceAccepted || c.Status == CashCountStatus.Accepted) && !c.IsDeleted)
             .OrderByDescending(c => c.BusinessDate)
             .ThenByDescending(c => c.CountedAt)
             .ThenByDescending(c => c.Id)
             .FirstOrDefault()
             ?? db.CashCounts.AsNoTracking()
-                .Where(c => c.CashDrawerId == drawer.Id && (c.Status == CashCountStatus.Completed || c.Status == CashCountStatus.VarianceAccepted || c.Status == CashCountStatus.Accepted) && !c.IsVoided)
+                .Where(c => c.CashDrawerId == drawer.Id && (c.Status == CashCountStatus.Completed || c.Status == CashCountStatus.VarianceAccepted || c.Status == CashCountStatus.Accepted) && !c.IsDeleted)
                 .OrderByDescending(c => c.BusinessDate)
                 .ThenByDescending(c => c.CountedAt)
                 .ThenByDescending(c => c.Id)

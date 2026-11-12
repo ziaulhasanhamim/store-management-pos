@@ -147,7 +147,7 @@ internal static class MonthlyFinanceBuilder
         var acceptedCounts = await db.CashCounts.AsNoTracking()
             .Where(c => c.CountedAt >= from && c.CountedAt <= through
                 && (c.Status == CashCountStatus.Completed || c.Status == CashCountStatus.VarianceAccepted || c.Status == CashCountStatus.Accepted)
-                && !c.IsVoided
+                && !c.IsDeleted
                 && (locationId == null || c.StockLocationId == locationId.Value)
                 && !db.CashMovements.Any(m => m.Kind == CashMovementKind.Variance && m.CreatedAt == c.CountedAt))
             .Select(c => new { CreatedAt = c.CountedAt, Difference = c.AcceptedVariance ?? c.Difference })

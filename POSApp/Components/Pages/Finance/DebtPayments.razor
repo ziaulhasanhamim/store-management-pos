@@ -218,6 +218,10 @@ else if (Data is not null)
     {
         try
         {
+            if (Input?.IsBackdate == true && Input?.TransactionTime.HasValue == true)
+            {
+                Input.TransactionTime = BusinessTime.FromBusinessWallClockToUtc(Input.TransactionTime.Value.DateTime, Configuration);
+            }
             await DebtAccounts.PostAsync(HttpContext.User, Input!, HttpContext.RequestAborted);
             Navigation.NavigateTo($"/finance/debt/payments?saved=true&savedRequest={Input!.RequestId}&lenderId={Input!.LenderId}");
         }

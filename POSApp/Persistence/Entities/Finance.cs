@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations.Schema;
+
 namespace POSApp.Persistence.Entities;
 
 public sealed class CashDrawer : AuditableEntity
@@ -35,7 +37,7 @@ public sealed class CashSession : AuditableEntity
     public ICollection<CashMovement> Movements { get; set; } = [];
 }
 
-public sealed class CashCount : AuditableEntity
+public sealed class CashCount : SoftDeletableEntity
 {
     public Guid RequestId { get; set; }
     public int CashDrawerId { get; set; }
@@ -44,7 +46,8 @@ public sealed class CashCount : AuditableEntity
     public StockLocation? StockLocation { get; set; }
     public DateOnly BusinessDate { get; set; }
     public DateTimeOffset CountedAt { get; set; }
-    public DateTimeOffset RecordedAt { get; set; } = DateTimeOffset.UtcNow;
+    [NotMapped]
+    public DateTimeOffset RecordedAt { get => CreatedAt; set => CreatedAt = value; }
     public int CountedByUserId { get; set; }
     public User? CountedByUser { get; set; }
     public decimal CountedCash { get; set; }
@@ -59,8 +62,10 @@ public sealed class CashCount : AuditableEntity
     public int? VarianceAcceptedByUserId { get; set; }
     public int? VarianceMovementId { get; set; }
     public CashMovement? VarianceMovement { get; set; }
-    public bool IsVoided { get; set; }
-    public DateTimeOffset? VoidedAt { get; set; }
+    [NotMapped]
+    public bool IsVoided { get => IsDeleted; set => IsDeleted = value; }
+    [NotMapped]
+    public DateTimeOffset? VoidedAt { get => DeletedAt; set => DeletedAt = value; }
     public int? VoidedByUserId { get; set; }
     public string? VoidReason { get; set; }
 }

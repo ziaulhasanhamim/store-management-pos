@@ -171,7 +171,7 @@ public sealed class StatementService(IServiceScopeFactory scopes, IConfiguration
             }).ToArray();
             var pendingCount = (account == "cash" && drawerId != null)
                 ? await db.CashCounts.AsNoTracking()
-                    .Where(c => c.CashDrawerId == drawerId.Value && c.Status == CashCountStatus.PendingReview && !c.IsVoided)
+                    .Where(c => c.CashDrawerId == drawerId.Value && c.Status == CashCountStatus.PendingReview && !c.IsDeleted)
                     .OrderByDescending(c => c.Id)
                     .Select(c => new { c.Difference, c.Notes, c.CountedAt })
                     .FirstOrDefaultAsync(ct)

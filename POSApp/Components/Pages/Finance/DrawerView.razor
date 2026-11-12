@@ -114,6 +114,10 @@
                         </div>
                         <p class="text-xs text-slate-700 mt-1">
                             Counted by <strong>@Data.PendingCount.CountedBy</strong> on @Time(Data.PendingCount.CountedAt).
+                            @if (Data.PendingCount.RecordedAt != Data.PendingCount.CountedAt)
+                            {
+                                <span class="text-[10px] text-slate-400 font-mono ml-1">(Recorded: @Time(Data.PendingCount.RecordedAt))</span>
+                            }
                             Expected: <strong>@Money(Data.PendingCount.ExpectedCash)</strong> · Counted: <strong>@Money(Data.PendingCount.CountedCash)</strong>
                             · Discrepancy:
                             <strong class="@(Data.PendingCount.Variance < 0 ? "text-rose-700" : Data.PendingCount.Variance > 0 ? "text-blue-700" : "text-emerald-700")">

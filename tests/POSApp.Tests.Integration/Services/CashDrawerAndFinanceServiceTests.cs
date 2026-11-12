@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using POSApp.Client.DTOs;
 using POSApp.Client.Enums;
@@ -1025,5 +1026,48 @@ public class CashDrawerAndFinanceServiceTests : PosIntegrationTestBase
         var saleRow = statement.Rows.FirstOrDefault(r => r.Notes == "Backdated cash sale");
         await saleRow.Should().NotBeNull();
         await saleRow!.Balance.Should().BeEqualTo(4450m); // 3600 (prior) + 850 (sale)
+    }
+
+    [Test]
+    public async Task PhysicalCashCount_BusinessWallClockConversion_MatchesDhakaLocalTimeAndCalculatesAccurateVariance()
+    {
+        await using var scope = CreateScope();
+        var drawerService = scope.ServiceProvider.GetRequiredService<CashDrawerService>();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var config = scope.ServiceProvider.GetService<IConfiguration>();
+
+        var drawer = await db.CashDrawers.FirstAsync(d => d.StockLocationId == 1);
+        var baseCash = drawer.CurrentCash;
+
+        // User picked 16:08 (4:08 PM) on 2026-11-10 in Asia/Dhaka (+06:00)
+        var wallClock = new DateTime(2026, 11, 10, 16, 8, 0);
+        var expectedUtc = BusinessTime.FromBusinessWallClockToUtc(wallClock, config);
+        await expectedUtc.Offset.Should().BeEqualTo(TimeSpan.Zero);
+        await expectedUtc.Hour.Should().BeEqualTo(10); // 16:08 Dhaka (+6) == 10:08 UTC
+        await expectedUtc.Minute.Should().BeEqualTo(8);
+
+        // Converted back to business time should exactly equal 16:08
+        var backToBusiness = expectedUtc.ToBusinessTime(config);
+        await backToBusiness.Hour.Should().BeEqualTo(16);
+        await backToBusiness.Minute.Should().BeEqualTo(8);
+
+        // Calculate expected cash at 16:08 Dhaka (10:08 UTC)
+        var expectedCashAtTime = await CashDrawerService.CalculateLiveBalanceAsync(db, drawer, expectedUtc, default, config);
+
+        // Submit count at 16:08 Dhaka (10:08 UTC) with 100 extra
+        var countId = await drawerService.SubmitCountAsync(AdminUser, new CashCountInput
+        {
+            LocationId = drawer.StockLocationId ?? 1,
+            CountedCash = expectedCashAtTime + 100m,
+            CountedAt = expectedUtc,
+            IsBackdate = true,
+            Notes = "Over 100 extra"
+        });
+
+        var countEntity = await db.CashCounts.SingleAsync(c => c.Id == countId);
+        await countEntity.CountedAt.Should().BeEqualTo(expectedUtc);
+        await countEntity.IsDeleted.Should().BeFalse();
+        await countEntity.ExpectedCash.Should().BeEqualTo(expectedCashAtTime);
+        await countEntity.Difference.Should().BeEqualTo(100m);
     }
 }
