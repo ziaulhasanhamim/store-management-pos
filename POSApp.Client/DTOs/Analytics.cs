@@ -135,7 +135,12 @@ public record SalesTimelinePoint(
     DateOnly Date,
     decimal SalesRevenue,
     decimal GrossProfit,
-    int OrdersCount);
+    int OrdersCount)
+{
+    public decimal MarginPercentage => SalesRevenue > 0
+        ? decimal.Round(GrossProfit / SalesRevenue * 100m, 1, MidpointRounding.AwayFromZero)
+        : 0m;
+}
 
 public record SalesTimelineReportData(
     IReadOnlyList<SalesTimelinePoint> Points,

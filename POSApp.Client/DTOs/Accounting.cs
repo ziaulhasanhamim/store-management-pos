@@ -47,6 +47,10 @@ public sealed record ClosingTotals(DateOnly Start, DateOnly End, decimal Opening
     public string? SelectedLocationName { get; init; }
     public IReadOnlyList<StockLocationOption> AvailableLocations { get; init; } = [];
     public IReadOnlyList<LocationFinanceSummary> LocationBreakdown { get; init; } = [];
+    public decimal ServicingTotal { get; init; }
+    public decimal ServicingPartsCost { get; init; }
+    public decimal ServicingTechCut { get; init; }
+    public decimal ServicingProfit { get; init; }
     public decimal OwnerContributions { get; init; }
     public decimal OwnerWithdrawals { get; init; }
     public decimal StockVariance { get; init; }

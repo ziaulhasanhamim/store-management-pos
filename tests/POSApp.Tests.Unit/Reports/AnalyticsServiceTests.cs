@@ -156,4 +156,14 @@ public class AnalyticsServiceTests
         await timeline.Points[1].GrossProfit.Should().BeEqualTo(8000m);
         await timeline.Points[1].OrdersCount.Should().BeEqualTo(18);
     }
+
+    [Test]
+    public async Task SalesTimelinePoint_MarginPercentage_ComputesAccurately()
+    {
+        var point = new SalesTimelinePoint(new DateOnly(2026, 11, 1), 10000m, 2500m, 10);
+        await point.MarginPercentage.Should().BeEqualTo(25.0m);
+
+        var zeroPoint = new SalesTimelinePoint(new DateOnly(2026, 11, 2), 0m, 0m, 0);
+        await zeroPoint.MarginPercentage.Should().BeEqualTo(0m);
+    }
 }

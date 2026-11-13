@@ -83,12 +83,20 @@ public class ClosingService(IServiceScopeFactory scopes, IConfiguration configur
             var selectedLocationName = availableLocations.FirstOrDefault(l => l.Id == locationId)?.Name;
 
             var normalized = Normalize(date, kind);
-            var opening = await db.CashDrawers.Where(d => locationId == null || d.StockLocationId == locationId.Value)
-                .Select(d => (decimal?)d.OpeningBalance).SumAsync(ct) ?? 0m;
-
-            var totals = await BuildAsync(db, normalized, kind, opening, null, ct, locationId);
             var from = Utc(normalized);
             var through = Utc(End(normalized, kind).AddDays(1));
+
+            var drawers = await db.CashDrawers.AsNoTracking()
+                .Where(d => locationId == null || d.StockLocationId == locationId.Value)
+                .ToListAsync(ct);
+
+            decimal opening = 0m;
+            foreach (var drawer in drawers)
+            {
+                opening += await CashDrawerService.CalculateLiveBalanceAsync(db, drawer, from, ct, configuration);
+            }
+
+            var totals = await BuildAsync(db, normalized, kind, opening, null, ct, locationId);
 
             var dayBreakdown = (kind == ClosingKind.Day && locationId == null)
                 ? await MonthlyFinanceBuilder.BuildLocationBreakdownAsync(db, from, through, ct, normalized, normalized)
@@ -196,13 +204,25 @@ public class ClosingService(IServiceScopeFactory scopes, IConfiguration configur
 
         var variance = sessionVariance + countVariance;
 
+        var drawers = await db.CashDrawers.AsNoTracking()
+            .Where(d => locationId == null || d.StockLocationId == locationId.Value)
+            .ToListAsync(ct);
+
+        decimal closingCash = 0m;
+        var now = DateTimeOffset.UtcNow;
+        var effectiveEnd = through > now ? null : (DateTimeOffset?)through;
+        foreach (var drawer in drawers)
+        {
+            closingCash += await CashDrawerService.CalculateLiveBalanceAsync(db, drawer, effectiveEnd, ct, configuration);
+        }
+
         var cashIn = cash.Where(move => move.Amount > 0).Sum(move => move.Amount);
         var cashOut = -cash.Where(move => move.Amount < 0).Sum(move => move.Amount);
         var bankIn = bank.Where(move => move.Amount > 0).Sum(move => move.Amount);
         var bankOut = -bank.Where(move => move.Amount < 0).Sum(move => move.Amount);
 
         var totals = new ClosingTotals(start, end, openingCash, bankOpening, cashIn, cashOut, bankIn, bankOut,
-            openingCash + cashIn - cashOut, bankOpening + bankIn - bankOut, revenue, cogs, expenses, salaries,
+            closingCash, bankOpening + bankIn - bankOut, revenue, cogs, expenses, salaries,
             supplierPaid,
             -(cash.Where(move => move.Kind == CashMovementKind.Payroll).Sum(move => move.Amount)
                 + bank.Where(move => move.Kind == CashMovementKind.Payroll).Sum(move => move.Amount)),

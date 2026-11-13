@@ -289,7 +289,7 @@ internal static class MonthlyFinanceBuilder
                 .FirstOrDefaultAsync(ct);
         }
 
-        var closingCash = await CashAtAsync(db, totals.End.AddDays(1), ct);
+        var closingCash = await CashAtAsync(db, totals.End.AddDays(1), ct, configuration);
         return new(days, categories, employees,
             new(openingStock, openingCash, openingBank, openingSupplierDue, openingCustomerDue)
             {
@@ -389,18 +389,16 @@ internal static class MonthlyFinanceBuilder
         };
     }
 
-    private static async Task<decimal> CashAtAsync(AppDbContext db, DateOnly before, CancellationToken ct)
+    private static async Task<decimal> CashAtAsync(AppDbContext db, DateOnly before, CancellationToken ct, IConfiguration? configuration = null)
     {
-        var drawers = await db.CashDrawers.Where(drawer => drawer.OpeningDate < before)
-            .Select(drawer => new { drawer.Id, drawer.OpeningBalance }).ToArrayAsync(ct);
+        var drawers = await db.CashDrawers.AsNoTracking().ToListAsync(ct);
+        var beforeUtc = AccountingCalendar.At(before, TimeOnly.MinValue, configuration);
+        var now = DateTimeOffset.UtcNow;
+        var effective = beforeUtc > now ? null : (DateTimeOffset?)beforeUtc;
         decimal total = 0m;
-        var beforeUtc = AccountingCalendar.At(before, TimeOnly.MinValue, null);
         foreach (var drawer in drawers)
         {
-            var moves = await db.CashMovements.AsNoTracking()
-                .Where(m => (m.CashDrawerId == drawer.Id || (m.CashSession != null && m.CashSession.CashDrawerId == drawer.Id)) && m.OccurredAt < beforeUtc)
-                .SumAsync(m => (decimal?)m.Amount, ct) ?? 0m;
-            total += drawer.OpeningBalance + moves;
+            total += await CashDrawerService.CalculateLiveBalanceAsync(db, drawer, effective, ct, configuration);
         }
         return total;
     }

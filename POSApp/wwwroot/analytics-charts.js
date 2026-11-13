@@ -169,7 +169,7 @@ export const engine = {
                         callbacks: {
                             label: function (context) {
                                 const val = Number(context.raw) || 0;
-                                const suffix = currency ? ` ${currency}` : '';
+                                const suffix = currency === '%' ? '%' : (currency ? ` ${currency}` : '');
                                 return ` ${context.dataset.label}: ${formatNumber(val)}${suffix}`;
                             }
                         }
@@ -185,7 +185,7 @@ export const engine = {
                             font: { size: 10 },
                             color: '#64748b',
                             callback: function (val) {
-                                return isHorizontal ? formatNumber(val) : this.getLabelForValue(val);
+                                return isHorizontal ? (formatNumber(val) + (currency === '%' ? '%' : '')) : this.getLabelForValue(val);
                             }
                         }
                     },
@@ -198,7 +198,7 @@ export const engine = {
                             font: { size: 10 },
                             color: '#64748b',
                             callback: function (val) {
-                                return !isHorizontal ? formatNumber(val) : this.getLabelForValue(val);
+                                return !isHorizontal ? (formatNumber(val) + (currency === '%' ? '%' : '')) : this.getLabelForValue(val);
                             }
                         }
                     }
@@ -272,7 +272,7 @@ export const engine = {
                         callbacks: {
                             label: function (context) {
                                 const val = Number(context.raw) || 0;
-                                const suffix = currency ? ` ${currency}` : '';
+                                const suffix = currency === '%' ? '%' : (currency ? ` ${currency}` : '');
                                 return ` ${context.dataset.label}: ${formatNumber(val)}${suffix}`;
                             }
                         }
@@ -289,7 +289,7 @@ export const engine = {
                             font: { size: 10 },
                             color: '#64748b',
                             callback: function (val) {
-                                return formatNumber(val);
+                                return formatNumber(val) + (currency === '%' ? '%' : '');
                             }
                         }
                     }

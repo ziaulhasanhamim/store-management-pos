@@ -552,7 +552,7 @@
             <div class="flex items-center justify-between mb-4">
                 <div>
                     <h4 class="font-bold text-slate-900">Profit & Cost Structure</h4>
-                    <p class="text-xs text-slate-500">Revenue, COGS, operating spend and net result</p>
+                    <p class="text-xs text-slate-500">Revenue, COGS, sales profit, servicing profit, operating spend and net result</p>
                 </div>
                 <span class="rounded-full bg-indigo-50 px-2.5 py-0.5 text-[11px] font-semibold text-indigo-700 border border-indigo-200/60">Structure</span>
             </div>
@@ -624,11 +624,15 @@
         Math.Max(0, Data.StockValue)
     ];
 
+    private decimal SalesProfit => Math.Max(0, Data.Revenue - Data.Cogs);
+
     private object[] BarDatasets =>
     [
         new { label = "Net Sales", data = new[] { Math.Max(0, Data.Revenue) }, color = "#4f46e5" },
         new { label = "Cost of Goods", data = new[] { Math.Max(0, Data.Cogs) }, color = "#f59e0b" },
+        new { label = "Sales Profit", data = new[] { SalesProfit }, color = "#10b981" },
+        new { label = "Servicing Profit", data = new[] { Math.Max(0, Data.ServicingProfit) }, color = "#8b5cf6" },
         new { label = "Operating Spend", data = new[] { Math.Max(0, Data.Expenses + Data.Salaries) }, color = "#ef4444" },
-        new { label = "Net Profit", data = new[] { DayNetProfit }, color = DayNetProfit >= 0 ? "#10b981" : "#e11d48" }
+        new { label = "Net Profit", data = new[] { DayNetProfit }, color = DayNetProfit >= 0 ? "#059669" : "#e11d48" }
     ];
 }
