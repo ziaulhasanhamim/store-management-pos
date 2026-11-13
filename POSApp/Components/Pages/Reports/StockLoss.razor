@@ -30,7 +30,7 @@
 <p class="mb-6 text-sm text-slate-500">Track all inventory lost to damage, expired products, promotional gift samples, internal store use, and stock-take shortages over any time period.</p>
 
 <ReportFilters Path="/reports/stock-loss" Range="Data?.Range" Locations="@(Data?.Locations ?? [])"
-               Period="@Period" EffectiveStart="@EffectiveStart" EffectiveEnd="@EffectiveEnd"
+               Period="@Period" Start="@Start" End="@End"
                LocationId="@LocationId" Search="@Search" PageSize="@PageSize" ShowLocation="true" />
 
 @if (Loading)
@@ -62,8 +62,8 @@ else if (Data is not null)
         </div>
         <div class="metric">
             <p>Top Loss Category</p>
-            <strong class="text-xl! text-slate-800">@(Data.Reasons.FirstOrDefault()?.Reason ?? "None")</strong>
-            <span class="metric-note">@(Data.Reasons.FirstOrDefault() is not null ? Money(Data.Reasons.First().Amount) : "৳0.00")</span>
+            <strong class="text-xl! text-slate-800">@(Data.Reasons.Count > 0 ? Data.Reasons[0].Reason : "None")</strong>
+            <span class="metric-note">@(Data.Reasons.Count > 0 ? Money(Data.Reasons[0].Amount) : "৳0.00")</span>
         </div>
     </div>
 
@@ -191,9 +191,6 @@ else if (Data is not null)
     private StockLossReportPage? Data;
     private bool Loading = true;
     private string? Error;
-
-    private DateOnly? EffectiveStart => Period == "custom" ? Start : null;
-    private DateOnly? EffectiveEnd => Period == "custom" ? End : null;
 
     protected override async Task OnParametersSetAsync()
     {

@@ -47,4 +47,30 @@ public class ReportEndpointsTests : PosIntegrationTestBase
         await csv.Contains("Reason").Should().BeEqualTo(true);
         await csv.Contains("Total Financial Loss").Should().BeEqualTo(true);
     }
+
+    [Test]
+    public async Task GetStockLossPage_WhenAdmin_ReturnsOk()
+    {
+        var response = await AdminClient.GetAsync("/reports/stock-loss");
+        var content = await response.Content.ReadAsStringAsync();
+        if (response.StatusCode != HttpStatusCode.OK)
+        {
+            throw new InvalidOperationException($"Status: {response.StatusCode}\nContent: {content}");
+        }
+
+        await content.Contains("Stock Loss & Waste Report").Should().BeEqualTo(true);
+    }
+
+    [Test]
+    public async Task GetStockLossPage_WasteRoute_WhenInventoryManager_ReturnsOk()
+    {
+        var response = await InventoryClient.GetAsync("/reports/waste");
+        var content = await response.Content.ReadAsStringAsync();
+        if (response.StatusCode != HttpStatusCode.OK)
+        {
+            throw new InvalidOperationException($"Status: {response.StatusCode}\nContent: {content}");
+        }
+
+        await content.Contains("Stock Loss & Waste Report").Should().BeEqualTo(true);
+    }
 }
