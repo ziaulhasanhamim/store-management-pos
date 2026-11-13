@@ -138,4 +138,6 @@ public record SalesTimelinePoint(
     int OrdersCount);
 
 public record SalesTimelineReportData(
-    IReadOnlyList<SalesTimelinePoint> Points);
+    IReadOnlyList<SalesTimelinePoint> Points,
+    int ClosedDaysExcludedCount = 0,
+    IReadOnlyList<DateOnly>? ClosedDays = null);

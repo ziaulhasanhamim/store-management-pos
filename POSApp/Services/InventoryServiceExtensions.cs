@@ -28,6 +28,7 @@ public static class InventoryServiceExtensions
         services.AddScoped<EmployeeService>();
         services.AddScoped<ClosingService>();
         services.AddScoped<FinancialSummaryService>();
+        services.AddScoped<TradingCalendarService>();
         services.AddScoped<ClosureService>();
         services.AddScoped<DateCorrectionService>();
         services.AddScoped<BankService>();

@@ -95,6 +95,13 @@
                 <span>Margin:</span>
                 <span class="font-semibold text-slate-900 tabular-nums">@(Data.Revenue > 0 ? $"{(Data.Revenue - Data.Cogs) / Data.Revenue * 100:0.#}%" : "0%")</span>
             </div>
+            @if (Kind == ClosingKind.Month && (Data.Monthly?.Days.Count ?? 0) > 0)
+            {
+                <div class="flex justify-between items-center text-slate-600 border-t border-slate-50 pt-1">
+                    <span>Daily avg (@(Data.Monthly?.Days.Count) trading @(Data.Monthly?.Days.Count == 1 ? "day" : "days")):</span>
+                    <span class="font-semibold text-slate-900 tabular-nums">@Money(Data.Revenue / Math.Max(1, Data.Monthly!.Days.Count))</span>
+                </div>
+            }
         </div>
     </div>
 

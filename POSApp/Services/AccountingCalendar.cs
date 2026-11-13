@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Microsoft.EntityFrameworkCore;
 using POSApp.Client.Services;
 using POSApp.Persistence;
 
@@ -37,9 +38,13 @@ public static class AccountingCalendar
         return Task.FromResult(Today(configuration));
     }
 
-    public static Task EnsureOpenAsync(AppDbContext db, DateOnly date, CancellationToken ct, bool requireDayOpened = true)
+    public static async Task EnsureOpenAsync(AppDbContext db, DateOnly date, CancellationToken ct, bool requireDayOpened = true, int? locationId = null)
     {
-        // Continuous timeline: no day/month locking.
-        return Task.CompletedTask;
+        var isClosed = await db.NonTradingDays.AsNoTracking().AnyAsync(d =>
+            d.Date == date && (d.StockLocationId == null || locationId == null || d.StockLocationId == locationId.Value), ct);
+        if (isClosed)
+        {
+            throw new ValidationException($"{date:dd MMM yyyy} is marked as a closed (non-trading) day. Reopen it in Administration > Trading Calendar before recording transactions.");
+        }
     }
 }

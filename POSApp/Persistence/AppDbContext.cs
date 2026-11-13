@@ -62,6 +62,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<CustomerBalanceEntry> CustomerBalanceEntries { get; set; } = null!;
     public DbSet<SupplierBalanceEntry> SupplierBalanceEntries { get; set; } = null!;
     public DbSet<RolePermission> RolePermissions { get; set; } = null!;
+    public DbSet<NonTradingDay> NonTradingDays { get; set; } = null!;
 
     protected override void ConfigureConventions(ModelConfigurationBuilder builder)
     {

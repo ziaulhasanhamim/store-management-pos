@@ -1592,6 +1592,42 @@ namespace POSApp.Persistence.Migrations
                     b.ToTable("MonthlySalaries");
                 });
 
+            modelBuilder.Entity("POSApp.Persistence.Entities.NonTradingDay", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date");
+
+                    b.Property<int>("MarkedById")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<int?>("StockLocationId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MarkedById");
+
+                    b.HasIndex("StockLocationId");
+
+                    b.HasIndex("Date", "StockLocationId")
+                        .IsUnique();
+
+                    b.ToTable("NonTradingDays");
+                });
+
             modelBuilder.Entity("POSApp.Persistence.Entities.Payment", b =>
                 {
                     b.Property<int>("Id")
@@ -3804,6 +3840,24 @@ namespace POSApp.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("Employee");
+                });
+
+            modelBuilder.Entity("POSApp.Persistence.Entities.NonTradingDay", b =>
+                {
+                    b.HasOne("POSApp.Persistence.Entities.User", "MarkedBy")
+                        .WithMany()
+                        .HasForeignKey("MarkedById")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("POSApp.Persistence.Entities.StockLocation", "StockLocation")
+                        .WithMany()
+                        .HasForeignKey("StockLocationId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("MarkedBy");
+
+                    b.Navigation("StockLocation");
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.Payment", b =>

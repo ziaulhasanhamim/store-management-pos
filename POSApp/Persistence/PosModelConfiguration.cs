@@ -217,6 +217,20 @@ internal static class PosModelConfiguration
         }
         builder.Entity<Sale>().Property(sale => sale.Revision).IsConcurrencyToken();
 
+        builder.Entity<NonTradingDay>(entity =>
+        {
+            entity.HasIndex(d => new { d.Date, d.StockLocationId }).IsUnique();
+            entity.Property(d => d.Reason).HasMaxLength(500);
+            entity.HasOne(d => d.StockLocation)
+                .WithMany()
+                .HasForeignKey(d => d.StockLocationId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(d => d.MarkedBy)
+                .WithMany()
+                .HasForeignKey(d => d.MarkedById)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
         // EF discovers relationships from navigation properties and matching <Navigation>Id fields.
         // Keep those conventions, changing only deletion behavior to protect financial history.
         foreach (var entity in builder.Model.GetEntityTypes().Where(x => typeof(Entity).IsAssignableFrom(x.ClrType)))

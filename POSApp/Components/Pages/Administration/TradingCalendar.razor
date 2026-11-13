@@ -1,0 +1,241 @@
+@page "/administration/calendar"
+@attribute [Authorize(Policy = AppPolicies.ManageUsers)]
+@attribute [StreamRendering]
+@using System.ComponentModel.DataAnnotations
+@using POSApp.Client.DTOs
+@using POSApp.Services
+@inject TradingCalendarService CalendarService
+@inject NavigationManager Navigation
+@inject IConfiguration Configuration
+
+<PageTitle>Trading Calendar · @(Configuration["StoreName"] ?? "JAS International")</PageTitle>
+
+<div class="page-heading">
+    <div>
+        <p class="eyebrow">Business Operations</p>
+        <h1>Trading Calendar &amp; Closed Days</h1>
+        <p class="text-xs text-slate-500 mt-1">Mark holidays, non-trading days, and store closures to eliminate dips in trend charts and normalize daily averages.</p>
+    </div>
+    <div class="flex gap-2">
+        <a href="/administration" class="btn-secondary">Administration</a>
+        <a href="/reports/sales?period=month" class="btn-secondary">Sales Trends</a>
+    </div>
+</div>
+
+@if (SuccessMessage is not null)
+{
+    <p class="success-panel mb-6" role="status">@SuccessMessage</p>
+}
+
+@if (ErrorMessage is not null)
+{
+    <p class="error-panel mb-6" role="alert">@ErrorMessage</p>
+}
+
+<div class="grid gap-6 lg:grid-cols-3">
+    <!-- Form: Mark Non-Trading Day -->
+    <section class="panel p-5 lg:col-span-1 h-fit">
+        <h2 class="text-sm font-semibold text-slate-900 mb-1">Mark a Non-Trading Day</h2>
+        <p class="text-xs text-slate-500 mb-4">Dates marked as closed are excluded from sales &amp; profit trend lines and performance averages.</p>
+
+        <form method="post" action="/administration/calendar" @formname="mark-closure" data-enhance class="space-y-4">
+            <AntiforgeryToken />
+            <div>
+                <label class="field-label" for="closure-date">Date</label>
+                <input id="closure-date" type="date" name="FormInput.Date" class="field" value="@(EffectiveFormInput.Date.ToString("yyyy-MM-dd"))" required />
+            </div>
+
+            <div>
+                <label class="field-label" for="closure-location">Location Scope</label>
+                <select id="closure-location" name="FormInput.StockLocationId" class="field">
+                    <option value="">All Locations (Store-wide)</option>
+                    @foreach (var loc in Locations)
+                    {
+                        <option value="@loc.Id" selected="@(EffectiveFormInput.StockLocationId == loc.Id)">@loc.Name</option>
+                    }
+                </select>
+                <span class="field-hint">Choose a specific location or leave store-wide.</span>
+            </div>
+
+            <div>
+                <label class="field-label" for="closure-reason">Reason / Holiday Label</label>
+                <input id="closure-reason" type="text" name="FormInput.Reason" class="field" value="@EffectiveFormInput.Reason" placeholder="e.g. Weekly Holiday, Eid, Maintenance" maxlength="200" />
+            </div>
+
+            <button type="submit" class="btn-primary w-full justify-center">
+                <Icon Name="calendar" />
+                Mark Day as Closed
+            </button>
+        </form>
+    </section>
+
+    <!-- Table: Existing Closures -->
+    <section class="panel p-5 lg:col-span-2">
+        <div class="flex items-center justify-between mb-4">
+            <div>
+                <h2 class="text-sm font-semibold text-slate-900">Marked Non-Trading Days (@SelectedYear)</h2>
+                <p class="text-xs text-slate-500">Historical and upcoming scheduled closures</p>
+            </div>
+            <form method="get" class="flex items-center gap-2">
+                <select name="year" class="field text-xs py-1" onchange="this.form.submit()">
+                    @for (var y = Today.Year + 1; y >= Today.Year - 3; y--)
+                    {
+                        <option value="@y" selected="@(SelectedYear == y)">@y</option>
+                    }
+                </select>
+            </form>
+        </div>
+
+        <div class="table-scroll">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Scope</th>
+                        <th>Reason</th>
+                        <th>Marked By</th>
+                        <th class="text-right">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Closures.Count == 0)
+                    {
+                        <TableStatusRow Columns="5" Message="No non-trading days marked for this year." />
+                    }
+                    @foreach (var item in Closures)
+                    {
+                        <tr>
+                            <td class="font-medium whitespace-nowrap">
+                                <span class="font-mono">@item.Date.ToString("dd MMM yyyy")</span>
+                                <span class="block text-[11px] text-slate-400">@item.Date.DayOfWeek</span>
+                            </td>
+                            <td>
+                                @if (item.StockLocationId.HasValue)
+                                {
+                                    <span class="inline-flex items-center rounded px-2 py-0.5 text-xs font-semibold bg-amber-100 text-amber-800">
+                                        @item.LocationName
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span class="inline-flex items-center rounded px-2 py-0.5 text-xs font-semibold bg-indigo-50 text-indigo-700">
+                                        Store-wide
+                                    </span>
+                                }
+                            </td>
+                            <td class="text-sm">@(item.Reason ?? "Store Closed")</td>
+                            <td class="text-xs text-slate-500">@item.MarkedByName</td>
+                            <td class="text-right">
+                                <form method="post" action="/administration/calendar" @formname="@($"delete-closure-{item.Id}")" data-enhance class="inline">
+                                    <AntiforgeryToken />
+                                    <input type="hidden" name="Action" value="delete" />
+                                    <input type="hidden" name="DeleteId" value="@item.Id" />
+                                    <button type="submit" class="btn-danger text-xs py-1 px-2.5" onclick="return confirm('Reopen @item.Date.ToString("dd MMM yyyy")? This will treat it as a regular trading day.')">
+                                        Reopen Day
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </section>
+</div>
+
+@code {
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromQuery]
+    public int? Year { get; set; }
+
+    [SupplyParameterFromQuery]
+    public string? PreselectedDate { get; set; }
+
+    [SupplyParameterFromForm]
+    public MarkNonTradingDayInput? FormInput { get; set; }
+
+    [SupplyParameterFromForm]
+    public string? Action { get; set; }
+
+    [SupplyParameterFromForm]
+    public int? DeleteId { get; set; }
+
+    private MarkNonTradingDayInput EffectiveFormInput => FormInput ??= new() { Date = Today };
+    private DateOnly Today => AccountingCalendar.Today(Configuration);
+    private int SelectedYear => Year ?? Today.Year;
+    private IReadOnlyList<NonTradingDayDto> Closures = [];
+    private IReadOnlyList<StockLocationOption> Locations = [];
+    private string? ErrorMessage;
+    private string? SuccessMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (FormInput is null)
+        {
+            FormInput = new()
+            {
+                Date = DateOnly.TryParse(PreselectedDate, out var preDate) ? preDate : Today
+            };
+        }
+
+        await LoadDataAsync();
+    }
+
+    private async Task LoadDataAsync()
+    {
+        try
+        {
+            var data = await CalendarService.GetTradingCalendarPageDataAsync(HttpContext.User, SelectedYear, HttpContext.RequestAborted);
+            Closures = data.Closures;
+            Locations = data.Locations;
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = ex.Message;
+        }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (HttpMethods.IsPost(HttpContext.Request.Method))
+        {
+            if (Action == "delete" && DeleteId.HasValue)
+            {
+                try
+                {
+                    await CalendarService.RemoveNonTradingDayAsync(HttpContext.User, DeleteId.Value, HttpContext.RequestAborted);
+                    SuccessMessage = "Closed day reopened successfully.";
+                    await LoadDataAsync();
+                }
+                catch (ValidationException ex)
+                {
+                    ErrorMessage = ex.Message;
+                }
+                catch (Exception ex)
+                {
+                    ErrorMessage = "Failed to remove closure: " + ex.Message;
+                }
+            }
+            else if (EffectiveFormInput.Date != default)
+            {
+                try
+                {
+                    var created = await CalendarService.MarkNonTradingDayAsync(HttpContext.User, EffectiveFormInput, HttpContext.RequestAborted);
+                    SuccessMessage = $"{created.Date:dd MMM yyyy} marked as a non-trading day.";
+                    FormInput = new MarkNonTradingDayInput { Date = Today };
+                    await LoadDataAsync();
+                }
+                catch (ValidationException ex)
+                {
+                    ErrorMessage = ex.Message;
+                }
+                catch (Exception ex)
+                {
+                    ErrorMessage = "Failed to mark non-trading day: " + ex.Message;
+                }
+            }
+        }
+    }
+}

@@ -482,11 +482,21 @@ public sealed class AnalyticsService(IServiceScopeFactory scopes, IConfiguration
                 Orders = g.Count()
             });
 
+        var closedDates = await db.NonTradingDays.AsNoTracking()
+            .Where(d => d.Date >= startDate && d.Date <= endDate
+                && (locationId == null || d.StockLocationId == null || d.StockLocationId == locationId.Value))
+            .OrderBy(d => d.Date)
+            .Select(d => d.Date)
+            .ToListAsync(ct);
+
+        var closedDatesSet = closedDates.ToHashSet();
+
         var totalDays = Math.Max(1, endDate.DayNumber - startDate.DayNumber + 1);
         var points = Enumerable.Range(0, totalDays)
-            .Select(offset =>
+            .Select(offset => startDate.AddDays(offset))
+            .Where(d => !closedDatesSet.Contains(d))
+            .Select(d =>
             {
-                var d = startDate.AddDays(offset);
                 var data = pointsByDate.GetValueOrDefault(d);
                 return new SalesTimelinePoint(
                     d,
@@ -497,6 +507,6 @@ public sealed class AnalyticsService(IServiceScopeFactory scopes, IConfiguration
             })
             .ToList();
 
-        return new SalesTimelineReportData(points);
+        return new SalesTimelineReportData(points, closedDates.Count, closedDates);
     }
 }
