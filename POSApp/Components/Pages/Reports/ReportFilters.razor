@@ -68,7 +68,7 @@
                 <label class="field-label" for="report-location">Location</label>
                 <select id="report-location" name="locationId" class="field">
                     <option value="">All locations</option>
-                    @foreach (var location in Locations)
+                    @foreach (var location in Locations ?? [])
                     {
                         <option value="@location.Id" selected="@(LocationId == location.Id)">@location.Name</option>
                     }

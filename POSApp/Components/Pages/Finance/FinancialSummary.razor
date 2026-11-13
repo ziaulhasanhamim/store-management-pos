@@ -15,21 +15,21 @@
         <p class="text-xs text-slate-500 mt-1">Real-time continuous financial calculation based on current transactions</p>
     </div>
     <div class="flex flex-wrap gap-2">
-        <a class="btn-primary" href="@($"/api/finance/closing.xlsx?date={Selected:yyyy-MM-dd}&period={Period}{(LocationId.HasValue ? $"&locationId={LocationId.Value}" : "")}")" data-enhance-nav="false">Export Excel (.xlsx)</a>
+        <a class="btn-primary" href="@($"/api/finance/summary.xlsx?date={Selected:yyyy-MM-dd}&period={Period}{(LocationId.HasValue ? $"&locationId={LocationId.Value}" : "")}")" data-enhance-nav="false">Export Excel (.xlsx)</a>
         <button type="button" class="btn-secondary" data-print>Print / PDF</button>
     </div>
 </div>
 
 <form method="get" action="@(Kind == ClosingKind.Month ? "/finance/month" : "/finance/day")" class="no-print mb-6 flex flex-wrap items-end gap-4" data-enhance data-submit-indication="true">
     <div>
-        <label class="field-label" for="closing-date">@(Kind == ClosingKind.Month ? "Month" : "Day")</label>
+        <label class="field-label" for="summary-date">@(Kind == ClosingKind.Month ? "Month" : "Day")</label>
         @if (Kind == ClosingKind.Month)
         {
-            <input id="closing-date" type="month" name="month" class="field" value="@Selected.ToString("yyyy-MM")" required />
+            <input id="summary-date" type="month" name="month" class="field" value="@Selected.ToString("yyyy-MM")" required />
         }
         else
         {
-            <input id="closing-date" type="date" name="date" class="field" value="@Selected.ToString("yyyy-MM-dd")" required />
+            <input id="summary-date" type="date" name="date" class="field" value="@Selected.ToString("yyyy-MM-dd")" required />
         }
     </div>
     <div>
@@ -54,13 +54,13 @@
 
 @if (!Initialized)
 {
-    <LoadingPanel Message="Loading accounting timeline…" />
+    <LoadingPanel Message="Loading financial calculation…" />
 }
 else
 {
     <FinanceLoad TData="ClosingTotals" Load="LoadAsync" Message="Calculating dynamic summary…">
         <ChildContent Context="loaded">
-            <ClosingView Data="loaded" Kind="Kind" />
+            <FinancialSummaryView Data="loaded" Kind="Kind" />
         </ChildContent>
     </FinanceLoad>
 }

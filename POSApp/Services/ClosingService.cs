@@ -9,7 +9,7 @@ using POSApp.Persistence.Entities;
 
 namespace POSApp.Services;
 
-public sealed class ClosingService(IServiceScopeFactory scopes, IConfiguration configuration)
+public class ClosingService(IServiceScopeFactory scopes, IConfiguration configuration)
 {
     public Task<DateOnly> SelectedAsync(ClaimsPrincipal actor, CancellationToken ct = default) =>
         Task.FromResult(AccountingCalendar.Today(configuration));
@@ -273,3 +273,6 @@ public sealed class ClosingService(IServiceScopeFactory scopes, IConfiguration c
     private static DateOnly Normalize(DateOnly date, ClosingKind kind) => kind == ClosingKind.Month ? new(date.Year, date.Month, 1) : date;
     private static DateOnly End(DateOnly date, ClosingKind kind) => kind == ClosingKind.Month ? date.AddMonths(1).AddDays(-1) : date;
 }
+
+public sealed class FinancialSummaryService(IServiceScopeFactory scopes, IConfiguration configuration)
+    : ClosingService(scopes, configuration);

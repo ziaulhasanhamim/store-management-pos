@@ -9,6 +9,7 @@ public static class FinanceEndpoints
     public static RouteGroupBuilder MapFinanceEndpoints(this RouteGroupBuilder group)
     {
         group.AddEndpointFilter<StoreRequestFilter>();
+        group.MapGet("/summary.xlsx", ExportClosingExcelAsync).RequireAuthorization(AppPolicies.ManageUsers);
         group.MapGet("/closing.xlsx", ExportClosingExcelAsync).RequireAuthorization(AppPolicies.ManageUsers);
         group.MapGet("/cash-drawer/expected-at", GetHistoricalExpectedCashAsync).RequireAuthorization(AppPolicies.ManageDrawer);
         return group;

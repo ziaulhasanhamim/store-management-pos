@@ -29,7 +29,7 @@
 
 <p class="mb-6 text-sm text-slate-500">Track all inventory lost to damage, expired products, promotional gift samples, internal store use, and stock-take shortages over any time period.</p>
 
-<ReportFilters Path="/reports/stock-loss" Range="Data?.Range" Locations="Data?.Locations"
+<ReportFilters Path="/reports/stock-loss" Range="Data?.Range" Locations="@(Data?.Locations ?? [])"
                Period="@Period" EffectiveStart="@EffectiveStart" EffectiveEnd="@EffectiveEnd"
                LocationId="@LocationId" Search="@Search" PageSize="@PageSize" ShowLocation="true" />
 

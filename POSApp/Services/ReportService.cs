@@ -186,7 +186,7 @@ public sealed partial class ReportService(IServiceScopeFactory scopes, IConfigur
             var range = ResolveRange(period, start, end, AccountingCalendar.Zone(configuration), DateTimeOffset.UtcNow);
             await using var scope = scopes.CreateAsyncScope();
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            await StoreAccess.RequireAsync(db, actor, AppRoles.InventoryManager, ct);
+            await StoreAccess.RequireAsync(db, actor, AppPolicies.ManageInventory, ct);
             var locations = await LocationsAsync(db, locationId, ct);
 
             var term = (search ?? "").Trim().ToLowerInvariant();
@@ -200,8 +200,7 @@ public sealed partial class ReportService(IServiceScopeFactory scopes, IConfigur
             if (!string.IsNullOrWhiteSpace(term))
             {
                 movementsQuery = movementsQuery.Where(m =>
-                    m.Product!.Name.ToLower().Contains(term)
-                    || (m.Product.Barcode != null && m.Product.Barcode.Contains(term))
+                    (m.Product != null && (m.Product.Name.ToLower().Contains(term) || (m.Product.Barcode != null && m.Product.Barcode.Contains(term))))
                     || (m.Notes != null && m.Notes.ToLower().Contains(term)));
             }
 
@@ -213,11 +212,11 @@ public sealed partial class ReportService(IServiceScopeFactory scopes, IConfigur
                 .Select(m => new
                 {
                     m.OccurredAt,
-                    LocationName = m.StockLocation!.Name,
+                    LocationName = m.StockLocation != null ? m.StockLocation.Name : "—",
                     m.ProductId,
-                    ProductName = m.Product!.Name,
-                    m.Product.Barcode,
-                    m.Product.Unit,
+                    ProductName = m.Product != null ? m.Product.Name : "Unknown Item",
+                    Barcode = m.Product != null ? m.Product.Barcode : null,
+                    Unit = m.Product != null ? m.Product.Unit : "pcs",
                     m.Quantity,
                     m.UnitCost,
                     m.Notes,
