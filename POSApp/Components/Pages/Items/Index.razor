@@ -126,7 +126,7 @@
         }
         else
         {
-            <QuickGrid Items="@ItemsQuery" Pagination="@pagination" class="data-table" aria-busy="@(Items is null && !Failed)">
+            <QuickGrid Items="@ItemsQuery" class="data-table" aria-busy="@(Items is null && !Failed)">
                 @if (canManageInventory)
                 {
                     <TemplateColumn Class="w-10 pl-5 pr-2 text-center">
@@ -174,10 +174,12 @@
                                     <div class="col-filter-card">
                                         <div class="font-semibold text-slate-800 text-xs mb-2">Filter Category</div>
                                         <label class="text-[11px] text-slate-500 block mb-1">Category name contains</label>
-                                        <input type="text" data-col-filter="category" value="@Category" placeholder="e.g. Watch, Screen..." class="field text-xs py-1.5 mb-2 w-full" />
+                                        <input type="text" data-col-filter="category" value="@Category" placeholder="e.g. Watch, Screen..." class="field text-xs py-1.5 mb-2 w-full"
+                                               oninput="this.nextElementSibling.querySelector('a.col-filter-apply').href = window.buildFilterUrl('category', this.value);"
+                                               onkeydown="if(event.key==='Enter'){event.preventDefault();this.nextElementSibling.querySelector('a.col-filter-apply').click();}" />
                                         <div class="flex items-center justify-between gap-2 mt-2">
                                             <a href="@FilterUrl("category", null)" data-enhance class="text-xs text-slate-500 hover:text-slate-800">Clear</a>
-                                            <button type="button" class="btn-primary text-xs py-1 px-3 col-filter-apply">Apply</button>
+                                            <a href="@FilterUrl("category", Category)" data-enhance class="btn-primary text-xs py-1 px-3 col-filter-apply">Apply</a>
                                         </div>
                                     </div>
                                 </details>
@@ -212,10 +214,12 @@
                                     <div class="col-filter-card">
                                         <div class="font-semibold text-slate-800 text-xs mb-2">Filter Supplier</div>
                                         <label class="text-[11px] text-slate-500 block mb-1">Supplier name contains</label>
-                                        <input type="text" data-col-filter="supplier" value="@Supplier" placeholder="e.g. Gadget, ST Mart..." class="field text-xs py-1.5 mb-2 w-full" />
+                                        <input type="text" data-col-filter="supplier" value="@Supplier" placeholder="e.g. Gadget, ST Mart..." class="field text-xs py-1.5 mb-2 w-full"
+                                               oninput="this.nextElementSibling.querySelector('a.col-filter-apply').href = window.buildFilterUrl('supplier', this.value);"
+                                               onkeydown="if(event.key==='Enter'){event.preventDefault();this.nextElementSibling.querySelector('a.col-filter-apply').click();}" />
                                         <div class="flex items-center justify-between gap-2 mt-2">
                                             <a href="@FilterUrl("supplier", null)" data-enhance class="text-xs text-slate-500 hover:text-slate-800">Clear</a>
-                                            <button type="button" class="btn-primary text-xs py-1 px-3 col-filter-apply">Apply</button>
+                                            <a href="@FilterUrl("supplier", Supplier)" data-enhance class="btn-primary text-xs py-1 px-3 col-filter-apply">Apply</a>
                                         </div>
                                     </div>
                                 </details>
@@ -240,10 +244,12 @@
                                     <div class="col-filter-card text-left">
                                         <div class="font-semibold text-slate-800 text-xs mb-2">Filter Stock</div>
                                         <label class="text-[11px] text-slate-500 block mb-1">Minimum stock on hand</label>
-                                        <input type="number" step="any" data-col-filter="minStock" value="@MinStock" placeholder="e.g. 3" class="field text-xs py-1.5 mb-2 w-full" />
+                                        <input type="number" step="any" data-col-filter="minStock" value="@MinStock" placeholder="e.g. 3" class="field text-xs py-1.5 mb-2 w-full"
+                                               oninput="this.nextElementSibling.querySelector('a.col-filter-apply').href = window.buildFilterUrl('minStock', this.value);"
+                                               onkeydown="if(event.key==='Enter'){event.preventDefault();this.nextElementSibling.querySelector('a.col-filter-apply').click();}" />
                                         <div class="flex items-center justify-between gap-2 mt-2">
                                             <a href="@FilterUrl("minStock", null)" data-enhance class="text-xs text-slate-500 hover:text-slate-800">Clear</a>
-                                            <button type="button" class="btn-primary text-xs py-1 px-3 col-filter-apply">Apply</button>
+                                            <a href="@FilterUrl("minStock", MinStock)" data-enhance class="btn-primary text-xs py-1 px-3 col-filter-apply">Apply</a>
                                         </div>
                                     </div>
                                 </details>
@@ -339,9 +345,9 @@
             </form>
         }
 
-    @if (TotalCount > 0)
+    @if (Pagination is not null && TotalCount > 0)
     {
-        <Paginator State="@pagination" />
+        <PageNavigation Info="Pagination" Label="items" />
     }
 </section>
 
@@ -397,15 +403,14 @@
         + (HttpContext.User.IsInRole(AppRoles.Admin) || HttpContext.User.IsInRole(AppRoles.InventoryManager) || HttpContext.User.IsInRole(AppRoles.SalesAssociate) || HttpContext.User.IsInRole(AppRoles.InventoryViewer) ? 3 : 0)
         + AttributeColumns.Count;
 
-    private readonly PaginationState pagination = new() { ItemsPerPage = 30 };
     private int TotalCount;
     private IReadOnlyList<ItemRow>? Items;
     private IQueryable<ItemRow>? ItemsQuery => Items?.AsQueryable();
+    private PageInfo? Pagination;
     private bool Failed;
 
     protected override async Task OnParametersSetAsync()
     {
-        pagination.ItemsPerPage = PageSize > 0 ? PageSize : 30;
         Sort = string.IsNullOrWhiteSpace(Sort) ? "id" : Sort;
         Items = null;
         Failed = false;
@@ -433,20 +438,34 @@
                 LocationId = Locations.FirstOrDefault()?.Id;
             }
 
+            var count = await Inventory.CountAsync(
+                HttpContext.User,
+                Search,
+                HttpContext.RequestAborted,
+                locationId: LocationId,
+                category: Category,
+                supplier: Supplier,
+                minStock: MinStock);
+            TotalCount = count;
+
+            var size = QueryPagination.Size(PageSize);
+            var maxPage = Math.Max(1, (int)Math.Ceiling(count / (double)size));
+            Page = Math.Clamp(Page, 1, maxPage);
+
             var resolvedSort = ResolveSortParam(Sort, Direction);
 
             Items = await Inventory.ListAsync(
                 HttpContext.User,
                 Search,
-                1,
+                Page,
                 HttpContext.RequestAborted,
                 locationId: LocationId,
                 sort: resolvedSort,
-                pageSize: 10000,
+                pageSize: size,
                 category: Category,
                 supplier: Supplier,
                 minStock: MinStock);
-            TotalCount = Items.Count;
+            Pagination = new PageInfo(Page, size, count);
         }
         catch (OperationCanceledException) when (HttpContext.RequestAborted.IsCancellationRequested)
         {

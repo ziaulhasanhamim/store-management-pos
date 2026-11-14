@@ -275,4 +275,34 @@ document.addEventListener('blazor:navigated', () => {
     setTimeout(initTableScrollSync, 60);
 });
 
+// URL helper for column filter anchor tags
+window.buildFilterUrl = function (param, value) {
+    try {
+        const url = new URL(window.location.href);
+        const trimmed = (value === null || value === undefined) ? '' : String(value).trim();
+        if (trimmed) {
+            url.searchParams.set(param, trimmed);
+        } else {
+            url.searchParams.delete(param);
+        }
+        url.searchParams.set('page', '1');
+        return url.pathname + url.search;
+    } catch {
+        return window.location.pathname;
+    }
+};
+
+// Auto-sync filter input to apply anchor on input change
+document.addEventListener('input', event => {
+    const input = event.target;
+    if (input && input.hasAttribute('data-col-filter')) {
+        const param = input.getAttribute('data-col-filter');
+        const card = input.closest('.col-filter-card');
+        const applyLink = card ? card.querySelector('a.col-filter-apply') : null;
+        if (applyLink) {
+            applyLink.href = window.buildFilterUrl(param, input.value);
+        }
+    }
+});
+
 

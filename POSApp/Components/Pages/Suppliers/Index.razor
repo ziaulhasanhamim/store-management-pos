@@ -18,6 +18,9 @@
 </div>
 
 <form method="get" action="/suppliers" class="mb-5 flex max-w-lg gap-3" data-enhance data-auto-search="true">
+    <input type="hidden" name="sort" value="@Sort" />
+    <input type="hidden" name="direction" value="@Direction" />
+    <input type="hidden" name="pageSize" value="@(PageSize <= 0 ? 30 : PageSize)" />
     <input id="suppliers-search" name="search" value="@Search" class="field" placeholder="Search suppliers" aria-label="Search suppliers" data-auto-search="true" autocomplete="off" data-permanent />
     <button class="btn-secondary">Search</button>
 </form>
@@ -53,13 +56,31 @@
         }
         else
         {
-            <QuickGrid Items="@SuppliersQuery" Pagination="@pagination" class="data-table">
+            <QuickGrid Items="@SuppliersQuery" class="data-table">
                 <TemplateColumn Title="ID" SortBy="@sortById" Sortable="true" Align="Align.Center" Class="w-16 pl-5 sm:pl-6 text-center">
-                    <a href="@($"/suppliers/{context.Id}")" class="font-bold text-blue-700 hover:text-blue-800 text-xs">#@context.Id</a>
+                    <HeaderTemplate Context="_">
+                        <div class="flex items-center justify-center w-full">
+                            <a class="col-title inline-flex items-center gap-1 justify-center @GetSortClass("id")" href="@GetSortUrl("id")" title="Sort by ID">
+                                <span>ID</span>
+                                <span class="sort-indicator" aria-hidden="true"></span>
+                            </a>
+                        </div>
+                    </HeaderTemplate>
+                    <ChildContent Context="s">
+                        <a href="@($"/suppliers/{s.Id}")" class="font-bold text-blue-700 hover:text-blue-800 text-xs">#@s.Id</a>
+                    </ChildContent>
                 </TemplateColumn>
 
                 <TemplateColumn Title="Supplier" SortBy="@sortByName" Sortable="true">
-                    <a href="@($"/suppliers/{context.Id}")" class="font-medium text-slate-900 hover:text-blue-600 block text-xs">@context.Name</a>
+                    <HeaderTemplate Context="_">
+                        <a class="col-title @GetSortClass("name")" href="@GetSortUrl("name")" title="Sort by supplier name">
+                            <span>Supplier</span>
+                            <span class="sort-indicator" aria-hidden="true"></span>
+                        </a>
+                    </HeaderTemplate>
+                    <ChildContent Context="s">
+                        <a href="@($"/suppliers/{s.Id}")" class="font-medium text-slate-900 hover:text-blue-600 block text-xs">@s.Name</a>
+                    </ChildContent>
                 </TemplateColumn>
 
                 <TemplateColumn Title="Phone">
@@ -67,15 +88,39 @@
                 </TemplateColumn>
 
                 <TemplateColumn Title="Opening balance" SortBy="@sortByOpening" Sortable="true" Align="Align.Right">
-                    <span class="text-right whitespace-nowrap text-xs text-slate-500 font-medium block">@Money(context.OpeningBalance)</span>
+                    <HeaderTemplate Context="_">
+                        <a class="col-title @GetSortClass("opening")" href="@GetSortUrl("opening")" title="Sort by opening balance">
+                            <span>Opening balance</span>
+                            <span class="sort-indicator" aria-hidden="true"></span>
+                        </a>
+                    </HeaderTemplate>
+                    <ChildContent Context="s">
+                        <span class="text-right whitespace-nowrap text-xs text-slate-500 font-medium block">@Money(s.OpeningBalance)</span>
+                    </ChildContent>
                 </TemplateColumn>
 
                 <TemplateColumn Title="Current balance" SortBy="@sortByBalance" Sortable="true" Align="Align.Right">
-                    <span class="text-right whitespace-nowrap text-xs font-semibold text-slate-900 block">@Money(context.Balance)</span>
+                    <HeaderTemplate Context="_">
+                        <a class="col-title @GetSortClass("balance")" href="@GetSortUrl("balance")" title="Sort by current balance">
+                            <span>Current balance</span>
+                            <span class="sort-indicator" aria-hidden="true"></span>
+                        </a>
+                    </HeaderTemplate>
+                    <ChildContent Context="s">
+                        <span class="text-right whitespace-nowrap text-xs font-semibold text-slate-900 block">@Money(s.Balance)</span>
+                    </ChildContent>
                 </TemplateColumn>
 
                 <TemplateColumn Title="Assigned stock value" SortBy="@sortByStock" Sortable="true" Align="Align.Right">
-                    <a href="@($"/reports/inventory?supplierId={context.Id}")" class="text-blue-700 hover:underline text-xs font-medium">@Money(context.StockValue)</a>
+                    <HeaderTemplate Context="_">
+                        <a class="col-title @GetSortClass("stock")" href="@GetSortUrl("stock")" title="Sort by assigned stock value">
+                            <span>Assigned stock value</span>
+                            <span class="sort-indicator" aria-hidden="true"></span>
+                        </a>
+                    </HeaderTemplate>
+                    <ChildContent Context="s">
+                        <a href="@($"/reports/inventory?supplierId={s.Id}")" class="text-blue-700 hover:underline text-xs font-medium">@Money(s.StockValue)</a>
+                    </ChildContent>
                 </TemplateColumn>
 
                 <TemplateColumn Title="Payment" Align="Align.Center" Class="w-16 pr-5 sm:pr-6 text-center">
@@ -86,9 +131,9 @@
             </QuickGrid>
         }
     </div>
-    @if (TotalCount > 0)
+    @if (Pagination is not null && TotalCount > 0)
     {
-        <Paginator State="@pagination" />
+        <PageNavigation Info="Pagination" Label="suppliers" />
     }
 </section>
 
@@ -99,7 +144,17 @@
     [SupplyParameterFromQuery]
     public string? Search { get; set; }
 
-    private readonly PaginationState pagination = new() { ItemsPerPage = 30 };
+    [SupplyParameterFromQuery(Name = "page")]
+    public int Page { get; set; } = 1;
+
+    [SupplyParameterFromQuery]
+    public int PageSize { get; set; } = 30;
+
+    [SupplyParameterFromQuery]
+    public string Sort { get; set; } = "name";
+
+    [SupplyParameterFromQuery]
+    public string? Direction { get; set; }
 
     private readonly GridSort<SupplierRow> sortById = GridSort<SupplierRow>.ByAscending(s => s.Id);
     private readonly GridSort<SupplierRow> sortByName = GridSort<SupplierRow>.ByAscending(s => s.Name);
@@ -112,13 +167,59 @@
     private int TotalCount;
     private IReadOnlyList<SupplierRow>? Rows;
     private IQueryable<SupplierRow>? SuppliersQuery => Rows?.AsQueryable();
+    private PageInfo? Pagination;
 
     protected override async Task OnParametersSetAsync()
     {
         Rows = null;
+        if (PageSize <= 0)
+        {
+            PageSize = 30;
+        }
+
         var allRows = await Suppliers.ListAsync(HttpContext.User, Search, HttpContext.RequestAborted);
         TotalCount = allRows.Count;
-        Rows = allRows;
+
+        var isDesc = (Sort ?? "").EndsWith("-desc", StringComparison.OrdinalIgnoreCase) || string.Equals(Direction, "desc", StringComparison.OrdinalIgnoreCase);
+        var cleanSort = (Sort ?? "name").ToLowerInvariant().Replace("-desc", "");
+
+        IEnumerable<SupplierRow> sorted = cleanSort switch
+        {
+            "id" => isDesc ? allRows.OrderByDescending(s => s.Id) : allRows.OrderBy(s => s.Id),
+            "opening" => isDesc ? allRows.OrderByDescending(s => s.OpeningBalance) : allRows.OrderBy(s => s.OpeningBalance),
+            "balance" => isDesc ? allRows.OrderByDescending(s => s.Balance) : allRows.OrderBy(s => s.Balance),
+            "stock" => isDesc ? allRows.OrderByDescending(s => s.StockValue) : allRows.OrderBy(s => s.StockValue),
+            _ => isDesc ? allRows.OrderByDescending(s => s.Name) : allRows.OrderBy(s => s.Name)
+        };
+
+        var size = QueryPagination.Size(PageSize);
+        var maxPage = Math.Max(1, (int)Math.Ceiling(TotalCount / (double)size));
+        Page = Math.Clamp(Page, 1, maxPage);
+
+        Rows = sorted.Skip((Page - 1) * size).Take(size).ToList();
+        Pagination = new PageInfo(Page, size, TotalCount);
+    }
+
+    private string GetSortClass(string column)
+    {
+        var cleanSort = (Sort ?? "name").ToLowerInvariant().Replace("-descending", "").Replace("-desc", "");
+        if (!string.Equals(cleanSort, column, StringComparison.OrdinalIgnoreCase)) return "";
+        var currentIsDesc = (Sort ?? "").EndsWith("-desc", StringComparison.OrdinalIgnoreCase) || string.Equals(Direction, "desc", StringComparison.OrdinalIgnoreCase);
+        return currentIsDesc ? "col-sort-desc" : "col-sort-asc";
+    }
+
+    private string GetSortUrl(string column)
+    {
+        var cleanSort = (Sort ?? "name").ToLowerInvariant().Replace("-desc", "");
+        var isCurrent = string.Equals(cleanSort, column, StringComparison.OrdinalIgnoreCase);
+        var currentIsDesc = (Sort ?? "").EndsWith("-desc", StringComparison.OrdinalIgnoreCase) || string.Equals(Direction, "desc", StringComparison.OrdinalIgnoreCase);
+        var nextDirection = isCurrent && !currentIsDesc ? "desc" : "asc";
+        return Navigation.GetUriWithQueryParameters(new Dictionary<string, object?>
+        {
+            ["sort"] = nextDirection == "desc" ? $"{column}-desc" : column,
+            ["direction"] = nextDirection,
+            ["page"] = 1
+        });
     }
 
     private string Money(decimal amount) => $"{amount:N2} {Configuration["CurrencyCode"] ?? "BDT"}";

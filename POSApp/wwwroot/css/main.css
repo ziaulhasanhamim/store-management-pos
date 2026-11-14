@@ -87,6 +87,7 @@
 }
 
 @layer components {
+
     .btn-primary,
     .btn-secondary,
     .btn-danger,
@@ -418,6 +419,7 @@
 }
 
 @media print {
+
     html:has(.label-roll),
     body:has(.label-roll) {
         margin: 0 !important;
@@ -925,6 +927,55 @@ table.quickgrid {
     color: #0f172a;
 }
 
+.paginator,
+.quickgrid-paginator {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 12px 24px;
+    border-top: 1px solid #f1f5f9;
+    background: #ffffff;
+    font-size: 13px;
+    color: #64748b;
+    border-bottom-left-radius: 1rem;
+    border-bottom-right-radius: 1rem;
+}
+
+.paginator .summary,
+.quickgrid-paginator .summary {
+    font-size: 12px;
+    color: #475569;
+}
+
+.paginator .summary strong,
+.quickgrid-paginator .summary strong {
+    font-weight: 600;
+    color: #0f172a;
+}
+
+.paginator nav,
+.quickgrid-paginator nav {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: auto;
+}
+
+.paginator .pagination-text,
+.quickgrid-paginator .pagination-text {
+    font-size: 12px;
+    color: #475569;
+    padding: 0 8px;
+    user-select: none;
+}
+
+.paginator .pagination-text strong,
+.quickgrid-paginator .pagination-text strong {
+    font-weight: 600;
+    color: #0f172a;
+}
+
 .quickgrid-paginator a.go-first,
 .quickgrid-paginator a.go-previous,
 .quickgrid-paginator a.go-next,
@@ -950,53 +1001,21 @@ table.quickgrid {
     border-radius: 8px;
     border: 1px solid #e2e8f0;
     background-color: #ffffff;
-    font-size: 0;
-    font-weight: 500;
-    color: transparent;
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1;
+    color: #475569;
     text-decoration: none;
     transition: all 0.15s ease;
     cursor: pointer;
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
-.paginator a.go-first,
-.paginator button.go-first,
-.quickgrid-paginator a.go-first,
-.quickgrid-paginator button.go-first {
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%23475569'%3E%3Cpath fill-rule='evenodd' d='M15.79 14.77a.75.75 0 01-1.06.02l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 111.04 1.08L11.832 10l3.938 3.71a.75.75 0 01.02 1.06zm-6 0a.75.75 0 01-1.06.02l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 111.04 1.08L5.832 10l3.938 3.71a.75.75 0 01.02 1.06z' clip-rule='evenodd' /%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: center;
-    background-size: 16px 16px;
-}
-
-.paginator a.go-previous,
-.paginator button.go-previous,
-.quickgrid-paginator a.go-previous,
-.quickgrid-paginator button.go-previous {
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%23475569'%3E%3Cpath fill-rule='evenodd' d='M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z' clip-rule='evenodd' /%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: center;
-    background-size: 16px 16px;
-}
-
-.paginator a.go-next,
-.paginator button.go-next,
-.quickgrid-paginator a.go-next,
-.quickgrid-paginator button.go-next {
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%23475569'%3E%3Cpath fill-rule='evenodd' d='M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z' clip-rule='evenodd' /%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: center;
-    background-size: 16px 16px;
-}
-
-.paginator a.go-last,
-.paginator button.go-last,
-.quickgrid-paginator a.go-last,
-.quickgrid-paginator button.go-last {
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%23475569'%3E%3Cpath fill-rule='evenodd' d='M4.21 14.77a.75.75 0 01.02-1.06L8.168 10 4.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z' clip-rule='evenodd' /%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: center;
-    background-size: 16px 16px;
+.paginator-btn svg {
+    width: 14px;
+    height: 14px;
+    color: currentColor;
+    fill: currentColor;
 }
 
 .quickgrid-paginator a:not([aria-disabled="true"]):hover,
@@ -1020,6 +1039,7 @@ table.quickgrid {
     pointer-events: none;
     background-color: #f8fafc;
     border-color: #f1f5f9;
+    color: #94a3b8;
 }
 
 /* Edge padding on data-table & quickgrid so first & last columns never touch card borders */
