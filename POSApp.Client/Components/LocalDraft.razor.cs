@@ -37,6 +37,7 @@ public partial class LocalDraft<TState>
     private bool Ready;
     private bool Recovered;
     private bool Disposed;
+    private bool Cleared;
     private CancellationTokenSource? SaveDebounce;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -54,6 +55,15 @@ public partial class LocalDraft<TState>
 
         if (!Ready || Paused)
         {
+            return;
+        }
+
+        if (Cleared)
+        {
+            if (Empty)
+            {
+                Cleared = false;
+            }
             return;
         }
 
@@ -140,13 +150,26 @@ public partial class LocalDraft<TState>
     public async Task ClearAsync()
     {
         SaveDebounce?.Cancel();
+        SaveDebounce?.Dispose();
+        SaveDebounce = null;
         LastPayload = null;
         Recovered = false;
+        Cleared = true;
         if (Module is not null && !string.IsNullOrWhiteSpace(Key))
         {
             try
             {
                 await Module.InvokeVoidAsync("remove", Key);
+            }
+            catch
+            {
+            }
+        }
+        if (!string.IsNullOrWhiteSpace(Key))
+        {
+            try
+            {
+                await JS.InvokeVoidAsync("localStorage.removeItem", Key);
             }
             catch
             {

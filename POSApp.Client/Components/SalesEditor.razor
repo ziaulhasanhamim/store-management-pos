@@ -11,7 +11,7 @@
     </button>
 </div>
 
-<LocalDraft TState="SalesEditorState" Kind="sales" State="DraftState" Empty="@(Lines.Count == 0 && string.IsNullOrWhiteSpace(Notes) && Discount == 0)" Paused="Busy" Restore="RestoreDraft" Clear="NewSale" ReadyChanged="@(ready => DraftReady = ready)" @ref="Recovery" />
+<LocalDraft TState="SalesEditorState" Kind="sales" State="DraftState" Empty="@(Completed || (Lines.Count == 0 && string.IsNullOrWhiteSpace(Notes) && Discount == 0))" Paused="@(Busy || Completed)" Restore="RestoreDraft" Clear="NewSale" ReadyChanged="@(ready => DraftReady = ready)" @ref="Recovery" />
 
 @if (Error is not null)
 {

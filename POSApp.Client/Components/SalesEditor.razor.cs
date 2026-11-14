@@ -79,6 +79,7 @@ public partial class SalesEditor
     private SaleBill? LoadedReturnBill;
     private bool IsCurrentDraft => Options.Drafts.Any(draft => draft.RequestId == RequestId);
     private bool Busy;
+    private bool Completed;
     private bool DraftReady = true;
     private bool Searching;
     private bool CustomerDialog;
@@ -201,6 +202,7 @@ public partial class SalesEditor
 
     private bool Add(SalesProduct product)
     {
+        Completed = false;
         var line = Lines.FirstOrDefault(line => line.Product.Id == product.Id && (line.Quantity < 0) == ReturnMode);
         bool isIncrement = line is not null;
         if (line is null)
@@ -460,10 +462,14 @@ public partial class SalesEditor
             SaleRevision = result.Revision;
             if (result.Completed)
             {
+                Completed = true;
+                var completedRequestId = RequestId;
+                Options = Options with { Drafts = Options.Drafts.Where(d => d.RequestId != completedRequestId).ToArray() };
                 if (Recovery is not null)
                 {
                     await Recovery.ClearAsync();
                 }
+                NewSale();
                 Navigation.NavigateTo($"/sales/{result.Id}/bill");
             }
             else
@@ -552,6 +558,7 @@ public partial class SalesEditor
         Notes = null;
         Notice = null;
         Error = null;
+        Completed = false;
     }
 
     private async Task DiscardActiveDraftAsync()
