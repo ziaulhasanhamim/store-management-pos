@@ -5,7 +5,7 @@ namespace POSApp.Services;
 public static class PaymentAllocation
 {
     public static PaymentDetail[] Allocate(decimal total, PaymentInput[]? payments, decimal legacyAmount,
-        PaymentMethod legacyMethod, bool allowChange, bool allowRefund = false)
+        PaymentMethod legacyMethod, bool allowChange, bool allowRefund = false, decimal customerDue = 0m)
     {
         var inputs = payments ?? (legacyAmount == 0 ? [] : [new PaymentInput(legacyMethod, legacyAmount)]);
         if (inputs.Length > 20 || !Enum.IsDefined(legacyMethod))
@@ -14,7 +14,8 @@ public static class PaymentAllocation
         }
 
         var direction = allowRefund && total < 0 ? -1 : 1;
-        var remaining = allowRefund ? Math.Abs(total) : Math.Max(total, 0);
+        var maxPayable = allowRefund && total < 0 ? Math.Abs(total) : Math.Max(total + Math.Max(0m, customerDue), 0m);
+        var remaining = maxPayable;
         var result = new List<PaymentDetail>();
         foreach (var input in inputs)
         {

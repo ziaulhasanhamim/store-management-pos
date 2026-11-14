@@ -157,9 +157,23 @@ public sealed class SalesService(IServiceScopeFactory scopes, IConfiguration? co
                     throw new ValidationException("The line total exceeds the supported amount.");
                 }
             }
+            await using var scope = scopes.CreateAsyncScope();
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var actorId = await StoreAccess.RequireAsync(db, actor, AppRoles.SalesAssociate, ct);
+
+            decimal customerDue = 0m;
+            if (command.CustomerId is not null)
+            {
+                var customerId = command.CustomerId.Value;
+                customerDue = await db.CustomerBalances.AsNoTracking()
+                    .Where(b => b.CustomerId == customerId)
+                    .Select(b => b.CurrentBalance)
+                    .FirstOrDefaultAsync(ct);
+            }
+
             var pricing = POSApp.Services.Calculations.SalePricingCalculator.Calculate(
                 command.Lines, command.Discount, command.Payments, command.Payment, command.Method,
-                allowChange: true, allowRefund: true);
+                allowChange: true, allowRefund: true, customerDue: customerDue);
             var subtotal = pricing.Subtotal;
             var unitDiscounts = pricing.UnitDiscounts;
             var discount = pricing.DiscountAmount;
@@ -170,9 +184,6 @@ public sealed class SalesService(IServiceScopeFactory scopes, IConfiguration? co
             {
                 throw new ValidationException("Select a customer for due or partial payment.");
             }
-            await using var scope = scopes.CreateAsyncScope();
-            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            var actorId = await StoreAccess.RequireAsync(db, actor, AppRoles.SalesAssociate, ct);
             await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
             var businessDate = await AccountingCalendar.SelectedAsync(db, actorId, configuration, ct);
             var hash = StoreOperation.Fingerprint(new
@@ -403,7 +414,8 @@ public sealed class SalesService(IServiceScopeFactory scopes, IConfiguration? co
             }
             await db.SaveChangesAsync(ct);
             await transaction.CommitAsync(ct);
-            return new(sale.Id, number, complete, total, complete ? paidAmount : 0, complete ? total - paidAmount : total) { Revision = sale.Revision };
+            var due = complete ? (total < 0 ? total - paidAmount : Math.Max(0m, total - paidAmount)) : total;
+            return new(sale.Id, number, complete, total, complete ? paidAmount : 0, due) { Revision = sale.Revision };
         }, ct);
     }
 

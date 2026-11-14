@@ -23,7 +23,8 @@ public static class SalePricingCalculator
         decimal legacyPayment,
         PaymentMethod legacyMethod,
         bool allowChange = true,
-        bool allowRefund = true)
+        bool allowRefund = true,
+        decimal customerDue = 0m)
     {
         foreach (var line in lines)
         {
@@ -44,11 +45,12 @@ public static class SalePricingCalculator
         var total = subtotal - discountAmount;
         StoreAccess.Money(total, "Total", negative: true);
 
-        var paymentPlan = PaymentAllocation.Allocate(total, payments, legacyPayment, legacyMethod, allowChange: allowChange, allowRefund: allowRefund);
+        var paymentPlan = PaymentAllocation.Allocate(total, payments, legacyPayment, legacyMethod,
+            allowChange: allowChange, allowRefund: allowRefund, customerDue: customerDue);
         var paidAmount = paymentPlan.Sum(payment => payment.Amount);
         var tenderedAmount = paymentPlan.Sum(payment => payment.Tendered);
         var changeAmount = tenderedAmount - paidAmount;
-        var dueAmount = total - paidAmount;
+        var dueAmount = total < 0 ? (total - paidAmount) : Math.Max(0m, total - paidAmount);
 
         return new SalePricingSummary(
             subtotal,

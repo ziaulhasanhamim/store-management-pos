@@ -36,8 +36,16 @@
                     <DecimalField id="@InputId" @key="Revision" class="field" @bind-Value="Amount" Maximum="@(AllowCashChange && Method == PaymentMethod.Cash ? 9999999999999999.99m : Remaining)" ValidityChanged="valid => AmountValid = valid" />
                 </label>
             </div>
-            <div class="mt-3 flex flex-wrap gap-2">
-                <button type="button" class="btn-secondary" @onclick="UseRemaining">Remaining amount</button>
+            <div class="mt-3 flex flex-wrap items-center gap-2">
+                @if (PreviousDue > 0 && Total > 0 && OrderRemaining > 0 && GrandRemaining != OrderRemaining)
+                {
+                    <button type="button" class="btn-secondary text-xs" @onclick="UseOrderRemaining">This invoice (@Money(OrderRemaining))</button>
+                    <button type="button" class="btn-secondary text-xs" @onclick="UseGrandRemaining">Total due (@Money(GrandRemaining))</button>
+                }
+                else
+                {
+                    <button type="button" class="btn-secondary" @onclick="UseRemaining">Remaining amount</button>
+                }
                 <button type="button" class="btn-primary" disabled="@(!AmountValid || Amount <= 0 || Payments.Count >= 20 || (Amount > Remaining && !(AllowCashChange && Method == PaymentMethod.Cash)))" @onclick="ConfirmAsync">@(Refund ? "Confirm refund" : "Confirm payment")</button>
             </div>
             <p class="mt-3 text-xs text-slate-500">Confirm each payment to add it to this order.</p>
@@ -50,24 +58,38 @@
             @(Refund ? "Add another refund" : "Add another payment")
         </button>
     }
-    @if (Confirmed > Math.Max(Total, 0) && (!AllowCashChange || NonCashOverpayment))
+    @if (Confirmed > PayableTotal && (!AllowCashChange || NonCashOverpayment))
     {
-        <p class="text-sm text-red-600" role="alert">Payments exceed the total. Remove a payment before continuing.</p>
+        <p class="text-sm text-red-600" role="alert">Payments exceed the total payable. Remove a payment before continuing.</p>
     }
     <div class="space-y-2 text-sm">
         <div class="flex justify-between">
             <span>@(Refund ? "Confirmed refunds" : "Confirmed payments")</span>
-            <strong>@Money(Math.Min(Confirmed, Math.Max(Total, 0)))</strong>
+            <strong>@Money(Math.Min(Confirmed, PayableTotal))</strong>
         </div>
-        <div class="flex justify-between">
-            <span>@(Refund ? "Customer credit remaining" : "Due")</span>
-            <strong>@Money(Remaining)</strong>
-        </div>
-        @if (AllowCashChange && Confirmed > Math.Max(Total, 0))
+        @if (PreviousDue > 0)
+        {
+            <div class="flex justify-between text-slate-600">
+                <span>This invoice due</span>
+                <strong>@Money(OrderRemaining)</strong>
+            </div>
+            <div class="flex justify-between border-t border-slate-200 pt-2 text-base font-bold text-slate-900">
+                <span>Total due after sale</span>
+                <span class="@(PresentDue > 0 ? "text-amber-700" : "text-emerald-700")">@Money(Math.Max(0m, PresentDue))</span>
+            </div>
+        }
+        else
         {
             <div class="flex justify-between">
+                <span>@(Refund ? "Customer credit remaining" : "Due")</span>
+                <strong>@Money(Remaining)</strong>
+            </div>
+        }
+        @if (AllowCashChange && Confirmed > PayableTotal)
+        {
+            <div class="flex justify-between text-emerald-700 font-medium">
                 <span>Cash change</span>
-                <strong>@Money(Confirmed - Math.Max(Total, 0))</strong>
+                <strong>@Money(Confirmed - PayableTotal)</strong>
             </div>
         }
     </div>
@@ -76,6 +98,9 @@
 @code {
     [Parameter]
     public decimal Total { get; set; }
+
+    [Parameter]
+    public decimal PreviousDue { get; set; } = 0m;
 
     [Parameter]
     public string Currency { get; set; } = "BDT";
@@ -101,7 +126,11 @@
     private PaymentMethod Method = PaymentMethod.Cash;
     private int Revision;
     private decimal Confirmed => Payments.Sum(payment => Math.Abs(payment.Amount));
-    private decimal Remaining => Math.Max(Total - Confirmed, 0);
+    private decimal PayableTotal => Refund ? Math.Abs(Total) : Math.Max(0m, Total + Math.Max(0m, PreviousDue));
+    private decimal OrderRemaining => Math.Max(0m, Total - Math.Min(Confirmed, Total));
+    private decimal GrandRemaining => Math.Max(0m, PayableTotal - Confirmed);
+    private decimal PresentDue => (Total + PreviousDue) - Confirmed;
+    private decimal Remaining => PreviousDue > 0 ? GrandRemaining : Math.Max(Total - Confirmed, 0);
     private bool NonCashOverpayment => Payments.Count > 0 && Payments[^1].Method != PaymentMethod.Cash;
 
     public static string MethodName(PaymentMethod method) => method switch
@@ -116,6 +145,20 @@
     private void UseRemaining()
     {
         Amount = Remaining;
+        AmountValid = true;
+        Revision++;
+    }
+
+    private void UseOrderRemaining()
+    {
+        Amount = OrderRemaining;
+        AmountValid = true;
+        Revision++;
+    }
+
+    private void UseGrandRemaining()
+    {
+        Amount = GrandRemaining;
         AmountValid = true;
         Revision++;
     }

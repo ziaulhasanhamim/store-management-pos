@@ -349,4 +349,60 @@ public class SalesServiceTests : PosIntegrationTestBase
             ExpectedRevision = "2020-01-01T00:00:00.0000000+00:00"
         }, delete: true));
     }
+
+    [Test]
+    public async Task SaveAsync_WhenCustomerHasPreviousDue_AllowsPaymentUpToGrandTotal_AndClearsBalance()
+    {
+        var productId = await SetupProductWithStockAsync(cost: 100m, price: 200m, quantity: 10m);
+
+        await using var scope = CreateScope();
+        var sales = scope.ServiceProvider.GetRequiredService<SalesService>();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        // Set customer 1's balance to 500
+        var customerBalance = await db.CustomerBalances.SingleOrDefaultAsync(cb => cb.CustomerId == 1);
+        if (customerBalance is null)
+        {
+            customerBalance = new CustomerBalance { CustomerId = 1, CurrentBalance = 500m, OpeningBalance = 500m, OpenedAt = DateTimeOffset.UtcNow };
+            db.CustomerBalances.Add(customerBalance);
+        }
+        else
+        {
+            customerBalance.CurrentBalance = 500m;
+        }
+        await db.SaveChangesAsync();
+
+        // Sale: 1 item @ 200m => order total 200m.
+        // Customer previous due = 500m. Grand total = 700m.
+        // Customer pays 700m in full (covering both order and past due).
+        var saleCommand = new SalesCommand(
+            RequestId: Guid.NewGuid(),
+            LocationId: 1,
+            CustomerId: 1,
+            Lines: [new SalesLine(productId, Quantity: 1, UnitPrice: 200m)],
+            Discount: 0m,
+            Payment: 0m,
+            Method: PaymentMethod.Cash,
+            Notes: "Sale clearing previous due")
+        {
+            Payments = [new PaymentInput(PaymentMethod.Cash, 700m)]
+        };
+
+        var result = await sales.SaveAsync(SalesUser, saleCommand, complete: true);
+        await result.Completed.Should().BeTrue();
+        await result.Total.Should().BeEqualTo(200m);
+        await result.Paid.Should().BeEqualTo(700m);
+        await result.Due.Should().BeEqualTo(0m);
+
+        // Verify customer balance in DB is now 0 (500 + 200 - 700 = 0)
+        var updatedBalance = await db.CustomerBalances.AsNoTracking().SingleAsync(cb => cb.CustomerId == 1);
+        await updatedBalance.CurrentBalance.Should().BeEqualTo(0m);
+
+        // Verify Bill reflects the previous due and grand total
+        var bill = await sales.BillAsync(AdminUser, result.Id);
+        await bill.Should().NotBeNull();
+        await bill!.Total.Should().BeEqualTo(200m);
+        await bill.PreviousDue.Should().BeEqualTo(500m);
+        await bill.Paid.Should().BeEqualTo(700m);
+    }
 }

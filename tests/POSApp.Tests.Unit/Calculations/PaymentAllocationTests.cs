@@ -132,4 +132,56 @@ public class PaymentAllocationTests
         await result[0].Amount.Should().BeEqualTo(-80m);
         await result[0].Tendered.Should().BeEqualTo(-80m);
     }
+
+    [Test]
+    public async Task Allocate_WhenCustomerDueSpecified_AllowsPaymentUpToGrandTotal()
+    {
+        // Current total 850, customer previous due 2400 => max payable 3250
+        var result = PaymentAllocation.Allocate(
+            total: 850m,
+            payments: [new PaymentInput(PaymentMethod.Card, 3250m)],
+            legacyAmount: 0m,
+            legacyMethod: PaymentMethod.Card,
+            allowChange: true,
+            allowRefund: false,
+            customerDue: 2400m);
+
+        await result.Length.Should().BeEqualTo(1);
+        await result[0].Method.Should().BeEqualTo(PaymentMethod.Card);
+        await result[0].Amount.Should().BeEqualTo(3250m);
+        await result[0].Tendered.Should().BeEqualTo(3250m);
+    }
+
+    [Test]
+    public async Task Allocate_WhenCustomerDueSpecified_AndCashExceedsGrandTotal_ProvidesChange()
+    {
+        // Current total 850, customer previous due 2400 => max payable 3250, cash tendered 3500 => applied 3250
+        var result = PaymentAllocation.Allocate(
+            total: 850m,
+            payments: [new PaymentInput(PaymentMethod.Cash, 3500m)],
+            legacyAmount: 0m,
+            legacyMethod: PaymentMethod.Cash,
+            allowChange: true,
+            allowRefund: false,
+            customerDue: 2400m);
+
+        await result.Length.Should().BeEqualTo(1);
+        await result[0].Method.Should().BeEqualTo(PaymentMethod.Cash);
+        await result[0].Amount.Should().BeEqualTo(3250m);
+        await result[0].Tendered.Should().BeEqualTo(3500m);
+    }
+
+    [Test]
+    public async Task Allocate_WhenCustomerDueSpecified_AndNonCashExceedsGrandTotal_ThrowsValidationException()
+    {
+        Assert.Throws<ValidationException>(() =>
+            PaymentAllocation.Allocate(
+                total: 850m,
+                payments: [new PaymentInput(PaymentMethod.Card, 3300m)],
+                legacyAmount: 0m,
+                legacyMethod: PaymentMethod.Card,
+                allowChange: true,
+                allowRefund: false,
+                customerDue: 2400m));
+    }
 }

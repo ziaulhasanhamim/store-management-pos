@@ -101,14 +101,18 @@ public partial class SalesEditor
     private IJSObjectReference? Scanner;
     private DotNetObjectReference<SalesEditor>? Callback;
 
+    private CustomerOption? SelectedCustomer => CustomerId.HasValue ? Options.Customers.FirstOrDefault(c => c.Id == CustomerId.Value) : null;
+    private decimal CustomerPreviousDue => SelectedCustomer?.Balance ?? 0m;
+    private decimal GrandTotal => Total + CustomerPreviousDue;
+    private decimal PayableTotal => Total < 0 ? Math.Abs(Total) : Math.Max(0m, Total + Math.Max(0m, CustomerPreviousDue));
     private decimal Subtotal => Lines.Sum(line => line.Total);
     private decimal Total => decimal.Round(Subtotal - Discount, 2, MidpointRounding.AwayFromZero);
     private decimal DiscountLimit => Lines.Where(line => line.Quantity > 0).Sum(line => line.Total);
     private decimal Confirmed => Payments.Sum(payment => payment.Amount);
     private bool PaymentsValid => Payments.Count == 0 || (Total != 0
         && Payments.All(payment => Math.Sign(payment.Amount) == Math.Sign(Total))
-        && Payments.Take(Payments.Count - 1).Sum(payment => Math.Abs(payment.Amount)) < Math.Abs(Total)
-        && (Math.Abs(Confirmed) <= Math.Abs(Total) || (Total > 0 && Payments[^1].Method == PaymentMethod.Cash)));
+        && Payments.Take(Payments.Count - 1).Sum(payment => Math.Abs(payment.Amount)) < PayableTotal
+        && (Math.Abs(Confirmed) <= PayableTotal || (Total > 0 && Payments[^1].Method == PaymentMethod.Cash)));
     private bool WalkInUnsettled => CustomerId is null && (Total >= 0 ? Confirmed < Total : Confirmed != Total);
     private bool Invalid => Searching || LocationId == 0 || Lines.Count == 0 || !DiscountValid || !PaymentsValid
         || Math.Abs(Subtotal) > 9999999999999999.99m || Discount > DiscountLimit

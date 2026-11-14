@@ -225,11 +225,37 @@
                     <DecimalField @key="(RequestId, DiscountRevision)" class="field" @bind-Value="Discount"
                                   Maximum="DiscountLimit" ValidityChanged="valid => DiscountValid = valid" />
                 </label>
-                <div class="flex justify-between border-t border-slate-100 pt-4 text-xl font-bold">
-                    <span>Total</span>
-                    <span>@Money(Total)</span>
-                </div>
-                <SplitPayments @key="(RequestId, Total < 0)" Total="Math.Abs(Total)" Currency="@Currency" Refund="@(Total < 0)" AllowCashChange="@(Total > 0)" @bind-Payments="Payments" />
+                @if (CustomerId.HasValue && CustomerPreviousDue != 0)
+                {
+                    <div class="border-t border-slate-100 pt-3 space-y-2 text-sm">
+                        <div class="flex justify-between text-slate-700">
+                            <span>Invoice total</span>
+                            <strong class="font-semibold">@Money(Total)</strong>
+                        </div>
+                        <div class="flex justify-between @(CustomerPreviousDue > 0 ? "text-amber-800" : "text-emerald-700")">
+                            <span>@(CustomerPreviousDue > 0 ? "Previous due" : "Previous credit")</span>
+                            <strong class="font-semibold">@(CustomerPreviousDue > 0 ? $"+{Money(CustomerPreviousDue)}" : $"-{Money(Math.Abs(CustomerPreviousDue))}")</strong>
+                        </div>
+                        <div class="flex justify-between border-t border-slate-200 pt-2 text-xl font-bold text-slate-900">
+                            <span>Grand total</span>
+                            <span>@Money(GrandTotal)</span>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="flex justify-between border-t border-slate-100 pt-4 text-xl font-bold">
+                        <span>Total</span>
+                        <span>@Money(Total)</span>
+                    </div>
+                }
+                <SplitPayments @key="(RequestId, Total < 0, CustomerId)"
+                               Total="Math.Abs(Total)"
+                               PreviousDue="CustomerPreviousDue"
+                               Currency="@Currency"
+                               Refund="@(Total < 0)"
+                               AllowCashChange="@(Total > 0)"
+                               @bind-Payments="Payments" />
                 @if (!PaymentsValid)
                 {
                     <p class="text-sm text-red-600" role="alert">Review confirmed payments after changing the order total.</p>

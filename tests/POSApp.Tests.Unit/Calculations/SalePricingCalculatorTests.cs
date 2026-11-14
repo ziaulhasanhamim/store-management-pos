@@ -187,4 +187,29 @@ public class SalePricingCalculatorTests
                 legacyMethod: PaymentMethod.Cash);
         });
     }
+
+    [Test]
+    public async Task Calculate_WhenCustomerDueSpecified_AllowsPaymentCoveringOrderAndPastDue()
+    {
+        // Line total: 850, customer past due: 2400. Total payable: 3250.
+        // Customer pays 3250 in full.
+        var lines = new List<SalesLine>
+        {
+            new(ProductId: 1, Quantity: 1, UnitPrice: 850m)
+        };
+
+        var result = SalePricingCalculator.Calculate(
+            lines: lines,
+            orderDiscount: 0m,
+            payments: [new PaymentInput(PaymentMethod.Cash, 3250m)],
+            legacyPayment: 0m,
+            legacyMethod: PaymentMethod.Cash,
+            customerDue: 2400m);
+
+        await result.TotalAmount.Should().BeEqualTo(850m);
+        await result.PaidAmount.Should().BeEqualTo(3250m);
+        await result.TenderedAmount.Should().BeEqualTo(3250m);
+        await result.ChangeAmount.Should().BeEqualTo(0m);
+        await result.DueAmount.Should().BeEqualTo(0m);
+    }
 }
