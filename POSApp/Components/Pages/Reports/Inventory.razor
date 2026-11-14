@@ -68,7 +68,7 @@
     </details>
     <div class="mb-6 grid gap-4 sm:grid-cols-3">
         <div class="metric">
-            <p>Inventory value at average cost</p>
+            <p>Inventory value at cost price</p>
             <strong class="text-2xl!">@Money(Data.TotalValue)</strong>
             <span class="metric-note">@Data.Count items · includes archived stock</span>
         </div>
@@ -95,7 +95,7 @@
                 <SortHeader Column="name" Label="Item" Sort="@Sort" Numeric="false" />
                 <SortHeader Column="supplier" Label="Default supplier" Sort="@Sort" Numeric="false" />
                 <SortHeader Column="quantity" Label="Quantity" Sort="@Sort" Numeric="true" />
-                <SortHeader Column="cost" Label="Average cost" Sort="@Sort" Numeric="true" />
+                <SortHeader Column="cost" Label="Cost price" Sort="@Sort" Numeric="true" />
                 <SortHeader Column="value" Label="Stock value" Sort="@Sort" Numeric="true" />
             </tr>
         </thead>
@@ -181,7 +181,7 @@
 
     private InventoryValueReport? Data;
     private string? Error;
-    private static readonly string[] ExportColumns = ["Item ID", "Item", "Barcode", "Default supplier", "Quantity", "Average cost", "Stock value"];
+    private static readonly string[] ExportColumns = ["Item ID", "Item", "Barcode", "Default supplier", "Quantity", "Cost price", "Stock value"];
 
     protected override async Task OnParametersSetAsync()
     {

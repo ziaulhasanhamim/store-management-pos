@@ -95,9 +95,9 @@
     private static IReadOnlyList<string> ExportColumns(string kind) => kind switch
     {
         "sales" => ["Sale ID", "Receipt", "Customer", "Date (UTC)", "Sales", "Paid", "Due", "Cost", "Profit"],
-        "items" => ["Item ID", "Item", "Barcode", "Unit", "Net quantity", "Average cost", "Cost", "Subtotal", "Discount", "Sales", "Profit"],
+        "items" => ["Item ID", "Item", "Barcode", "Unit", "Net quantity", "Cost price", "Cost", "Subtotal", "Discount", "Sales", "Profit"],
         "receiving" => ["ID", "Type", "Date (UTC)", "Item", "Barcode", "From", "To", "Quantity", "Unit cost", "Value"],
-        "inventory" => ["Item ID", "Item", "Barcode", "Default supplier", "Quantity", "Average cost", "Stock value"],
+        "inventory" => ["Item ID", "Item", "Barcode", "Default supplier", "Quantity", "Cost price", "Stock value"],
         _ => []
     };
 

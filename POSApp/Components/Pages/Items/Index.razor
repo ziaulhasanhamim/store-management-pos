@@ -1,9 +1,11 @@
 @page "/items"
 @attribute [Authorize]
 @attribute [StreamRendering]
+@using Microsoft.AspNetCore.Authorization
 @using POSApp.Components.Pages.Reports
 @inject InventoryService Inventory
 @inject NavigationManager Navigation
+@inject IAuthorizationService AuthService
 @inject ILogger<Index> Logger
 
 <PageTitle>Items · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
@@ -61,8 +63,8 @@
             <input type="hidden" name="sort" value="@Sort" />
             <input type="hidden" name="direction" value="@Direction" />
             <input type="hidden" name="locationId" value="@LocationId" />
-            <input type="hidden" name="categoryId" value="@CategoryId" />
-            <input type="hidden" name="supplierId" value="@SupplierId" />
+            <input type="hidden" name="category" value="@Category" />
+            <input type="hidden" name="supplier" value="@Supplier" />
             <input type="hidden" name="minStock" value="@MinStock" />
             <input type="hidden" name="pageSize" value="@(PageSize <= 0 ? 30 : PageSize)" />
             <div class="w-full sm:max-w-lg">
@@ -76,28 +78,28 @@
             {
                 <div class="flex items-center flex-wrap gap-2 text-xs">
                     <span class="text-slate-500 font-medium">Filtered by:</span>
-                    @if (CategoryId.HasValue && Categories.FirstOrDefault(c => c.Id == CategoryId) is { } cat)
+                    @if (!string.IsNullOrWhiteSpace(Category))
                     {
-                        <a href="@ClearFilterUrl("categoryId")" class="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-0.5 text-blue-700 hover:bg-blue-100 font-medium" title="Remove category filter">
-                            <span>Category: @cat.Name</span>
+                        <a href="@ClearFilterUrl("category")" data-enhance class="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-0.5 text-blue-700 hover:bg-blue-100 font-medium" title="Remove category filter">
+                            <span>Category: "@Category"</span>
                             <span class="font-bold">×</span>
                         </a>
                     }
-                    @if (SupplierId.HasValue && SuppliersList.FirstOrDefault(s => s.Id == SupplierId) is { } sup)
+                    @if (!string.IsNullOrWhiteSpace(Supplier))
                     {
-                        <a href="@ClearFilterUrl("supplierId")" class="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-0.5 text-blue-700 hover:bg-blue-100 font-medium" title="Remove supplier filter">
-                            <span>Supplier: @sup.Name</span>
+                        <a href="@ClearFilterUrl("supplier")" data-enhance class="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-0.5 text-blue-700 hover:bg-blue-100 font-medium" title="Remove supplier filter">
+                            <span>Supplier: "@Supplier"</span>
                             <span class="font-bold">×</span>
                         </a>
                     }
                     @if (MinStock.HasValue)
                     {
-                        <a href="@ClearFilterUrl("minStock")" class="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-0.5 text-blue-700 hover:bg-blue-100 font-medium" title="Remove stock filter">
+                        <a href="@ClearFilterUrl("minStock")" data-enhance class="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-0.5 text-blue-700 hover:bg-blue-100 font-medium" title="Remove stock filter">
                             <span>Stock ≥ @MinStock</span>
                             <span class="font-bold">×</span>
                         </a>
                     }
-                    <a href="/items" class="text-slate-400 hover:text-slate-600 underline">Reset all</a>
+                    <a href="/items" data-enhance class="text-slate-400 hover:text-slate-600 underline">Reset all</a>
                 </div>
             }
         </form>
@@ -128,39 +130,48 @@
             else
             {
                 <QuickGrid Items="@ItemsQuery" class="data-table" aria-busy="@(Items is null && !Failed)">
-                    <AuthorizeView Policy="@AppPolicies.ManageInventory" Context="auth">
-                        <TemplateColumn Class="w-8 px-2 sm:px-4">
+                    @if (canManageInventory)
+                    {
+                        <TemplateColumn Class="w-10 pl-5 pr-2 text-center">
                             <HeaderTemplate Context="_">
                                 <input type="checkbox" id="select-all-items" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer" title="Select / deselect all items" />
                                 <span class="sr-only">Select all items</span>
                             </HeaderTemplate>
                             <ChildContent Context="item">
-                                <input type="checkbox" name="Input.ProductIds" value="@item.Id" aria-label="@($"Select {item.Name} for labels")" />
+                                <input type="checkbox" name="Input.ProductIds" value="@item.Id" aria-label="@($"Select {item.Name} for labels")" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer" />
                             </ChildContent>
                         </TemplateColumn>
-                    </AuthorizeView>
+                    }
 
-                    <TemplateColumn Title="ID" SortBy="@sortById" Sortable="true">
-                        <HeaderTemplate>
-                            <a class="col-title" href="@GetSortUrl("id")" title="Sort by ID">
-                                <span>ID</span>
-                                <span class="sort-indicator" aria-hidden="true"></span>
-                            </a>
+                    <TemplateColumn Title="ID / Barcode" SortBy="@sortById" Sortable="true" Align="Align.Center" Class="w-28 text-center">
+                        <HeaderTemplate Context="_">
+                            <div class="flex items-center justify-center w-full">
+                                <a class="col-title inline-flex items-center gap-1 justify-center" href="@GetSortUrl("id")" title="Sort by ID">
+                                    <span>ID / Barcode</span>
+                                    <span class="sort-indicator" aria-hidden="true"></span>
+                                </a>
+                            </div>
                         </HeaderTemplate>
-                        <ChildContent>
-                            <a href="@($"/items/{context.Id}")" class="font-semibold text-blue-700 hover:text-blue-800">@context.Id</a>
+                        <ChildContent Context="item">
+                            <div class="flex flex-col items-center justify-center">
+                                <a href="@($"/items/{item.Id}")" class="font-bold text-blue-700 hover:text-blue-800 text-sm">#@item.Id</a>
+                                @if (!string.IsNullOrEmpty(item.Barcode))
+                                {
+                                    <span class="font-mono text-[11px] text-slate-400 block truncate max-w-[110px]" title="@item.Barcode">@item.Barcode</span>
+                                }
+                            </div>
                         </ChildContent>
                     </TemplateColumn>
 
                     <TemplateColumn Title="Item" SortBy="@sortByName" Sortable="true">
-                        <HeaderTemplate>
+                        <HeaderTemplate Context="_">
                             <div class="flex items-center justify-between w-full">
-                                <a class="col-title" href="@GetSortUrl("name")" title="Sort by name">
+                                <a class="col-title" href="@GetSortUrl("name")" title="Sort by item name">
                                     <span>Item</span>
                                     <span class="sort-indicator" aria-hidden="true"></span>
                                 </a>
-                                <details class="col-filter-details" data-enhance="false">
-                                    <summary class="col-filter-btn @(CategoryId.HasValue ? "active" : "")" title="Filter by category">
+                                <details class="col-filter-details">
+                                    <summary class="col-filter-btn @(!string.IsNullOrWhiteSpace(Category) ? "active" : "")" title="Filter by category">
                                         <Icon Name="filter" Class="size-3.5" />
                                     </summary>
                                     <div class="col-filter-card">
@@ -168,20 +179,15 @@
                                         <form method="get" action="/items" data-enhance>
                                             <input type="hidden" name="search" value="@Search" />
                                             <input type="hidden" name="locationId" value="@LocationId" />
-                                            <input type="hidden" name="supplierId" value="@SupplierId" />
+                                            <input type="hidden" name="supplier" value="@Supplier" />
                                             <input type="hidden" name="minStock" value="@MinStock" />
                                             <input type="hidden" name="sort" value="@Sort" />
                                             <input type="hidden" name="direction" value="@Direction" />
                                             <input type="hidden" name="pageSize" value="@PageSize" />
-                                            <select name="categoryId" class="field text-xs py-1.5 mb-2 w-full">
-                                                <option value="">All categories</option>
-                                                @foreach (var cat in Categories)
-                                                {
-                                                    <option value="@cat.Id" selected="@(CategoryId == cat.Id)">@cat.Name</option>
-                                                }
-                                            </select>
+                                            <label class="text-[11px] text-slate-500 block mb-1">Category name contains</label>
+                                            <input type="text" name="category" value="@Category" placeholder="e.g. Watch, Screen..." class="field text-xs py-1.5 mb-2 w-full" />
                                             <div class="flex items-center justify-between gap-2 mt-2">
-                                                <a href="@ClearFilterUrl("categoryId")" class="text-xs text-slate-500 hover:text-slate-800">Clear</a>
+                                                <a href="@ClearFilterUrl("category")" data-enhance class="text-xs text-slate-500 hover:text-slate-800">Clear</a>
                                                 <button type="submit" class="btn-primary text-xs py-1 px-3">Apply</button>
                                             </div>
                                         </form>
@@ -189,23 +195,11 @@
                                 </details>
                             </div>
                         </HeaderTemplate>
-                        <ChildContent>
-                            <a href="@($"/items/{context.Id}")" class="font-semibold text-slate-900 hover:text-blue-600 block">@context.Name</a>
+                        <ChildContent Context="item">
+                            <a href="@($"/items/{item.Id}")" class="font-semibold text-slate-900 hover:text-blue-600 block">@item.Name</a>
                             <div class="mt-0.5 text-xs text-slate-400">
-                                <span>@(context.Category ?? "Uncategorized")</span>
+                                <span>@(item.Category ?? "Uncategorized")</span>
                             </div>
-                        </ChildContent>
-                    </TemplateColumn>
-
-                    <TemplateColumn Title="Barcode" SortBy="@sortByBarcode" Sortable="true">
-                        <HeaderTemplate>
-                            <a class="col-title" href="@GetSortUrl("barcode")" title="Sort by barcode">
-                                <span>Barcode</span>
-                                <span class="sort-indicator" aria-hidden="true"></span>
-                            </a>
-                        </HeaderTemplate>
-                        <ChildContent>
-                            <span class="font-mono text-xs text-slate-500 whitespace-nowrap">@(context.Barcode ?? "—")</span>
                         </ChildContent>
                     </TemplateColumn>
 
@@ -217,14 +211,14 @@
                     }
 
                     <TemplateColumn Title="Default supplier" SortBy="@sortBySupplier" Sortable="true">
-                        <HeaderTemplate>
+                        <HeaderTemplate Context="_">
                             <div class="flex items-center justify-between w-full">
-                                <a class="col-title" href="@GetSortUrl("supplier")" title="Sort by supplier">
+                                <a class="col-title" href="@GetSortUrl("supplier")" title="Sort by default supplier">
                                     <span>Default supplier</span>
                                     <span class="sort-indicator" aria-hidden="true"></span>
                                 </a>
-                                <details class="col-filter-details" data-enhance="false">
-                                    <summary class="col-filter-btn @(SupplierId.HasValue ? "active" : "")" title="Filter by supplier">
+                                <details class="col-filter-details">
+                                    <summary class="col-filter-btn @(!string.IsNullOrWhiteSpace(Supplier) ? "active" : "")" title="Filter by supplier">
                                         <Icon Name="filter" Class="size-3.5" />
                                     </summary>
                                     <div class="col-filter-card">
@@ -232,20 +226,15 @@
                                         <form method="get" action="/items" data-enhance>
                                             <input type="hidden" name="search" value="@Search" />
                                             <input type="hidden" name="locationId" value="@LocationId" />
-                                            <input type="hidden" name="categoryId" value="@CategoryId" />
+                                            <input type="hidden" name="category" value="@Category" />
                                             <input type="hidden" name="minStock" value="@MinStock" />
                                             <input type="hidden" name="sort" value="@Sort" />
                                             <input type="hidden" name="direction" value="@Direction" />
                                             <input type="hidden" name="pageSize" value="@PageSize" />
-                                            <select name="supplierId" class="field text-xs py-1.5 mb-2 w-full">
-                                                <option value="">All suppliers</option>
-                                                @foreach (var sup in SuppliersList)
-                                                {
-                                                    <option value="@sup.Id" selected="@(SupplierId == sup.Id)">@sup.Name</option>
-                                                }
-                                            </select>
+                                            <label class="text-[11px] text-slate-500 block mb-1">Supplier name contains</label>
+                                            <input type="text" name="supplier" value="@Supplier" placeholder="e.g. Gadget, ST Mart..." class="field text-xs py-1.5 mb-2 w-full" />
                                             <div class="flex items-center justify-between gap-2 mt-2">
-                                                <a href="@ClearFilterUrl("supplierId")" class="text-xs text-slate-500 hover:text-slate-800">Clear</a>
+                                                <a href="@ClearFilterUrl("supplier")" data-enhance class="text-xs text-slate-500 hover:text-slate-800">Clear</a>
                                                 <button type="submit" class="btn-primary text-xs py-1 px-3">Apply</button>
                                             </div>
                                         </form>
@@ -253,15 +242,19 @@
                                 </details>
                             </div>
                         </HeaderTemplate>
-                        <ChildContent>
-                            <span class="text-xs whitespace-nowrap text-slate-700">@context.Supplier</span>
+                        <ChildContent Context="item">
+                            <span class="text-xs whitespace-nowrap text-slate-700">@item.Supplier</span>
                         </ChildContent>
                     </TemplateColumn>
 
                     <TemplateColumn Title="Stock" SortBy="@sortByStock" Sortable="true" Align="Align.Right">
-                        <HeaderTemplate>
+                        <HeaderTemplate Context="_">
                             <div class="flex items-center justify-end gap-1.5 w-full">
-                                <details class="col-filter-details" data-enhance="false">
+                                <a class="col-title" href="@GetSortUrl("quantity")" title="Sort by stock">
+                                    <span>Stock</span>
+                                    <span class="sort-indicator" aria-hidden="true"></span>
+                                </a>
+                                <details class="col-filter-details">
                                     <summary class="col-filter-btn @(MinStock.HasValue ? "active" : "")" title="Filter by stock quantity">
                                         <Icon Name="filter" Class="size-3.5" />
                                     </summary>
@@ -270,40 +263,36 @@
                                         <form method="get" action="/items" data-enhance>
                                             <input type="hidden" name="search" value="@Search" />
                                             <input type="hidden" name="locationId" value="@LocationId" />
-                                            <input type="hidden" name="categoryId" value="@CategoryId" />
-                                            <input type="hidden" name="supplierId" value="@SupplierId" />
+                                            <input type="hidden" name="category" value="@Category" />
+                                            <input type="hidden" name="supplier" value="@Supplier" />
                                             <input type="hidden" name="sort" value="@Sort" />
                                             <input type="hidden" name="direction" value="@Direction" />
                                             <input type="hidden" name="pageSize" value="@PageSize" />
                                             <label class="text-[11px] text-slate-500 block mb-1">Minimum stock on hand</label>
                                             <input type="number" step="any" name="minStock" value="@MinStock" placeholder="e.g. 3" class="field text-xs py-1.5 mb-2 w-full" />
                                             <div class="flex items-center justify-between gap-2 mt-2">
-                                                <a href="@ClearFilterUrl("minStock")" class="text-xs text-slate-500 hover:text-slate-800">Clear</a>
+                                                <a href="@ClearFilterUrl("minStock")" data-enhance class="text-xs text-slate-500 hover:text-slate-800">Clear</a>
                                                 <button type="submit" class="btn-primary text-xs py-1 px-3">Apply</button>
                                             </div>
                                         </form>
                                     </div>
                                 </details>
-                                <a class="col-title" href="@GetSortUrl("quantity")" title="Sort by stock">
-                                    <span>Stock</span>
-                                    <span class="sort-indicator" aria-hidden="true"></span>
-                                </a>
                             </div>
                         </HeaderTemplate>
-                        <ChildContent>
+                        <ChildContent Context="item">
                             <div class="text-right whitespace-nowrap">
-                                @if (context.IsNonStocked)
+                                @if (item.IsNonStocked)
                                 {
-                                    <span class="badge text-[10px] sm:text-xs px-2 py-0.5">Non-stocked</span>
+                                    <span class="badge text-[10px] px-2 py-0.5">Non-stocked</span>
                                 }
                                 else
                                 {
                                     <div class="flex items-center justify-end gap-1.5">
-                                        <span class="font-medium @(context.Stock <= 0 ? "text-amber-600 font-bold" : (context.Stock <= context.ReorderLevel ? "text-amber-700" : "text-slate-900"))">@context.Stock.ToString("0.###")</span>
-                                        <span class="text-xs text-slate-400">@context.Unit</span>
-                                        @if (context.Stock <= context.ReorderLevel)
+                                        <span class="font-medium @(item.Stock <= 0 ? "text-amber-600 font-bold" : (item.Stock <= item.ReorderLevel ? "text-amber-700" : "text-slate-900"))">@item.Stock.ToString("0.###")</span>
+                                        <span class="text-xs text-slate-400">@item.Unit</span>
+                                        @if (item.Stock <= item.ReorderLevel)
                                         {
-                                            <span class="inline-flex items-center rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 ring-1 ring-inset ring-amber-600/20" title="@($"Reorder threshold: {context.ReorderLevel}")">Low</span>
+                                            <span class="inline-flex items-center justify-center size-4 rounded-full bg-amber-100 text-amber-700 text-[10px] font-bold" title="@($"Low stock: {item.Stock} on hand (threshold: {item.ReorderLevel})")" aria-label="Low stock">!</span>
                                         }
                                     </div>
                                 }
@@ -311,45 +300,49 @@
                         </ChildContent>
                     </TemplateColumn>
 
-                    <TemplateColumn Title="Selling price" SortBy="@sortByPrice" Sortable="true" Align="Align.Right">
-                        <HeaderTemplate>
-                            <a class="col-title" href="@GetSortUrl("price")" title="Sort by price">
-                                <span>Selling price</span>
-                                <span class="sort-indicator" aria-hidden="true"></span>
-                            </a>
-                        </HeaderTemplate>
-                        <ChildContent>
-                            <span class="text-right whitespace-nowrap font-medium text-slate-900 block">@Money(context.Price)</span>
-                        </ChildContent>
-                    </TemplateColumn>
-
-                    <AuthorizeView Policy="@AppPolicies.ViewCostPrice" Context="auth">
-                        <TemplateColumn Title="Avg. cost" SortBy="@sortByCost" Sortable="true" Align="Align.Right">
+                    @if (canViewCostPrice)
+                    {
+                        <TemplateColumn Title="Cost price" SortBy="@sortByCost" Sortable="true" Align="Align.Right">
                             <HeaderTemplate Context="_">
-                                <a class="col-title" href="@GetSortUrl("cost")" title="Sort by cost">
-                                    <span>Avg. cost</span>
+                                <a class="col-title" href="@GetSortUrl("cost")" title="Sort by cost price">
+                                    <span>Cost price</span>
                                     <span class="sort-indicator" aria-hidden="true"></span>
                                 </a>
                             </HeaderTemplate>
                             <ChildContent Context="item">
-                                <span class="text-right whitespace-nowrap text-xs text-slate-500 block">@Money(item.Cost ?? 0)</span>
+                                <span class="text-right whitespace-nowrap text-xs text-slate-500 font-medium block">@Money(item.Cost ?? 0)</span>
                             </ChildContent>
                         </TemplateColumn>
+                    }
 
+                    <TemplateColumn Title="Selling price" SortBy="@sortByPrice" Sortable="true" Align="Align.Right">
+                        <HeaderTemplate Context="_">
+                            <a class="col-title" href="@GetSortUrl("price")" title="Sort by selling price">
+                                <span>Selling price</span>
+                                <span class="sort-indicator" aria-hidden="true"></span>
+                            </a>
+                        </HeaderTemplate>
+                        <ChildContent Context="item">
+                            <span class="text-right whitespace-nowrap font-semibold text-slate-900 block">@Money(item.Price)</span>
+                        </ChildContent>
+                    </TemplateColumn>
+
+                    @if (canViewCostPrice)
+                    {
                         <TemplateColumn Title="Stock value" SortBy="@sortByValue" Sortable="true" Align="Align.Right">
                             <HeaderTemplate Context="_">
-                                <a class="col-title" href="@GetSortUrl("value")" title="Sort by value">
+                                <a class="col-title" href="@GetSortUrl("value")" title="Sort by stock value">
                                     <span>Stock value</span>
                                     <span class="sort-indicator" aria-hidden="true"></span>
                                 </a>
                             </HeaderTemplate>
                             <ChildContent Context="item">
-                                <span class="text-right whitespace-nowrap text-xs text-slate-500 block">@Money(item.Stock * (item.Cost ?? 0))</span>
+                                <span class="text-right whitespace-nowrap text-xs text-slate-500 font-medium block">@Money(item.Stock * (item.Cost ?? 0))</span>
                             </ChildContent>
                         </TemplateColumn>
-                    </AuthorizeView>
+                    }
 
-                    <TemplateColumn Align="Align.Right" Class="w-8 sm:w-10">
+                    <TemplateColumn Align="Align.Center" Class="w-10 pr-5">
                         <a href="@($"/items/{context.Id}")" class="icon-button size-8" aria-label="@($"View {context.Name}")">
                             <Icon Name="arrow" />
                         </a>
@@ -358,7 +351,8 @@
             }
         </div>
 
-        <AuthorizeView Policy="@AppPolicies.ManageInventory">
+        @if (canManageInventory)
+        {
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-slate-100 p-3 sm:p-4">
                 <div class="flex flex-wrap items-center gap-2">
                     <button class="btn-secondary w-full sm:w-auto text-xs sm:text-sm" type="submit" disabled="@(Items is null || Items.Count == 0)" data-pending-text="Generating…">Generate selected labels</button>
@@ -369,7 +363,7 @@
                 </div>
                 <span class="text-xs text-slate-400">Missing barcodes will be generated from product IDs.</span>
             </div>
-        </AuthorizeView>
+        }
     </form>
 
     @if (Pagination is not null)
@@ -400,26 +394,26 @@
     [SupplyParameterFromQuery]
     public int? LocationId { get; set; }
 
-    [SupplyParameterFromQuery]
-    public int? CategoryId { get; set; }
+    [SupplyParameterFromQuery(Name = "category")]
+    public string? Category { get; set; }
 
-    [SupplyParameterFromQuery]
-    public int? SupplierId { get; set; }
+    [SupplyParameterFromQuery(Name = "supplier")]
+    public string? Supplier { get; set; }
 
     [SupplyParameterFromQuery]
     public decimal? MinStock { get; set; }
 
-    private bool HasActiveFilters => CategoryId.HasValue || SupplierId.HasValue || MinStock.HasValue;
+    private bool HasActiveFilters => !string.IsNullOrWhiteSpace(Category) || !string.IsNullOrWhiteSpace(Supplier) || MinStock.HasValue;
+
+    private bool canManageInventory;
+    private bool canViewCostPrice;
 
     private IReadOnlyList<Lookup> Locations = [];
-    private IReadOnlyList<Lookup> Categories = [];
-    private IReadOnlyList<Lookup> SuppliersList = [];
     private IReadOnlyList<ItemAttributeColumn> AttributeColumns = [];
-    private static readonly string[] ExportColumns = ["Item ID", "Item", "Category", "Supplier", "Barcode", "Unit", "Stock", "Selling price", "Average cost", "Stock value"];
+    private static readonly string[] ExportColumns = ["Item ID", "Item", "Category", "Supplier", "Barcode", "Unit", "Stock", "Selling price", "Cost price", "Stock value"];
 
     private readonly GridSort<ItemRow> sortById = GridSort<ItemRow>.ByAscending(i => i.Id);
     private readonly GridSort<ItemRow> sortByName = GridSort<ItemRow>.ByAscending(i => i.Name);
-    private readonly GridSort<ItemRow> sortByBarcode = GridSort<ItemRow>.ByAscending(i => i.Barcode ?? "");
     private readonly GridSort<ItemRow> sortBySupplier = GridSort<ItemRow>.ByAscending(i => i.Supplier);
     private readonly GridSort<ItemRow> sortByStock = GridSort<ItemRow>.ByAscending(i => i.Stock);
     private readonly GridSort<ItemRow> sortByPrice = GridSort<ItemRow>.ByAscending(i => i.Price);
@@ -448,13 +442,17 @@
 
         try
         {
+            var manageAuth = await AuthService.AuthorizeAsync(HttpContext.User, AppPolicies.ManageInventory);
+            canManageInventory = manageAuth.Succeeded;
+
+            var costAuth = await AuthService.AuthorizeAsync(HttpContext.User, AppPolicies.ViewCostPrice);
+            canViewCostPrice = costAuth.Succeeded;
+
             if (Locations.Count == 0)
             {
                 var options = await Inventory.ItemLocationsAsync(HttpContext.User, HttpContext.RequestAborted);
                 Locations = options.Locations;
                 AttributeColumns = await Inventory.ItemAttributeColumnsAsync(HttpContext.User, HttpContext.RequestAborted);
-                Categories = await Inventory.CategoriesAsync(HttpContext.User, HttpContext.RequestAborted);
-                SuppliersList = await Inventory.SuppliersAsync(HttpContext.User, HttpContext.RequestAborted);
                 if (!Locations.Any(location => location.Id == LocationId))
                 {
                     LocationId = options.SelectedLocationId;
@@ -470,8 +468,8 @@
                 Search,
                 HttpContext.RequestAborted,
                 locationId: LocationId,
-                categoryId: CategoryId,
-                supplierId: SupplierId,
+                category: Category,
+                supplier: Supplier,
                 minStock: MinStock);
             var size = QueryPagination.Size(PageSize);
             Page = Math.Clamp(Page, 1, Math.Max(1, (int)Math.Ceiling(count / (double)size)));
@@ -486,8 +484,8 @@
                 locationId: LocationId,
                 sort: resolvedSort,
                 pageSize: size,
-                categoryId: CategoryId,
-                supplierId: SupplierId,
+                category: Category,
+                supplier: Supplier,
                 minStock: MinStock);
             Pagination = new PageInfo(CurrentPage, size, count);
         }

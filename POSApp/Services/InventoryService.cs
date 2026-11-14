@@ -104,7 +104,9 @@ public sealed class InventoryService(IServiceScopeFactory scopes, IConfiguration
         int? categoryId = null,
         int? supplierId = null,
         decimal? minStock = null,
-        decimal? maxStock = null)
+        decimal? maxStock = null,
+        string? category = null,
+        string? supplier = null)
     {
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -121,6 +123,16 @@ public sealed class InventoryService(IServiceScopeFactory scopes, IConfiguration
         if (supplierId.HasValue)
         {
             query = query.Where(p => p.SupplierId == supplierId.Value);
+        }
+        if (!string.IsNullOrWhiteSpace(category))
+        {
+            var normalizedCat = NameNormalization.Normalize(category.Trim());
+            query = query.Where(p => p.Category != null && p.Category.NormalizedName.Contains(normalizedCat));
+        }
+        if (!string.IsNullOrWhiteSpace(supplier))
+        {
+            var normalizedSup = NameNormalization.Normalize(supplier.Trim());
+            query = query.Where(p => p.Supplier != null && p.Supplier.NormalizedName.Contains(normalizedSup));
         }
         if (minStock.HasValue)
         {
@@ -183,7 +195,9 @@ public sealed class InventoryService(IServiceScopeFactory scopes, IConfiguration
         int? categoryId = null,
         int? supplierId = null,
         decimal? minStock = null,
-        decimal? maxStock = null)
+        decimal? maxStock = null,
+        string? category = null,
+        string? supplier = null)
     {
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -200,6 +214,16 @@ public sealed class InventoryService(IServiceScopeFactory scopes, IConfiguration
         if (supplierId.HasValue)
         {
             query = query.Where(p => p.SupplierId == supplierId.Value);
+        }
+        if (!string.IsNullOrWhiteSpace(category))
+        {
+            var normalizedCat = NameNormalization.Normalize(category.Trim());
+            query = query.Where(p => p.Category != null && p.Category.NormalizedName.Contains(normalizedCat));
+        }
+        if (!string.IsNullOrWhiteSpace(supplier))
+        {
+            var normalizedSup = NameNormalization.Normalize(supplier.Trim());
+            query = query.Where(p => p.Supplier != null && p.Supplier.NormalizedName.Contains(normalizedSup));
         }
         if (minStock.HasValue)
         {

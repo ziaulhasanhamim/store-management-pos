@@ -934,13 +934,13 @@ table.quickgrid {
 .paginator button.go-first,
 .paginator button.go-previous,
 .paginator button.go-next,
-.paginator button.go-last {
+.paginator button.go-last,
+.paginator-btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     height: 32px;
-    min-width: 32px;
-    padding: 0 10px;
+    width: 32px;
     border-radius: 8px;
     border: 1px solid #e2e8f0;
     background: #ffffff;
@@ -956,7 +956,8 @@ table.quickgrid {
 .quickgrid-paginator a:not([aria-disabled="true"]):hover,
 .paginator a:not([aria-disabled="true"]):hover,
 .quickgrid-paginator button:not(:disabled):hover,
-.paginator button:not(:disabled):hover {
+.paginator button:not(:disabled):hover,
+.paginator-btn:not(.disabled):not(:disabled):hover {
     background: #f8fafc;
     border-color: #cbd5e1;
     color: #0f172a;
@@ -965,12 +966,29 @@ table.quickgrid {
 .quickgrid-paginator a[aria-disabled="true"],
 .paginator a[aria-disabled="true"],
 .quickgrid-paginator button:disabled,
-.paginator button:disabled {
+.paginator button:disabled,
+.paginator-btn.disabled,
+.paginator-btn:disabled {
     opacity: 0.35;
     cursor: not-allowed;
     pointer-events: none;
     background: #f8fafc;
     border-color: #f1f5f9;
+}
+
+/* Edge padding on data-table & quickgrid so first & last columns never touch card borders */
+.quickgrid th:first-child,
+.quickgrid td:first-child,
+.data-table th:first-child,
+.data-table td:first-child {
+    padding-left: 20px !important;
+}
+
+.quickgrid th:last-child,
+.quickgrid td:last-child,
+.data-table th:last-child,
+.data-table td:last-child {
+    padding-right: 20px !important;
 }
 
 /* QuickGrid Column Filter Dropdowns */

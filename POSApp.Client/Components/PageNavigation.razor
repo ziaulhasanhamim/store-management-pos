@@ -1,39 +1,118 @@
 @inject NavigationManager Navigation
 
-<nav class="flex flex-col sm:flex-row flex-wrap items-start sm:items-center justify-between gap-3 border-t border-slate-100 p-3 sm:p-4 text-xs sm:text-sm" aria-label="@Label pagination">
-    <span class="text-slate-500">@Info.First–@Info.Last of @Info.Total @Label · Page @Info.Number of @Info.Pages</span>
-    <div class="flex flex-wrap items-center gap-2 text-xs text-slate-500">
-        <span>Rows</span>
+<nav class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-slate-100 bg-white px-5 py-3.5 sm:px-6 text-xs text-slate-500 rounded-b-2xl" aria-label="@Label pagination">
+    <!-- Left: Summary -->
+    <div class="summary text-xs text-slate-600">
+        Showing <strong class="font-semibold text-slate-900">@Info.First</strong>–<strong class="font-semibold text-slate-900">@Info.Last</strong> of <strong class="font-semibold text-slate-900">@Info.Total</strong> @Label
+    </div>
+
+    <!-- Center: Rows per page -->
+    <div class="flex items-center gap-1.5 text-xs text-slate-500">
+        <span>Rows:</span>
         @foreach (var size in PageSizes)
         {
-            <a href="@SizeLink(size)" aria-current="@(Info.Size == size ? "true" : null)"
-               class="rounded-md px-2 py-1 @(Info.Size == size ? "bg-indigo-50 font-semibold text-indigo-700" : "hover:bg-slate-100")">@size</a>
+            if (PageChanged.HasDelegate)
+            {
+                <button type="button" @onclick="() => PageChanged.InvokeAsync(1)"
+                        class="rounded-md px-2 py-0.5 text-xs font-medium transition-colors @(Info.Size == size ? "bg-blue-50 text-blue-700 font-semibold" : "text-slate-600 hover:bg-slate-100")">
+                    @size
+                </button>
+            }
+            else
+            {
+                <a href="@SizeLink(size)" data-enhance
+                   class="rounded-md px-2 py-0.5 text-xs font-medium transition-colors @(Info.Size == size ? "bg-blue-50 text-blue-700 font-semibold" : "text-slate-600 hover:bg-slate-100")">
+                    @size
+                </a>
+            }
         }
         <span>per page</span>
     </div>
-    @if (Busy)
-    {
-        <span role="status" class="text-slate-500">Loading…</span>
-    }
-    <div class="flex flex-wrap gap-1.5 sm:gap-2">
+
+    <!-- Right: SVG Nav buttons -->
+    <div class="inline-flex items-center gap-1" aria-label="Pagination controls">
         @if (PageChanged.HasDelegate)
         {
-            <button type="button" class="btn-secondary text-xs sm:text-sm px-2.5 sm:px-4 py-1.5 sm:py-2" disabled="@(Busy || Info.Number <= 1)" @onclick="() => PageChanged.InvokeAsync(1)">First</button>
-            <button type="button" class="btn-secondary text-xs sm:text-sm px-2.5 sm:px-4 py-1.5 sm:py-2" disabled="@(Busy || Info.Number <= 1)" @onclick="() => PageChanged.InvokeAsync(Info.Number - 1)">Previous</button>
-            <button type="button" class="btn-secondary text-xs sm:text-sm px-2.5 sm:px-4 py-1.5 sm:py-2" disabled="@(Busy || Info.Number >= Info.Pages)" @onclick="() => PageChanged.InvokeAsync(Info.Number + 1)">Next</button>
-            <button type="button" class="btn-secondary text-xs sm:text-sm px-2.5 sm:px-4 py-1.5 sm:py-2" disabled="@(Busy || Info.Number >= Info.Pages)" @onclick="() => PageChanged.InvokeAsync(Info.Pages)">Last</button>
+            <button type="button" class="paginator-btn" disabled="@(Busy || Info.Number <= 1)" @onclick="() => PageChanged.InvokeAsync(1)" title="First page" aria-label="First page">
+                <svg class="size-3.5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M15.707 15.707a1 1 0 01-1.414 0l-5-5a1 1 0 010-1.414l5-5a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 010 1.414zm-6 0a1 1 0 01-1.414 0l-5-5a1 1 0 010-1.414l5-5a1 1 0 011.414 1.414L5.414 10l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
+                </svg>
+            </button>
+            <button type="button" class="paginator-btn" disabled="@(Busy || Info.Number <= 1)" @onclick="() => PageChanged.InvokeAsync(Info.Number - 1)" title="Previous page" aria-label="Previous page">
+                <svg class="size-3.5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd" />
+                </svg>
+            </button>
+
+            <span class="px-2 text-xs text-slate-600 font-medium">Page <strong class="text-slate-900 font-semibold">@Info.Number</strong> of <strong class="text-slate-900 font-semibold">@Info.Pages</strong></span>
+
+            <button type="button" class="paginator-btn" disabled="@(Busy || Info.Number >= Info.Pages)" @onclick="() => PageChanged.InvokeAsync(Info.Number + 1)" title="Next page" aria-label="Next page">
+                <svg class="size-3.5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
+                </svg>
+            </button>
+            <button type="button" class="paginator-btn" disabled="@(Busy || Info.Number >= Info.Pages)" @onclick="() => PageChanged.InvokeAsync(Info.Pages)" title="Last page" aria-label="Last page">
+                <svg class="size-3.5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M10.293 15.707a1 1 0 010-1.414L14.586 10l-4.293-4.293a1 1 0 111.414-1.414l5 5a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0zm-6 0a1 1 0 010-1.414L8.586 10 4.293 5.707a1 1 0 011.414-1.414l5 5a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0z" clip-rule="evenodd" />
+                </svg>
+            </button>
         }
         else
         {
             @if (Info.Number > 1)
             {
-                <a href="@Link(1)" class="btn-secondary text-xs sm:text-sm px-2.5 sm:px-4 py-1.5 sm:py-2">First</a>
-                <a href="@Link(Info.Number - 1)" class="btn-secondary text-xs sm:text-sm px-2.5 sm:px-4 py-1.5 sm:py-2">Previous</a>
+                <a href="@Link(1)" data-enhance class="paginator-btn" title="First page" aria-label="First page">
+                    <svg class="size-3.5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M15.707 15.707a1 1 0 01-1.414 0l-5-5a1 1 0 010-1.414l5-5a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 010 1.414zm-6 0a1 1 0 01-1.414 0l-5-5a1 1 0 010-1.414l5-5a1 1 0 011.414 1.414L5.414 10l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
+                    </svg>
+                </a>
+                <a href="@Link(Info.Number - 1)" data-enhance class="paginator-btn" title="Previous page" aria-label="Previous page">
+                    <svg class="size-3.5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd" />
+                    </svg>
+                </a>
             }
+            else
+            {
+                <span class="paginator-btn disabled" aria-disabled="true">
+                    <svg class="size-3.5 opacity-40" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M15.707 15.707a1 1 0 01-1.414 0l-5-5a1 1 0 010-1.414l5-5a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 010 1.414zm-6 0a1 1 0 01-1.414 0l-5-5a1 1 0 010-1.414l5-5a1 1 0 011.414 1.414L5.414 10l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
+                    </svg>
+                </span>
+                <span class="paginator-btn disabled" aria-disabled="true">
+                    <svg class="size-3.5 opacity-40" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd" />
+                    </svg>
+                </span>
+            }
+
+            <span class="px-2 text-xs text-slate-600 font-medium">Page <strong class="text-slate-900 font-semibold">@Info.Number</strong> of <strong class="text-slate-900 font-semibold">@Info.Pages</strong></span>
+
             @if (Info.Number < Info.Pages)
             {
-                <a href="@Link(Info.Number + 1)" class="btn-secondary text-xs sm:text-sm px-2.5 sm:px-4 py-1.5 sm:py-2">Next</a>
-                <a href="@Link(Info.Pages)" class="btn-secondary text-xs sm:text-sm px-2.5 sm:px-4 py-1.5 sm:py-2">Last</a>
+                <a href="@Link(Info.Number + 1)" data-enhance class="paginator-btn" title="Next page" aria-label="Next page">
+                    <svg class="size-3.5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
+                    </svg>
+                </a>
+                <a href="@Link(Info.Pages)" data-enhance class="paginator-btn" title="Last page" aria-label="Last page">
+                    <svg class="size-3.5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M10.293 15.707a1 1 0 010-1.414L14.586 10l-4.293-4.293a1 1 0 111.414-1.414l5 5a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0zm-6 0a1 1 0 010-1.414L8.586 10 4.293 5.707a1 1 0 011.414-1.414l5 5a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0z" clip-rule="evenodd" />
+                    </svg>
+                </a>
+            }
+            else
+            {
+                <span class="paginator-btn disabled" aria-disabled="true">
+                    <svg class="size-3.5 opacity-40" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
+                    </svg>
+                </span>
+                <span class="paginator-btn disabled" aria-disabled="true">
+                    <svg class="size-3.5 opacity-40" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M10.293 15.707a1 1 0 010-1.414L14.586 10l-4.293-4.293a1 1 0 111.414-1.414l5 5a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0zm-6 0a1 1 0 010-1.414L8.586 10 4.293 5.707a1 1 0 011.414-1.414l5 5a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0z" clip-rule="evenodd" />
+                    </svg>
+                </span>
             }
         }
     </div>
