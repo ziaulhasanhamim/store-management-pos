@@ -150,4 +150,5 @@ public sealed record SaleBill(
     public decimal PreviousDue { get; init; }
     public bool CanVoid { get; init; }
     public int CashierId { get; init; }
+    public string Revision { get; init; } = "";
 }

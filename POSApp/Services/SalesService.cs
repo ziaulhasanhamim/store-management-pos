@@ -569,7 +569,8 @@ public sealed class SalesService(IServiceScopeFactory scopes, IConfiguration? co
             CustomerAddress = sale.Customer?.Address,
             PreviousDue = previousDue,
             CanVoid = canVoid,
-            CashierId = sale.CashierId
+            CashierId = sale.CashierId,
+            Revision = (sale.UpdatedAt ?? sale.CreatedAt).ToString("O", System.Globalization.CultureInfo.InvariantCulture)
         };
     }
 }

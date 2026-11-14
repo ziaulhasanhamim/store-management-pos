@@ -280,4 +280,73 @@ public class SalesServiceTests : PosIntegrationTestBase
         await optionsAfterOpen.OpenLocationIds.Should().Contain(1);
         await optionsAfterOpen.OpenLocationIds.Should().Contain(northId);
     }
+
+    [Test]
+    public async Task VoidSale_UsingBillRevision_SucceedsAndRestoresStock()
+    {
+        var productId = await SetupProductWithStockAsync(cost: 40m, price: 80m, quantity: 10m);
+
+        await using var scope = CreateScope();
+        var sales = scope.ServiceProvider.GetRequiredService<SalesService>();
+        var records = scope.ServiceProvider.GetRequiredService<RecordAdministration>();
+
+        var saleCommand = new SalesCommand(
+            RequestId: Guid.NewGuid(),
+            LocationId: 1,
+            CustomerId: 1,
+            Lines: [new SalesLine(productId, Quantity: 2, UnitPrice: 80m)],
+            Discount: 0m,
+            Payment: 160m,
+            Method: PaymentMethod.Cash,
+            Notes: "Sale for bill revision void test");
+
+        var saleResult = await sales.SaveAsync(SalesUser, saleCommand, complete: true);
+        var bill = await sales.BillAsync(AdminUser, saleResult.Id);
+        await bill.Should().NotBeNull();
+        await string.IsNullOrWhiteSpace(bill!.Revision).Should().BeFalse();
+
+        // Void using bill.Revision directly as done on the Bill.razor page
+        await records.ChangeAsync(AdminUser, "sale", saleResult.Id, new RecordCorrectionInput
+        {
+            Reason = "Voided from bill UI",
+            ExpectedRevision = bill.Revision
+        }, delete: true);
+
+        var voidedBill = await sales.BillAsync(AdminUser, saleResult.Id);
+        await voidedBill.Should().NotBeNull();
+        await voidedBill!.IsVoided.Should().BeTrue();
+
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var balance = await db.InventoryBalances.AsNoTracking()
+            .SingleOrDefaultAsync(b => b.ProductId == productId && b.StockLocationId == 1);
+        await balance!.QuantityOnHand.Should().BeEqualTo(10m);
+    }
+
+    [Test]
+    public async Task VoidSale_WithMismatchedRevision_ThrowsValidationException()
+    {
+        var productId = await SetupProductWithStockAsync(cost: 40m, price: 80m, quantity: 10m);
+
+        await using var scope = CreateScope();
+        var sales = scope.ServiceProvider.GetRequiredService<SalesService>();
+        var records = scope.ServiceProvider.GetRequiredService<RecordAdministration>();
+
+        var saleCommand = new SalesCommand(
+            RequestId: Guid.NewGuid(),
+            LocationId: 1,
+            CustomerId: 1,
+            Lines: [new SalesLine(productId, Quantity: 1, UnitPrice: 80m)],
+            Discount: 0m,
+            Payment: 80m,
+            Method: PaymentMethod.Cash,
+            Notes: "Sale for mismatched revision void test");
+
+        var saleResult = await sales.SaveAsync(SalesUser, saleCommand, complete: true);
+
+        await Assert.ThrowsAsync<ValidationException>(() => records.ChangeAsync(AdminUser, "sale", saleResult.Id, new RecordCorrectionInput
+        {
+            Reason = "Void with bad revision",
+            ExpectedRevision = "2020-01-01T00:00:00.0000000+00:00"
+        }, delete: true));
+    }
 }

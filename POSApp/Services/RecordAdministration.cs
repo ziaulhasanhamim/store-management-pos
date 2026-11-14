@@ -923,7 +923,11 @@ public sealed class RecordAdministration(IServiceScopeFactory scopes, IConfigura
 
     private static void ValidateRevision(AuditableEntity entity, bool alreadyDeletedOrVoided, RecordCorrectionInput input)
     {
-        if (alreadyDeletedOrVoided || Revision(entity) != input.ExpectedRevision)
+        if (alreadyDeletedOrVoided)
+        {
+            throw new ValidationException("This record has changed or was already voided. Reload before editing it.");
+        }
+        if (!string.IsNullOrWhiteSpace(input.ExpectedRevision) && Revision(entity) != input.ExpectedRevision)
         {
             throw new ValidationException("This record has changed or was already voided. Reload before editing it.");
         }

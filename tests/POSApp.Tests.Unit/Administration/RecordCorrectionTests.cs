@@ -34,11 +34,13 @@ public class RecordCorrectionTests
         )
         {
             IsVoided = true,
-            VoidedAt = voidedAt
+            VoidedAt = voidedAt,
+            Revision = "2026-10-27T14:00:00.0000000+00:00"
         };
 
         await bill.IsVoided.Should().BeEqualTo(true);
         await bill.VoidedAt.Should().BeEqualTo(voidedAt);
+        await bill.Revision.Should().BeEqualTo("2026-10-27T14:00:00.0000000+00:00");
     }
 
     [Test]

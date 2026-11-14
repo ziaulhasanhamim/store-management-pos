@@ -4,6 +4,7 @@
 @attribute [StreamRendering]
 @inject SalesService Sales
 @inject RecordAdministration Records
+@using System.ComponentModel.DataAnnotations
 
 <PageTitle>Invoice #@Id · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
 
@@ -48,6 +49,32 @@
     </div>
 </div>
 
+@if (!string.IsNullOrWhiteSpace(ErrorMessage))
+{
+    <div class="mb-5 rounded-xl border border-rose-300 bg-rose-50 p-4 text-rose-800 shadow-sm flex items-center justify-between no-print" role="alert">
+        <div class="flex items-center gap-2">
+            <Icon Name="alert" Class="text-rose-600 h-5 w-5 shrink-0" />
+            <span class="text-xs font-semibold">@ErrorMessage</span>
+        </div>
+        <button type="button" class="text-rose-500 hover:text-rose-700" onclick="this.parentElement.remove()" aria-label="Dismiss error">
+            <Icon Name="close" Class="h-4 w-4" />
+        </button>
+    </div>
+}
+
+@if (!string.IsNullOrWhiteSpace(SuccessMessage))
+{
+    <div class="mb-5 rounded-xl border border-emerald-300 bg-emerald-50 p-4 text-emerald-800 shadow-sm flex items-center justify-between no-print" role="status">
+        <div class="flex items-center gap-2">
+            <Icon Name="check" Class="text-emerald-600 h-5 w-5 shrink-0" />
+            <span class="text-xs font-semibold">@SuccessMessage</span>
+        </div>
+        <button type="button" class="text-emerald-500 hover:text-emerald-700" onclick="this.parentElement.remove()" aria-label="Dismiss message">
+            <Icon Name="close" Class="h-4 w-4" />
+        </button>
+    </div>
+}
+
 <div class="flex items-center gap-2 mb-5 no-print">
     @if (Data?.CanVoid == true)
     {
@@ -69,12 +96,18 @@
 {
     <div id="void-sale-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
         <div class="panel max-w-md w-full p-6 shadow-2xl bg-white rounded-2xl border border-slate-200">
-            <h3 class="text-lg font-bold text-slate-900 mb-2">Void Invoice #@Id</h3>
+            <div class="flex items-center justify-between mb-2">
+                <h3 class="text-lg font-bold text-slate-900">Void Invoice #@Id</h3>
+                <button type="button" class="text-slate-400 hover:text-slate-600" onclick="document.getElementById('void-sale-modal')?.classList.add('hidden')" aria-label="Close modal">
+                    <Icon Name="close" Class="h-5 w-5" />
+                </button>
+            </div>
             <p class="text-xs text-slate-500 mb-4">
                 Are you sure you want to void this sale? All inventory and payment postings will be reversed as of the original sale date and time.
             </p>
             <form method="post" @formname="void-sale" @onsubmit="VoidSaleAsync" data-enhance>
                 <AntiforgeryToken />
+                <input type="hidden" name="ExpectedRevision" value="@Data.Revision" />
                 <label class="field-label text-xs mb-1" for="void-reason">Reason for voiding</label>
                 <input id="void-reason" name="VoidReason" @bind="VoidReason" class="field text-xs w-full mb-4" placeholder="e.g. Cashier error, customer returned..." required />
                 <div class="flex items-center justify-end gap-2">
@@ -441,6 +474,12 @@ else
     [SupplyParameterFromForm(FormName = "void-sale")]
     private string? VoidReason { get; set; }
 
+    [SupplyParameterFromForm(FormName = "void-sale")]
+    private string? ExpectedRevision { get; set; }
+
+    private string? ErrorMessage;
+    private string? SuccessMessage;
+
     protected override async Task OnParametersSetAsync()
     {
         Data = await Sales.BillAsync(HttpContext.User, Id, HttpContext.RequestAborted);
@@ -449,8 +488,33 @@ else
 
     private async Task VoidSaleAsync()
     {
-        var reason = string.IsNullOrWhiteSpace(VoidReason) ? "Voided by user" : VoidReason.Trim();
-        await Records.ChangeAsync(HttpContext.User, "sale", Id, new RecordCorrectionInput { Reason = reason }, delete: true, HttpContext.RequestAborted);
-        Data = await Sales.BillAsync(HttpContext.User, Id, HttpContext.RequestAborted);
+        ErrorMessage = null;
+        SuccessMessage = null;
+        try
+        {
+            var reason = string.IsNullOrWhiteSpace(VoidReason) ? "Voided by user" : VoidReason.Trim();
+            var revision = !string.IsNullOrWhiteSpace(ExpectedRevision) ? ExpectedRevision : (Data?.Revision ?? "");
+            await Records.ChangeAsync(HttpContext.User, "sale", Id, new RecordCorrectionInput
+            {
+                Reason = reason,
+                ExpectedRevision = revision
+            }, delete: true, HttpContext.RequestAborted);
+
+            VoidReason = null;
+            SuccessMessage = $"Sale #{Id} was voided successfully and all inventory and payment postings have been reversed.";
+            Data = await Sales.BillAsync(HttpContext.User, Id, HttpContext.RequestAborted);
+        }
+        catch (ValidationException ex)
+        {
+            ErrorMessage = ex.Message;
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            ErrorMessage = ex.Message;
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = "Could not void this sale: " + ex.Message;
+        }
     }
 }
