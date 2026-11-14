@@ -92,7 +92,19 @@ public sealed class InventoryService(IServiceScopeFactory scopes, IConfiguration
         return new(locations, selected);
     }
 
-    public async Task<IReadOnlyList<ItemRow>> ListAsync(ClaimsPrincipal actor, string? search = null, int page = 1, CancellationToken ct = default, int? locationId = null, bool stockedOnly = false, string? sort = null, int pageSize = 30)
+    public async Task<IReadOnlyList<ItemRow>> ListAsync(
+        ClaimsPrincipal actor,
+        string? search = null,
+        int page = 1,
+        CancellationToken ct = default,
+        int? locationId = null,
+        bool stockedOnly = false,
+        string? sort = null,
+        int pageSize = 30,
+        int? categoryId = null,
+        int? supplierId = null,
+        decimal? minStock = null,
+        decimal? maxStock = null)
     {
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -101,6 +113,22 @@ public sealed class InventoryService(IServiceScopeFactory scopes, IConfiguration
         if (stockedOnly)
         {
             query = query.Where(product => !product.IsNonStocked);
+        }
+        if (categoryId.HasValue)
+        {
+            query = query.Where(p => p.CategoryId == categoryId.Value);
+        }
+        if (supplierId.HasValue)
+        {
+            query = query.Where(p => p.SupplierId == supplierId.Value);
+        }
+        if (minStock.HasValue)
+        {
+            query = query.Where(p => (p.InventoryBalances.Where(b => locationId == null || b.StockLocationId == locationId).Select(b => (decimal?)b.QuantityOnHand).Sum() ?? 0) >= minStock.Value);
+        }
+        if (maxStock.HasValue)
+        {
+            query = query.Where(p => (p.InventoryBalances.Where(b => locationId == null || b.StockLocationId == locationId).Select(b => (decimal?)b.QuantityOnHand).Sum() ?? 0) <= maxStock.Value);
         }
         if (!string.IsNullOrWhiteSpace(search))
         {
@@ -146,12 +174,41 @@ public sealed class InventoryService(IServiceScopeFactory scopes, IConfiguration
         return await AddAttributesAsync(db, items, ct);
     }
 
-    public async Task<int> CountAsync(ClaimsPrincipal actor, string? search = null, CancellationToken ct = default)
+    public async Task<int> CountAsync(
+        ClaimsPrincipal actor,
+        string? search = null,
+        CancellationToken ct = default,
+        int? locationId = null,
+        bool stockedOnly = false,
+        int? categoryId = null,
+        int? supplierId = null,
+        decimal? minStock = null,
+        decimal? maxStock = null)
     {
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         await RequireActor(db, actor, false, ct);
         var query = db.Products.AsNoTracking().Where(product => !product.IsDeleted);
+        if (stockedOnly)
+        {
+            query = query.Where(product => !product.IsNonStocked);
+        }
+        if (categoryId.HasValue)
+        {
+            query = query.Where(p => p.CategoryId == categoryId.Value);
+        }
+        if (supplierId.HasValue)
+        {
+            query = query.Where(p => p.SupplierId == supplierId.Value);
+        }
+        if (minStock.HasValue)
+        {
+            query = query.Where(p => (p.InventoryBalances.Where(b => locationId == null || b.StockLocationId == locationId).Select(b => (decimal?)b.QuantityOnHand).Sum() ?? 0) >= minStock.Value);
+        }
+        if (maxStock.HasValue)
+        {
+            query = query.Where(p => (p.InventoryBalances.Where(b => locationId == null || b.StockLocationId == locationId).Select(b => (decimal?)b.QuantityOnHand).Sum() ?? 0) <= maxStock.Value);
+        }
         if (!string.IsNullOrWhiteSpace(search))
         {
             var term = search.Trim();
@@ -334,6 +391,18 @@ public sealed class InventoryService(IServiceScopeFactory scopes, IConfiguration
             .Where(category => !category.IsDeleted)
             .OrderBy(category => category.Name)
             .Select(category => new Lookup(category.Id, category.Name))
+            .ToListAsync(ct);
+    }
+
+    public async Task<IReadOnlyList<Lookup>> SuppliersAsync(ClaimsPrincipal actor, CancellationToken ct = default)
+    {
+        await using var scope = scopes.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await RequireActor(db, actor, true, ct);
+        return await db.Suppliers
+            .Where(supplier => !supplier.IsDeleted)
+            .OrderBy(supplier => supplier.Name)
+            .Select(supplier => new Lookup(supplier.Id, supplier.Name))
             .ToListAsync(ct);
     }
 

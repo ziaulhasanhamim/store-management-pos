@@ -168,3 +168,22 @@ document.addEventListener('click', event => {
     }
 });
 
+// Column Filter Popover: close open popovers on outside click or Escape
+document.addEventListener('click', event => {
+    const openFilters = document.querySelectorAll('.col-filter-details[open]');
+    openFilters.forEach(filter => {
+        if (!filter.contains(event.target)) {
+            filter.removeAttribute('open');
+        }
+    });
+});
+
+document.addEventListener('keydown', event => {
+    if (event.key === 'Escape') {
+        const openFilters = document.querySelectorAll('.col-filter-details[open]');
+        openFilters.forEach(filter => {
+            filter.removeAttribute('open');
+        });
+    }
+});
+
