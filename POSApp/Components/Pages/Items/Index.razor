@@ -173,21 +173,12 @@
                                     </summary>
                                     <div class="col-filter-card">
                                         <div class="font-semibold text-slate-800 text-xs mb-2">Filter Category</div>
-                                        <form method="get" action="/items" data-enhance>
-                                            <input type="hidden" name="search" value="@Search" />
-                                            <input type="hidden" name="locationId" value="@LocationId" />
-                                            <input type="hidden" name="supplier" value="@Supplier" />
-                                            <input type="hidden" name="minStock" value="@MinStock" />
-                                            <input type="hidden" name="sort" value="@Sort" />
-                                            <input type="hidden" name="direction" value="@Direction" />
-                                            <input type="hidden" name="pageSize" value="@PageSize" />
-                                            <label class="text-[11px] text-slate-500 block mb-1">Category name contains</label>
-                                            <input type="text" name="category" value="@Category" placeholder="e.g. Watch, Screen..." class="field text-xs py-1.5 mb-2 w-full" />
-                                            <div class="flex items-center justify-between gap-2 mt-2">
-                                                <a href="@ClearFilterUrl("category")" data-enhance class="text-xs text-slate-500 hover:text-slate-800">Clear</a>
-                                                <button type="submit" class="btn-primary text-xs py-1 px-3">Apply</button>
-                                            </div>
-                                        </form>
+                                        <label class="text-[11px] text-slate-500 block mb-1">Category name contains</label>
+                                        <input type="text" data-col-filter="category" value="@Category" placeholder="e.g. Watch, Screen..." class="field text-xs py-1.5 mb-2 w-full" />
+                                        <div class="flex items-center justify-between gap-2 mt-2">
+                                            <a href="@FilterUrl("category", null)" data-enhance class="text-xs text-slate-500 hover:text-slate-800">Clear</a>
+                                            <button type="button" class="btn-primary text-xs py-1 px-3 col-filter-apply">Apply</button>
+                                        </div>
                                     </div>
                                 </details>
                             </div>
@@ -220,21 +211,12 @@
                                     </summary>
                                     <div class="col-filter-card">
                                         <div class="font-semibold text-slate-800 text-xs mb-2">Filter Supplier</div>
-                                        <form method="get" action="/items" data-enhance>
-                                            <input type="hidden" name="search" value="@Search" />
-                                            <input type="hidden" name="locationId" value="@LocationId" />
-                                            <input type="hidden" name="category" value="@Category" />
-                                            <input type="hidden" name="minStock" value="@MinStock" />
-                                            <input type="hidden" name="sort" value="@Sort" />
-                                            <input type="hidden" name="direction" value="@Direction" />
-                                            <input type="hidden" name="pageSize" value="@PageSize" />
-                                            <label class="text-[11px] text-slate-500 block mb-1">Supplier name contains</label>
-                                            <input type="text" name="supplier" value="@Supplier" placeholder="e.g. Gadget, ST Mart..." class="field text-xs py-1.5 mb-2 w-full" />
-                                            <div class="flex items-center justify-between gap-2 mt-2">
-                                                <a href="@ClearFilterUrl("supplier")" data-enhance class="text-xs text-slate-500 hover:text-slate-800">Clear</a>
-                                                <button type="submit" class="btn-primary text-xs py-1 px-3">Apply</button>
-                                            </div>
-                                        </form>
+                                        <label class="text-[11px] text-slate-500 block mb-1">Supplier name contains</label>
+                                        <input type="text" data-col-filter="supplier" value="@Supplier" placeholder="e.g. Gadget, ST Mart..." class="field text-xs py-1.5 mb-2 w-full" />
+                                        <div class="flex items-center justify-between gap-2 mt-2">
+                                            <a href="@FilterUrl("supplier", null)" data-enhance class="text-xs text-slate-500 hover:text-slate-800">Clear</a>
+                                            <button type="button" class="btn-primary text-xs py-1 px-3 col-filter-apply">Apply</button>
+                                        </div>
                                     </div>
                                 </details>
                             </div>
@@ -257,21 +239,12 @@
                                     </summary>
                                     <div class="col-filter-card text-left">
                                         <div class="font-semibold text-slate-800 text-xs mb-2">Filter Stock</div>
-                                        <form method="get" action="/items" data-enhance>
-                                            <input type="hidden" name="search" value="@Search" />
-                                            <input type="hidden" name="locationId" value="@LocationId" />
-                                            <input type="hidden" name="category" value="@Category" />
-                                            <input type="hidden" name="supplier" value="@Supplier" />
-                                            <input type="hidden" name="sort" value="@Sort" />
-                                            <input type="hidden" name="direction" value="@Direction" />
-                                            <input type="hidden" name="pageSize" value="@PageSize" />
-                                            <label class="text-[11px] text-slate-500 block mb-1">Minimum stock on hand</label>
-                                            <input type="number" step="any" name="minStock" value="@MinStock" placeholder="e.g. 3" class="field text-xs py-1.5 mb-2 w-full" />
-                                            <div class="flex items-center justify-between gap-2 mt-2">
-                                                <a href="@ClearFilterUrl("minStock")" data-enhance class="text-xs text-slate-500 hover:text-slate-800">Clear</a>
-                                                <button type="submit" class="btn-primary text-xs py-1 px-3">Apply</button>
-                                            </div>
-                                        </form>
+                                        <label class="text-[11px] text-slate-500 block mb-1">Minimum stock on hand</label>
+                                        <input type="number" step="any" data-col-filter="minStock" value="@MinStock" placeholder="e.g. 3" class="field text-xs py-1.5 mb-2 w-full" />
+                                        <div class="flex items-center justify-between gap-2 mt-2">
+                                            <a href="@FilterUrl("minStock", null)" data-enhance class="text-xs text-slate-500 hover:text-slate-800">Clear</a>
+                                            <button type="button" class="btn-primary text-xs py-1 px-3 col-filter-apply">Apply</button>
+                                        </div>
                                     </div>
                                 </details>
                             </div>
@@ -534,14 +507,16 @@
         return currentIsDesc ? "col-sort-desc" : "col-sort-asc";
     }
 
-    private string ClearFilterUrl(string paramToClear)
+    private string FilterUrl(string key, object? value)
     {
         return Navigation.GetUriWithQueryParameters(new Dictionary<string, object?>
         {
-            [paramToClear] = null,
+            [key] = value,
             ["page"] = 1
         });
     }
+
+    private string ClearFilterUrl(string paramToClear) => FilterUrl(paramToClear, null);
 
     private string Money(decimal value) => $"{value:N2} {Configuration["CurrencyCode"] ?? "BDT"}";
 }

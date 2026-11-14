@@ -187,6 +187,43 @@ document.addEventListener('keydown', event => {
     }
 });
 
+// Column Filter Popover: Apply filter by reading input and updating query params via Blazor enhanced navigation
+document.addEventListener('click', event => {
+    const applyBtn = event.target?.closest?.('.col-filter-apply');
+    if (!applyBtn) return;
+    const card = applyBtn.closest('.col-filter-card');
+    const input = card?.querySelector?.('[data-col-filter]');
+    if (!input) return;
+    const param = input.getAttribute('data-col-filter');
+    const val = input.value.trim();
+    const url = new URL(window.location.href);
+    if (val) {
+        url.searchParams.set(param, val);
+    } else {
+        url.searchParams.delete(param);
+    }
+    url.searchParams.set('page', '1');
+    if (window.Blazor && window.Blazor.navigateTo) {
+        window.Blazor.navigateTo(url.pathname + url.search);
+    } else {
+        window.location.href = url.pathname + url.search;
+    }
+});
+
+document.addEventListener('keydown', event => {
+    if (event.key === 'Enter') {
+        const input = event.target?.closest?.('.col-filter-card [data-col-filter]');
+        if (input) {
+            event.preventDefault();
+            const card = input.closest('.col-filter-card');
+            const applyBtn = card?.querySelector?.('.col-filter-apply');
+            if (applyBtn) {
+                applyBtn.click();
+            }
+        }
+    }
+});
+
 // Synchronized top horizontal scrollbar for wide tables
 function initTableScrollSync() {
     const tableScrollContainers = document.querySelectorAll('.table-scroll');
