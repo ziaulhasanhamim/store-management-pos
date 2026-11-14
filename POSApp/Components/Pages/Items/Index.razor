@@ -129,7 +129,7 @@
             }
             else
             {
-                <QuickGrid Items="@ItemsQuery" class="data-table" aria-busy="@(Items is null && !Failed)">
+                <QuickGrid Items="@ItemsQuery" Pagination="@pagination" class="data-table" aria-busy="@(Items is null && !Failed)">
                     @if (canManageInventory)
                     {
                         <TemplateColumn Class="w-10 pl-5 pr-2 text-center">
@@ -366,9 +366,9 @@
         }
     </form>
 
-    @if (Pagination is not null)
+    @if (TotalCount > 0)
     {
-        <PageNavigation Info="Pagination" Label="items" />
+        <Paginator State="@pagination" />
     }
 </section>
 
@@ -424,18 +424,15 @@
         + (HttpContext.User.IsInRole(AppRoles.Admin) || HttpContext.User.IsInRole(AppRoles.InventoryManager) || HttpContext.User.IsInRole(AppRoles.SalesAssociate) || HttpContext.User.IsInRole(AppRoles.InventoryViewer) ? 3 : 0)
         + AttributeColumns.Count;
 
-    private int CurrentPage => Math.Clamp(Page, 1, 100000);
+    private readonly PaginationState pagination = new() { ItemsPerPage = 30 };
+    private int TotalCount;
     private IReadOnlyList<ItemRow>? Items;
     private IQueryable<ItemRow>? ItemsQuery => Items?.AsQueryable();
-    private PageInfo? Pagination;
     private bool Failed;
 
     protected override async Task OnParametersSetAsync()
     {
-        if (PageSize <= 0)
-        {
-            PageSize = 30;
-        }
+        pagination.ItemsPerPage = PageSize > 0 ? PageSize : 30;
         Sort = string.IsNullOrWhiteSpace(Sort) ? "id" : Sort;
         Items = null;
         Failed = false;
@@ -463,31 +460,20 @@
                 LocationId = Locations.FirstOrDefault()?.Id;
             }
 
-            var count = await Inventory.CountAsync(
-                HttpContext.User,
-                Search,
-                HttpContext.RequestAborted,
-                locationId: LocationId,
-                category: Category,
-                supplier: Supplier,
-                minStock: MinStock);
-            var size = QueryPagination.Size(PageSize);
-            Page = Math.Clamp(Page, 1, Math.Max(1, (int)Math.Ceiling(count / (double)size)));
-
             var resolvedSort = ResolveSortParam(Sort, Direction);
 
             Items = await Inventory.ListAsync(
                 HttpContext.User,
                 Search,
-                CurrentPage,
+                1,
                 HttpContext.RequestAborted,
                 locationId: LocationId,
                 sort: resolvedSort,
-                pageSize: size,
+                pageSize: 10000,
                 category: Category,
                 supplier: Supplier,
                 minStock: MinStock);
-            Pagination = new PageInfo(CurrentPage, size, count);
+            TotalCount = Items.Count;
         }
         catch (OperationCanceledException) when (HttpContext.RequestAborted.IsCancellationRequested)
         {
@@ -499,14 +485,18 @@
         }
     }
 
-    private static string ResolveSortParam(string sort, string? direction)
+    private static string ResolveSortParam(string? sort, string? direction)
     {
-        var cleanSort = sort.ToLowerInvariant();
-        if (cleanSort.EndsWith("-desc"))
+        if (string.IsNullOrWhiteSpace(sort))
         {
-            return cleanSort;
+            return "id";
         }
-        if (string.Equals(direction, "desc", StringComparison.OrdinalIgnoreCase))
+        var cleanSort = sort.ToLowerInvariant();
+        if (cleanSort.EndsWith("-desc") || cleanSort.EndsWith("-descending"))
+        {
+            return cleanSort.Replace("-descending", "-desc");
+        }
+        if (string.Equals(direction, "desc", StringComparison.OrdinalIgnoreCase) || string.Equals(direction, "descending", StringComparison.OrdinalIgnoreCase))
         {
             return $"{cleanSort}-desc";
         }
@@ -515,9 +505,12 @@
 
     private string GetSortUrl(string column)
     {
-        var cleanSort = Sort.ToLowerInvariant().Replace("-desc", "");
+        var cleanSort = (Sort ?? "id").ToLowerInvariant().Replace("-descending", "").Replace("-desc", "");
         var isCurrent = string.Equals(cleanSort, column, StringComparison.OrdinalIgnoreCase);
-        var currentIsDesc = Sort.EndsWith("-desc", StringComparison.OrdinalIgnoreCase) || string.Equals(Direction, "desc", StringComparison.OrdinalIgnoreCase);
+        var currentIsDesc = (Sort ?? "").EndsWith("-desc", StringComparison.OrdinalIgnoreCase)
+            || (Sort ?? "").EndsWith("-descending", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(Direction, "desc", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(Direction, "descending", StringComparison.OrdinalIgnoreCase);
         var nextDirection = isCurrent && !currentIsDesc ? "desc" : "asc";
         return Navigation.GetUriWithQueryParameters(new Dictionary<string, object?>
         {

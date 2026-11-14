@@ -944,13 +944,52 @@ table.quickgrid {
     border-radius: 8px;
     border: 1px solid #e2e8f0;
     background: #ffffff;
-    font-size: 13px;
+    font-size: 0;
     font-weight: 500;
-    color: #334155;
+    color: transparent;
     text-decoration: none;
     transition: all 0.15s ease;
     cursor: pointer;
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.paginator a.go-first,
+.paginator a.go-last,
+.paginator button.go-first,
+.paginator button.go-last,
+.quickgrid-paginator a.go-first,
+.quickgrid-paginator a.go-last,
+.quickgrid-paginator button.go-first,
+.quickgrid-paginator button.go-last {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%23475569'%3E%3Cpath fill-rule='evenodd' d='M15.79 14.77a.75.75 0 01-1.06.02l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 111.04 1.08L11.832 10l3.938 3.71a.75.75 0 01.02 1.06zm-6 0a.75.75 0 01-1.06.02l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 111.04 1.08L5.832 10l3.938 3.71a.75.75 0 01.02 1.06z' clip-rule='evenodd' /%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 16px 16px;
+}
+
+.paginator a.go-previous,
+.paginator a.go-next,
+.paginator button.go-previous,
+.paginator button.go-next,
+.quickgrid-paginator a.go-previous,
+.quickgrid-paginator a.go-next,
+.quickgrid-paginator button.go-previous,
+.quickgrid-paginator button.go-next {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='%23475569'%3E%3Cpath fill-rule='evenodd' d='M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z' clip-rule='evenodd' /%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 16px 16px;
+}
+
+.paginator a.go-next,
+.paginator a.go-last,
+.paginator button.go-next,
+.paginator button.go-last,
+.quickgrid-paginator a.go-next,
+.quickgrid-paginator a.go-last,
+.quickgrid-paginator button.go-next,
+.quickgrid-paginator button.go-last {
+    transform: scaleX(-1);
 }
 
 .quickgrid-paginator a:not([aria-disabled="true"]):hover,
