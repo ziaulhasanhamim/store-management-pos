@@ -50,7 +50,7 @@ public static class SalePricingCalculator
         var paidAmount = paymentPlan.Sum(payment => payment.Amount);
         var tenderedAmount = paymentPlan.Sum(payment => payment.Tendered);
         var changeAmount = tenderedAmount - paidAmount;
-        var dueAmount = total < 0 ? (total - paidAmount) : Math.Max(0m, total - paidAmount);
+        var dueAmount = total < 0 ? (total - paidAmount) : Math.Max(0m, (total + Math.Max(0m, customerDue)) - paidAmount);
 
         return new SalePricingSummary(
             subtotal,

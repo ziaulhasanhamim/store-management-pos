@@ -67,24 +67,10 @@
             <span>@(Refund ? "Confirmed refunds" : "Confirmed payments")</span>
             <strong>@Money(Math.Min(Confirmed, PayableTotal))</strong>
         </div>
-        @if (PreviousDue > 0)
-        {
-            <div class="flex justify-between text-slate-600">
-                <span>This invoice due</span>
-                <strong>@Money(OrderRemaining)</strong>
-            </div>
-            <div class="flex justify-between border-t border-slate-200 pt-2 text-base font-bold text-slate-900">
-                <span>Total due after sale</span>
-                <span class="@(PresentDue > 0 ? "text-amber-700" : "text-emerald-700")">@Money(Math.Max(0m, PresentDue))</span>
-            </div>
-        }
-        else
-        {
-            <div class="flex justify-between">
-                <span>@(Refund ? "Customer credit remaining" : "Due")</span>
-                <strong>@Money(Remaining)</strong>
-            </div>
-        }
+        <div class="flex justify-between border-t border-slate-200 pt-2 text-base font-bold text-slate-900">
+            <span>@(Refund ? "Customer credit remaining" : "Due")</span>
+            <span class="@(PresentDue > 0 ? "text-amber-700" : "text-emerald-700")">@Money(Math.Max(0m, PresentDue))</span>
+        </div>
         @if (AllowCashChange && Confirmed > PayableTotal)
         {
             <div class="flex justify-between text-emerald-700 font-medium">

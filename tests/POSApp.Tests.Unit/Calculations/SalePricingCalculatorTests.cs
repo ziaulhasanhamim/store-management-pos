@@ -212,4 +212,71 @@ public class SalePricingCalculatorTests
         await result.ChangeAmount.Should().BeEqualTo(0m);
         await result.DueAmount.Should().BeEqualTo(0m);
     }
+
+    [Test]
+    public async Task Calculate_WhenCustomerDueSpecified_AndNoPayment_DueAmountIsOrderPlusPastDue()
+    {
+        // Line total: 850, customer past due: 2400, no payment => Due is 3250
+        var lines = new List<SalesLine>
+        {
+            new(ProductId: 1, Quantity: 1, UnitPrice: 850m)
+        };
+
+        var result = SalePricingCalculator.Calculate(
+            lines: lines,
+            orderDiscount: 0m,
+            payments: [],
+            legacyPayment: 0m,
+            legacyMethod: PaymentMethod.Cash,
+            customerDue: 2400m);
+
+        await result.TotalAmount.Should().BeEqualTo(850m);
+        await result.PaidAmount.Should().BeEqualTo(0m);
+        await result.DueAmount.Should().BeEqualTo(3250m);
+    }
+
+    [Test]
+    public async Task Calculate_WhenCustomerDueSpecified_AndOrderPaid_DueAmountIsPastDue()
+    {
+        // Line total: 850, customer past due: 2400, customer pays 850 => Due is 2400
+        var lines = new List<SalesLine>
+        {
+            new(ProductId: 1, Quantity: 1, UnitPrice: 850m)
+        };
+
+        var result = SalePricingCalculator.Calculate(
+            lines: lines,
+            orderDiscount: 0m,
+            payments: [new PaymentInput(PaymentMethod.Cash, 850m)],
+            legacyPayment: 0m,
+            legacyMethod: PaymentMethod.Cash,
+            customerDue: 2400m);
+
+        await result.TotalAmount.Should().BeEqualTo(850m);
+        await result.PaidAmount.Should().BeEqualTo(850m);
+        await result.DueAmount.Should().BeEqualTo(2400m);
+    }
+
+    [Test]
+    public async Task Calculate_WhenCustomerDueSpecified_WithDiscount_DueAmountCalculatesCorrectly()
+    {
+        // Line total: 850, discount: 50 => Total: 800, past due: 2400, payment: 800 => Due: 2400
+        // Formula: previous due + new order - discount - pay = 2400 + 850 - 50 - 800 = 2400
+        var lines = new List<SalesLine>
+        {
+            new(ProductId: 1, Quantity: 1, UnitPrice: 850m)
+        };
+
+        var result = SalePricingCalculator.Calculate(
+            lines: lines,
+            orderDiscount: 50m,
+            payments: [new PaymentInput(PaymentMethod.Cash, 800m)],
+            legacyPayment: 0m,
+            legacyMethod: PaymentMethod.Cash,
+            customerDue: 2400m);
+
+        await result.TotalAmount.Should().BeEqualTo(800m);
+        await result.PaidAmount.Should().BeEqualTo(800m);
+        await result.DueAmount.Should().BeEqualTo(2400m);
+    }
 }

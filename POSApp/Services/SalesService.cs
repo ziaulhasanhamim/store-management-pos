@@ -414,7 +414,7 @@ public sealed class SalesService(IServiceScopeFactory scopes, IConfiguration? co
             }
             await db.SaveChangesAsync(ct);
             await transaction.CommitAsync(ct);
-            var due = complete ? (total < 0 ? total - paidAmount : Math.Max(0m, total - paidAmount)) : total;
+            var due = complete ? (total < 0 ? total - paidAmount : Math.Max(0m, (total + Math.Max(0m, customerDue)) - paidAmount)) : (total + Math.Max(0m, customerDue));
             return new(sale.Id, number, complete, total, complete ? paidAmount : 0, due) { Revision = sale.Revision };
         }, ct);
     }
