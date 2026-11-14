@@ -187,3 +187,55 @@ document.addEventListener('keydown', event => {
     }
 });
 
+// Synchronized top horizontal scrollbar for wide tables
+function initTableScrollSync() {
+    const tableScrollContainers = document.querySelectorAll('.table-scroll');
+    tableScrollContainers.forEach(container => {
+        let topScroll = container.parentElement ? container.parentElement.querySelector(':scope > .table-top-scroll') : null;
+
+        if (container.scrollWidth <= container.clientWidth + 2) {
+            if (topScroll) topScroll.style.display = 'none';
+            return;
+        }
+
+        if (!topScroll) {
+            topScroll = document.createElement('div');
+            topScroll.className = 'table-top-scroll';
+            const inner = document.createElement('div');
+            inner.className = 'table-top-scroll-inner';
+            topScroll.appendChild(inner);
+            container.parentElement.insertBefore(topScroll, container);
+        } else {
+            topScroll.style.display = 'block';
+        }
+
+        const inner = topScroll.firstElementChild;
+        if (inner) {
+            inner.style.width = container.scrollWidth + 'px';
+        }
+
+        let isSyncingTop = false;
+        let isSyncingBottom = false;
+
+        topScroll.onscroll = () => {
+            if (isSyncingBottom) { isSyncingBottom = false; return; }
+            isSyncingTop = true;
+            container.scrollLeft = topScroll.scrollLeft;
+        };
+
+        container.onscroll = () => {
+            if (isSyncingTop) { isSyncingTop = false; return; }
+            isSyncingBottom = true;
+            topScroll.scrollLeft = container.scrollLeft;
+        };
+    });
+}
+
+window.addEventListener('DOMContentLoaded', initTableScrollSync);
+window.addEventListener('load', initTableScrollSync);
+window.addEventListener('resize', initTableScrollSync);
+document.addEventListener('blazor:navigated', () => {
+    setTimeout(initTableScrollSync, 60);
+});
+
+

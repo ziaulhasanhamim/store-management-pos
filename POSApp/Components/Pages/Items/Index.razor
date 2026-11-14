@@ -105,68 +105,65 @@
         </form>
     </div>
 
-    <form method="post" action="/items/labels" data-enhance data-submit-indication="true">
-        <AntiforgeryToken />
-        <input type="hidden" name="_handler" value="labels" />
-        <div class="table-scroll">
-            @if (Items is null && !Failed)
-            {
-                <table class="data-table">
-                    <TableStatusRow Columns="ColumnCount" Loading="true" Message="Loading items…" />
-                </table>
-            }
-            else if (Failed)
-            {
-                <table class="data-table">
-                    <TableStatusRow Columns="ColumnCount" Error="true" Message="Unable to load items. Please try again." />
-                </table>
-            }
-            else if (Items!.Count == 0)
-            {
-                <table class="data-table">
-                    <TableStatusRow Columns="ColumnCount" Message="@(string.IsNullOrWhiteSpace(Search) && !HasActiveFilters ? "No items yet" : "No matching items")" />
-                </table>
-            }
-            else
-            {
-                <QuickGrid Items="@ItemsQuery" Pagination="@pagination" class="data-table" aria-busy="@(Items is null && !Failed)">
-                    @if (canManageInventory)
-                    {
-                        <TemplateColumn Class="w-10 pl-5 pr-2 text-center">
-                            <HeaderTemplate Context="_">
-                                <input type="checkbox" id="select-all-items" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer" title="Select / deselect all items" />
-                                <span class="sr-only">Select all items</span>
-                            </HeaderTemplate>
-                            <ChildContent Context="item">
-                                <input type="checkbox" name="Input.ProductIds" value="@item.Id" aria-label="@($"Select {item.Name} for labels")" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer" />
-                            </ChildContent>
-                        </TemplateColumn>
-                    }
-
-                    <TemplateColumn Title="ID / Barcode" SortBy="@sortById" Sortable="true" Align="Align.Center" Class="w-28 text-center">
+    <div class="table-scroll">
+        @if (Items is null && !Failed)
+        {
+            <table class="data-table">
+                <TableStatusRow Columns="ColumnCount" Loading="true" Message="Loading items…" />
+            </table>
+        }
+        else if (Failed)
+        {
+            <table class="data-table">
+                <TableStatusRow Columns="ColumnCount" Error="true" Message="Unable to load items. Please try again." />
+            </table>
+        }
+        else if (Items!.Count == 0)
+        {
+            <table class="data-table">
+                <TableStatusRow Columns="ColumnCount" Message="@(string.IsNullOrWhiteSpace(Search) && !HasActiveFilters ? "No items yet" : "No matching items")" />
+            </table>
+        }
+        else
+        {
+            <QuickGrid Items="@ItemsQuery" Pagination="@pagination" class="data-table" aria-busy="@(Items is null && !Failed)">
+                @if (canManageInventory)
+                {
+                    <TemplateColumn Class="w-10 pl-5 pr-2 text-center">
                         <HeaderTemplate Context="_">
-                            <div class="flex items-center justify-center w-full">
-                                <a class="col-title inline-flex items-center gap-1 justify-center" href="@GetSortUrl("id")" title="Sort by ID">
-                                    <span>ID / Barcode</span>
-                                    <span class="sort-indicator" aria-hidden="true"></span>
-                                </a>
-                            </div>
+                            <input type="checkbox" id="select-all-items" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer" title="Select / deselect all items" />
+                            <span class="sr-only">Select all items</span>
                         </HeaderTemplate>
                         <ChildContent Context="item">
-                            <div class="flex flex-col items-center justify-center">
-                                <a href="@($"/items/{item.Id}")" class="font-bold text-blue-700 hover:text-blue-800 text-sm">#@item.Id</a>
-                                @if (!string.IsNullOrEmpty(item.Barcode))
-                                {
-                                    <span class="font-mono text-[11px] text-slate-400 block truncate max-w-[110px]" title="@item.Barcode">@item.Barcode</span>
-                                }
-                            </div>
+                            <input type="checkbox" form="bulk-labels-form" name="Input.ProductIds" value="@item.Id" aria-label="@($"Select {item.Name} for labels")" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer" />
                         </ChildContent>
                     </TemplateColumn>
+                }
+
+                <TemplateColumn Title="ID / Barcode" SortBy="@sortById" Sortable="true" Align="Align.Center" Class="w-20 text-center">
+                    <HeaderTemplate Context="_">
+                        <div class="flex items-center justify-center w-full">
+                            <a class="col-title inline-flex items-center gap-1 justify-center @GetSortClass("id")" href="@GetSortUrl("id")" title="Sort by ID">
+                                <span>ID / Barcode</span>
+                                <span class="sort-indicator" aria-hidden="true"></span>
+                            </a>
+                        </div>
+                    </HeaderTemplate>
+                    <ChildContent Context="item">
+                        <div class="flex flex-col items-center justify-center">
+                            <a href="@($"/items/{item.Id}")" class="font-bold text-blue-700 hover:text-blue-800 text-xs">#@item.Id</a>
+                            @if (!string.IsNullOrEmpty(item.Barcode))
+                            {
+                                <span class="font-mono text-[10px] text-slate-400 block truncate max-w-[70px]" title="@item.Barcode">@item.Barcode</span>
+                            }
+                        </div>
+                    </ChildContent>
+                </TemplateColumn>
 
                     <TemplateColumn Title="Item" SortBy="@sortByName" Sortable="true">
                         <HeaderTemplate Context="_">
                             <div class="flex items-center justify-between w-full">
-                                <a class="col-title" href="@GetSortUrl("name")" title="Sort by item name">
+                                <a class="col-title @GetSortClass("name")" href="@GetSortUrl("name")" title="Sort by item name">
                                     <span>Item</span>
                                     <span class="sort-indicator" aria-hidden="true"></span>
                                 </a>
@@ -196,8 +193,8 @@
                             </div>
                         </HeaderTemplate>
                         <ChildContent Context="item">
-                            <a href="@($"/items/{item.Id}")" class="font-semibold text-slate-900 hover:text-blue-600 block">@item.Name</a>
-                            <div class="mt-0.5 text-xs text-slate-400">
+                            <a href="@($"/items/{item.Id}")" class="font-medium text-slate-900 hover:text-blue-600 block text-xs">@item.Name</a>
+                            <div class="mt-0.5 text-[11px] text-slate-400">
                                 <span>@(item.Category ?? "Uncategorized")</span>
                             </div>
                         </ChildContent>
@@ -213,7 +210,7 @@
                     <TemplateColumn Title="Default supplier" SortBy="@sortBySupplier" Sortable="true">
                         <HeaderTemplate Context="_">
                             <div class="flex items-center justify-between w-full">
-                                <a class="col-title" href="@GetSortUrl("supplier")" title="Sort by default supplier">
+                                <a class="col-title @GetSortClass("supplier")" href="@GetSortUrl("supplier")" title="Sort by default supplier">
                                     <span>Default supplier</span>
                                     <span class="sort-indicator" aria-hidden="true"></span>
                                 </a>
@@ -243,14 +240,14 @@
                             </div>
                         </HeaderTemplate>
                         <ChildContent Context="item">
-                            <span class="text-xs whitespace-nowrap text-slate-700">@item.Supplier</span>
+                            <span class="text-xs truncate block max-w-[120px] text-slate-600" title="@item.Supplier">@item.Supplier</span>
                         </ChildContent>
                     </TemplateColumn>
 
                     <TemplateColumn Title="Stock" SortBy="@sortByStock" Sortable="true" Align="Align.Right">
                         <HeaderTemplate Context="_">
                             <div class="flex items-center justify-end gap-1.5 w-full">
-                                <a class="col-title" href="@GetSortUrl("quantity")" title="Sort by stock">
+                                <a class="col-title @GetSortClass("quantity")" href="@GetSortUrl("quantity")" title="Sort by stock">
                                     <span>Stock</span>
                                     <span class="sort-indicator" aria-hidden="true"></span>
                                 </a>
@@ -304,7 +301,7 @@
                     {
                         <TemplateColumn Title="Cost price" SortBy="@sortByCost" Sortable="true" Align="Align.Right">
                             <HeaderTemplate Context="_">
-                                <a class="col-title" href="@GetSortUrl("cost")" title="Sort by cost price">
+                                <a class="col-title @GetSortClass("cost")" href="@GetSortUrl("cost")" title="Sort by cost price">
                                     <span>Cost price</span>
                                     <span class="sort-indicator" aria-hidden="true"></span>
                                 </a>
@@ -317,13 +314,13 @@
 
                     <TemplateColumn Title="Selling price" SortBy="@sortByPrice" Sortable="true" Align="Align.Right">
                         <HeaderTemplate Context="_">
-                            <a class="col-title" href="@GetSortUrl("price")" title="Sort by selling price">
+                            <a class="col-title @GetSortClass("price")" href="@GetSortUrl("price")" title="Sort by selling price">
                                 <span>Selling price</span>
                                 <span class="sort-indicator" aria-hidden="true"></span>
                             </a>
                         </HeaderTemplate>
                         <ChildContent Context="item">
-                            <span class="text-right whitespace-nowrap font-semibold text-slate-900 block">@Money(item.Price)</span>
+                            <span class="text-right whitespace-nowrap text-xs font-semibold text-slate-900 block">@Money(item.Price)</span>
                         </ChildContent>
                     </TemplateColumn>
 
@@ -331,7 +328,7 @@
                     {
                         <TemplateColumn Title="Stock value" SortBy="@sortByValue" Sortable="true" Align="Align.Right">
                             <HeaderTemplate Context="_">
-                                <a class="col-title" href="@GetSortUrl("value")" title="Sort by stock value">
+                                <a class="col-title @GetSortClass("value")" href="@GetSortUrl("value")" title="Sort by stock value">
                                     <span>Stock value</span>
                                     <span class="sort-indicator" aria-hidden="true"></span>
                                 </a>
@@ -342,9 +339,9 @@
                         </TemplateColumn>
                     }
 
-                    <TemplateColumn Align="Align.Center" Class="w-10 pr-5">
-                        <a href="@($"/items/{context.Id}")" class="icon-button size-8" aria-label="@($"View {context.Name}")">
-                            <Icon Name="arrow" />
+                    <TemplateColumn Align="Align.Center" Class="w-10 pr-4">
+                        <a href="@($"/items/{context.Id}")" class="icon-button size-7" aria-label="@($"View {context.Name}")">
+                            <Icon Name="arrow" Class="size-3.5" />
                         </a>
                     </TemplateColumn>
                 </QuickGrid>
@@ -353,18 +350,21 @@
 
         @if (canManageInventory)
         {
-            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-slate-100 p-3 sm:p-4">
-                <div class="flex flex-wrap items-center gap-2">
-                    <button class="btn-secondary w-full sm:w-auto text-xs sm:text-sm" type="submit" disabled="@(Items is null || Items.Count == 0)" data-pending-text="Generating…">Generate selected labels</button>
-                    <a href="/items/bulk-edit" class="btn-primary w-full sm:w-auto text-xs sm:text-sm inline-flex items-center justify-center gap-1.5 @(Items is null || Items.Count == 0 ? "pointer-events-none opacity-50" : "")" id="bulk-edit-selected-btn">
-                        <Icon Name="edit" />
-                        Bulk edit selected
-                    </a>
+            <form id="bulk-labels-form" method="post" action="/items/labels" data-enhance data-submit-indication="true">
+                <AntiforgeryToken />
+                <input type="hidden" name="_handler" value="labels" />
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-slate-100 px-6 py-4">
+                    <div class="flex flex-wrap items-center gap-2">
+                        <button class="btn-secondary w-full sm:w-auto text-xs sm:text-sm" type="submit" disabled="@(Items is null || Items.Count == 0)" data-pending-text="Generating…">Generate selected labels</button>
+                        <a href="/items/bulk-edit" class="btn-primary w-full sm:w-auto text-xs sm:text-sm inline-flex items-center justify-center gap-1.5 @(Items is null || Items.Count == 0 ? "pointer-events-none opacity-50" : "")" id="bulk-edit-selected-btn">
+                            <Icon Name="edit" />
+                            Bulk edit selected
+                        </a>
+                    </div>
+                    <span class="text-xs text-slate-400">Missing barcodes will be generated from product IDs.</span>
                 </div>
-                <span class="text-xs text-slate-400">Missing barcodes will be generated from product IDs.</span>
-            </div>
+            </form>
         }
-    </form>
 
     @if (TotalCount > 0)
     {
@@ -518,6 +518,20 @@
             ["direction"] = nextDirection,
             ["page"] = 1
         });
+    }
+
+    private string GetSortClass(string column)
+    {
+        var cleanSort = (Sort ?? "id").ToLowerInvariant().Replace("-descending", "").Replace("-desc", "");
+        if (!string.Equals(cleanSort, column, StringComparison.OrdinalIgnoreCase))
+        {
+            return "";
+        }
+        var currentIsDesc = (Sort ?? "").EndsWith("-desc", StringComparison.OrdinalIgnoreCase)
+            || (Sort ?? "").EndsWith("-descending", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(Direction, "desc", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(Direction, "descending", StringComparison.OrdinalIgnoreCase);
+        return currentIsDesc ? "col-sort-desc" : "col-sort-asc";
     }
 
     private string ClearFilterUrl(string paramToClear)

@@ -55,11 +55,11 @@
         {
             <QuickGrid Items="@SuppliersQuery" Pagination="@pagination" class="data-table">
                 <TemplateColumn Title="ID" SortBy="@sortById" Sortable="true" Align="Align.Center" Class="w-16 pl-5 sm:pl-6 text-center">
-                    <a href="@($"/suppliers/{context.Id}")" class="font-bold text-blue-700 hover:text-blue-800 text-sm">#@context.Id</a>
+                    <a href="@($"/suppliers/{context.Id}")" class="font-bold text-blue-700 hover:text-blue-800 text-xs">#@context.Id</a>
                 </TemplateColumn>
 
                 <TemplateColumn Title="Supplier" SortBy="@sortByName" Sortable="true">
-                    <a href="@($"/suppliers/{context.Id}")" class="font-semibold text-slate-900 hover:text-blue-600 block">@context.Name</a>
+                    <a href="@($"/suppliers/{context.Id}")" class="font-medium text-slate-900 hover:text-blue-600 block text-xs">@context.Name</a>
                 </TemplateColumn>
 
                 <TemplateColumn Title="Phone">
@@ -71,16 +71,16 @@
                 </TemplateColumn>
 
                 <TemplateColumn Title="Current balance" SortBy="@sortByBalance" Sortable="true" Align="Align.Right">
-                    <span class="text-right whitespace-nowrap font-semibold text-slate-900 block">@Money(context.Balance)</span>
+                    <span class="text-right whitespace-nowrap text-xs font-semibold text-slate-900 block">@Money(context.Balance)</span>
                 </TemplateColumn>
 
                 <TemplateColumn Title="Assigned stock value" SortBy="@sortByStock" Sortable="true" Align="Align.Right">
                     <a href="@($"/reports/inventory?supplierId={context.Id}")" class="text-blue-700 hover:underline text-xs font-medium">@Money(context.StockValue)</a>
                 </TemplateColumn>
 
-                <TemplateColumn Title="Payment" Align="Align.Center" Class="w-20 pr-5 sm:pr-6 text-center">
-                    <a href="@($"/suppliers/payments?supplierId={context.Id}")" class="icon-button" aria-label="@($"Pay {context.Name}")">
-                        <Icon Name="wallet" />
+                <TemplateColumn Title="Payment" Align="Align.Center" Class="w-16 pr-5 sm:pr-6 text-center">
+                    <a href="@($"/suppliers/payments?supplierId={context.Id}")" class="icon-button size-7" aria-label="@($"Pay {context.Name}")">
+                        <Icon Name="wallet" Class="size-3.5" />
                     </a>
                 </TemplateColumn>
             </QuickGrid>
