@@ -57,10 +57,14 @@
             </div>
         </form>
     </details>
-    <form method="get" action="/customers" class="mb-5 flex gap-3" data-enhance data-auto-search="true">
+    <form method="get" action="/customers" class="mb-5 flex max-w-lg items-center gap-2" data-enhance data-auto-search="true">
         <input type="hidden" name="pageSize" value="@PageSize" />
-        <input id="customers-search" name="search" class="field max-w-md" value="@Search" placeholder="Search name or phone" aria-label="Search customers" data-auto-search="true" autocomplete="off" data-permanent />
-        <button class="btn-secondary">Search</button>
+        <Icon Name="search" Class="text-slate-400" />
+        <input id="customers-search" name="search" class="field flex-1" value="@Search" placeholder="Search name or phone" aria-label="Search customers" data-auto-search="true" autocomplete="off" data-permanent />
+        @if (!string.IsNullOrWhiteSpace(Search))
+        {
+            <a href="/customers" data-enhance class="text-xs text-slate-400 hover:text-slate-600 px-1 font-bold" title="Clear search">✕</a>
+        }
     </form>
 
     <section class="panel table-scroll">

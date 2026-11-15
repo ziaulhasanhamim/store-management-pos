@@ -8,10 +8,14 @@
 <div class="page-heading">
     <h1>Audit history</h1>
 </div>
-<form method="get" data-enhance class="mb-6 flex gap-3" data-auto-search="true">
+<form method="get" data-enhance class="mb-6 flex max-w-lg items-center gap-2" data-auto-search="true">
     <input type="hidden" name="pageSize" value="@PageSize" />
-    <input id="audit-search" class="field max-w-lg" name="search" value="@Search" placeholder="Record ID, type, action or reason" aria-label="Search audit history" maxlength="200" data-auto-search="true" autocomplete="off" data-permanent />
-    <button class="btn-primary">Search</button>
+    <Icon Name="search" Class="text-slate-400" />
+    <input id="audit-search" class="field flex-1" name="search" value="@Search" placeholder="Record ID, type, action or reason" aria-label="Search audit history" maxlength="200" data-auto-search="true" autocomplete="off" data-permanent />
+    @if (!string.IsNullOrWhiteSpace(Search))
+    {
+        <a href="/admin/audit" data-enhance class="text-xs text-slate-400 hover:text-slate-600 px-1 font-bold" title="Clear search">✕</a>
+    }
 </form>
     <section class="panel table-scroll">
         <table class="data-table">
