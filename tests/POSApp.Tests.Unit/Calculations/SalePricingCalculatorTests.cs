@@ -279,4 +279,26 @@ public class SalePricingCalculatorTests
         await result.PaidAmount.Should().BeEqualTo(800m);
         await result.DueAmount.Should().BeEqualTo(2400m);
     }
+
+    [Test]
+    public async Task Calculate_WhenRefundSale_CalculatesNegativeTotalAndZeroDueWhenRefunded()
+    {
+        // Refund of 550 with -550 cash payment
+        var lines = new List<SalesLine>
+        {
+            new(ProductId: 1, Quantity: -1, UnitPrice: 550m)
+        };
+
+        var result = SalePricingCalculator.Calculate(
+            lines: lines,
+            orderDiscount: 0m,
+            payments: [new PaymentInput(PaymentMethod.Cash, -550m)],
+            legacyPayment: 0m,
+            legacyMethod: PaymentMethod.Cash,
+            allowRefund: true);
+
+        await result.TotalAmount.Should().BeEqualTo(-550m);
+        await result.PaidAmount.Should().BeEqualTo(-550m);
+        await result.DueAmount.Should().BeEqualTo(0m);
+    }
 }

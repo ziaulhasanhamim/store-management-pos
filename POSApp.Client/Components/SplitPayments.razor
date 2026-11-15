@@ -33,11 +33,14 @@
                 </label>
                 <label class="block">
                     <span class="field-label">@(Refund ? "Refund amount" : Method == PaymentMethod.Cash ? "Cash payment" : "Payment amount") (@Currency)</span>
-                    <DecimalField id="@InputId" @key="Revision" class="field" @bind-Value="Amount" Maximum="@(AllowCashChange && Method == PaymentMethod.Cash ? 9999999999999999.99m : Remaining)" ValidityChanged="valid => AmountValid = valid" />
+                    <DecimalField id="@InputId" @key="Revision" class="field" @bind-Value="Amount"
+                                  Minimum="@(Refund ? -Remaining : 0)"
+                                  Maximum="@(Refund ? Remaining : (AllowCashChange && Method == PaymentMethod.Cash ? 9999999999999999.99m : Remaining))"
+                                  ValidityChanged="valid => AmountValid = valid" />
                 </label>
             </div>
             <div class="mt-3 flex flex-wrap items-center gap-2">
-                @if (PreviousDue > 0 && Total > 0 && OrderRemaining > 0 && GrandRemaining != OrderRemaining)
+                @if (!Refund && PreviousDue > 0 && Total > 0 && OrderRemaining > 0 && GrandRemaining != OrderRemaining)
                 {
                     <button type="button" class="btn-secondary text-xs" @onclick="UseOrderRemaining">This invoice (@Money(OrderRemaining))</button>
                     <button type="button" class="btn-secondary text-xs" @onclick="UseGrandRemaining">Total due (@Money(GrandRemaining))</button>
@@ -46,7 +49,7 @@
                 {
                     <button type="button" class="btn-secondary" @onclick="UseRemaining">Remaining amount</button>
                 }
-                <button type="button" class="btn-primary" disabled="@(!AmountValid || Amount <= 0 || Payments.Count >= 20 || (Amount > Remaining && !(AllowCashChange && Method == PaymentMethod.Cash)))" @onclick="ConfirmAsync">@(Refund ? "Confirm refund" : "Confirm payment")</button>
+                <button type="button" class="btn-primary" disabled="@(!CanConfirm)" @onclick="ConfirmAsync">@(Refund ? "Confirm refund" : "Confirm payment")</button>
             </div>
             <p class="mt-3 text-xs text-slate-500">Confirm each payment to add it to this order.</p>
         </div>
@@ -115,9 +118,14 @@
     private decimal PayableTotal => Refund ? Math.Abs(Total) : Math.Max(0m, Total + Math.Max(0m, PreviousDue));
     private decimal OrderRemaining => Math.Max(0m, Total - Math.Min(Confirmed, Total));
     private decimal GrandRemaining => Math.Max(0m, PayableTotal - Confirmed);
-    private decimal PresentDue => (Total + PreviousDue) - Confirmed;
-    private decimal Remaining => PreviousDue > 0 ? GrandRemaining : Math.Max(Total - Confirmed, 0);
+    private decimal PresentDue => Refund ? Math.Max(0m, Math.Abs(Total) - Confirmed) : (Total + PreviousDue) - Confirmed;
+    private decimal Remaining => Refund ? Math.Max(0m, Math.Abs(Total) - Confirmed) : (PreviousDue > 0 ? GrandRemaining : Math.Max(Total - Confirmed, 0));
     private bool NonCashOverpayment => Payments.Count > 0 && Payments[^1].Method != PaymentMethod.Cash;
+    private bool CanConfirm => AmountValid
+        && (Refund
+            ? Math.Abs(Amount) > 0 && Math.Abs(Amount) <= Remaining
+            : Amount > 0 && (Amount <= Remaining || (AllowCashChange && Method == PaymentMethod.Cash)))
+        && Payments.Count < 20;
 
     public static string MethodName(PaymentMethod method) => method switch
     {
@@ -151,7 +159,8 @@
 
     private async Task ConfirmAsync()
     {
-        await PaymentsChanged.InvokeAsync(Payments.Append(new PaymentInput(Method, Refund ? -Amount : Amount)).ToArray());
+        var confirmedAmount = Refund ? -Math.Abs(Amount) : Amount;
+        await PaymentsChanged.InvokeAsync(Payments.Append(new PaymentInput(Method, confirmedAmount)).ToArray());
         Amount = 0;
         AmountValid = true;
         AddingPayment = false;
