@@ -130,18 +130,18 @@
         else
         {
             <QuickGrid ItemsProvider="@itemsProvider" Pagination="@pagination" class="data-table compact-table w-full" aria-busy="@(Data is null && Error is null)">
-                <TemplateColumn Title="ID" SortBy="@sortById" Class="w-20 text-center" HeaderClass="@GetSortClass("id")" Align="Align.Center">
+                <TemplateColumn Title="ID" SortBy="@sortById" Class="w-20 text-center" Align="Align.Center">
                     <HeaderTemplate>
-                        <a href="@GetSortUrl("id")" class="col-title" data-enhance>ID</a>
+                        <a href="@GetSortUrl("id")" class="col-title @GetSortClass("id")" data-enhance>ID</a>
                     </HeaderTemplate>
                     <ChildContent>
                         <a href="@(Sales ? $"/sales/{context.Id}/bill" : $"/receiving/{context.Id}")" class="font-bold text-blue-700 text-xs hover:underline">#@context.Id</a>
                         <span class="block max-w-28 truncate font-mono text-[10px] text-slate-400 mx-auto" title="@context.Number">@context.Number</span>
                     </ChildContent>
                 </TemplateColumn>
-                <TemplateColumn Title="@(Sales ? "Customer" : "Supplier")" SortBy="@sortByParty" HeaderClass="@GetSortClass("party")">
+                <TemplateColumn Title="@(Sales ? "Customer" : "Supplier")" SortBy="@sortByParty">
                     <HeaderTemplate>
-                        <a href="@GetSortUrl("party")" class="col-title" data-enhance>@(Sales ? "Customer" : "Supplier")</a>
+                        <a href="@GetSortUrl("party")" class="col-title @GetSortClass("party")" data-enhance>@(Sales ? "Customer" : "Supplier")</a>
                     </HeaderTemplate>
                     <ChildContent>
                         <span class="font-medium text-slate-900 text-xs">@context.Party</span>
@@ -156,17 +156,17 @@
                         }
                     </ChildContent>
                 </TemplateColumn>
-                <TemplateColumn Title="Date" SortBy="@sortByDate" HeaderClass="@GetSortClass("date")" Class="whitespace-nowrap">
+                <TemplateColumn Title="Date" SortBy="@sortByDate" Class="whitespace-nowrap">
                     <HeaderTemplate>
-                        <a href="@GetSortUrl("date")" class="col-title" data-enhance>Date</a>
+                        <a href="@GetSortUrl("date")" class="col-title @GetSortClass("date")" data-enhance>Date</a>
                     </HeaderTemplate>
                     <ChildContent>
                         <span class="text-xs text-slate-600 font-mono">@TimeZoneInfo.ConvertTime(context.At, Zone).ToString("dd MMM yyyy, HH:mm")</span>
                     </ChildContent>
                 </TemplateColumn>
-                <TemplateColumn Title="Total" SortBy="@sortByTotal" Align="Align.Right" Class="whitespace-nowrap" HeaderClass="@GetSortClass("total")">
+                <TemplateColumn Title="Total" SortBy="@sortByTotal" Align="Align.Right" Class="whitespace-nowrap">
                     <HeaderTemplate>
-                        <a href="@GetSortUrl("total")" class="col-title" data-enhance>Total</a>
+                        <a href="@GetSortUrl("total")" class="col-title @GetSortClass("total")" data-enhance>Total</a>
                     </HeaderTemplate>
                     <ChildContent>
                         <span class="font-mono text-xs font-semibold text-slate-900">@Money(context.Total)</span>
@@ -174,34 +174,34 @@
                 </TemplateColumn>
                 @if (CanViewCosts && Sales)
                 {
-                    <TemplateColumn Title="Cost" SortBy="@sortByCost" Align="Align.Right" Class="whitespace-nowrap" HeaderClass="@GetSortClass("cost")">
+                    <TemplateColumn Title="Cost" SortBy="@sortByCost" Align="Align.Right" Class="whitespace-nowrap">
                         <HeaderTemplate>
-                            <a href="@GetSortUrl("cost")" class="col-title" data-enhance>Cost</a>
+                            <a href="@GetSortUrl("cost")" class="col-title @GetSortClass("cost")" data-enhance>Cost</a>
                         </HeaderTemplate>
                         <ChildContent>
                             <span class="font-mono text-xs text-slate-600">@Money(context.Cost ?? 0)</span>
                         </ChildContent>
                     </TemplateColumn>
-                    <TemplateColumn Title="Profit" SortBy="@sortByProfit" Align="Align.Right" Class="whitespace-nowrap" HeaderClass="@GetSortClass("profit")">
+                    <TemplateColumn Title="Profit" SortBy="@sortByProfit" Align="Align.Right" Class="whitespace-nowrap">
                         <HeaderTemplate>
-                            <a href="@GetSortUrl("profit")" class="col-title" data-enhance>Profit</a>
+                            <a href="@GetSortUrl("profit")" class="col-title @GetSortClass("profit")" data-enhance>Profit</a>
                         </HeaderTemplate>
                         <ChildContent>
                             <span class="font-mono text-xs font-semibold @(context.Profit < 0 ? "text-rose-700" : "text-emerald-700")">@Money(context.Profit ?? 0)</span>
                         </ChildContent>
                     </TemplateColumn>
                 }
-                <TemplateColumn Title="Paid" SortBy="@sortByPaid" Align="Align.Right" Class="whitespace-nowrap" HeaderClass="@GetSortClass("paid")">
+                <TemplateColumn Title="Paid" SortBy="@sortByPaid" Align="Align.Right" Class="whitespace-nowrap">
                     <HeaderTemplate>
-                        <a href="@GetSortUrl("paid")" class="col-title" data-enhance>Paid</a>
+                        <a href="@GetSortUrl("paid")" class="col-title @GetSortClass("paid")" data-enhance>Paid</a>
                     </HeaderTemplate>
                     <ChildContent>
                         <span class="font-mono text-xs text-slate-700">@Money(context.Paid)</span>
                     </ChildContent>
                 </TemplateColumn>
-                <TemplateColumn Title="@(Sales ? "Due" : "Net unpaid / credit")" SortBy="@sortByDue" Align="Align.Right" Class="whitespace-nowrap" HeaderClass="@GetSortClass("due")">
+                <TemplateColumn Title="@(Sales ? "Due" : "Net unpaid / credit")" SortBy="@sortByDue" Align="Align.Right" Class="whitespace-nowrap">
                     <HeaderTemplate>
-                        <a href="@GetSortUrl("due")" class="col-title" data-enhance>@(Sales ? "Due" : "Net unpaid / credit")</a>
+                        <a href="@GetSortUrl("due")" class="col-title @GetSortClass("due")" data-enhance>@(Sales ? "Due" : "Net unpaid / credit")</a>
                     </HeaderTemplate>
                     <ChildContent>
                         @{

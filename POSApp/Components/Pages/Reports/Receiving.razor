@@ -69,9 +69,9 @@
         else
         {
             <QuickGrid ItemsProvider="@itemsProvider" Pagination="@pagination" class="data-table compact-table w-full" aria-busy="@(Data is null && Error is null)">
-                <TemplateColumn Title="ID" SortBy="@sortById" Class="w-24 text-center" HeaderClass="@GetSortClass("id")" Align="Align.Center">
+                <TemplateColumn Title="ID" SortBy="@sortById" Class="w-24 text-center" Align="Align.Center">
                     <HeaderTemplate>
-                        <a href="@GetSortUrl("id")" class="col-title" data-enhance>ID</a>
+                        <a href="@GetSortUrl("id")" class="col-title @GetSortClass("id")" data-enhance>ID</a>
                     </HeaderTemplate>
                     <ChildContent>
                         <a href="@(context.IsTransfer ? $"/receiving?mode=transfer#transfer-{context.Id}" : $"/receiving/{context.Id}")" class="font-bold text-blue-700 text-xs hover:underline">
@@ -86,17 +86,17 @@
                         }
                     </ChildContent>
                 </TemplateColumn>
-                <TemplateColumn Title="Date" SortBy="@sortByDate" HeaderClass="@GetSortClass("date")" Class="whitespace-nowrap">
+                <TemplateColumn Title="Date" SortBy="@sortByDate" Class="whitespace-nowrap">
                     <HeaderTemplate>
-                        <a href="@GetSortUrl("date")" class="col-title" data-enhance>Date</a>
+                        <a href="@GetSortUrl("date")" class="col-title @GetSortClass("date")" data-enhance>Date</a>
                     </HeaderTemplate>
                     <ChildContent>
                         <span class="text-xs text-slate-600 font-mono">@context.At.ToBusinessTime(Configuration).ToString("dd MMM yyyy, HH:mm")</span>
                     </ChildContent>
                 </TemplateColumn>
-                <TemplateColumn Title="From → to" SortBy="@sortBySource" HeaderClass="@GetSortClass("source")">
+                <TemplateColumn Title="From → to" SortBy="@sortBySource">
                     <HeaderTemplate>
-                        <a href="@GetSortUrl("source")" class="col-title" data-enhance>From → to</a>
+                        <a href="@GetSortUrl("source")" class="col-title @GetSortClass("source")" data-enhance>From → to</a>
                     </HeaderTemplate>
                     <ChildContent>
                         <span class="text-xs font-medium text-slate-800">@context.Source → @context.Destination</span>
@@ -111,17 +111,17 @@
                         }
                     </ChildContent>
                 </TemplateColumn>
-                <TemplateColumn Title="Quantity" SortBy="@sortByQuantity" Align="Align.Right" Class="whitespace-nowrap" HeaderClass="@GetSortClass("quantity")">
+                <TemplateColumn Title="Quantity" SortBy="@sortByQuantity" Align="Align.Right" Class="whitespace-nowrap">
                     <HeaderTemplate>
-                        <a href="@GetSortUrl("quantity")" class="col-title" data-enhance>Quantity</a>
+                        <a href="@GetSortUrl("quantity")" class="col-title @GetSortClass("quantity")" data-enhance>Quantity</a>
                     </HeaderTemplate>
                     <ChildContent>
                         <span class="font-mono text-xs text-slate-800">@context.Quantity.ToString("+0.###;-0.###;0")</span>
                     </ChildContent>
                 </TemplateColumn>
-                <TemplateColumn Title="Stock value" SortBy="@sortByValue" Align="Align.Right" Class="whitespace-nowrap" HeaderClass="@GetSortClass("value")">
+                <TemplateColumn Title="Stock value" SortBy="@sortByValue" Align="Align.Right" Class="whitespace-nowrap">
                     <HeaderTemplate>
-                        <a href="@GetSortUrl("value")" class="col-title" data-enhance>Stock value</a>
+                        <a href="@GetSortUrl("value")" class="col-title @GetSortClass("value")" data-enhance>Stock value</a>
                     </HeaderTemplate>
                     <ChildContent>
                         <span class="font-mono text-xs font-semibold text-slate-900">@Money(context.Value)</span>

@@ -215,4 +215,11 @@ public class SalesEndpointsTests : PosIntegrationTestBase
         await bill.Should().NotBeNull();
         await bill!.IsVoided.Should().BeEqualTo(true);
     }
+
+    [Test]
+    public async Task GetSalesPage_WhenSalesUser_ReturnsOk()
+    {
+        var response = await SalesClient.GetAsync("/sales");
+        await response.StatusCode.Should().BeEqualTo(HttpStatusCode.OK);
+    }
 }

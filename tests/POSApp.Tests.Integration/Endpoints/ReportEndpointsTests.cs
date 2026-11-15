@@ -73,4 +73,48 @@ public class ReportEndpointsTests : PosIntegrationTestBase
 
         await content.Contains("Stock Loss & Waste Report").Should().BeEqualTo(true);
     }
+
+    [Test]
+    public async Task GetSalesReportPage_WhenAdmin_ReturnsOk()
+    {
+        var response = await AdminClient.GetAsync("/reports/sales");
+        var content = await response.Content.ReadAsStringAsync();
+        if (response.StatusCode != HttpStatusCode.OK)
+        {
+            throw new InvalidOperationException($"Status: {response.StatusCode}\nContent: {content}");
+        }
+    }
+
+    [Test]
+    public async Task GetItemsReportPage_WhenAdmin_ReturnsOk()
+    {
+        var response = await AdminClient.GetAsync("/reports/items");
+        var content = await response.Content.ReadAsStringAsync();
+        if (response.StatusCode != HttpStatusCode.OK)
+        {
+            throw new InvalidOperationException($"Status: {response.StatusCode}\nContent: {content}");
+        }
+    }
+
+    [Test]
+    public async Task GetInventoryReportPage_WhenAdmin_ReturnsOk()
+    {
+        var response = await AdminClient.GetAsync("/reports/inventory");
+        var content = await response.Content.ReadAsStringAsync();
+        if (response.StatusCode != HttpStatusCode.OK)
+        {
+            throw new InvalidOperationException($"Status: {response.StatusCode}\nContent: {content}");
+        }
+    }
+
+    [Test]
+    public async Task GetReceivingReportPage_WhenAdmin_ReturnsOk()
+    {
+        var response = await AdminClient.GetAsync("/reports/receiving");
+        var content = await response.Content.ReadAsStringAsync();
+        if (response.StatusCode != HttpStatusCode.OK)
+        {
+            throw new InvalidOperationException($"Status: {response.StatusCode}\nContent: {content}");
+        }
+    }
 }
