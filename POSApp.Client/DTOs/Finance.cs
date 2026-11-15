@@ -163,6 +163,8 @@ public sealed class PayrollInput
     public decimal Amount { get; set; }
     public PaymentMethod Method { get; set; } = PaymentMethod.Cash;
     public string Notes { get; set; } = "";
+    public bool IsBackdate { get; set; }
+    public DateTimeOffset? TransactionTime { get; set; }
 }
 
 public sealed record ExpenseRow(int Id, DateTimeOffset At, ExpenseCategory Category, decimal Amount,

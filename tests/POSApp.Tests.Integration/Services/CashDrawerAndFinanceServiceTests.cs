@@ -1200,4 +1200,126 @@ public class CashDrawerAndFinanceServiceTests : PosIntegrationTestBase
         await movement.CreatedAt.Should().BeGreaterThanOrEqualTo(beforeInsert);
         await movement.CreatedAt.Should().NotBeEqualTo(movement.OccurredAt);
     }
+
+    [Test]
+    public async Task AddPayrollAsync_WhenBackdated_SetsOccurredAtAndPostsToHistoricalDate()
+    {
+        await using var scope = CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var employeeService = scope.ServiceProvider.GetRequiredService<EmployeeService>();
+        var financeService = scope.ServiceProvider.GetRequiredService<FinanceService>();
+        var config = scope.ServiceProvider.GetRequiredService<IConfiguration>();
+
+        var employeeId = await employeeService.SaveAsync(AdminUser, new EmployeeInput
+        {
+            Name = "Payroll Historical Staff",
+            MonthlySalary = 15000m
+        });
+
+        var historicalUtc = DateTimeOffset.UtcNow.AddDays(-2);
+        var historicalDate = DateOnly.FromDateTime(historicalUtc.ToBusinessTime(config).DateTime);
+
+        await AccountingCalendar.EnsureOpenAsync(db, historicalDate, default);
+        var salaryMonth = new DateOnly(historicalDate.Year, historicalDate.Month, 1);
+        var salary = new MonthlySalary
+        {
+            EmployeeId = employeeId,
+            Month = salaryMonth,
+            Amount = 15000m,
+            SettledAmount = 0m,
+            Notes = "",
+            CreatedByUserId = 1
+        };
+        db.MonthlySalaries.Add(salary);
+        await db.SaveChangesAsync();
+
+        var requestId = Guid.NewGuid();
+        var payrollInput = new PayrollInput
+        {
+            RequestId = requestId,
+            EmployeeId = employeeId,
+            Kind = PayrollKind.Salary,
+            Month = salaryMonth,
+            Amount = 5000m,
+            Method = PaymentMethod.Cash,
+            Notes = "Backdated salary payment",
+            IsBackdate = true,
+            TransactionTime = historicalUtc
+        };
+
+        var entryId = await financeService.AddPayrollAsync(AdminUser, payrollInput);
+        await entryId.Should().BeGreaterThan(0);
+
+        var entry = await db.PayrollEntries.SingleAsync(e => e.Id == entryId);
+        await entry.OccurredAt.Should().BeEqualTo(historicalUtc);
+        await entry.PaidAmount.Should().BeEqualTo(5000m);
+        await entry.Amount.Should().BeEqualTo(5000m);
+
+        var movement = await db.CashMovements.SingleOrDefaultAsync(m => m.PayrollEntryId == entryId);
+        await movement.Should().NotBeNull();
+        await movement!.OccurredAt.Should().BeEqualTo(historicalUtc);
+        await movement.Kind.Should().BeEqualTo(CashMovementKind.Payroll);
+        await movement.Amount.Should().BeEqualTo(-5000m);
+    }
+
+    [Test]
+    public async Task AddPayrollAsync_WhenBackdatedWithFutureTime_ThrowsValidationException()
+    {
+        await using var scope = CreateScope();
+        var employeeService = scope.ServiceProvider.GetRequiredService<EmployeeService>();
+        var financeService = scope.ServiceProvider.GetRequiredService<FinanceService>();
+
+        var employeeId = await employeeService.SaveAsync(AdminUser, new EmployeeInput
+        {
+            Name = "Future Payroll Staff",
+            MonthlySalary = 10000m
+        });
+
+        var futureUtc = DateTimeOffset.UtcNow.AddDays(1);
+        var payrollInput = new PayrollInput
+        {
+            RequestId = Guid.NewGuid(),
+            EmployeeId = employeeId,
+            Kind = PayrollKind.Bonus,
+            Month = new DateOnly(futureUtc.Year, futureUtc.Month, 1),
+            Amount = 2000m,
+            Method = PaymentMethod.Cash,
+            Notes = "Future bonus",
+            IsBackdate = true,
+            TransactionTime = futureUtc
+        };
+
+        var ex = await Assert.ThrowsAsync<ValidationException>(() => financeService.AddPayrollAsync(AdminUser, payrollInput));
+        await ex!.Message.Should().BeEqualTo("Payroll payment date and time cannot be in the future.");
+    }
+
+    [Test]
+    public async Task AddPayrollAsync_WhenBackdatedWithoutTime_ThrowsValidationException()
+    {
+        await using var scope = CreateScope();
+        var employeeService = scope.ServiceProvider.GetRequiredService<EmployeeService>();
+        var financeService = scope.ServiceProvider.GetRequiredService<FinanceService>();
+
+        var employeeId = await employeeService.SaveAsync(AdminUser, new EmployeeInput
+        {
+            Name = "Missing Time Staff",
+            MonthlySalary = 10000m
+        });
+
+        var payrollInput = new PayrollInput
+        {
+            RequestId = Guid.NewGuid(),
+            EmployeeId = employeeId,
+            Kind = PayrollKind.Bonus,
+            Month = new DateOnly(2026, 11, 1),
+            Amount = 2000m,
+            Method = PaymentMethod.Cash,
+            Notes = "Missing time backdate",
+            IsBackdate = true,
+            TransactionTime = null
+        };
+
+        var ex = await Assert.ThrowsAsync<ValidationException>(() => financeService.AddPayrollAsync(AdminUser, payrollInput));
+        await ex!.Message.Should().BeEqualTo("Select the date and time for backdated payroll.");
+    }
 }

@@ -97,6 +97,10 @@ else if (Data is not null)
         {
             throw new ValidationException("The payroll form has changed. Reload before recording this payment.");
         }
+        if (PayrollForm?.IsBackdate == true && PayrollForm?.TransactionTime.HasValue == true)
+        {
+            PayrollForm.TransactionTime = BusinessTime.FromBusinessWallClockToUtc(PayrollForm.TransactionTime.Value.DateTime, Configuration);
+        }
         await Finance.AddPayrollAsync(HttpContext.User, PayrollForm!, HttpContext.RequestAborted);
     });
 

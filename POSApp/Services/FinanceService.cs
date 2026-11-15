@@ -92,6 +92,22 @@ public sealed class FinanceService(IServiceScopeFactory scopes, IConfiguration c
             {
                 throw new ValidationException("Choose salary payment or bonus and enter a positive payment amount.");
             }
+            if (!input.IsBackdate)
+            {
+                input.TransactionTime = null;
+            }
+            if (input.IsBackdate)
+            {
+                if (!input.TransactionTime.HasValue)
+                {
+                    throw new ValidationException("Select the date and time for backdated payroll.");
+                }
+                var effective = input.TransactionTime.Value.ToUniversalTime();
+                if (effective > DateTimeOffset.UtcNow)
+                {
+                    throw new ValidationException("Payroll payment date and time cannot be in the future.");
+                }
+            }
             await using var scope = scopes.CreateAsyncScope();
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             var actorId = await StoreAccess.RequireAsync(db, actor, AppRoles.Admin, ct);
@@ -99,7 +115,8 @@ public sealed class FinanceService(IServiceScopeFactory scopes, IConfiguration c
             var hash = StoreOperation.Fingerprint(new
             {
                 input.RequestId, input.EmployeeId, input.Kind, input.Month,
-                input.Amount, input.Method, input.Notes
+                input.Amount, input.Method, input.Notes,
+                input.IsBackdate, input.TransactionTime
             });
             var previous = await db.PayrollEntries.SingleOrDefaultAsync(entry => entry.RequestId == input.RequestId, ct);
             if (previous is not null)
@@ -107,8 +124,13 @@ public sealed class FinanceService(IServiceScopeFactory scopes, IConfiguration c
                 StoreOperation.CheckReplay(actorId, previous.CreatedByUserId, previous.RequestHash, hash);
                 return previous.Id;
             }
-            var date = await AccountingCalendar.SelectedAsync(db, actorId, configuration, ct);
-                                    var at = AccountingCalendar.At(date, configuration);
+            var at = input.TransactionTime.HasValue
+                ? input.TransactionTime.Value.ToUniversalTime()
+                : AccountingCalendar.At(await AccountingCalendar.SelectedAsync(db, actorId, configuration, ct), configuration);
+            var date = input.TransactionTime.HasValue
+                ? DateOnly.FromDateTime(at.ToBusinessTime(configuration).DateTime)
+                : await AccountingCalendar.SelectedAsync(db, actorId, configuration, ct);
+            await AccountingCalendar.EnsureOpenAsync(db, date, ct);
             var employee = await db.Employees.SingleOrDefaultAsync(employee => employee.Id == input.EmployeeId && !employee.IsDeleted, ct)
                 ?? throw new ValidationException("Choose an employee from the employee list.");
             var account = await db.StaffAccounts.SingleOrDefaultAsync(item => item.EmployeeId == input.EmployeeId, ct);
@@ -142,7 +164,6 @@ public sealed class FinanceService(IServiceScopeFactory scopes, IConfiguration c
                 salary.UpdatedAt = DateTimeOffset.UtcNow;
                 salary.UpdatedByUserId = actorId;
             }
-            await AccountingCalendar.EnsureOpenAsync(db, date, ct);
             account.OutstandingAdvance += advanceCreated - advanceApplied;
             StoreAccess.Money(account.OutstandingAdvance, "Staff advance balance");
             account.UpdatedAt = DateTimeOffset.UtcNow;
