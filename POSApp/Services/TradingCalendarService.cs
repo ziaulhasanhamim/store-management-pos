@@ -150,6 +150,7 @@ public sealed class TradingCalendarService(IServiceScopeFactory scopes, IConfigu
 
         var hasCashMovements = await db.CashMovements.AsNoTracking().AnyAsync(c =>
             c.OccurredAt >= fromUtc && c.OccurredAt < toUtc && c.ReversesMovementId == null
+            && !db.CashMovements.Any(r => r.ReversesMovementId == c.Id)
             && (input.StockLocationId == null || (c.CashDrawer != null && c.CashDrawer.StockLocationId == input.StockLocationId.Value)), ct);
         if (hasCashMovements)
         {
@@ -157,7 +158,8 @@ public sealed class TradingCalendarService(IServiceScopeFactory scopes, IConfigu
         }
 
         var hasBankMovements = await db.BankMovements.AsNoTracking().AnyAsync(b =>
-            b.OccurredAt >= fromUtc && b.OccurredAt < toUtc && b.ReversesMovementId == null, ct);
+            b.OccurredAt >= fromUtc && b.OccurredAt < toUtc && b.ReversesMovementId == null
+            && !db.BankMovements.Any(r => r.ReversesMovementId == b.Id), ct);
         if (hasBankMovements)
         {
             throw new ValidationException($"Cannot mark {input.Date:dd MMM yyyy} as a non-trading day because bank movements exist on this date.");

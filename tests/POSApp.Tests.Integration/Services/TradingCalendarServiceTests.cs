@@ -123,6 +123,54 @@ public class TradingCalendarServiceTests : PosIntegrationTestBase
     }
 
     [Test]
+    public async Task MarkNonTradingDay_WhenCashMovementIsReversed_Succeeds()
+    {
+        await using var scope = CreateScope();
+        var calendar = scope.ServiceProvider.GetRequiredService<TradingCalendarService>();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var testDate = new DateOnly(2026, 11, 19);
+        var testUtc = AccountingCalendar.At(testDate, new TimeOnly(14, 0), null);
+
+        var drawer = await db.CashDrawers.FirstAsync();
+        var origMove = new CashMovement
+        {
+            RequestId = Guid.NewGuid(),
+            OccurredAt = testUtc,
+            CashDrawerId = drawer.Id,
+            Kind = CashMovementKind.CashIn,
+            Amount = 100m,
+            Notes = "Original cash in",
+            CreatedByUserId = 1
+        };
+        db.CashMovements.Add(origMove);
+        await db.SaveChangesAsync();
+
+        var reversalMove = new CashMovement
+        {
+            RequestId = Guid.NewGuid(),
+            OccurredAt = testUtc.AddMinutes(1),
+            CashDrawerId = drawer.Id,
+            Kind = CashMovementKind.Reversal,
+            Amount = -100m,
+            ReversesMovementId = origMove.Id,
+            Notes = "Reversal of cash in",
+            CreatedByUserId = 1
+        };
+        db.CashMovements.Add(reversalMove);
+        await db.SaveChangesAsync();
+
+        var dto = await calendar.MarkNonTradingDayAsync(AdminUser, new MarkNonTradingDayInput
+        {
+            Date = testDate,
+            Reason = "Reversed Day"
+        });
+
+        await Assert.That(dto).IsNotNull();
+        await Assert.That(dto.Date).IsEqualTo(testDate);
+    }
+
+    [Test]
     public async Task SalesTimeline_ExcludesClosedDays_FromPoints()
     {
         await using var scope = CreateScope();
