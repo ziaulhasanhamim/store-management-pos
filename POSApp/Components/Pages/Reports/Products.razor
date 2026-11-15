@@ -2,7 +2,9 @@
 @attribute [Authorize(Policy = AppPolicies.ManageInventory)]
 @attribute [StreamRendering]
 @using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Components.QuickGrid
 @inject ReportService Reports
+@inject NavigationManager Navigation
 @inject ILogger<Products> Logger
 
 <PageTitle>Item sales & returns · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
@@ -49,79 +51,168 @@
             <span class="text-xs text-slate-500">@Data.Count matching items</span>
         </div>
     }
-    <table id="products-table" class="data-table" aria-busy="@(Data is null && Error is null)">
-        <thead>
-            <tr>
-                    <SortHeader Column="id" Label="Item ID" Sort="@Sort" Numeric="true" />
-                    <SortHeader Column="name" Label="Item / barcode" Sort="@Sort" Numeric="false" />
-                <SortHeader Column="quantity" Label="Net quantity" Sort="@Sort" Numeric="true" />
-                <SortHeader Column="average-cost" Label="Cost price" Sort="@Sort" Numeric="true" />
-                <SortHeader Column="average-price" Label="Avg. selling price" Sort="@Sort" Numeric="true" />
-                <SortHeader Column="subtotal" Label="Subtotal" Sort="@Sort" Numeric="true" />
-                <SortHeader Column="discount" Label="Discount" Sort="@Sort" Numeric="true" />
-                <SortHeader Column="total" Label="Net sales" Sort="@Sort" Numeric="true" />
-                <SortHeader Column="cost" Label="Cost" Sort="@Sort" Numeric="true" />
-                <SortHeader Column="profit" Label="Profit" Sort="@Sort" Numeric="true" />
-            </tr>
-        </thead>
-        <tbody>
-            @if (Data is null)
-            {
-                <TableStatusRow Columns="10" Loading="@(Error is null)" Error="@(Error is not null)"
-                    Message="@(Error ?? "Calculating item performance…")" />
-            }
-            @foreach (var item in Data?.Rows ?? [])
-            {
-                <tr>
-                    <td>
-                        <a href="@($"/items/{item.ProductId}")" class="font-semibold text-blue-700">@item.ProductId</a>
-                    </td>
-                    <td>
-                        <a href="@($"/items/{item.ProductId}")" class="font-semibold text-blue-700">@item.Name</a>
-                        <span class="mt-1 block font-mono text-xs text-slate-500">@item.Barcode</span>
-                    </td>
-                    <td class="text-right">@item.Quantity.ToString("0.###") @item.Unit</td>
-                    <td class="text-right">@(item.AverageCost is not null ? Money(item.AverageCost.Value) : "—")</td>
-                    <td class="text-right">@(item.AveragePrice is not null ? Money(item.AveragePrice.Value) : "—")</td>
-                    <td class="text-right">@Money(item.Subtotal)</td>
-                    <td class="text-right">@Money(item.Discount)</td>
-                    <td class="text-right">@Money(item.Total)</td>
-                    <td class="text-right">@Money(item.Cost)</td>
-                    <td class="text-right font-semibold @(item.Profit < 0 ? "text-rose-700" : "text-emerald-700")">@Money(item.Profit)</td>
-                </tr>
-            }
-        </tbody>
+    @if (Data is null)
+    {
+        <table class="data-table compact-table w-full">
+            <TableStatusRow Columns="10" Loading="@(Error is null)" Error="@(Error is not null)"
+                Message="@(Error ?? "Calculating item performance…")" />
+        </table>
+    }
+    else if (Data.Count == 0)
+    {
+        <table class="data-table compact-table w-full">
+            <TableStatusRow Columns="10" Message="No sales or returns match these filters." />
+        </table>
+    }
+    else
+    {
+        <QuickGrid ItemsProvider="@itemsProvider" Pagination="@pagination" class="data-table compact-table w-full" aria-busy="@(Data is null && Error is null)">
+            <TemplateColumn Title="ID" SortBy="@sortById" Sortable="true" Class="w-16 text-center pl-3" Align="Align.Center">
+                <HeaderTemplate Context="_">
+                    <a class="col-title @GetSortClass("id")" href="@GetSortUrl("id")" title="Sort by ID">
+                        <span>ID</span>
+                        <span class="sort-indicator" aria-hidden="true"></span>
+                    </a>
+                </HeaderTemplate>
+                <ChildContent Context="item">
+                    <a href="@($"/items/{item.ProductId}")" class="font-bold text-blue-700 hover:text-blue-800 text-xs">#@item.ProductId</a>
+                </ChildContent>
+            </TemplateColumn>
+
+            <TemplateColumn Title="Item" SortBy="@sortByName" Sortable="true" Class="min-w-[140px]">
+                <HeaderTemplate Context="_">
+                    <a class="col-title @GetSortClass("name")" href="@GetSortUrl("name")" title="Sort by item name">
+                        <span>Item</span>
+                        <span class="sort-indicator" aria-hidden="true"></span>
+                    </a>
+                </HeaderTemplate>
+                <ChildContent Context="item">
+                    <a href="@($"/items/{item.ProductId}")" class="font-medium text-slate-900 hover:text-blue-600 block text-xs truncate max-w-[180px]" title="@item.Name">@item.Name</a>
+                    @if (!string.IsNullOrWhiteSpace(item.Barcode))
+                    {
+                        <span class="font-mono text-[10px] text-slate-400 block truncate max-w-[120px]" title="@item.Barcode">@item.Barcode</span>
+                    }
+                </ChildContent>
+            </TemplateColumn>
+
+            <TemplateColumn Title="Net Qty" SortBy="@sortByQuantity" Sortable="true" Align="Align.Right" Class="whitespace-nowrap">
+                <HeaderTemplate Context="_">
+                    <a class="col-title @GetSortClass("quantity")" href="@GetSortUrl("quantity")" title="Sort by net quantity">
+                        <span>Net Qty</span>
+                        <span class="sort-indicator" aria-hidden="true"></span>
+                    </a>
+                </HeaderTemplate>
+                <ChildContent Context="item">
+                    <span class="text-xs font-medium text-slate-700">@item.Quantity.ToString("0.###")</span>
+                    <span class="text-[10px] text-slate-400 ml-0.5">@item.Unit</span>
+                </ChildContent>
+            </TemplateColumn>
+
+            <TemplateColumn Title="Cost price" SortBy="@sortByCost" Sortable="true" Align="Align.Right" Class="whitespace-nowrap">
+                <HeaderTemplate Context="_">
+                    <a class="col-title @GetSortClass("average-cost")" href="@GetSortUrl("average-cost")" title="Sort by cost price">
+                        <span>Cost price</span>
+                        <span class="sort-indicator" aria-hidden="true"></span>
+                    </a>
+                </HeaderTemplate>
+                <ChildContent Context="item">
+                    <span class="text-xs text-slate-500">@(item.AverageCost is not null ? Money(item.AverageCost.Value) : "—")</span>
+                </ChildContent>
+            </TemplateColumn>
+
+            <TemplateColumn Title="Avg price" SortBy="@sortByPrice" Sortable="true" Align="Align.Right" Class="whitespace-nowrap">
+                <HeaderTemplate Context="_">
+                    <a class="col-title @GetSortClass("average-price")" href="@GetSortUrl("average-price")" title="Sort by average price">
+                        <span>Avg price</span>
+                        <span class="sort-indicator" aria-hidden="true"></span>
+                    </a>
+                </HeaderTemplate>
+                <ChildContent Context="item">
+                    <span class="text-xs text-slate-500">@(item.AveragePrice is not null ? Money(item.AveragePrice.Value) : "—")</span>
+                </ChildContent>
+            </TemplateColumn>
+
+            <TemplateColumn Title="Subtotal" SortBy="@sortBySubtotal" Sortable="true" Align="Align.Right" Class="whitespace-nowrap">
+                <HeaderTemplate Context="_">
+                    <a class="col-title @GetSortClass("subtotal")" href="@GetSortUrl("subtotal")" title="Sort by subtotal">
+                        <span>Subtotal</span>
+                        <span class="sort-indicator" aria-hidden="true"></span>
+                    </a>
+                </HeaderTemplate>
+                <ChildContent Context="item">
+                    <span class="text-xs text-slate-600">@Money(item.Subtotal)</span>
+                </ChildContent>
+            </TemplateColumn>
+
+            <TemplateColumn Title="Discount" SortBy="@sortByDiscount" Sortable="true" Align="Align.Right" Class="whitespace-nowrap">
+                <HeaderTemplate Context="_">
+                    <a class="col-title @GetSortClass("discount")" href="@GetSortUrl("discount")" title="Sort by discount">
+                        <span>Discount</span>
+                        <span class="sort-indicator" aria-hidden="true"></span>
+                    </a>
+                </HeaderTemplate>
+                <ChildContent Context="item">
+                    <span class="text-xs text-slate-500">@Money(item.Discount)</span>
+                </ChildContent>
+            </TemplateColumn>
+
+            <TemplateColumn Title="Net sales" SortBy="@sortByTotal" Sortable="true" Align="Align.Right" Class="whitespace-nowrap">
+                <HeaderTemplate Context="_">
+                    <a class="col-title @GetSortClass("total")" href="@GetSortUrl("total")" title="Sort by net sales">
+                        <span>Net sales</span>
+                        <span class="sort-indicator" aria-hidden="true"></span>
+                    </a>
+                </HeaderTemplate>
+                <ChildContent Context="item">
+                    <span class="text-xs font-semibold text-slate-900">@Money(item.Total)</span>
+                </ChildContent>
+            </TemplateColumn>
+
+            <TemplateColumn Title="Cost" SortBy="@sortByCostTotal" Sortable="true" Align="Align.Right" Class="whitespace-nowrap">
+                <HeaderTemplate Context="_">
+                    <a class="col-title @GetSortClass("cost")" href="@GetSortUrl("cost")" title="Sort by cost">
+                        <span>Cost</span>
+                        <span class="sort-indicator" aria-hidden="true"></span>
+                    </a>
+                </HeaderTemplate>
+                <ChildContent Context="item">
+                    <span class="text-xs text-slate-500">@Money(item.Cost)</span>
+                </ChildContent>
+            </TemplateColumn>
+
+            <TemplateColumn Title="Profit" SortBy="@sortByProfit" Sortable="true" Align="Align.Right" Class="whitespace-nowrap pr-3">
+                <HeaderTemplate Context="_">
+                    <a class="col-title @GetSortClass("profit")" href="@GetSortUrl("profit")" title="Sort by profit">
+                        <span>Profit</span>
+                        <span class="sort-indicator" aria-hidden="true"></span>
+                    </a>
+                </HeaderTemplate>
+                <ChildContent Context="item">
+                    <span class="text-xs font-bold @(item.Profit < 0 ? "text-rose-700" : "text-emerald-700")">@Money(item.Profit)</span>
+                </ChildContent>
+            </TemplateColumn>
+        </QuickGrid>
+
         @if (Data is not null)
         {
-            <tfoot>
-                <tr>
-                    <th colspan="5">This page</th>
-                    <td class="text-right">@Money(Data.Rows.Sum(item => item.Subtotal))</td>
-                    <td class="text-right">@Money(Data.Rows.Sum(item => item.Discount))</td>
-                    <td class="text-right">@Money(Data.Rows.Sum(item => item.Total))</td>
-                    <td class="text-right">@Money(Data.Rows.Sum(item => item.Cost))</td>
-                    <td class="text-right">@Money(Data.Rows.Sum(item => item.Profit))</td>
-                </tr>
-                <tr>
-                    <th colspan="5">All matching items</th>
-                    <td class="text-right">@Money(Data.Subtotal)</td>
-                    <td class="text-right">@Money(Data.Discount)</td>
-                    <td class="text-right">@Money(Data.Total)</td>
-                    <td class="text-right">@Money(Data.Cost)</td>
-                    <td class="text-right">@Money(Data.Profit)</td>
-                </tr>
-            </tfoot>
+            <div class="border-t border-slate-200 bg-slate-50/80 px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs">
+                <div class="flex flex-wrap items-center gap-x-5 gap-y-1">
+                    <span class="font-semibold uppercase tracking-wider text-slate-500 text-[10px]">All Matching (@Data.Count items)</span>
+                    <span class="text-slate-600">Net Sales: <strong class="text-slate-900 font-semibold">@Money(Data.Total)</strong></span>
+                    <span class="text-slate-600">COGS: <strong class="text-slate-900 font-semibold">@Money(Data.Cost)</strong></span>
+                    <span class="text-slate-600">Gross Profit: <strong class="font-bold @(Data.Profit < 0 ? "text-rose-700" : "text-emerald-700")">@Money(Data.Profit)</strong></span>
+                </div>
+                <div class="text-slate-400 text-[11px]">
+                    Page Sales: @Money(Data.Rows.Sum(i => i.Total)) · Page Profit: @Money(Data.Rows.Sum(i => i.Profit))
+                </div>
+            </div>
         }
-    </table>
-    @if (Data is not null && Data.Count == 0)
-    {
-        <p class="empty-state">No sales or returns match these filters.</p>
     }
     <p class="p-4 text-xs text-slate-500">Gross profit is strictly calculated as Net sales minus the total sum of all costs of the items recorded at selling time (total selling amount minus the sum of historical transaction costs, reflecting changing item costs such as ৳300 vs ৳400 exactly), not by multiplying average cost. Average cost and price are shown for reference. Returns subtract quantity, revenue, and saved cost. Discounts are included.</p>
 </section>
-@if (Data is not null)
+@if (TotalCount > 0)
 {
-    <PageNavigation Info="@(new PageInfo(Data.Page, QueryPagination.Size(PageSize), Data.Count))" Label="items" />
+    <Paginator State="@pagination" />
 }
 
 @code {
@@ -151,6 +242,21 @@
 
     [SupplyParameterFromQuery]
     public int PageSize { get; set; } = 30;
+
+    private readonly PaginationState pagination = new() { ItemsPerPage = 30 };
+    private GridItemsProvider<ProductSalesRow>? itemsProvider;
+    private int TotalCount;
+
+    private readonly GridSort<ProductSalesRow> sortById = GridSort<ProductSalesRow>.ByAscending(i => i.ProductId);
+    private readonly GridSort<ProductSalesRow> sortByName = GridSort<ProductSalesRow>.ByAscending(i => i.Name);
+    private readonly GridSort<ProductSalesRow> sortByQuantity = GridSort<ProductSalesRow>.ByAscending(i => i.Quantity);
+    private readonly GridSort<ProductSalesRow> sortByCost = GridSort<ProductSalesRow>.ByAscending(i => i.AverageCost ?? 0);
+    private readonly GridSort<ProductSalesRow> sortByPrice = GridSort<ProductSalesRow>.ByAscending(i => i.AveragePrice ?? 0);
+    private readonly GridSort<ProductSalesRow> sortBySubtotal = GridSort<ProductSalesRow>.ByAscending(i => i.Subtotal);
+    private readonly GridSort<ProductSalesRow> sortByDiscount = GridSort<ProductSalesRow>.ByAscending(i => i.Discount);
+    private readonly GridSort<ProductSalesRow> sortByTotal = GridSort<ProductSalesRow>.ByAscending(i => i.Total);
+    private readonly GridSort<ProductSalesRow> sortByCostTotal = GridSort<ProductSalesRow>.ByAscending(i => i.Cost);
+    private readonly GridSort<ProductSalesRow> sortByProfit = GridSort<ProductSalesRow>.ByAscending(i => i.Profit);
 
     private ProductSalesReport? Data;
     private string? Error;
@@ -184,10 +290,24 @@
         Period = string.IsNullOrWhiteSpace(Period) ? "month" : Period;
         Data = null;
         Error = null;
+        itemsProvider = null;
         try
         {
+            var size = QueryPagination.Size(PageSize);
+            pagination.ItemsPerPage = size;
+
             Data = await Reports.ProductsAsync(HttpContext.User, Period, Start, End, Page,
-                HttpContext.RequestAborted, Search, Sort, LocationId, QueryPagination.Size(PageSize));
+                HttpContext.RequestAborted, Search, Sort, LocationId, size);
+            TotalCount = Data.Count;
+
+            var maxPageIndex = Math.Max(0, (TotalCount - 1) / pagination.ItemsPerPage);
+            var targetPageIndex = Math.Clamp(Data.Page - 1, 0, maxPageIndex);
+            if (pagination.CurrentPageIndex != targetPageIndex)
+            {
+                await pagination.SetCurrentPageIndexAsync(targetPageIndex);
+            }
+
+            itemsProvider = req => ValueTask.FromResult(GridItemsProviderResult.From(Data.Rows.ToList(), TotalCount));
         }
         catch (ValidationException exception)
         {
@@ -198,6 +318,32 @@
             Logger.LogError(exception, "Item sales report failed.");
             Error = "Unable to load item sales. Please try again.";
         }
+    }
+
+    private string GetSortUrl(string column)
+    {
+        var cleanSort = (Sort ?? "id").ToLowerInvariant().Replace("-descending", "").Replace("-desc", "");
+        var isCurrent = string.Equals(cleanSort, column, StringComparison.OrdinalIgnoreCase);
+        var currentIsDesc = (Sort ?? "").EndsWith("-desc", StringComparison.OrdinalIgnoreCase)
+            || (Sort ?? "").EndsWith("-descending", StringComparison.OrdinalIgnoreCase);
+        var nextDirection = isCurrent && !currentIsDesc ? $"{column}-desc" : column;
+        return Navigation.GetUriWithQueryParameters(new Dictionary<string, object?>
+        {
+            ["sort"] = nextDirection,
+            ["page"] = 1
+        });
+    }
+
+    private string GetSortClass(string column)
+    {
+        var cleanSort = (Sort ?? "id").ToLowerInvariant().Replace("-descending", "").Replace("-desc", "");
+        if (!string.Equals(cleanSort, column, StringComparison.OrdinalIgnoreCase))
+        {
+            return "";
+        }
+        var currentIsDesc = (Sort ?? "").EndsWith("-desc", StringComparison.OrdinalIgnoreCase)
+            || (Sort ?? "").EndsWith("-descending", StringComparison.OrdinalIgnoreCase);
+        return currentIsDesc ? "col-sort-desc" : "col-sort-asc";
     }
 
     private string Money(decimal value) => $"{value:N2} {Configuration["CurrencyCode"] ?? "BDT"}";

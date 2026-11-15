@@ -707,6 +707,12 @@
     padding: 9px 13px;
 }
 
+.data-table.compact-table th,
+.data-table.compact-table td {
+    padding: 6px 8px;
+    font-size: 11.5px;
+}
+
 .data-table th+th,
 .data-table td+td {
     border-left: 1px solid #f1f5f9;
@@ -954,42 +960,92 @@ table.quickgrid {
     width: 32px !important;
     border-radius: 8px !important;
     border: 1px solid #e2e8f0 !important;
-    background: #ffffff !important;
-    background-image: none !important;
-    font-size: 15px !important;
-    font-weight: 600 !important;
+    background-color: #ffffff !important;
+    background-position: center !important;
+    background-repeat: no-repeat !important;
+    background-size: 16px 16px !important;
+    font-size: 0 !important;
     line-height: 1 !important;
-    color: #475569 !important;
+    color: transparent !important;
     text-decoration: none !important;
     transition: all 0.15s ease !important;
     cursor: pointer !important;
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04) !important;
-    transform: none !important; /* CRITICAL: prevents Microsoft's scaleX(-1) from flipping › and » to < and « */
-}
-
-/* Explicitly cancel Microsoft transform and background SVG on next & last */
-.quickgrid-paginator a.go-next,
-.quickgrid-paginator a.go-last,
-.paginator a.go-next,
-.paginator a.go-last,
-.quickgrid-paginator button.go-next,
-.quickgrid-paginator button.go-last,
-.paginator button.go-next,
-.paginator button.go-last {
     transform: none !important;
-    background-image: none !important;
 }
 
+/* Explicit SVG chevrons for all 4 paginator buttons - immune to transform/scaleX quirks */
+.quickgrid-paginator a.go-first,
+.quickgrid-paginator button.go-first,
+.paginator a.go-first,
+.paginator button.go-first {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23475569' stroke-width='2.25' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='11 17 6 12 11 7'/%3E%3Cpolyline points='18 17 13 12 18 7'/%3E%3C/svg%3E") !important;
+    transform: none !important;
+}
+
+.quickgrid-paginator a.go-previous,
+.quickgrid-paginator button.go-previous,
+.paginator a.go-previous,
+.paginator button.go-previous {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23475569' stroke-width='2.25' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='15 18 9 12 15 6'/%3E%3C/svg%3E") !important;
+    transform: none !important;
+}
+
+.quickgrid-paginator a.go-next,
+.quickgrid-paginator button.go-next,
+.paginator a.go-next,
+.paginator button.go-next {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23475569' stroke-width='2.25' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='9 18 15 12 9 6'/%3E%3C/svg%3E") !important;
+    transform: none !important;
+}
+
+.quickgrid-paginator a.go-last,
+.quickgrid-paginator button.go-last,
+.paginator a.go-last,
+.paginator button.go-last {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23475569' stroke-width='2.25' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='13 17 18 12 13 7'/%3E%3Cpolyline points='6 17 11 12 6 7'/%3E%3C/svg%3E") !important;
+    transform: none !important;
+}
+
+/* Hover state */
 .quickgrid-paginator a:not([aria-disabled="true"]):hover,
 .paginator a:not([aria-disabled="true"]):hover,
 .quickgrid-paginator button:not(:disabled):hover,
 .paginator button:not(:disabled):hover {
     background-color: #f8fafc !important;
-    background-image: none !important;
     border-color: #cbd5e1 !important;
     color: #0f172a !important;
 }
 
+.quickgrid-paginator a.go-first:not([aria-disabled="true"]):hover,
+.quickgrid-paginator button.go-first:not(:disabled):hover,
+.paginator a.go-first:not([aria-disabled="true"]):hover,
+.paginator button.go-first:not(:disabled):hover {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230f172a' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='11 17 6 12 11 7'/%3E%3Cpolyline points='18 17 13 12 18 7'/%3E%3C/svg%3E") !important;
+}
+
+.quickgrid-paginator a.go-previous:not([aria-disabled="true"]):hover,
+.quickgrid-paginator button.go-previous:not(:disabled):hover,
+.paginator a.go-previous:not([aria-disabled="true"]):hover,
+.paginator button.go-previous:not(:disabled):hover {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230f172a' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='15 18 9 12 15 6'/%3E%3C/svg%3E") !important;
+}
+
+.quickgrid-paginator a.go-next:not([aria-disabled="true"]):hover,
+.quickgrid-paginator button.go-next:not(:disabled):hover,
+.paginator a.go-next:not([aria-disabled="true"]):hover,
+.paginator button.go-next:not(:disabled):hover {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230f172a' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='9 18 15 12 9 6'/%3E%3C/svg%3E") !important;
+}
+
+.quickgrid-paginator a.go-last:not([aria-disabled="true"]):hover,
+.quickgrid-paginator button.go-last:not(:disabled):hover,
+.paginator a.go-last:not([aria-disabled="true"]):hover,
+.paginator button.go-last:not(:disabled):hover {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230f172a' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='13 17 18 12 13 7'/%3E%3Cpolyline points='6 17 11 12 6 7'/%3E%3C/svg%3E") !important;
+}
+
+/* Disabled state */
 .quickgrid-paginator a[aria-disabled="true"],
 .paginator a[aria-disabled="true"],
 .quickgrid-paginator button:disabled,
@@ -998,10 +1054,36 @@ table.quickgrid {
     cursor: not-allowed !important;
     pointer-events: none !important;
     background-color: #f8fafc !important;
-    background-image: none !important;
     border-color: #f1f5f9 !important;
-    color: #94a3b8 !important;
     transform: none !important;
+}
+
+.quickgrid-paginator a.go-first[aria-disabled="true"],
+.quickgrid-paginator button.go-first:disabled,
+.paginator a.go-first[aria-disabled="true"],
+.paginator button.go-first:disabled {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.25' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='11 17 6 12 11 7'/%3E%3Cpolyline points='18 17 13 12 18 7'/%3E%3C/svg%3E") !important;
+}
+
+.quickgrid-paginator a.go-previous[aria-disabled="true"],
+.quickgrid-paginator button.go-previous:disabled,
+.paginator a.go-previous[aria-disabled="true"],
+.paginator button.go-previous:disabled {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.25' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='15 18 9 12 15 6'/%3E%3C/svg%3E") !important;
+}
+
+.quickgrid-paginator a.go-next[aria-disabled="true"],
+.quickgrid-paginator button.go-next:disabled,
+.paginator a.go-next[aria-disabled="true"],
+.paginator button.go-next:disabled {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.25' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='9 18 15 12 9 6'/%3E%3C/svg%3E") !important;
+}
+
+.quickgrid-paginator a.go-last[aria-disabled="true"],
+.quickgrid-paginator button.go-last:disabled,
+.paginator a.go-last[aria-disabled="true"],
+.paginator button.go-last:disabled {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.25' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='13 17 18 12 13 7'/%3E%3Cpolyline points='6 17 11 12 6 7'/%3E%3C/svg%3E") !important;
 }
 
 /* Edge padding on data-table & quickgrid so first & last columns never touch card borders */
