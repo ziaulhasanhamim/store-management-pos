@@ -754,6 +754,16 @@
     color: inherit;
 }
 
+.data-table th.text-center .table-sort {
+    justify-content: center;
+    gap: 6px;
+}
+
+.data-table th.text-right .table-sort {
+    justify-content: flex-end;
+    gap: 6px;
+}
+
 .table-sort:hover,
 th[aria-sort="ascending"],
 th[aria-sort="descending"] {

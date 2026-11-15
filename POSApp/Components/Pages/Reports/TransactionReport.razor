@@ -1,7 +1,6 @@
 @attribute [StreamRendering]
 @using System.ComponentModel.DataAnnotations
 @using System.Text.Json
-@using Microsoft.AspNetCore.Components.QuickGrid
 @using POSApp.Client.DTOs
 @inject ReportService Reports
 @inject AnalyticsService Analytics
@@ -118,129 +117,111 @@
     }
 
     <div class="panel table-scroll">
-        @if (Data is null)
-        {
-            <table class="data-table compact-table w-full" aria-busy="true">
-                <tbody>
+        <table id="transactionreport-table" class="data-table compact-table w-full" aria-busy="@(Data is null && Error is null)">
+            <thead>
+                <tr>
+                    <SortHeader Column="id" Label="ID" Sort="@Sort" Numeric="false" Class="w-20 text-center" />
+                    <SortHeader Column="party" Label="@(Sales ? "Customer" : "Supplier")" Sort="@Sort" Numeric="false" />
+                    <SortHeader Column="date" Label="Date" Sort="@Sort" Numeric="false" Class="whitespace-nowrap" />
+                    <SortHeader Column="total" Label="Total" Sort="@Sort" Numeric="true" Class="whitespace-nowrap" />
+                    @if (CanViewCosts && Sales)
+                    {
+                        <SortHeader Column="cost" Label="Cost" Sort="@Sort" Numeric="true" Class="whitespace-nowrap" />
+                        <SortHeader Column="profit" Label="Profit" Sort="@Sort" Numeric="true" Class="whitespace-nowrap" />
+                    }
+                    <SortHeader Column="paid" Label="Paid" Sort="@Sort" Numeric="true" Class="whitespace-nowrap" />
+                    <SortHeader Column="due" Label="@(Sales ? "Due" : "Net unpaid / credit")" Sort="@Sort" Numeric="true" Class="whitespace-nowrap" />
+                </tr>
+            </thead>
+            <tbody>
+                @if (Data is null)
+                {
                     <TableStatusRow Columns="ColumnCount" Loading="@(Error is null)" Error="@(Error is not null)"
                         Message="@(Error ?? "Loading report…")" />
-                </tbody>
-            </table>
-        }
-        else
-        {
-            <QuickGrid ItemsProvider="@itemsProvider" Pagination="@pagination" class="data-table compact-table w-full" aria-busy="@(Data is null && Error is null)">
-                <TemplateColumn Title="ID" SortBy="@sortById" Class="w-20 text-center" Align="Align.Center">
-                    <HeaderTemplate>
-                        <a href="@GetSortUrl("id")" class="col-title @GetSortClass("id")" data-enhance>ID</a>
-                    </HeaderTemplate>
-                    <ChildContent>
-                        <a href="@(Sales ? $"/sales/{context.Id}/bill" : $"/receiving/{context.Id}")" class="font-bold text-blue-700 text-xs hover:underline">#@context.Id</a>
-                        <span class="block max-w-28 truncate font-mono text-[10px] text-slate-400 mx-auto" title="@context.Number">@context.Number</span>
-                    </ChildContent>
-                </TemplateColumn>
-                <TemplateColumn Title="@(Sales ? "Customer" : "Supplier")" SortBy="@sortByParty">
-                    <HeaderTemplate>
-                        <a href="@GetSortUrl("party")" class="col-title @GetSortClass("party")" data-enhance>@(Sales ? "Customer" : "Supplier")</a>
-                    </HeaderTemplate>
-                    <ChildContent>
-                        <span class="font-medium text-slate-900 text-xs">@context.Party</span>
-                        @if (Sales && context.Items.Count > 0)
-                        {
-                            <details class="mt-1">
-                                <summary class="cursor-pointer text-[11px] font-semibold text-blue-700 hover:text-blue-900">View @context.Items.Count @(context.Items.Count == 1 ? "item" : "items")</summary>
-                                <div class="mt-1.5 rounded border border-slate-200 bg-white p-2">
-                                    <SalesLineTable Items="context.Items" CanViewCosts="CanViewCosts" />
-                                </div>
-                            </details>
-                        }
-                    </ChildContent>
-                </TemplateColumn>
-                <TemplateColumn Title="Date" SortBy="@sortByDate" Class="whitespace-nowrap">
-                    <HeaderTemplate>
-                        <a href="@GetSortUrl("date")" class="col-title @GetSortClass("date")" data-enhance>Date</a>
-                    </HeaderTemplate>
-                    <ChildContent>
-                        <span class="text-xs text-slate-600 font-mono">@TimeZoneInfo.ConvertTime(context.At, Zone).ToString("dd MMM yyyy, HH:mm")</span>
-                    </ChildContent>
-                </TemplateColumn>
-                <TemplateColumn Title="Total" SortBy="@sortByTotal" Align="Align.Right" Class="whitespace-nowrap">
-                    <HeaderTemplate>
-                        <a href="@GetSortUrl("total")" class="col-title @GetSortClass("total")" data-enhance>Total</a>
-                    </HeaderTemplate>
-                    <ChildContent>
-                        <span class="font-mono text-xs font-semibold text-slate-900">@Money(context.Total)</span>
-                    </ChildContent>
-                </TemplateColumn>
-                @if (CanViewCosts && Sales)
-                {
-                    <TemplateColumn Title="Cost" SortBy="@sortByCost" Align="Align.Right" Class="whitespace-nowrap">
-                        <HeaderTemplate>
-                            <a href="@GetSortUrl("cost")" class="col-title @GetSortClass("cost")" data-enhance>Cost</a>
-                        </HeaderTemplate>
-                        <ChildContent>
-                            <span class="font-mono text-xs text-slate-600">@Money(context.Cost ?? 0)</span>
-                        </ChildContent>
-                    </TemplateColumn>
-                    <TemplateColumn Title="Profit" SortBy="@sortByProfit" Align="Align.Right" Class="whitespace-nowrap">
-                        <HeaderTemplate>
-                            <a href="@GetSortUrl("profit")" class="col-title @GetSortClass("profit")" data-enhance>Profit</a>
-                        </HeaderTemplate>
-                        <ChildContent>
-                            <span class="font-mono text-xs font-semibold @(context.Profit < 0 ? "text-rose-700" : "text-emerald-700")">@Money(context.Profit ?? 0)</span>
-                        </ChildContent>
-                    </TemplateColumn>
                 }
-                <TemplateColumn Title="Paid" SortBy="@sortByPaid" Align="Align.Right" Class="whitespace-nowrap">
-                    <HeaderTemplate>
-                        <a href="@GetSortUrl("paid")" class="col-title @GetSortClass("paid")" data-enhance>Paid</a>
-                    </HeaderTemplate>
-                    <ChildContent>
-                        <span class="font-mono text-xs text-slate-700">@Money(context.Paid)</span>
-                    </ChildContent>
-                </TemplateColumn>
-                <TemplateColumn Title="@(Sales ? "Due" : "Net unpaid / credit")" SortBy="@sortByDue" Align="Align.Right" Class="whitespace-nowrap">
-                    <HeaderTemplate>
-                        <a href="@GetSortUrl("due")" class="col-title @GetSortClass("due")" data-enhance>@(Sales ? "Due" : "Net unpaid / credit")</a>
-                    </HeaderTemplate>
-                    <ChildContent>
-                        @{
-                            var unpaid = context.Total - context.Paid;
+                @foreach (var row in Data?.Rows ?? [])
+                {
+                    <tr class="hover:bg-slate-50/60 transition-colors">
+                        <td class="w-20 text-center">
+                            <a href="@(Sales ? $"/sales/{row.Id}/bill" : $"/receiving/{row.Id}")" class="font-bold text-blue-700 text-xs hover:underline">#@row.Id</a>
+                            <span class="block max-w-28 truncate font-mono text-[10px] text-slate-400 mx-auto" title="@row.Number">@row.Number</span>
+                        </td>
+                        <td>
+                            <span class="font-medium text-slate-900 text-xs">@row.Party</span>
+                        </td>
+                        <td class="whitespace-nowrap">
+                            <span class="text-xs text-slate-600 font-mono">@TimeZoneInfo.ConvertTime(row.At, Zone).ToString("dd MMM yyyy, HH:mm")</span>
+                        </td>
+                        <td class="text-right whitespace-nowrap">
+                            <span class="font-mono text-xs font-semibold text-slate-900">@Money(row.Total)</span>
+                        </td>
+                        @if (CanViewCosts && Sales)
+                        {
+                            <td class="text-right whitespace-nowrap">
+                                <span class="font-mono text-xs text-slate-600">@Money(row.Cost ?? 0)</span>
+                            </td>
+                            <td class="text-right whitespace-nowrap">
+                                <span class="font-mono text-xs font-semibold @(row.Profit < 0 ? "text-rose-700" : "text-emerald-700")">@Money(row.Profit ?? 0)</span>
+                            </td>
                         }
-                        <span class="font-mono text-xs font-semibold @(unpaid > 0 ? "text-amber-700" : "text-slate-500")">@Money(unpaid)</span>
-                    </ChildContent>
-                </TemplateColumn>
-            </QuickGrid>
-            @if (Data is not null && Data.Rows.Count > 0)
-            {
-                <div class="border-t border-slate-200 bg-slate-50/80 px-4 py-2.5 flex flex-col gap-2 text-xs">
-                    @foreach (var summary in Summaries)
+                        <td class="text-right whitespace-nowrap">
+                            <span class="font-mono text-xs text-slate-700">@Money(row.Paid)</span>
+                        </td>
+                        <td class="text-right whitespace-nowrap">
+                            @{
+                                var unpaid = row.Total - row.Paid;
+                            }
+                            <span class="font-mono text-xs font-semibold @(unpaid > 0 ? "text-amber-700" : "text-slate-500")">@Money(unpaid)</span>
+                        </td>
+                    </tr>
+                    @if (Sales && row.Items.Count > 0)
                     {
-                        <div class="flex flex-wrap items-center justify-between gap-3">
-                            <span class="font-semibold text-slate-700">@summary.Label</span>
-                            <div class="flex flex-wrap items-center gap-4">
-                                <span>Total: <strong class="text-slate-900 font-mono">@Money(summary.Total)</strong></span>
-                                @if (CanViewCosts && Sales)
-                                {
-                                    <span>Cost: <strong class="text-slate-600 font-mono">@Money(summary.Cost)</strong></span>
-                                    <span>Profit: <strong class="@(summary.Total - summary.Cost < 0 ? "text-rose-700" : "text-emerald-700") font-bold font-mono">@Money(summary.Total - summary.Cost)</strong></span>
-                                }
-                                <span>Paid: <strong class="text-slate-700 font-mono">@Money(summary.Paid)</strong></span>
-                                <span>Due: <strong class="text-amber-700 font-bold font-mono">@Money(summary.Total - summary.Paid)</strong></span>
-                            </div>
-                        </div>
+                        <tr class="report-detail-row bg-slate-50/50">
+                            <td colspan="@ColumnCount" class="px-4 py-2 border-t-0">
+                                <details class="group">
+                                    <summary class="cursor-pointer text-xs font-semibold text-blue-700 hover:text-blue-900 inline-flex items-center gap-1.5 select-none py-1">
+                                        <span class="text-[10px] text-blue-600 transition-transform duration-150 inline-block group-open:rotate-90">▶</span>
+                                        <span>View @row.Items.Count @(row.Items.Count == 1 ? "item" : "items")</span>
+                                    </summary>
+                                    <div class="mt-2 mb-2 overflow-hidden rounded-lg border border-slate-200 bg-white p-2.5 shadow-xs">
+                                        <SalesLineTable Items="row.Items" CanViewCosts="CanViewCosts" />
+                                    </div>
+                                </details>
+                            </td>
+                        </tr>
                     }
-                </div>
-            }
-            @if (Data is not null && Data.Rows.Count == 0)
-            {
-                <p class="p-6 text-sm text-slate-500">No transactions in this date range.</p>
-            }
+                }
+            </tbody>
+        </table>
+        @if (Data is not null && Data.Rows.Count > 0)
+        {
+            <div class="border-t border-slate-200 bg-slate-50/80 px-4 py-2.5 flex flex-col gap-2 text-xs">
+                @foreach (var summary in Summaries)
+                {
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                        <span class="font-semibold text-slate-700">@summary.Label</span>
+                        <div class="flex flex-wrap items-center gap-4">
+                            <span>Total: <strong class="text-slate-900 font-mono">@Money(summary.Total)</strong></span>
+                            @if (CanViewCosts && Sales)
+                            {
+                                <span>Cost: <strong class="text-slate-600 font-mono">@Money(summary.Cost)</strong></span>
+                                <span>Profit: <strong class="@(summary.Total - summary.Cost < 0 ? "text-rose-700" : "text-emerald-700") font-bold font-mono">@Money(summary.Total - summary.Cost)</strong></span>
+                            }
+                            <span>Paid: <strong class="text-slate-700 font-mono">@Money(summary.Paid)</strong></span>
+                            <span>Due: <strong class="text-amber-700 font-bold font-mono">@Money(summary.Total - summary.Paid)</strong></span>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+        @if (Data is not null && Data.Rows.Count == 0)
+        {
+            <p class="p-6 text-sm text-slate-500">No transactions in this date range.</p>
         }
     </div>
-    @if (TotalCount > 0)
+    @if (Data is not null && Data.Count > 0)
     {
-        <Paginator State="@pagination" />
+        <PageNavigation Info="@(new PageInfo(Data.Page, QueryPagination.Size(PageSize), Data.Count))" Label="transactions" />
     }
 
 </section>
@@ -271,23 +252,10 @@
     public string Sort { get; set; } = "id";
 
     [Parameter]
-    public int Page { get; set; }
+    public int Page { get; set; } = 1;
 
     [Parameter]
     public int PageSize { get; set; } = 30;
-
-    private readonly PaginationState pagination = new() { ItemsPerPage = 30 };
-    private GridItemsProvider<ReportRow>? itemsProvider;
-    private int TotalCount;
-
-    private readonly GridSort<ReportRow> sortById = GridSort<ReportRow>.ByAscending(r => r.Id);
-    private readonly GridSort<ReportRow> sortByParty = GridSort<ReportRow>.ByAscending(r => r.Party);
-    private readonly GridSort<ReportRow> sortByDate = GridSort<ReportRow>.ByAscending(r => r.At);
-    private readonly GridSort<ReportRow> sortByTotal = GridSort<ReportRow>.ByAscending(r => r.Total);
-    private readonly GridSort<ReportRow> sortByCost = GridSort<ReportRow>.ByAscending(r => r.Cost ?? 0);
-    private readonly GridSort<ReportRow> sortByProfit = GridSort<ReportRow>.ByAscending(r => r.Profit ?? 0);
-    private readonly GridSort<ReportRow> sortByPaid = GridSort<ReportRow>.ByAscending(r => r.Paid);
-    private readonly GridSort<ReportRow> sortByDue = GridSort<ReportRow>.ByAscending(r => r.Total - r.Paid);
 
     private bool CanViewCosts => Data?.CanViewCosts
         ?? (HttpContext.User.IsInRole(AppRoles.Admin) || HttpContext.User.IsInRole(AppRoles.InventoryManager));
@@ -367,24 +335,11 @@
         Data = null;
         Timeline = null;
         Error = null;
-        itemsProvider = null;
         try
         {
             var size = QueryPagination.Size(PageSize);
-            pagination.ItemsPerPage = size;
-
             Data = await Reports.ReadAsync(HttpContext.User, Sales, Period, Start, End, Page,
                 HttpContext.RequestAborted, Search, Sort, LocationId, size);
-            TotalCount = Data.Count;
-
-            var maxPageIndex = Math.Max(0, (TotalCount - 1) / pagination.ItemsPerPage);
-            var targetPageIndex = Math.Clamp(Data.Page - 1, 0, maxPageIndex);
-            if (pagination.CurrentPageIndex != targetPageIndex)
-            {
-                await pagination.SetCurrentPageIndexAsync(targetPageIndex);
-            }
-
-            itemsProvider = req => ValueTask.FromResult(GridItemsProviderResult.From(Data.Rows.ToList(), TotalCount));
 
             if (Sales && Data is not null && Data.Range.Start != Data.Range.End)
             {
@@ -411,37 +366,11 @@
     {
         try
         {
-            await JS.InvokeVoidAsync("PosCharts.initDeclarativeCharts");
+            await JS.InvokeVoidAsync("JASCharts.initDeclarativeCharts");
         }
         catch
         {
         }
-    }
-
-    private string GetSortUrl(string column)
-    {
-        var cleanSort = (Sort ?? "id").ToLowerInvariant().Replace("-descending", "").Replace("-desc", "");
-        var isCurrent = string.Equals(cleanSort, column, StringComparison.OrdinalIgnoreCase);
-        var currentIsDesc = (Sort ?? "").EndsWith("-desc", StringComparison.OrdinalIgnoreCase)
-            || (Sort ?? "").EndsWith("-descending", StringComparison.OrdinalIgnoreCase);
-        var nextDirection = isCurrent && !currentIsDesc ? $"{column}-desc" : column;
-        return Navigation.GetUriWithQueryParameters(new Dictionary<string, object?>
-        {
-            ["sort"] = nextDirection,
-            ["page"] = 1
-        });
-    }
-
-    private string GetSortClass(string column)
-    {
-        var cleanSort = (Sort ?? "id").ToLowerInvariant().Replace("-descending", "").Replace("-desc", "");
-        if (!string.Equals(cleanSort, column, StringComparison.OrdinalIgnoreCase))
-        {
-            return "";
-        }
-        var currentIsDesc = (Sort ?? "").EndsWith("-desc", StringComparison.OrdinalIgnoreCase)
-            || (Sort ?? "").EndsWith("-descending", StringComparison.OrdinalIgnoreCase);
-        return currentIsDesc ? "col-sort-desc" : "col-sort-asc";
     }
 
     private string Money(decimal amount) => $"{amount:N2} {Configuration["CurrencyCode"] ?? "BDT"}";
