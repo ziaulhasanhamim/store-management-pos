@@ -1186,6 +1186,101 @@ public sealed class CashDrawerService(IServiceScopeFactory scopes, IConfiguratio
         db.CashMovements.Add(movement);
     }
 
+    internal static void Adjust(AppDbContext db, CashDrawer drawer, CashMovement movement, decimal newAmount, int actorId)
+    {
+        drawer = db.CashDrawers.Local.FirstOrDefault(d => d.Id == drawer.Id) ?? drawer;
+        var delta = newAmount - movement.Amount;
+        if (delta == 0) return;
+
+        var latestAnchor = db.CashCounts.Local
+            .Where(c => c.CashDrawerId == drawer.Id && (c.Status == CashCountStatus.Completed || c.Status == CashCountStatus.VarianceAccepted || c.Status == CashCountStatus.Accepted) && !c.IsDeleted)
+            .OrderByDescending(c => c.CountedAt)
+            .ThenByDescending(c => c.Id)
+            .FirstOrDefault()
+            ?? db.CashCounts.AsNoTracking()
+                .Where(c => c.CashDrawerId == drawer.Id && (c.Status == CashCountStatus.Completed || c.Status == CashCountStatus.VarianceAccepted || c.Status == CashCountStatus.Accepted) && !c.IsDeleted)
+                .OrderByDescending(c => c.CountedAt)
+                .ThenByDescending(c => c.Id)
+                .FirstOrDefault();
+
+        var isHistorical = latestAnchor != null && movement.OccurredAt <= latestAnchor.CountedAt;
+
+        if (!isHistorical)
+        {
+            var newCash = drawer.CurrentCash + delta;
+            StoreAccess.Money(newCash, "Location cash balance");
+            drawer.CurrentCash = newCash;
+            drawer.UpdatedAt = DateTimeOffset.UtcNow;
+            drawer.UpdatedByUserId = actorId;
+            movement.BalanceAfter = newCash;
+        }
+
+        movement.Amount = newAmount;
+        movement.UpdatedAt = DateTimeOffset.UtcNow;
+        movement.UpdatedByUserId = actorId;
+
+        if (movement.CashSession != null)
+        {
+            movement.CashSession.ExpectedCash += delta;
+            movement.CashSession.UpdatedAt = DateTimeOffset.UtcNow;
+        }
+        else if (movement.CashSessionId != null)
+        {
+            var sess = db.CashSessions.Local.FirstOrDefault(s => s.Id == movement.CashSessionId.Value)
+                ?? db.CashSessions.Find(movement.CashSessionId.Value);
+            if (sess != null)
+            {
+                sess.ExpectedCash += delta;
+                sess.UpdatedAt = DateTimeOffset.UtcNow;
+            }
+        }
+    }
+
+    internal static void Remove(AppDbContext db, CashDrawer drawer, CashMovement movement, int actorId)
+    {
+        drawer = db.CashDrawers.Local.FirstOrDefault(d => d.Id == drawer.Id) ?? drawer;
+
+        var latestAnchor = db.CashCounts.Local
+            .Where(c => c.CashDrawerId == drawer.Id && (c.Status == CashCountStatus.Completed || c.Status == CashCountStatus.VarianceAccepted || c.Status == CashCountStatus.Accepted) && !c.IsDeleted)
+            .OrderByDescending(c => c.CountedAt)
+            .ThenByDescending(c => c.Id)
+            .FirstOrDefault()
+            ?? db.CashCounts.AsNoTracking()
+                .Where(c => c.CashDrawerId == drawer.Id && (c.Status == CashCountStatus.Completed || c.Status == CashCountStatus.VarianceAccepted || c.Status == CashCountStatus.Accepted) && !c.IsDeleted)
+                .OrderByDescending(c => c.CountedAt)
+                .ThenByDescending(c => c.Id)
+                .FirstOrDefault();
+
+        var isHistorical = latestAnchor != null && movement.OccurredAt <= latestAnchor.CountedAt;
+
+        if (!isHistorical)
+        {
+            var newCash = drawer.CurrentCash - movement.Amount;
+            StoreAccess.Money(newCash, "Location cash balance");
+            drawer.CurrentCash = newCash;
+            drawer.UpdatedAt = DateTimeOffset.UtcNow;
+            drawer.UpdatedByUserId = actorId;
+        }
+
+        if (movement.CashSession != null)
+        {
+            movement.CashSession.ExpectedCash -= movement.Amount;
+            movement.CashSession.UpdatedAt = DateTimeOffset.UtcNow;
+        }
+        else if (movement.CashSessionId != null)
+        {
+            var sess = db.CashSessions.Local.FirstOrDefault(s => s.Id == movement.CashSessionId.Value)
+                ?? db.CashSessions.Find(movement.CashSessionId.Value);
+            if (sess != null)
+            {
+                sess.ExpectedCash -= movement.Amount;
+                sess.UpdatedAt = DateTimeOffset.UtcNow;
+            }
+        }
+
+        db.CashMovements.Remove(movement);
+    }
+
     internal static void Append(AppDbContext db, CashSession session, CashMovement movement)
     {
         var drawer = session.CashDrawer ?? db.CashDrawers.Local.FirstOrDefault(d => d.Id == session.CashDrawerId)
