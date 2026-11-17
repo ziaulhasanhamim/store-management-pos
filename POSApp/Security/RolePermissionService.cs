@@ -21,44 +21,8 @@ public sealed class DynamicPolicyAuthorizationHandler(IServiceScopeFactory scope
             return;
         }
 
-        if (context.User.IsInRole(AppRoles.Admin))
-        {
-            context.Succeed(requirement);
-            return;
-        }
-
-        if (requirement.PolicyName == AppPolicies.ManageUsers)
-        {
-            return;
-        }
-
-        // 1. Fast path: check user roles from Claims without opening a database scope
-        var claimRoles = context.User.FindAll(ClaimTypes.Role).Select(c => c.Value)
-            .Concat(context.User.FindAll("role").Select(c => c.Value))
-            .Distinct(StringComparer.Ordinal)
-            .ToArray();
-
-        if (claimRoles.Length > 0)
-        {
-            if (RolePermissionService.TryCheckCached(claimRoles, requirement.PolicyName, out var cachedGranted))
-            {
-                if (cachedGranted)
-                {
-                    context.Succeed(requirement);
-                }
-                return;
-            }
-
-            await using var scope = scopes.CreateAsyncScope();
-            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            if (await RolePermissionService.HasPolicyForRolesAsync(db, claimRoles, requirement.PolicyName, CancellationToken.None))
-            {
-                context.Succeed(requirement);
-            }
-            return;
-        }
-
-        // 2. Fallback only if user has no role claims
+        // Resolve current membership for every authorization decision; cookie role
+        // claims can outlive an administrator's role change or account deletion.
         if (int.TryParse(context.User.FindFirstValue(ClaimTypes.NameIdentifier), out var userId))
         {
             await using var scope = scopes.CreateAsyncScope();

@@ -52,7 +52,7 @@ Designed for single-store and multi-location retail businesses with full support
 - **Database**: PostgreSQL 16+ via Entity Framework Core & Npgsql
 - **Spreadsheets**: ClosedXML for native `.xlsx` generation
 - **Barcode Engine**: ZXing.Net barcode generation & EAN-8 roll printing
-- **Containerization**: Multi-stage Linux Docker container (`mcr.microsoft.com/dotnet/aspnet:11.0-preview`)
+- **Containerization**: Multi-stage Linux Docker container (`mcr.microsoft.com/dotnet/aspnet:11.0`)
 
 ---
 
@@ -133,6 +133,7 @@ All application behaviors can be customized without rebuilding:
 | `AdminUser__Enabled` | `true` | Enables initial bootstrap provisioning of the administrative user. |
 | `AdminUser__Username` | `admin` | Username for the bootstrap administrator account. |
 | `AdminUser__Password` | *(Empty)* | Initial password for the bootstrap admin. |
+| `Maintenance__RepairMovementTimestamps` | `false` | Explicit historical timestamp repair; verify a recoverable backup and review affected records before enabling for maintenance. |
 | `ASPNETCORE_URLS` | `http://+:8080` | Internal listening port inside the container. |
 
 ---
@@ -150,14 +151,14 @@ Detailed architectural notes and implementation guides are organized in the [`do
 
 ## Running Automated Tests
 
-The solution includes a test suite with 73 unit and integration tests (using Testcontainers for PostgreSQL):
+The solution uses TUnit executable test projects. PostgreSQL integration tests use disposable Testcontainers databases and require Docker:
 
 ```bash
 # Run unit tests
-dotnet test tests/POSApp.Tests.Unit
+dotnet run --project tests/POSApp.Tests.Unit
 
 # Run integration tests (requires Docker for Testcontainers)
-dotnet test tests/POSApp.Tests.Integration
+dotnet run --project tests/POSApp.Tests.Integration
 ```
 
 ---
@@ -165,3 +166,7 @@ dotnet test tests/POSApp.Tests.Integration
 ## License
 
 This project is licensed under the MIT License.
+
+## Reliability and release validation
+
+See the [November 2026 reliability audit](docs/reliability-audit-2026-11-17.md) for fixes, regression evidence, deployment notes, and follow-up opportunities.

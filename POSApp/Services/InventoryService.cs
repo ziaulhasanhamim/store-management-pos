@@ -1300,12 +1300,13 @@ public sealed class InventoryService(IServiceScopeFactory scopes, IConfiguration
             // Serializable protects weighted averages, stock and supplier balances against overlapping receipts.
             await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
             var businessDate = await AccountingCalendar.SelectedAsync(db, actorId, configuration, ct);
-            var hash = StoreOperation.Fingerprint(new
+            var legacyHash = StoreOperation.Fingerprint(new
             {
                 command.RequestId, command.SupplierId, command.LocationId, command.Lines,
                 command.Payment, command.Method, command.Invoice, command.Notes,
                 command.Payments, command.AllowDuplicateInvoice
             });
+            var hash = StoreOperation.Fingerprint(new { Payload = legacyHash, command.TransactionTime });
             var number = $"REC-{command.RequestId:N}";
             var existing = await db.Purchases.Include(p => p.Payments).SingleOrDefaultAsync(p => p.PurchaseNumber == number, ct);
             if (existing?.IsDeleted == true)
@@ -1318,7 +1319,9 @@ public sealed class InventoryService(IServiceScopeFactory scopes, IConfiguration
                 {
                     throw new UnauthorizedAccessException();
                 }
-                if (existing.RequestHash is not null && existing.RequestHash != hash)
+                var matchesLegacy = existing.RequestHash == legacyHash
+                    && (!command.TransactionTime.HasValue || existing.ReceivedAt == command.TransactionTime.Value.ToUniversalTime());
+                if (existing.RequestHash is not null && existing.RequestHash != hash && !matchesLegacy)
                 {
                     throw new ValidationException("This receipt was already saved with different values. Start a new receipt.");
                 }
@@ -1326,12 +1329,12 @@ public sealed class InventoryService(IServiceScopeFactory scopes, IConfiguration
                 return new(existing.Id, existing.PurchaseNumber, existing.TotalAmount, existing.Payments.Sum(p => p.Amount), previousBalance);
             }
             AccountingCalendar.ValidateExpected(businessDate, command.WorkingDate);
-            await AccountingCalendar.EnsureOpenAsync(db, businessDate, ct);
             var effectiveAt = (command.TransactionTime?.ToUniversalTime()) ?? AccountingCalendar.At(businessDate, configuration);
             if (command.TransactionTime.HasValue)
             {
                 businessDate = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(effectiveAt, AccountingCalendar.Zone(configuration)).DateTime);
             }
+            await AccountingCalendar.EnsureOpenAsync(db, businessDate, ct, locationId: command.LocationId);
             if (!string.IsNullOrWhiteSpace(command.Invoice))
             {
                 var invoice = command.Invoice.Trim().ToUpperInvariant();

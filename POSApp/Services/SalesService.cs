@@ -161,6 +161,54 @@ public sealed class SalesService(IServiceScopeFactory scopes, IConfiguration? co
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             var actorId = await StoreAccess.RequireAsync(db, actor, AppRoles.SalesAssociate, ct);
 
+            await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
+            var businessDate = await AccountingCalendar.SelectedAsync(db, actorId, configuration, ct);
+            var legacyHash = StoreOperation.Fingerprint(new
+            {
+                command.RequestId, command.LocationId, command.CustomerId, command.Lines,
+                command.Discount, command.Payment, command.Method, command.Notes, command.Payments,
+                Complete = complete
+            });
+            var hash = StoreOperation.Fingerprint(new { Payload = legacyHash, command.TransactionTime, command.OriginalSaleId });
+            var number = $"SAL-{command.RequestId:N}";
+            var sale = await db.Sales.Include(item => item.Items).Include(item => item.Payments).Include(item => item.DraftPayments)
+                .SingleOrDefaultAsync(item => item.ReceiptNumber == number, ct);
+            if (sale?.IsDeleted == true)
+            {
+                throw new ValidationException("This sale was deleted by an administrator. Start a new sale.");
+            }
+            if (sale is not null && sale.CashierId != actorId)
+            {
+                throw new UnauthorizedAccessException("This draft belongs to another user.");
+            }
+            var matchesLegacy = sale?.RequestHash == legacyHash
+                && (!command.TransactionTime.HasValue || sale.SoldAt == command.TransactionTime.Value.ToUniversalTime())
+                && sale.OriginalSaleId == command.OriginalSaleId;
+            if (sale is not null && (sale.RequestHash == hash || matchesLegacy))
+            {
+                var previousPaid = sale.Payments.Sum(payment => payment.Amount);
+                var invoice = await db.CustomerBalanceEntries.AsNoTracking()
+                    .Where(entry => entry.SaleId == sale.Id && entry.Type == BalanceEntryType.Invoice)
+                    .OrderBy(entry => entry.Id)
+                    .Select(entry => (decimal?)(entry.BalanceAfter - entry.Amount)).FirstOrDefaultAsync(ct) ?? 0m;
+                var replayDue = sale.TotalAmount < 0 ? sale.TotalAmount - previousPaid
+                    : Math.Max(0m, sale.TotalAmount + Math.Max(0m, invoice) - previousPaid);
+                return new(sale.Id, sale.ReceiptNumber, sale.Status == SaleStatus.Completed,
+                    sale.TotalAmount, previousPaid, replayDue) { Revision = sale.Revision };
+            }
+            if (sale?.Status == SaleStatus.Completed)
+            {
+                if (sale.RequestHash is not null)
+                {
+                    throw new ValidationException("This sale was already completed with different values. Start a new sale.");
+                }
+                var paid = sale.Payments.Sum(payment => payment.Amount);
+                return new(sale.Id, sale.ReceiptNumber, true, sale.TotalAmount, paid, sale.TotalAmount - paid);
+            }
+            if (sale is not null && sale.Revision != command.Revision)
+            {
+                throw new ValidationException("This sale draft changed in another tab. Your entries are kept; resume the latest draft before saving.");
+            }
             decimal customerDue = 0m;
             if (command.CustomerId is not null)
             {
@@ -184,51 +232,13 @@ public sealed class SalesService(IServiceScopeFactory scopes, IConfiguration? co
             {
                 throw new ValidationException("Select a customer for due or partial payment.");
             }
-            await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
-            var businessDate = await AccountingCalendar.SelectedAsync(db, actorId, configuration, ct);
-            var hash = StoreOperation.Fingerprint(new
-            {
-                command.RequestId, command.LocationId, command.CustomerId, command.Lines,
-                command.Discount, command.Payment, command.Method, command.Notes, command.Payments,
-                Complete = complete
-            });
-            var number = $"SAL-{command.RequestId:N}";
-            var sale = await db.Sales.Include(item => item.Items).Include(item => item.Payments).Include(item => item.DraftPayments)
-                .SingleOrDefaultAsync(item => item.ReceiptNumber == number, ct);
-            if (sale?.IsDeleted == true)
-            {
-                throw new ValidationException("This sale was deleted by an administrator. Start a new sale.");
-            }
-            if (sale is not null && sale.CashierId != actorId)
-            {
-                throw new UnauthorizedAccessException("This draft belongs to another user.");
-            }
-            if (sale is not null && sale.RequestHash == hash)
-            {
-                var previousPaid = sale.Payments.Sum(payment => payment.Amount);
-                return new(sale.Id, sale.ReceiptNumber, sale.Status == SaleStatus.Completed,
-                    sale.TotalAmount, previousPaid, sale.TotalAmount - previousPaid) { Revision = sale.Revision };
-            }
-            if (sale?.Status == SaleStatus.Completed)
-            {
-                if (sale.RequestHash is not null)
-                {
-                    throw new ValidationException("This sale was already completed with different values. Start a new sale.");
-                }
-                var paid = sale.Payments.Sum(payment => payment.Amount);
-                return new(sale.Id, sale.ReceiptNumber, true, sale.TotalAmount, paid, sale.TotalAmount - paid);
-            }
-            if (sale is not null && sale.Revision != command.Revision)
-            {
-                throw new ValidationException("This sale draft changed in another tab. Your entries are kept; resume the latest draft before saving.");
-            }
             AccountingCalendar.ValidateExpected(businessDate, command.WorkingDate);
-            await AccountingCalendar.EnsureOpenAsync(db, businessDate, ct);
             var effectiveAt = (command.TransactionTime?.ToUniversalTime()) ?? AccountingCalendar.At(businessDate, configuration);
             if (command.TransactionTime.HasValue)
             {
                 businessDate = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(effectiveAt, AccountingCalendar.Zone(configuration)).DateTime);
             }
+            await AccountingCalendar.EnsureOpenAsync(db, businessDate, ct, locationId: command.LocationId);
             if (!await db.StockLocations.AnyAsync(location => location.Id == command.LocationId && !location.IsDeleted && location.CanSell, ct)
                 || (command.CustomerId is not null && !await db.Customers.AnyAsync(customer => customer.Id == command.CustomerId.Value && !customer.IsDeleted, ct)))
             {
@@ -508,12 +518,8 @@ public sealed class SalesService(IServiceScopeFactory scopes, IConfiguration? co
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var actorId = await StoreAccess.RequireAsync(db, actor, AppRoles.SalesAssociate, ct);
-        var canViewOthers = actor.IsInRole(AppRoles.Admin) || actor.IsInRole(AppRoles.InventoryManager);
-        if (!canViewOthers)
-        {
-            canViewOthers = await db.UserRoles.AnyAsync(membership => membership.UserId == actorId && db.Roles.Any(role =>
-                role.Id == membership.RoleId && (role.Name == AppRoles.Admin || role.Name == AppRoles.InventoryManager)), ct);
-        }
+        var canViewOthers = await db.UserRoles.AnyAsync(membership => membership.UserId == actorId && db.Roles.Any(role =>
+            role.Id == membership.RoleId && (role.Name == AppRoles.Admin || role.Name == AppRoles.InventoryManager)), ct);
         var sale = await db.Sales.AsNoTracking()
             .Include(item => item.Items)
             .Include(item => item.Payments)
@@ -551,11 +557,7 @@ public sealed class SalesService(IServiceScopeFactory scopes, IConfiguration? co
             ? Math.Max(0m, invoiceEntry.BalanceAfter - invoiceEntry.Amount)
             : Math.Max(0m, currentCustomerBalance - unpaidThisSale);
 
-        var isAdmin = actor.IsInRole(AppRoles.Admin);
-        if (!isAdmin)
-        {
-            isAdmin = await db.UserRoles.AnyAsync(membership => membership.UserId == actorId && db.Roles.Any(role => role.Id == membership.RoleId && role.Name == AppRoles.Admin), ct);
-        }
+        var isAdmin = await CashDrawerService.IsAdminAsync(db, actorId, ct);
         var activeDate = await AccountingCalendar.SelectedAsync(db, actorId, configuration, ct);
         var saleDate = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(sale.SoldAt, AccountingCalendar.Zone(configuration)).DateTime);
         var canVoid = !sale.IsDeleted && sale.Status != SaleStatus.Voided && (isAdmin || (sale.CashierId == actorId && saleDate == activeDate));

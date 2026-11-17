@@ -6,8 +6,8 @@ public static class IdentityValidation
 {
     public static IServiceCollection AddPosIdentityValidation(this IServiceCollection services)
     {
-        // Zero forces a user/role claims rebuild on every authenticated HTTP request,
-        // including SignalR polling. Services still check current roles per operation.
+        // Periodic cookie validation refreshes identity claims. Authorization handlers
+        // and services separately verify current database role membership.
         services.Configure<SecurityStampValidatorOptions>(options =>
         {
             options.ValidationInterval = TimeSpan.FromMinutes(5);

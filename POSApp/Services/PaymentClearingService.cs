@@ -47,7 +47,7 @@ public sealed class PaymentClearingService(IServiceScopeFactory scopes, IConfigu
         var ageing = await GetAgeingReportAsync(actor, ct);
         var feeTrends = await GetFeeAnalyticsAsync(actor, ct: ct);
         var workingDate = AccountingCalendar.Today(configuration);
-        var canManage = actor.IsInRole(AppRoles.Admin);
+        var canManage = await StoreAccess.HasPolicyAsync(db, actor, AppRoles.Admin, ct);
 
         return new PaymentClearingPageData(
             summary,

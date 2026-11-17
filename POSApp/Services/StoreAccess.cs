@@ -15,16 +15,6 @@ public static class StoreAccess
             throw new UnauthorizedAccessException("Your account no longer has access to this operation.");
         }
 
-        var claimRoles = actor.FindAll(ClaimTypes.Role).Select(c => c.Value)
-            .Concat(actor.FindAll("role").Select(c => c.Value))
-            .Distinct(StringComparer.Ordinal)
-            .ToArray();
-
-        if (claimRoles.Length > 0 && RolePermissionService.TryCheckCached(claimRoles, roleOrPolicy, out var granted) && granted)
-        {
-            return id;
-        }
-
         if (!await RolePermissionService.HasPolicyAsync(db, id, roleOrPolicy, ct))
         {
             throw new UnauthorizedAccessException("Your account no longer has access to this operation.");
@@ -38,16 +28,6 @@ public static class StoreAccess
             || !int.TryParse(actor.FindFirstValue(ClaimTypes.NameIdentifier), out var id))
         {
             return false;
-        }
-
-        var claimRoles = actor.FindAll(ClaimTypes.Role).Select(c => c.Value)
-            .Concat(actor.FindAll("role").Select(c => c.Value))
-            .Distinct(StringComparer.Ordinal)
-            .ToArray();
-
-        if (claimRoles.Length > 0 && RolePermissionService.TryCheckCached(claimRoles, roleOrPolicy, out var granted))
-        {
-            return granted;
         }
 
         return await RolePermissionService.HasPolicyAsync(db, id, roleOrPolicy, ct);

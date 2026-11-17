@@ -24,4 +24,13 @@ public class ConnectionStringTests
 
         await result.Should().BeEqualTo(standard);
     }
+
+    [Test]
+    public async Task NormalizePostgresConnectionString_PreservesColonPasswordAndEscapedDatabase()
+    {
+        var result = new Npgsql.NpgsqlConnectionStringBuilder(
+            Program.NormalizePostgresConnectionString("postgres://user:part:two%40three@localhost/store%20db"));
+        await result.Password.Should().BeEqualTo("part:two@three");
+        await result.Database.Should().BeEqualTo("store db");
+    }
 }

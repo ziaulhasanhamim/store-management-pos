@@ -2,15 +2,16 @@
 FROM node:22-alpine AS css-build
 WORKDIR /src
 COPY package*.json ./
-RUN npm ci || npm install
+RUN npm ci
 COPY . .
 RUN npm run css:build
 
 # Stage 2: Build & Publish .NET App
-FROM mcr.microsoft.com/dotnet/sdk:11.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:11.0.100 AS build
 WORKDIR /src
 
 # Copy solution and project definitions for optimized layer caching
+COPY global.json ./
 COPY POSApp.sln .
 COPY POSApp/POSApp.csproj POSApp/
 COPY POSApp.Client/POSApp.Client.csproj POSApp.Client/

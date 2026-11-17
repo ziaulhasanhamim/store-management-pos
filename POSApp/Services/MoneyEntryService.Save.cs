@@ -160,6 +160,7 @@ public sealed partial class MoneyEntryService
                 var rowDate = row.TransactionTime.HasValue
                     ? DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(rowAt, AccountingCalendar.Zone(configuration)).DateTime)
                     : date;
+                await AccountingCalendar.EnsureOpenAsync(db, rowDate, ct, locationId: locationId);
                 if (kind == "expenses")
                 {
                     var category = db.ExpenseCategories.Local.SingleOrDefault(category => category.Id == row.CategoryId)

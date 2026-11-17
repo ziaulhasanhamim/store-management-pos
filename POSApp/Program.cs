@@ -179,7 +179,11 @@ if (app.Configuration.GetValue("AutoMigrate", false) ||
 }
 
 await AdminSeeder.SeedAsync(app.Services, app.Configuration);
-await MovementTimestampRepair.RepairAsync(app.Services, app.Configuration);
+// Historical corrections require an explicit maintenance run and a verified backup.
+if (app.Configuration.GetValue("Maintenance:RepairMovementTimestamps", false))
+{
+    await MovementTimestampRepair.RepairAsync(app.Services, app.Configuration);
+}
 
 if (app.Environment.IsDevelopment())
 {
@@ -197,10 +201,10 @@ public partial class Program
             connectionString.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase))
         {
             var uri = new Uri(connectionString);
-            var userInfo = uri.UserInfo.Split(':');
+            var userInfo = uri.UserInfo.Split(':', 2);
             var username = userInfo.Length > 0 ? Uri.UnescapeDataString(userInfo[0]) : "";
             var password = userInfo.Length > 1 ? Uri.UnescapeDataString(userInfo[1]) : "";
-            var database = uri.AbsolutePath.TrimStart('/');
+            var database = Uri.UnescapeDataString(uri.AbsolutePath.TrimStart('/'));
             var port = uri.Port > 0 ? uri.Port : 5432;
 
             var npgsqlBuilder = new Npgsql.NpgsqlConnectionStringBuilder
