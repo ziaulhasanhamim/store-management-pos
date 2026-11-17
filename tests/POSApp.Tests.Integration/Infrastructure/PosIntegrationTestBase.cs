@@ -27,6 +27,11 @@ public abstract class PosIntegrationTestBase
             new(ClaimTypes.Role, role)
         ], "TestAuth"));
 
+    // PostgreSQL timestamps store microseconds; Linux UtcNow can include 100ns ticks.
+    // Normalize test inputs once so persistence assertions can remain exact.
+    protected static DateTimeOffset PostgresTimestamp(DateTimeOffset value) =>
+        value.AddTicks(-(value.Ticks % TimeSpan.TicksPerMicrosecond));
+
     protected AsyncServiceScope CreateScope() => Services.CreateAsyncScope();
 
     [Before(Test)]

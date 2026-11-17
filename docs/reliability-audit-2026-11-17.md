@@ -12,6 +12,8 @@
 
 - Database options resolve the final host configuration rather than requiring developer secrets before test-host configuration is installed. Integration hosts explicitly use the Testing environment.
 
+- Integration timestamp fixtures use PostgreSQL microsecond precision so exact persistence assertions run consistently on Linux and macOS.
+
 ## Reviewed workflows and retained behavior
 
 Checkout, split payments, refunds, previous customer dues, receiving, supplier dues, transfers, adjustments, cash counts, and closings were traced and exercised through the automated suites. Serializable transactions and bounded whole-operation retries protect overlapping stock and financial writes. The new concurrency regressions verify identical submissions post once and distinct sales preserve both stock changes and payments.

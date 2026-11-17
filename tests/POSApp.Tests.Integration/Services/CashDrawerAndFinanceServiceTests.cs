@@ -233,7 +233,7 @@ public class CashDrawerAndFinanceServiceTests : PosIntegrationTestBase
             Action = "adjustment",
             Amount = 250m,
             Notes = "Monthly bank interest earned",
-            Date = DateOnly.FromDateTime(DateTimeOffset.UtcNow.UtcDateTime)
+            Date = DateOnly.FromDateTime(PostgresTimestamp(DateTimeOffset.UtcNow).UtcDateTime)
         };
         await bankService.SaveAsync(AdminUser, adjustInput);
 
@@ -248,7 +248,7 @@ public class CashDrawerAndFinanceServiceTests : PosIntegrationTestBase
         var bankService = scope.ServiceProvider.GetRequiredService<BankService>();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-        var backdateTimestamp = DateTimeOffset.UtcNow.AddHours(-3);
+        var backdateTimestamp = PostgresTimestamp(DateTimeOffset.UtcNow).AddHours(-3);
         var input = new BankInput
         {
             RequestId = Guid.NewGuid(),
@@ -279,7 +279,7 @@ public class CashDrawerAndFinanceServiceTests : PosIntegrationTestBase
         var bankService = scope.ServiceProvider.GetRequiredService<BankService>();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-        var backdateTimestamp = DateTimeOffset.UtcNow.AddHours(-2);
+        var backdateTimestamp = PostgresTimestamp(DateTimeOffset.UtcNow).AddHours(-2);
         var input = new BankInput
         {
             RequestId = Guid.NewGuid(),
@@ -316,7 +316,7 @@ public class CashDrawerAndFinanceServiceTests : PosIntegrationTestBase
             Amount = 100m,
             Notes = "Future deposit",
             IsBackdate = true,
-            OccurredAt = DateTimeOffset.UtcNow.AddDays(1)
+            OccurredAt = PostgresTimestamp(DateTimeOffset.UtcNow).AddDays(1)
         };
 
         var ex = await Assert.ThrowsAsync<ValidationException>(() => bankService.SaveAsync(AdminUser, input));
@@ -557,7 +557,7 @@ public class CashDrawerAndFinanceServiceTests : PosIntegrationTestBase
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
         var drawer = await db.CashDrawers.FirstAsync(d => d.StockLocationId == 1);
-        var anchorTime = DateTimeOffset.UtcNow.AddHours(-1);
+        var anchorTime = PostgresTimestamp(DateTimeOffset.UtcNow).AddHours(-1);
 
         // 1. Submit and accept an anchor count
         var countId = await drawerService.SubmitCountAsync(AdminUser, new CashCountInput
@@ -614,7 +614,7 @@ public class CashDrawerAndFinanceServiceTests : PosIntegrationTestBase
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
         var drawer = await db.CashDrawers.FirstAsync(d => d.StockLocationId == 1);
-        var t1 = DateTimeOffset.UtcNow.AddHours(-2);
+        var t1 = PostgresTimestamp(DateTimeOffset.UtcNow).AddHours(-2);
         drawer.OpeningDate = DateOnly.FromDateTime(t1.ToBusinessTime().DateTime).AddDays(-1);
         await db.SaveChangesAsync();
 
@@ -709,7 +709,7 @@ public class CashDrawerAndFinanceServiceTests : PosIntegrationTestBase
         var baseCash = drawer.CurrentCash;
 
         // Perform a physical cash count at T0
-        var t0 = DateTimeOffset.UtcNow.AddHours(-10);
+        var t0 = PostgresTimestamp(DateTimeOffset.UtcNow).AddHours(-10);
         var count = new CashCount
         {
             CashDrawerId = drawer.Id,
@@ -767,7 +767,7 @@ public class CashDrawerAndFinanceServiceTests : PosIntegrationTestBase
         var baseCash = drawer.CurrentCash;
 
         // Step 1: Count 1 at T0: anchor at baseCash + 1000
-        var t0 = DateTimeOffset.UtcNow.AddDays(-2);
+        var t0 = PostgresTimestamp(DateTimeOffset.UtcNow).AddDays(-2);
         var count1 = new CashCount
         {
             RequestId = Guid.NewGuid(),
@@ -843,7 +843,7 @@ public class CashDrawerAndFinanceServiceTests : PosIntegrationTestBase
 
         var drawer = await db.CashDrawers.FirstAsync(d => d.StockLocationId == 1);
         var zone = AccountingCalendar.Zone(null);
-        var t0 = DateTimeOffset.UtcNow.AddHours(-6);
+        var t0 = PostgresTimestamp(DateTimeOffset.UtcNow).AddHours(-6);
         drawer.OpeningDate = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(t0, zone).DateTime).AddDays(-1);
         await db.SaveChangesAsync();
         var baseCash = drawer.CurrentCash;
@@ -1040,7 +1040,7 @@ public class CashDrawerAndFinanceServiceTests : PosIntegrationTestBase
         var drawerService = scope.ServiceProvider.GetRequiredService<CashDrawerService>();
         var drawer = await db.CashDrawers.FirstAsync(d => d.StockLocationId == 1);
 
-        var countTime = DateTimeOffset.UtcNow.AddHours(-1);
+        var countTime = PostgresTimestamp(DateTimeOffset.UtcNow).AddHours(-1);
         drawer.OpeningDate = DateOnly.FromDateTime(countTime.ToBusinessTime().DateTime).AddDays(-1);
         await db.SaveChangesAsync();
 
@@ -1187,7 +1187,7 @@ public class CashDrawerAndFinanceServiceTests : PosIntegrationTestBase
         var drawer = await db.CashDrawers.FirstAsync(d => d.StockLocationId == 1);
         var historicalTime = new DateTimeOffset(2026, 11, 10, 10, 8, 0, TimeSpan.Zero); // 16:08 Dhaka
 
-        var beforeInsert = DateTimeOffset.UtcNow.AddSeconds(-2);
+        var beforeInsert = PostgresTimestamp(DateTimeOffset.UtcNow).AddSeconds(-2);
 
         // Post a backdated financial transaction
         await FinancialPosting.PostAsync(db, 1, PaymentMethod.Cash, 1500m,
@@ -1216,7 +1216,7 @@ public class CashDrawerAndFinanceServiceTests : PosIntegrationTestBase
             MonthlySalary = 15000m
         });
 
-        var historicalUtc = DateTimeOffset.UtcNow.AddDays(-2);
+        var historicalUtc = PostgresTimestamp(DateTimeOffset.UtcNow).AddDays(-2);
         var historicalDate = DateOnly.FromDateTime(historicalUtc.ToBusinessTime(config).DateTime);
 
         await AccountingCalendar.EnsureOpenAsync(db, historicalDate, default);
@@ -1275,7 +1275,7 @@ public class CashDrawerAndFinanceServiceTests : PosIntegrationTestBase
             MonthlySalary = 10000m
         });
 
-        var futureUtc = DateTimeOffset.UtcNow.AddDays(1);
+        var futureUtc = PostgresTimestamp(DateTimeOffset.UtcNow).AddDays(1);
         var payrollInput = new PayrollInput
         {
             RequestId = Guid.NewGuid(),
