@@ -8,7 +8,9 @@
 - Backdated sales, receiving, and financial entry rows validate the effective transaction date against the trading calendar.
 - PostgreSQL URI parsing preserves passwords containing colons and decodes escaped database names.
 - Normal startup no longer rewrites historical movement timestamps. The existing repair is available only through the explicit `Maintenance__RepairMovementTimestamps=true` maintenance setting. Verify a recoverable backup and review affected records before enabling it; disable it afterward.
-- CI now builds CSS, runs unit and PostgreSQL integration tests, and builds the production container. Tag-triggered releases depend on the same validation. SDK selection is pinned to .NET 11.0.100 with patch roll-forward; Docker uses the same SDK. Frontend installs require the lockfile.
+- CI now builds CSS, runs unit and PostgreSQL integration tests, and builds the production container. Tag-triggered releases require a successful full CI run on main for the exact tagged commit. SDK selection is pinned to .NET 11.0.100 with patch roll-forward; Docker uses the same SDK. Frontend installs require the lockfile.
+
+- Database options resolve the final host configuration rather than requiring developer secrets before test-host configuration is installed. Integration hosts explicitly use the Testing environment.
 
 ## Reviewed workflows and retained behavior
 

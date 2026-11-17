@@ -16,6 +16,7 @@ public class PosWebApplicationFactory : TestWebApplicationFactory<Program>
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
+        builder.UseEnvironment("Testing");
         PostgreSqlTestDatabase.InitializeAsync().GetAwaiter().GetResult();
         builder.ConfigureAppConfiguration((_, config) =>
         {

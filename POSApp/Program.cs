@@ -10,11 +10,16 @@ using POSApp.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-var rawConnectionString = builder.Configuration["DB_URL"] ?? builder.Configuration["DATABASE_URL"] ?? builder.Configuration.GetConnectionString("DefaultConnection")
-    ?? throw new InvalidOperationException("Set DB_URL, DATABASE_URL or ConnectionStrings:DefaultConnection to your PostgreSQL connection string.");
-var connectionString = Program.NormalizePostgresConnectionString(rawConnectionString);
-
-builder.Services.AddDbContextPool<AppDbContext>(o => o.UseNpgsql(connectionString));
+// Resolve the final host configuration when the context is created. Test hosts
+// and deployment providers can supply configuration after CreateBuilder returns.
+builder.Services.AddDbContextPool<AppDbContext>((services, options) =>
+{
+    var configuration = services.GetRequiredService<IConfiguration>();
+    var rawConnectionString = configuration["DB_URL"] ?? configuration["DATABASE_URL"]
+        ?? configuration.GetConnectionString("DefaultConnection")
+        ?? throw new InvalidOperationException("Set DB_URL, DATABASE_URL or ConnectionStrings:DefaultConnection to your PostgreSQL connection string.");
+    options.UseNpgsql(Program.NormalizePostgresConnectionString(rawConnectionString));
+});
 
 builder.Services.AddHealthChecks().AddCheck<DatabaseHealthCheck>("database");
 

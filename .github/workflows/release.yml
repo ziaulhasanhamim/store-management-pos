@@ -8,9 +8,23 @@ on:
 
 jobs:
   validate:
-    uses: ./.github/workflows/ci.yml
+    name: Verify CI for tagged commit
+    runs-on: ubuntu-latest
     permissions:
+      actions: read
       contents: read
+    steps:
+      - name: Require successful full CI for this exact commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TARGET_SHA: ${{ github.sha }}
+        run: |
+          passed=$(gh api "repos/$GH_REPO/actions/workflows/ci.yml/runs?head_sha=$TARGET_SHA&event=push&branch=main" --jq '[.workflow_runs[] | select(.conclusion == "success")] | length')
+          if [ "$passed" -lt 1 ]; then
+            echo "Full CI must pass on main for the tagged commit before release publication."
+            exit 1
+          fi
 
   release:
     needs: validate
