@@ -97,7 +97,7 @@ else
                         <td class="text-right">@Money(employee.BroughtForward)</td>
                         <td class="text-right">@Money(employee.Paid)</td>
                         <td class="text-right">@Money(employee.Bonus)</td>
-                        <td class="text-right font-semibold">@(employee.Remaining < 0 ? "Advance " + Money(-employee.Remaining) : employee.SalaryAmount is null ? "Salary not created" : Money(employee.Remaining))</td>
+                        <td class="text-right font-semibold @(employee.Remaining < 0 ? "text-amber-700" : "")">@(employee.Remaining < 0 ? "Advance " + Money(-employee.Remaining) : employee.SalaryAmount is null ? "Salary not created" : Money(employee.Remaining))</td>
                         <td>
                             <a class="text-blue-700" href="@($"/employees?page={Page}&pageSize={PageSize}&employeeId={employee.Id}&month={Month:yyyy-MM-dd}")">Manage</a>
                         </td>
@@ -137,7 +137,7 @@ else
                         <td>@salary.Month.ToString("MMM yyyy")</td>
                         <td class="text-right">@Money(salary.Amount)</td>
                         <td class="text-right">@Money(salary.Settled)</td>
-                        <td class="text-right">@BalanceText((Data.AllEmployees ?? Data.Employees).Single(employee => employee.Id == salary.EmployeeId).Remaining)</td>
+                        <td class="text-right font-semibold @((Data.AllEmployees ?? Data.Employees).Single(employee => employee.Id == salary.EmployeeId).Remaining < 0 ? "text-amber-700" : "")">@BalanceText((Data.AllEmployees ?? Data.Employees).Single(employee => employee.Id == salary.EmployeeId).Remaining)</td>
                         <td>
                             <a class="text-blue-700" href="@($"/payroll?employeeId={salary.EmployeeId}&salaryMonth={salary.Month:yyyy-MM-dd}")">Pay / bonus</a>
                         </td>

@@ -59,7 +59,7 @@ internal static class EmployeePayrollReader
                 Paid = total?.Paid ?? 0,
                 Bonus = total?.Bonus ?? 0,
                 PriorAdvance = total?.PriorAdvance ?? 0,
-                Remaining = Math.Max(0, (salary?.Amount ?? (employee.MonthlySalary + broughtForward)) - settled - Math.Max(0, advance))
+                Remaining = (salary?.Amount ?? (employee.MonthlySalary + broughtForward)) - settled - Math.Max(0, advance)
             };
         }).ToArray();
         var pageIds = selected?.Items.Select(item => item.Id).ToHashSet();

@@ -1322,4 +1322,53 @@ public class CashDrawerAndFinanceServiceTests : PosIntegrationTestBase
         var ex = await Assert.ThrowsAsync<ValidationException>(() => financeService.AddPayrollAsync(AdminUser, payrollInput));
         await ex!.Message.Should().BeEqualTo("Select the date and time for backdated payroll.");
     }
+
+    [Test]
+    public async Task EmployeePayrollReader_WhenSalaryPaidExceedsMonthlySalary_CalculatesNegativeRemainingAsAdvance()
+    {
+        await using var scope = CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var employeeService = scope.ServiceProvider.GetRequiredService<EmployeeService>();
+        var financeService = scope.ServiceProvider.GetRequiredService<FinanceService>();
+        var config = scope.ServiceProvider.GetRequiredService<IConfiguration>();
+
+        var employeeId = await employeeService.SaveAsync(AdminUser, new EmployeeInput
+        {
+            Name = "Advance Staff Member",
+            MonthlySalary = 6000m
+        });
+
+        var today = AccountingCalendar.Today(config);
+        var salaryMonth = new DateOnly(today.Year, today.Month, 1);
+        await AccountingCalendar.EnsureOpenAsync(db, today, default);
+
+        await employeeService.CreateSalaryAsync(AdminUser, new SalaryInput
+        {
+            EmployeeId = employeeId,
+            Month = salaryMonth,
+            Amount = 6000m,
+            Notes = "November Salary"
+        });
+
+        // Pay 8000 (which is 2000 more than 6000 salary)
+        await financeService.AddPayrollAsync(AdminUser, new PayrollInput
+        {
+            RequestId = Guid.NewGuid(),
+            EmployeeId = employeeId,
+            Kind = PayrollKind.Salary,
+            Month = salaryMonth,
+            Amount = 8000m,
+            Method = PaymentMethod.Cash,
+            Notes = "Salary plus advance payment"
+        });
+
+        var setup = await EmployeePayrollReader.ReadAsync(db, salaryMonth, config, default);
+        var row = setup.Employees.Single(e => e.Id == employeeId);
+
+        await row.SalaryAmount.Should().BeEqualTo(6000m);
+        await row.Paid.Should().BeEqualTo(8000m);
+        await row.Settled.Should().BeEqualTo(6000m);
+        await row.Advance.Should().BeEqualTo(2000m);
+        await row.Remaining.Should().BeEqualTo(-2000m);
+    }
 }
