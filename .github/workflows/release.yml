@@ -20,11 +20,27 @@ jobs:
           GH_REPO: ${{ github.repository }}
           TARGET_SHA: ${{ github.sha }}
         run: |
-          passed=$(gh api "repos/$GH_REPO/actions/workflows/ci.yml/runs?head_sha=$TARGET_SHA&event=push&branch=main" --jq '[.workflow_runs[] | select(.conclusion == "success")] | length')
-          if [ "$passed" -lt 1 ]; then
-            echo "Full CI must pass on main for the tagged commit before release publication."
-            exit 1
-          fi
+          echo "Waiting for CI on main to complete for commit $TARGET_SHA..."
+          for i in {1..90}; do
+            status=$(gh api "repos/$GH_REPO/actions/workflows/ci.yml/runs?head_sha=$TARGET_SHA&event=push&branch=main" --jq '.workflow_runs[0].status // "unknown"')
+            conclusion=$(gh api "repos/$GH_REPO/actions/workflows/ci.yml/runs?head_sha=$TARGET_SHA&event=push&branch=main" --jq '.workflow_runs[0].conclusion // "unknown"')
+
+            if [ "$status" = "completed" ]; then
+              if [ "$conclusion" = "success" ]; then
+                echo "CI passed on main for commit $TARGET_SHA."
+                exit 0
+              else
+                echo "CI finished with conclusion '$conclusion' (expected 'success')."
+                exit 1
+              fi
+            fi
+
+            echo "CI status is '$status' (attempt $i/90). Waiting 10s..."
+            sleep 10
+          done
+
+          echo "Timed out waiting for CI on main to complete."
+          exit 1
 
   release:
     needs: validate
@@ -36,6 +52,13 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Ensure release notes file exists
+        run: |
+          mkdir -p docs/release-notes
+          if [ ! -f "docs/release-notes/${{ github.ref_name }}.md" ]; then
+            echo "# Release ${{ github.ref_name }}" > "docs/release-notes/${{ github.ref_name }}.md"
+          fi
 
       - name: Create or Update GitHub Release
         uses: softprops/action-gh-release@v2
