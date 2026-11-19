@@ -33,4 +33,23 @@ public class ConnectionStringTests
         await result.Password.Should().BeEqualTo("part:two@three");
         await result.Database.Should().BeEqualTo("store db");
     }
+
+    [Test]
+    public async Task NormalizePostgresConnectionString_ConfiguresSafePoolSizeAndIdleLifetime()
+    {
+        var result = new Npgsql.NpgsqlConnectionStringBuilder(
+            Program.NormalizePostgresConnectionString("postgresql://user:pass@localhost:5432/testdb"));
+        await result.MaxPoolSize.Should().BeEqualTo(8);
+        await result.MinPoolSize.Should().BeEqualTo(0);
+        await result.ConnectionIdleLifetime.Should().BeEqualTo(15);
+    }
+
+    [Test]
+    public async Task NormalizePostgresConnectionString_AppliesQueryStringParameters()
+    {
+        var result = new Npgsql.NpgsqlConnectionStringBuilder(
+            Program.NormalizePostgresConnectionString("postgresql://user:pass@localhost:5432/testdb?maxpoolsize=12&timeout=30"));
+        await result.MaxPoolSize.Should().BeEqualTo(12);
+        await result.Timeout.Should().BeEqualTo(30);
+    }
 }

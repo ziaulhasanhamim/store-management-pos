@@ -219,8 +219,31 @@ public partial class Program
                 Database = database,
                 Username = username,
                 Password = password,
-                SslMode = Npgsql.SslMode.Require
+                SslMode = Npgsql.SslMode.Require,
+                MaxPoolSize = 8,
+                MinPoolSize = 0,
+                ConnectionIdleLifetime = 15
             };
+
+            if (!string.IsNullOrEmpty(uri.Query))
+            {
+                var queryParams = uri.Query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries);
+                foreach (var param in queryParams)
+                {
+                    var parts = param.Split('=', 2);
+                    var key = Uri.UnescapeDataString(parts[0]).Trim();
+                    var val = parts.Length > 1 ? Uri.UnescapeDataString(parts[1]).Trim() : "";
+                    try
+                    {
+                        npgsqlBuilder[key] = val;
+                    }
+                    catch
+                    {
+                        // Ignore unrecognized query parameters
+                    }
+                }
+            }
+
             return npgsqlBuilder.ConnectionString;
         }
         return connectionString;
