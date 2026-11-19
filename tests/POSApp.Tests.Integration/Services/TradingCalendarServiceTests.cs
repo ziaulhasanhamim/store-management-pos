@@ -217,4 +217,67 @@ public class TradingCalendarServiceTests : PosIntegrationTestBase
         // AccountingCalendar allows operations again
         await AccountingCalendar.EnsureOpenAsync(db, testDate, CancellationToken.None);
     }
+
+    [Test]
+    public async Task SaveAsync_BackdatedSupplierPayment_WhenTodayIsClosed_Succeeds()
+    {
+        await using var scope = CreateScope();
+        var calendar = scope.ServiceProvider.GetRequiredService<TradingCalendarService>();
+        var entries = scope.ServiceProvider.GetRequiredService<MoneyEntryService>();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var supplier = await db.Suppliers.FirstAsync();
+
+        var today = AccountingCalendar.Today(null);
+        var yesterday = today.AddDays(-1);
+
+        // Mark today as closed
+        var closedDay = await calendar.MarkNonTradingDayAsync(AdminUser, new MarkNonTradingDayInput
+        {
+            Date = today,
+            Reason = "Weekly Holiday"
+        });
+
+        try
+        {
+            // Non-backdated entry on today should fail because today is closed
+            var nonBackdated = new MoneyEntryCommand(
+                RequestId: Guid.NewGuid(),
+                WorkingDate: today,
+                Rows: [new MoneyEntryInput
+                {
+                    RequestId = Guid.NewGuid(),
+                    PartyId = supplier.Id,
+                    Amount = 100m,
+                    Method = PaymentMethod.BankTransfer,
+                    Notes = "Non-backdated",
+                    TransactionTime = null
+                }]);
+
+            var ex = await Assert.ThrowsAsync<ValidationException>(() =>
+                entries.SaveAsync(AdminUser, "supplier-payments", nonBackdated));
+            await Assert.That(ex!.Message).Contains("marked as a closed (non-trading) day");
+
+            // Backdated entry to yesterday (which is open) should succeed even though today is closed
+            var backdated = new MoneyEntryCommand(
+                RequestId: Guid.NewGuid(),
+                WorkingDate: today,
+                Rows: [new MoneyEntryInput
+                {
+                    RequestId = Guid.NewGuid(),
+                    PartyId = supplier.Id,
+                    Amount = 250m,
+                    Method = PaymentMethod.BankTransfer,
+                    Notes = "Backdated to yesterday",
+                    TransactionTime = yesterday.ToDateTime(new TimeOnly(14, 30))
+                }]);
+
+            var result = await entries.SaveAsync(AdminUser, "supplier-payments", backdated);
+            await Assert.That(result.Ids.Count).IsEqualTo(1);
+        }
+        finally
+        {
+            await calendar.RemoveNonTradingDayAsync(AdminUser, closedDay.Id);
+        }
+    }
 }

@@ -56,7 +56,10 @@ public sealed partial class MoneyEntryService
                 return new(cached.Ids);
             }
             var date = input.WorkingDate == default ? await AccountingCalendar.SelectedAsync(db, actorId, configuration, ct) : input.WorkingDate;
-            await AccountingCalendar.EnsureOpenAsync(db, date, ct);
+            if (input.Rows.Any(row => row.Id != null || !row.TransactionTime.HasValue))
+            {
+                await AccountingCalendar.EnsureOpenAsync(db, date, ct);
+            }
             var at = AccountingCalendar.At(date, configuration);
             var partyIds = input.Rows.Select(row => row.PartyId).Distinct().ToArray();
             var activeParties = new HashSet<int>();
