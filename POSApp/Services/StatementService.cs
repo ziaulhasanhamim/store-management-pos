@@ -106,7 +106,8 @@ public sealed class StatementService(IServiceScopeFactory scopes, IConfiguration
             {
                 var bank = await db.BankAccounts.AsNoTracking().SingleOrDefaultAsync(bank => bank.Code == "MAIN", ct);
                 name = "Bank & digital balance";
-                var moves = db.BankMovements.AsNoTracking().Where(move => move.BankAccountId == (bank == null ? -1 : bank.Id));
+                var moves = db.BankMovements.AsNoTracking().Where(move => move.BankAccountId == (bank == null ? -1 : bank.Id)
+                    && move.Kind != CashMovementKind.OpeningBalance);
                 var initial = (bank != null && bank.OpeningBalance != 0)
                     ? bank.OpeningBalance
                     : ((bank?.CurrentBalance ?? 0) - (await moves.Select(move => (decimal?)move.Amount).SumAsync(ct) ?? 0));

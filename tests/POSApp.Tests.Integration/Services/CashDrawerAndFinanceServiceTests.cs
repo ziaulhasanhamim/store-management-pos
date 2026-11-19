@@ -1371,4 +1371,95 @@ public class CashDrawerAndFinanceServiceTests : PosIntegrationTestBase
         await row.Advance.Should().BeEqualTo(2000m);
         await row.Remaining.Should().BeEqualTo(-2000m);
     }
+
+    [Test]
+    public async Task BankStatement_WhenAccountHasOpeningBalance_MatchesCurrentBalanceWithoutDoubleCounting()
+    {
+        await using var scope = CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var statementService = scope.ServiceProvider.GetRequiredService<StatementService>();
+
+        var bank = await db.BankAccounts.SingleOrDefaultAsync(b => b.Code == "MAIN");
+        if (bank is null)
+        {
+            bank = new BankAccount { Code = "MAIN", CreatedByUserId = 1 };
+            db.BankAccounts.Add(bank);
+            await db.SaveChangesAsync();
+        }
+        var baseBalance = bank.CurrentBalance;
+
+        // Set opening balance to 7,320 on 31 Oct 2026
+        var openingDate = new DateOnly(2026, 10, 31);
+        var openingAt = new DateTimeOffset(2026, 10, 31, 10, 0, 0, TimeSpan.FromHours(6));
+
+        // Add a bank opening movement (as BankService.SaveAsync does when action is "opening")
+        var openMovement = new BankMovement
+        {
+            RequestId = Guid.NewGuid(),
+            BankAccountId = bank.Id,
+            BusinessDate = openingDate,
+            OccurredAt = openingAt,
+            Kind = CashMovementKind.OpeningBalance,
+            Amount = 7320m,
+            BalanceAfter = baseBalance + 7320m,
+            Notes = "Opening balance",
+            CreatedByUserId = 1
+        };
+        db.BankMovements.Add(openMovement);
+        bank.OpeningBalance = 7320m;
+        bank.OpeningDate = openingDate;
+        bank.CurrentBalance += 7320m;
+
+        // Add a transfer on 15 Nov (+3,500)
+        var transferDate = new DateOnly(2026, 11, 15);
+        var transferAt = new DateTimeOffset(2026, 11, 15, 12, 0, 0, TimeSpan.FromHours(6));
+        var transferMove = new BankMovement
+        {
+            RequestId = Guid.NewGuid(),
+            BankAccountId = bank.Id,
+            BusinessDate = transferDate,
+            OccurredAt = transferAt,
+            Kind = CashMovementKind.Transfer,
+            Amount = 3500m,
+            BalanceAfter = bank.CurrentBalance + 3500m,
+            Notes = "Transfer in",
+            CreatedByUserId = 1
+        };
+        db.BankMovements.Add(transferMove);
+        bank.CurrentBalance += 3500m;
+
+        // Add an expense on 18 Nov (-1,000)
+        var expenseDate = new DateOnly(2026, 11, 18);
+        var expenseAt = new DateTimeOffset(2026, 11, 18, 14, 0, 0, TimeSpan.FromHours(6));
+        var expenseMove = new BankMovement
+        {
+            RequestId = Guid.NewGuid(),
+            BankAccountId = bank.Id,
+            BusinessDate = expenseDate,
+            OccurredAt = expenseAt,
+            Kind = CashMovementKind.Expense,
+            Amount = -1000m,
+            BalanceAfter = bank.CurrentBalance - 1000m,
+            Notes = "Marketing expense",
+            CreatedByUserId = 1
+        };
+        db.BankMovements.Add(expenseMove);
+        bank.CurrentBalance -= 1000m;
+
+        await db.SaveChangesAsync();
+
+        // Query statement for 14 Nov 2026 to 20 Nov 2026
+        var statement = await statementService.ReadAsync(
+            AdminUser, "bank", period: "custom",
+            start: new DateOnly(2026, 11, 14),
+            end: new DateOnly(2026, 11, 20));
+
+        // Expected opening balance before 14 Nov: baseBalance + 7320 (single counted)
+        var expectedOpening = baseBalance + 7320m;
+        await statement.Opening.Should().BeEqualTo(expectedOpening);
+        await statement.MoneyIn.Should().BeEqualTo(3500m);
+        await statement.MoneyOut.Should().BeEqualTo(1000m);
+        // Closing balance MUST match the bank's CurrentBalance exactly (no extra 7320)
+        await statement.Closing.Should().BeEqualTo(bank.CurrentBalance);
+    }
 }
