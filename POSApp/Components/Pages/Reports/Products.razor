@@ -27,23 +27,37 @@
 }
 @if (Data is not null)
 {
-    <div class="mb-6 grid gap-4 sm:grid-cols-3">
-        <div class="metric">
-            <p>Net sales</p>
-            <strong class="text-2xl!">@Money(Data.Total)</strong>
-        </div>
-        <div class="metric">
-            <p>Cost of goods sold</p>
-            <strong class="text-2xl!">@Money(Data.Cost)</strong>
-        </div>
-        <div class="metric metric-profit">
-            <p>Gross profit</p>
-            <strong class="text-2xl!">@Money(Data.Profit)</strong>
+    <div class="panel mb-6 overflow-hidden bg-white p-3.5 sm:p-5 shadow-xs">
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
+            <div class="flex flex-col justify-between rounded-xl bg-slate-50/80 p-3.5 border border-slate-100 sm:border-0 sm:bg-slate-50/50 sm:p-4">
+                <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Net sales</span>
+                <div class="mt-2">
+                    <span class="text-xl sm:text-2xl font-bold font-mono text-slate-900">@Money(Data.Total)</span>
+                </div>
+                <span class="mt-1 text-[11px] text-slate-400">@Data.Count matching items</span>
+            </div>
+            <div class="flex flex-col justify-between rounded-xl bg-slate-50/80 p-3.5 border border-slate-100 sm:border-0 sm:bg-slate-50/50 sm:p-4">
+                <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Cost of goods sold</span>
+                <div class="mt-2">
+                    <span class="text-xl sm:text-2xl font-bold font-mono text-slate-600">@Money(Data.Cost)</span>
+                </div>
+                <span class="mt-1 text-[11px] text-slate-400">Recorded inventory cost</span>
+            </div>
+            <div class="flex flex-col justify-between rounded-xl bg-emerald-50/60 p-3.5 border border-emerald-100 sm:border-0 sm:bg-emerald-50/50 sm:p-4">
+                <span class="text-[11px] font-semibold uppercase tracking-wider text-emerald-800">Gross profit</span>
+                <div class="mt-2">
+                    <span class="text-xl sm:text-2xl font-bold font-mono text-emerald-700">@Money(Data.Profit)</span>
+                </div>
+                @{
+                    var margin = Data.Total > 0 ? (Data.Profit / Data.Total * 100) : 0;
+                }
+                <span class="mt-1 text-[11px] font-medium text-emerald-600">@margin.ToString("0.0")% margin</span>
+            </div>
         </div>
     </div>
 }
 
-<section class="panel table-scroll print-area">
+<section class="panel print-area w-full max-w-full overflow-hidden">
     @if (Data is not null)
     {
         <div class="panel-heading">
@@ -51,6 +65,7 @@
             <span class="text-xs text-slate-500">@Data.Count matching items</span>
         </div>
     }
+    <div class="table-scroll w-full overflow-x-auto">
     @if (Data is null)
     {
         <table class="data-table compact-table w-full">
@@ -192,23 +207,24 @@
                 </ChildContent>
             </TemplateColumn>
         </QuickGrid>
-
-        @if (Data is not null)
-        {
-            <div class="border-t border-slate-200 bg-slate-50/80 px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs">
-                <div class="flex flex-wrap items-center gap-x-5 gap-y-1">
-                    <span class="font-semibold uppercase tracking-wider text-slate-500 text-[10px]">All Matching (@Data.Count items)</span>
-                    <span class="text-slate-600">Net Sales: <strong class="text-slate-900 font-semibold">@Money(Data.Total)</strong></span>
-                    <span class="text-slate-600">COGS: <strong class="text-slate-900 font-semibold">@Money(Data.Cost)</strong></span>
-                    <span class="text-slate-600">Gross Profit: <strong class="font-bold @(Data.Profit < 0 ? "text-rose-700" : "text-emerald-700")">@Money(Data.Profit)</strong></span>
-                </div>
-                <div class="text-slate-400 text-[11px]">
-                    Page Sales: @Money(Data.Rows.Sum(i => i.Total)) · Page Profit: @Money(Data.Rows.Sum(i => i.Profit))
-                </div>
-            </div>
-        }
     }
-    <p class="p-4 text-xs text-slate-500">Gross profit is strictly calculated as Net sales minus the total sum of all costs of the items recorded at selling time (total selling amount minus the sum of historical transaction costs, reflecting changing item costs such as ৳300 vs ৳400 exactly), not by multiplying average cost. Average cost and price are shown for reference. Returns subtract quantity, revenue, and saved cost. Discounts are included.</p>
+    </div>
+
+    @if (Data is not null && Data.Count > 0)
+    {
+        <div class="border-t border-slate-200 bg-slate-50/90 px-4 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-xs">
+            <div class="flex items-center gap-4 overflow-x-auto whitespace-nowrap text-xs">
+                <span class="font-semibold uppercase tracking-wider text-slate-500 text-[10px]">All Matching (@Data.Count items):</span>
+                <span class="text-slate-600 whitespace-nowrap">Net Sales: <strong class="text-slate-900 font-mono">@Money(Data.Total)</strong></span>
+                <span class="text-slate-600 whitespace-nowrap">COGS: <strong class="text-slate-900 font-mono">@Money(Data.Cost)</strong></span>
+                <span class="text-slate-600 whitespace-nowrap">Gross Profit: <strong class="font-bold font-mono @(Data.Profit < 0 ? "text-rose-700" : "text-emerald-700")">@Money(Data.Profit)</strong></span>
+            </div>
+            <div class="text-slate-500 text-[11px] whitespace-nowrap">
+                Page Sales: <span class="font-mono text-slate-700">@Money(Data.Rows.Sum(i => i.Total))</span> · Page Profit: <span class="font-mono text-slate-700">@Money(Data.Rows.Sum(i => i.Profit))</span>
+            </div>
+        </div>
+    }
+    <p class="p-4 text-xs text-slate-500 border-t border-slate-100">Gross profit is strictly calculated as Net sales minus the total sum of all costs of the items recorded at selling time (total selling amount minus the sum of historical transaction costs, reflecting changing item costs such as ৳300 vs ৳400 exactly), not by multiplying average cost. Average cost and price are shown for reference. Returns subtract quantity, revenue, and saved cost. Discounts are included.</p>
 </section>
 @if (TotalCount > 0)
 {

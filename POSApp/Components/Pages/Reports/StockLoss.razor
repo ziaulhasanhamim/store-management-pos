@@ -43,27 +43,37 @@ else if (Error is not null)
 }
 else if (Data is not null)
 {
-    <!-- Hero Summary Cards -->
-    <div class="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div class="metric bg-rose-50/50 border-rose-200">
-            <p class="text-rose-700 font-medium">Total Financial Loss (Cost)</p>
-            <strong class="text-2xl! text-rose-700!">@Money(Data.TotalFinancialLoss)</strong>
-            <span class="metric-note">Deducted from Net Operating Profit</span>
-        </div>
-        <div class="metric">
-            <p>Total Units Lost / Written Off</p>
-            <strong class="text-2xl!">@Data.TotalQuantity.ToString("0.###")</strong>
-            <span class="metric-note">Across selected locations</span>
-        </div>
-        <div class="metric">
-            <p>Incidents Recorded</p>
-            <strong class="text-2xl!">@(Data.Pagination?.Total ?? Data.Rows.Count)</strong>
-            <span class="metric-note">From @Data.Range.Start.ToString("dd MMM yyyy") to @Data.Range.End.ToString("dd MMM yyyy")</span>
-        </div>
-        <div class="metric">
-            <p>Top Loss Category</p>
-            <strong class="text-xl! text-slate-800">@(Data.Reasons.Count > 0 ? Data.Reasons[0].Reason : "None")</strong>
-            <span class="metric-note">@(Data.Reasons.Count > 0 ? Money(Data.Reasons[0].Amount) : "৳0.00")</span>
+    <!-- Hero Summary Strip -->
+    <div class="panel mb-6 overflow-hidden bg-white p-3.5 sm:p-5 shadow-xs">
+        <div class="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+            <div class="flex flex-col justify-between rounded-xl bg-rose-50/70 p-3.5 border border-rose-200/80 sm:p-4">
+                <span class="text-[11px] font-semibold uppercase tracking-wider text-rose-700">Total Financial Loss</span>
+                <div class="mt-2">
+                    <span class="text-xl sm:text-2xl font-bold font-mono text-rose-700">@Money(Data.TotalFinancialLoss)</span>
+                </div>
+                <span class="mt-1 text-[11px] text-rose-600/80">Deducted from profit</span>
+            </div>
+            <div class="flex flex-col justify-between rounded-xl bg-slate-50/80 p-3.5 border border-slate-100 sm:border-0 sm:bg-slate-50/50 sm:p-4">
+                <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Units Lost / Written Off</span>
+                <div class="mt-2">
+                    <span class="text-xl sm:text-2xl font-bold font-mono text-slate-900">@Data.TotalQuantity.ToString("0.###")</span>
+                </div>
+                <span class="mt-1 text-[11px] text-slate-400">Across selected locations</span>
+            </div>
+            <div class="flex flex-col justify-between rounded-xl bg-slate-50/80 p-3.5 border border-slate-100 sm:border-0 sm:bg-slate-50/50 sm:p-4">
+                <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Incidents Recorded</span>
+                <div class="mt-2">
+                    <span class="text-xl sm:text-2xl font-bold font-mono text-slate-900">@(Data.Pagination?.Total ?? Data.Rows.Count)</span>
+                </div>
+                <span class="mt-1 text-[11px] text-slate-400">@Data.Range.Start.ToString("dd MMM") – @Data.Range.End.ToString("dd MMM yyyy")</span>
+            </div>
+            <div class="flex flex-col justify-between rounded-xl bg-slate-50/80 p-3.5 border border-slate-100 sm:border-0 sm:bg-slate-50/50 sm:p-4">
+                <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Top Loss Category</span>
+                <div class="mt-2 truncate">
+                    <span class="text-lg sm:text-xl font-bold text-slate-800 truncate block">@(Data.Reasons.Count > 0 ? Data.Reasons[0].Reason : "None")</span>
+                </div>
+                <span class="mt-1 text-[11px] font-mono text-slate-400">@(Data.Reasons.Count > 0 ? Money(Data.Reasons[0].Amount) : "৳0.00")</span>
+            </div>
         </div>
     </div>
 
@@ -86,63 +96,65 @@ else if (Data is not null)
     }
 
     <!-- Itemized Loss Table -->
-    <section class="panel table-scroll">
+    <section class="panel w-full max-w-full overflow-hidden">
         <div class="panel-heading">
             <h2>Itemized losses & write-offs</h2>
             <span class="text-xs text-slate-500">Page @Data.Page</span>
         </div>
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th>Date & Time</th>
-                    <th>Location</th>
-                    <th>Product</th>
-                    <th>Reason</th>
-                    <th class="text-right">Qty Lost</th>
-                    <th class="text-right">Unit Cost</th>
-                    <th class="text-right">Total Loss</th>
-                    <th>Notes</th>
-                </tr>
-            </thead>
-            <tbody>
-                @if (Data.Rows.Count == 0)
-                {
-                    <TableStatusRow Columns="8" Message="No stock loss or waste recorded for this period." />
-                }
-                @foreach (var row in Data.Rows)
-                {
+        <div class="table-scroll w-full overflow-x-auto">
+            <table class="data-table">
+                <thead>
                     <tr>
-                        <td class="text-xs text-slate-500 whitespace-nowrap">@row.OccurredAt.ToBusinessTime(Configuration).ToString("dd MMM yyyy, HH:mm")</td>
-                        <td class="text-xs">@row.LocationName</td>
-                        <td>
-                            <strong class="block text-sm">@row.ProductName</strong>
-                            <span class="font-mono text-[11px] text-slate-400">@(row.Barcode ?? $"Item #{row.ProductId}")</span>
-                        </td>
-                        <td>
-                            <span class="inline-flex items-center rounded px-2 py-0.5 text-xs font-semibold @BadgeClass(row.Reason)">
-                                @row.Reason
-                            </span>
-                        </td>
-                        <td class="text-right font-medium">@row.Quantity.ToString("0.###") <small class="text-slate-400">@row.Unit</small></td>
-                        <td class="text-right text-xs">@Money(row.UnitCost)</td>
-                        <td class="text-right font-bold text-rose-700">@Money(row.TotalLoss)</td>
-                        <td class="text-xs text-slate-500 max-w-xs truncate" title="@row.Notes">@(row.Notes ?? "—")</td>
+                        <th>Date & Time</th>
+                        <th>Location</th>
+                        <th>Product</th>
+                        <th>Reason</th>
+                        <th class="text-right">Qty Lost</th>
+                        <th class="text-right">Unit Cost</th>
+                        <th class="text-right">Total Loss</th>
+                        <th>Notes</th>
                     </tr>
+                </thead>
+                <tbody>
+                    @if (Data.Rows.Count == 0)
+                    {
+                        <TableStatusRow Columns="8" Message="No stock loss or waste recorded for this period." />
+                    }
+                    @foreach (var row in Data.Rows)
+                    {
+                        <tr>
+                            <td class="text-xs text-slate-500 whitespace-nowrap">@row.OccurredAt.ToBusinessTime(Configuration).ToString("dd MMM yyyy, HH:mm")</td>
+                            <td class="text-xs">@row.LocationName</td>
+                            <td>
+                                <strong class="block text-sm">@row.ProductName</strong>
+                                <span class="font-mono text-[11px] text-slate-400">@(row.Barcode ?? $"Item #{row.ProductId}")</span>
+                            </td>
+                            <td>
+                                <span class="inline-flex items-center rounded px-2 py-0.5 text-xs font-semibold @BadgeClass(row.Reason)">
+                                    @row.Reason
+                                </span>
+                            </td>
+                            <td class="text-right font-medium">@row.Quantity.ToString("0.###") <small class="text-slate-400">@row.Unit</small></td>
+                            <td class="text-right text-xs">@Money(row.UnitCost)</td>
+                            <td class="text-right font-bold text-rose-700">@Money(row.TotalLoss)</td>
+                            <td class="text-xs text-slate-500 max-w-xs truncate" title="@row.Notes">@(row.Notes ?? "—")</td>
+                        </tr>
+                    }
+                </tbody>
+                @if (Data.Rows.Count > 0)
+                {
+                    <tfoot class="border-t-2 border-slate-200">
+                        <tr class="bg-slate-100/90 text-slate-900 font-bold">
+                            <th colspan="4" class="text-right py-2.5 px-3 uppercase tracking-wider text-[11px] text-slate-600 whitespace-nowrap">Total</th>
+                            <th class="text-right whitespace-nowrap font-mono py-2.5 px-3">@Data.TotalQuantity.ToString("0.###")</th>
+                            <th></th>
+                            <th class="text-right text-rose-700 whitespace-nowrap font-mono py-2.5 px-3 text-sm">@Money(Data.TotalFinancialLoss)</th>
+                            <th></th>
+                        </tr>
+                    </tfoot>
                 }
-            </tbody>
-            @if (Data.Rows.Count > 0)
-            {
-                <tfoot>
-                    <tr>
-                        <th colspan="4">Total</th>
-                        <th class="text-right">@Data.TotalQuantity.ToString("0.###")</th>
-                        <th></th>
-                        <th class="text-right text-rose-700 text-base">@Money(Data.TotalFinancialLoss)</th>
-                        <th></th>
-                    </tr>
-                </tfoot>
-            }
-        </table>
+            </table>
+        </div>
         @if (Data.Pagination is { Pages: > 1 } p)
         {
             <div class="p-4 border-t border-slate-100 flex justify-between items-center text-sm">

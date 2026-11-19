@@ -43,16 +43,20 @@
 </form>
 @if (Data is not null)
 {
-    <div class="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        @foreach (var metric in new[] { ("Opening balance", Data.Opening), ("Money in", Data.MoneyIn), ("Money out", Data.MoneyOut), ("Closing balance", Data.Closing) })
-        {
-            <div class="metric">
-                <p>@metric.Item1</p>
-                <strong>@Money(metric.Item2)</strong>
-            </div>
-        }
+    <div class="panel mb-6 overflow-hidden bg-white p-3.5 sm:p-5 shadow-xs">
+        <div class="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+            @foreach (var metric in new[] { ("Opening balance", Data.Opening), ("Money in", Data.MoneyIn), ("Money out", Data.MoneyOut), ("Closing balance", Data.Closing) })
+            {
+                <div class="flex flex-col justify-between rounded-xl bg-slate-50/80 p-3.5 border border-slate-100 sm:border-0 sm:bg-slate-50/50 sm:p-4">
+                    <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">@metric.Item1</span>
+                    <div class="mt-2">
+                        <span class="text-xl sm:text-2xl font-bold font-mono text-slate-900 tabular-nums">@Money(metric.Item2)</span>
+                    </div>
+                </div>
+            }
+        </div>
     </div>
-    <p class="text-sm text-slate-500">Owner contributions @Money(Data.OwnerContributions) · Owner withdrawals @Money(Data.OwnerWithdrawals). These change account balances and net assets; they are excluded from sales, expenses and profit.</p>
+    <p class="text-sm text-slate-500 mb-6">Owner contributions @Money(Data.OwnerContributions) · Owner withdrawals @Money(Data.OwnerWithdrawals). These change account balances and net assets; they are excluded from sales, expenses and profit.</p>
 }
 <StatementTable Data="Data" Error="@Error" />
 @if (Data is not null)

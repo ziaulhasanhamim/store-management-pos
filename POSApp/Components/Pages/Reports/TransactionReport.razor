@@ -29,33 +29,63 @@
     @if (Data is not null)
     {
         <h2 class="mb-4 text-sm text-slate-500">@Data.Range.Start.ToString("dd MMM yyyy") – @Data.Range.End.ToString("dd MMM yyyy")</h2>
-        <div class="@(Data.CanViewCosts && Sales ? "mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-5" : "mb-6 grid gap-4 sm:grid-cols-3")">
-            <div class="metric">
-                <p>Transactions</p>
-                <strong>@Data.Count</strong>
-            </div>
-            <div class="metric">
-                <p>Net total</p>
-                <strong class="text-2xl!">@Money(Data.Total)</strong>
-                @if (Sales && Timeline is not null && Timeline.Points.Count > 0)
+        <div class="panel mb-6 overflow-hidden bg-white p-3.5 sm:p-5 shadow-xs">
+            <div class="@(Data.CanViewCosts && Sales ? "grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-5" : "grid grid-cols-2 gap-3 sm:gap-4 sm:grid-cols-3")">
+                <div class="flex flex-col justify-between rounded-xl bg-slate-50/80 p-3.5 border border-slate-100 sm:border-0 sm:bg-slate-50/50 sm:p-4">
+                    <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Transactions</span>
+                    <div class="mt-2">
+                        <span class="text-xl sm:text-2xl font-bold font-mono text-slate-900">@Data.Count</span>
+                    </div>
+                    <span class="mt-1 text-[11px] text-slate-400">Total orders</span>
+                </div>
+                <div class="flex flex-col justify-between rounded-xl bg-slate-50/80 p-3.5 border border-slate-100 sm:border-0 sm:bg-slate-50/50 sm:p-4">
+                    <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Net total</span>
+                    <div class="mt-2">
+                        <span class="text-xl sm:text-2xl font-bold font-mono text-slate-900">@Money(Data.Total)</span>
+                    </div>
+                    @if (Sales && Timeline is not null && Timeline.Points.Count > 0)
+                    {
+                        <span class="mt-1 text-[11px] text-slate-400 truncate" title="Avg: @Money(Data.Total / Timeline.Points.Count) / day (@Timeline.Points.Count trading @(Timeline.Points.Count == 1 ? "day" : "days"))">
+                            Avg @Money(Data.Total / Timeline.Points.Count)/day
+                        </span>
+                    }
+                    else
+                    {
+                        <span class="mt-1 text-[11px] text-slate-400">Total revenue</span>
+                    }
+                </div>
+                @if (Data.CanViewCosts && Sales)
                 {
-                    <span class="metric-note">Avg: @Money(Data.Total / Timeline.Points.Count) / day (@Timeline.Points.Count trading @(Timeline.Points.Count == 1 ? "day" : "days"))</span>
+                    <div class="flex flex-col justify-between rounded-xl bg-slate-50/80 p-3.5 border border-slate-100 sm:border-0 sm:bg-slate-50/50 sm:p-4">
+                        <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Cost of goods sold</span>
+                        <div class="mt-2">
+                            <span class="text-xl sm:text-2xl font-bold font-mono text-slate-600">@Money(Data.Cost ?? 0)</span>
+                        </div>
+                        <span class="mt-1 text-[11px] text-slate-400">Recorded cost</span>
+                    </div>
+                    <div class="flex flex-col justify-between rounded-xl bg-emerald-50/60 p-3.5 border border-emerald-100 sm:border-0 sm:bg-emerald-50/50 sm:p-4">
+                        <span class="text-[11px] font-semibold uppercase tracking-wider text-emerald-800">Gross profit</span>
+                        <div class="mt-2">
+                            <span class="text-xl sm:text-2xl font-bold font-mono text-emerald-700">@Money(Data.Profit ?? 0)</span>
+                        </div>
+                        @{
+                            var margin = Data.Total > 0 ? ((Data.Profit ?? 0) / Data.Total * 100) : 0;
+                        }
+                        <span class="mt-1 text-[11px] font-medium text-emerald-600">@margin.ToString("0.0")% margin</span>
+                    </div>
                 }
-            </div>
-            @if (Data.CanViewCosts && Sales)
-            {
-                <div class="metric">
-                    <p>Cost of goods sold</p>
-                    <strong class="text-2xl!">@Money(Data.Cost ?? 0)</strong>
+                <div class="@(Data.CanViewCosts && Sales ? "col-span-2 sm:col-span-1" : "") flex flex-col justify-between rounded-xl bg-slate-50/80 p-3.5 border border-slate-100 sm:border-0 sm:bg-slate-50/50 sm:p-4">
+                    <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Paid / Due</span>
+                    <div class="mt-2 flex items-baseline gap-2 flex-wrap">
+                        <span class="text-xl sm:text-2xl font-bold font-mono text-slate-900">@Money(Data.Paid)</span>
+                    </div>
+                    @{
+                        var unpaid = Data.Total - Data.Paid;
+                    }
+                    <span class="mt-1 text-[11px] font-mono font-semibold @(unpaid > 0 ? "text-amber-700" : "text-slate-400")">
+                        @(unpaid > 0 ? "Due: " : "Paid in full: ")@Money(unpaid)
+                    </span>
                 </div>
-                <div class="metric metric-profit">
-                    <p>Gross profit</p>
-                    <strong class="text-2xl!">@Money(Data.Profit ?? 0)</strong>
-                </div>
-            }
-            <div class="metric">
-                <p>Paid</p>
-                <strong class="text-2xl!">@Money(Data.Paid)</strong>
             </div>
         </div>
 
@@ -116,104 +146,146 @@
         }
     }
 
-    <div class="panel table-scroll">
-        <table id="transactionreport-table" class="data-table compact-table w-full" aria-busy="@(Data is null && Error is null)">
-            <thead>
-                <tr>
-                    <SortHeader Column="id" Label="ID" Sort="@Sort" Numeric="false" Class="w-20 text-center" />
-                    <SortHeader Column="party" Label="@(Sales ? "Customer" : "Supplier")" Sort="@Sort" Numeric="false" />
-                    <SortHeader Column="date" Label="Date" Sort="@Sort" Numeric="false" Class="whitespace-nowrap" />
-                    <SortHeader Column="total" Label="Total" Sort="@Sort" Numeric="true" Class="whitespace-nowrap" />
-                    @if (CanViewCosts && Sales)
-                    {
-                        <SortHeader Column="cost" Label="Cost" Sort="@Sort" Numeric="true" Class="whitespace-nowrap" />
-                        <SortHeader Column="profit" Label="Profit" Sort="@Sort" Numeric="true" Class="whitespace-nowrap" />
-                    }
-                    <SortHeader Column="paid" Label="Paid" Sort="@Sort" Numeric="true" Class="whitespace-nowrap" />
-                    <SortHeader Column="due" Label="@(Sales ? "Due" : "Net unpaid / credit")" Sort="@Sort" Numeric="true" Class="whitespace-nowrap" />
-                </tr>
-            </thead>
-            <tbody>
-                @if (Data is null)
-                {
-                    <TableStatusRow Columns="ColumnCount" Loading="@(Error is null)" Error="@(Error is not null)"
-                        Message="@(Error ?? "Loading report…")" />
-                }
-                @foreach (var row in Data?.Rows ?? [])
-                {
-                    <tr class="hover:bg-slate-50/60 transition-colors">
-                        <td class="w-20 text-center">
-                            <a href="@(Sales ? $"/sales/{row.Id}/bill" : $"/receiving/{row.Id}")" class="font-bold text-blue-700 text-xs hover:underline">#@row.Id</a>
-                            <span class="block max-w-28 truncate font-mono text-[10px] text-slate-400 mx-auto" title="@row.Number">@row.Number</span>
-                        </td>
-                        <td>
-                            <span class="font-medium text-slate-900 text-xs">@row.Party</span>
-                        </td>
-                        <td class="whitespace-nowrap">
-                            <span class="text-xs text-slate-600 font-mono">@TimeZoneInfo.ConvertTime(row.At, Zone).ToString("dd MMM yyyy, HH:mm")</span>
-                        </td>
-                        <td class="text-right whitespace-nowrap">
-                            <span class="font-mono text-xs font-semibold text-slate-900">@Money(row.Total)</span>
-                        </td>
+    <div class="panel w-full max-w-full overflow-hidden">
+        <div class="table-scroll w-full overflow-x-auto">
+            <table id="transactionreport-table" class="data-table compact-table w-full" aria-busy="@(Data is null && Error is null)">
+                <thead>
+                    <tr>
+                        <SortHeader Column="id" Label="ID" Sort="@Sort" Numeric="false" Class="w-20 text-center" />
+                        <SortHeader Column="party" Label="@(Sales ? "Customer" : "Supplier")" Sort="@Sort" Numeric="false" />
+                        <SortHeader Column="date" Label="Date" Sort="@Sort" Numeric="false" Class="whitespace-nowrap" />
+                        <SortHeader Column="total" Label="Total" Sort="@Sort" Numeric="true" Class="whitespace-nowrap" />
                         @if (CanViewCosts && Sales)
                         {
-                            <td class="text-right whitespace-nowrap">
-                                <span class="font-mono text-xs text-slate-600">@Money(row.Cost ?? 0)</span>
-                            </td>
-                            <td class="text-right whitespace-nowrap">
-                                <span class="font-mono text-xs font-semibold @(row.Profit < 0 ? "text-rose-700" : "text-emerald-700")">@Money(row.Profit ?? 0)</span>
-                            </td>
+                            <SortHeader Column="cost" Label="Cost" Sort="@Sort" Numeric="true" Class="whitespace-nowrap" />
+                            <SortHeader Column="profit" Label="Profit" Sort="@Sort" Numeric="true" Class="whitespace-nowrap" />
                         }
-                        <td class="text-right whitespace-nowrap">
-                            <span class="font-mono text-xs text-slate-700">@Money(row.Paid)</span>
-                        </td>
-                        <td class="text-right whitespace-nowrap">
-                            @{
-                                var unpaid = row.Total - row.Paid;
-                            }
-                            <span class="font-mono text-xs font-semibold @(unpaid > 0 ? "text-amber-700" : "text-slate-500")">@Money(unpaid)</span>
-                        </td>
+                        <SortHeader Column="paid" Label="Paid" Sort="@Sort" Numeric="true" Class="whitespace-nowrap" />
+                        <SortHeader Column="due" Label="@(Sales ? "Due" : "Net unpaid / credit")" Sort="@Sort" Numeric="true" Class="whitespace-nowrap" />
                     </tr>
-                    @if (Sales && row.Items.Count > 0)
+                </thead>
+                <tbody>
+                    @if (Data is null)
                     {
-                        <tr class="report-detail-row bg-slate-50/50">
-                            <td colspan="@ColumnCount" class="px-4 py-2 border-t-0">
-                                <details class="group">
-                                    <summary class="cursor-pointer text-xs font-semibold text-blue-700 hover:text-blue-900 inline-flex items-center gap-1.5 select-none py-1">
-                                        <span class="text-[10px] text-blue-600 transition-transform duration-150 inline-block group-open:rotate-90">▶</span>
-                                        <span>View @row.Items.Count @(row.Items.Count == 1 ? "item" : "items")</span>
-                                    </summary>
-                                    <div class="mt-2 mb-2 overflow-hidden rounded-lg border border-slate-200 bg-white p-2.5 shadow-xs">
-                                        <SalesLineTable Items="row.Items" CanViewCosts="CanViewCosts" />
-                                    </div>
-                                </details>
-                            </td>
-                        </tr>
+                        <TableStatusRow Columns="ColumnCount" Loading="@(Error is null)" Error="@(Error is not null)"
+                            Message="@(Error ?? "Loading report…")" />
                     }
-                }
-            </tbody>
-        </table>
-        @if (Data is not null && Data.Rows.Count > 0)
-        {
-            <div class="border-t border-slate-200 bg-slate-50/80 px-4 py-2.5 flex flex-col gap-2 text-xs">
-                @foreach (var summary in Summaries)
-                {
-                    <div class="flex flex-wrap items-center justify-between gap-3">
-                        <span class="font-semibold text-slate-700">@summary.Label</span>
-                        <div class="flex flex-wrap items-center gap-4">
-                            <span>Total: <strong class="text-slate-900 font-mono">@Money(summary.Total)</strong></span>
+                    @foreach (var row in Data?.Rows ?? [])
+                    {
+                        <tr class="hover:bg-slate-50/60 transition-colors">
+                            <td class="w-20 text-center">
+                                <a href="@(Sales ? $"/sales/{row.Id}/bill" : $"/receiving/{row.Id}")" class="font-bold text-blue-700 text-xs hover:underline">#@row.Id</a>
+                                <span class="block max-w-28 truncate font-mono text-[10px] text-slate-400 mx-auto" title="@row.Number">@row.Number</span>
+                            </td>
+                            <td>
+                                <span class="font-medium text-slate-900 text-xs">@row.Party</span>
+                            </td>
+                            <td class="whitespace-nowrap">
+                                <span class="text-xs text-slate-600 font-mono">@TimeZoneInfo.ConvertTime(row.At, Zone).ToString("dd MMM yyyy, HH:mm")</span>
+                            </td>
+                            <td class="text-right whitespace-nowrap">
+                                <span class="font-mono text-xs font-semibold text-slate-900">@Money(row.Total)</span>
+                            </td>
                             @if (CanViewCosts && Sales)
                             {
-                                <span>Cost: <strong class="text-slate-600 font-mono">@Money(summary.Cost)</strong></span>
-                                <span>Profit: <strong class="@(summary.Total - summary.Cost < 0 ? "text-rose-700" : "text-emerald-700") font-bold font-mono">@Money(summary.Total - summary.Cost)</strong></span>
+                                <td class="text-right whitespace-nowrap">
+                                    <span class="font-mono text-xs text-slate-600">@Money(row.Cost ?? 0)</span>
+                                </td>
+                                <td class="text-right whitespace-nowrap">
+                                    <span class="font-mono text-xs font-semibold @(row.Profit < 0 ? "text-rose-700" : "text-emerald-700")">@Money(row.Profit ?? 0)</span>
+                                </td>
                             }
-                            <span>Paid: <strong class="text-slate-700 font-mono">@Money(summary.Paid)</strong></span>
-                            <span>Due: <strong class="text-amber-700 font-bold font-mono">@Money(summary.Total - summary.Paid)</strong></span>
-                        </div>
-                    </div>
+                            <td class="text-right whitespace-nowrap">
+                                <span class="font-mono text-xs text-slate-700">@Money(row.Paid)</span>
+                            </td>
+                            <td class="text-right whitespace-nowrap">
+                                @{
+                                    var unpaid = row.Total - row.Paid;
+                                }
+                                <span class="font-mono text-xs font-semibold @(unpaid > 0 ? "text-amber-700" : "text-slate-500")">@Money(unpaid)</span>
+                            </td>
+                        </tr>
+                        @if (Sales && row.Items.Count > 0)
+                        {
+                            <tr class="report-detail-row bg-slate-50/50">
+                                <td colspan="@ColumnCount" class="px-4 py-2 border-t-0">
+                                    <details class="group">
+                                        <summary class="cursor-pointer text-xs font-semibold text-blue-700 hover:text-blue-900 inline-flex items-center gap-1.5 select-none py-1">
+                                            <span class="text-[10px] text-blue-600 transition-transform duration-150 inline-block group-open:rotate-90">▶</span>
+                                            <span>View @row.Items.Count @(row.Items.Count == 1 ? "item" : "items")</span>
+                                        </summary>
+                                        <div class="mt-2 mb-2 overflow-hidden rounded-lg border border-slate-200 bg-white p-2.5 shadow-xs">
+                                            <SalesLineTable Items="row.Items" CanViewCosts="CanViewCosts" />
+                                        </div>
+                                    </details>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+                @if (Data is not null && Data.Rows.Count > 0)
+                {
+                    <tfoot class="border-t-2 border-slate-200 font-semibold text-xs">
+                        @if (Data.Count > Data.Rows.Count)
+                        {
+                            <tr class="bg-slate-50/90 text-slate-700">
+                                <td colspan="3" class="text-right py-2.5 px-3 uppercase tracking-wider text-[11px] text-slate-500 whitespace-nowrap">
+                                    Page total (@Data.Rows.Count):
+                                </td>
+                                <td class="text-right whitespace-nowrap font-mono py-2.5 px-3 text-slate-900">
+                                    @Money(Data.Rows.Sum(row => row.Total))
+                                </td>
+                                @if (CanViewCosts && Sales)
+                                {
+                                    <td class="text-right whitespace-nowrap font-mono py-2.5 px-3 text-slate-600">
+                                        @Money(Data.Rows.Sum(row => row.Cost ?? 0))
+                                    </td>
+                                    var pageProfit = Data.Rows.Sum(row => row.Profit ?? 0);
+                                    <td class="text-right whitespace-nowrap font-mono py-2.5 px-3 @(pageProfit < 0 ? "text-rose-700" : "text-emerald-700")">
+                                        @Money(pageProfit)
+                                    </td>
+                                }
+                                <td class="text-right whitespace-nowrap font-mono py-2.5 px-3 text-slate-700">
+                                    @Money(Data.Rows.Sum(row => row.Paid))
+                                </td>
+                                @{
+                                    var pageDue = Data.Rows.Sum(row => row.Total - row.Paid);
+                                }
+                                <td class="text-right whitespace-nowrap font-mono py-2.5 px-3 @(pageDue > 0 ? "text-amber-700" : "text-slate-500")">
+                                    @Money(pageDue)
+                                </td>
+                            </tr>
+                        }
+                        <tr class="bg-slate-100/90 text-slate-900 font-bold border-t border-slate-200">
+                            <td colspan="3" class="text-right py-2.5 px-3 uppercase tracking-wider text-[11px] text-slate-600 whitespace-nowrap">
+                                @(Data.Count > Data.Rows.Count ? $"All matching ({Data.Count}):" : "Total:")
+                            </td>
+                            <td class="text-right whitespace-nowrap font-mono py-2.5 px-3 text-slate-900">
+                                @Money(Data.Total)
+                            </td>
+                            @if (CanViewCosts && Sales)
+                            {
+                                <td class="text-right whitespace-nowrap font-mono py-2.5 px-3 text-slate-600">
+                                    @Money(Data.Cost ?? 0)
+                                </td>
+                                <td class="text-right whitespace-nowrap font-mono py-2.5 px-3 @(Data.Profit < 0 ? "text-rose-700" : "text-emerald-700")">
+                                    @Money(Data.Profit ?? 0)
+                                </td>
+                            }
+                            <td class="text-right whitespace-nowrap font-mono py-2.5 px-3 text-slate-800">
+                                @Money(Data.Paid)
+                            </td>
+                            @{
+                                var totalDue = Data.Total - Data.Paid;
+                            }
+                            <td class="text-right whitespace-nowrap font-mono py-2.5 px-3 @(totalDue > 0 ? "text-amber-700" : "text-slate-500")">
+                                @Money(totalDue)
+                            </td>
+                        </tr>
+                    </tfoot>
                 }
-            </div>
-        }
+            </table>
+        </div>
         @if (Data is not null && Data.Rows.Count == 0)
         {
             <p class="p-6 text-sm text-slate-500">No transactions in this date range.</p>
@@ -296,11 +368,6 @@
         }
     }
 
-    private (string Label, decimal Total, decimal Paid, decimal Cost)[] Summaries => Data is null ? [] :
-    [
-        ("This page", Data.Rows.Sum(row => row.Total), Data.Rows.Sum(row => row.Paid), Data.Rows.Sum(row => row.Cost ?? 0)),
-        ($"All matching transactions ({Data.Count})", Data.Total, Data.Paid, Data.Cost ?? 0)
-    ];
 
     private object[] TimelineDatasets => Timeline is null ? [] :
     [

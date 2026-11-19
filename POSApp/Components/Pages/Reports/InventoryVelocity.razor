@@ -93,50 +93,60 @@ else
         </form>
     </div>
 
-    <!-- Summary KPI Cards -->
-    <div class="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div class="metric bg-white border border-rose-200/80 shadow-xs">
-            <div class="flex items-center justify-between">
-                <p class="text-xs font-semibold uppercase tracking-wider text-rose-600">Trapped Dead Capital</p>
-                <span class="inline-flex size-7 items-center justify-center rounded-lg bg-rose-50 text-rose-600">
-                    <Icon Name="trash" Class="size-4" />
-                </span>
+    <!-- Summary KPI Strip -->
+    <div class="panel mb-6 overflow-hidden bg-white p-3.5 sm:p-5 shadow-xs">
+        <div class="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+            <div class="flex flex-col justify-between rounded-xl bg-slate-50/80 p-3.5 border border-slate-100 sm:border-0 sm:bg-slate-50/50 sm:p-4">
+                <div class="flex items-center justify-between">
+                    <span class="text-[11px] font-semibold uppercase tracking-wider text-rose-600">Trapped Dead Capital</span>
+                    <span class="inline-flex size-6 items-center justify-center rounded-lg bg-rose-50 text-rose-600">
+                        <Icon Name="trash" Class="size-3.5" />
+                    </span>
+                </div>
+                <div class="mt-2">
+                    <span class="text-xl sm:text-2xl font-bold font-mono text-rose-600 tabular-nums">@Money(Data.TotalDeadStockCapital)</span>
+                </div>
+                <span class="mt-1 text-[11px] text-rose-600/80 font-medium">Stagnant for &ge; @DaysThreshold days</span>
             </div>
-            <strong class="text-2xl mt-1 text-rose-600">@Money(Data.TotalDeadStockCapital)</strong>
-            <span class="text-xs text-rose-600/80 mt-0.5 font-medium">Stagnant for &ge; @DaysThreshold days</span>
-        </div>
 
-        <div class="metric bg-white border border-slate-200/80 shadow-xs">
-            <div class="flex items-center justify-between">
-                <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Dead Stock Items</p>
-                <span class="inline-flex size-7 items-center justify-center rounded-lg bg-rose-50 text-rose-600">
-                    <Icon Name="box" Class="size-4" />
-                </span>
+            <div class="flex flex-col justify-between rounded-xl bg-slate-50/80 p-3.5 border border-slate-100 sm:border-0 sm:bg-slate-50/50 sm:p-4">
+                <div class="flex items-center justify-between">
+                    <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Dead Stock Items</span>
+                    <span class="inline-flex size-6 items-center justify-center rounded-lg bg-rose-50 text-rose-600">
+                        <Icon Name="box" Class="size-3.5" />
+                    </span>
+                </div>
+                <div class="mt-2">
+                    <span class="text-xl sm:text-2xl font-bold font-mono text-slate-900 tabular-nums">@Data.DeadStockItemsCount</span>
+                </div>
+                <span class="mt-1 text-[11px] text-slate-400">Lines requiring clearance / markdown</span>
             </div>
-            <strong class="text-2xl mt-1 text-slate-900">@Data.DeadStockItemsCount</strong>
-            <span class="text-xs text-slate-400 mt-0.5">Lines requiring clearance / markdown</span>
-        </div>
 
-        <div class="metric bg-white border border-slate-200/80 shadow-xs">
-            <div class="flex items-center justify-between">
-                <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Fast Velocity Movers</p>
-                <span class="inline-flex size-7 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
-                    <Icon Name="wallet" Class="size-4" />
-                </span>
+            <div class="flex flex-col justify-between rounded-xl bg-slate-50/80 p-3.5 border border-slate-100 sm:border-0 sm:bg-slate-50/50 sm:p-4">
+                <div class="flex items-center justify-between">
+                    <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Fast Velocity Movers</span>
+                    <span class="inline-flex size-6 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
+                        <Icon Name="wallet" Class="size-3.5" />
+                    </span>
+                </div>
+                <div class="mt-2">
+                    <span class="text-xl sm:text-2xl font-bold font-mono text-emerald-600 tabular-nums">@Data.FastMoversCount</span>
+                </div>
+                <span class="mt-1 text-[11px] text-slate-400">High turnover bestsellers</span>
             </div>
-            <strong class="text-2xl mt-1 text-emerald-600">@Data.FastMoversCount</strong>
-            <span class="text-xs text-slate-400 mt-0.5">High turnover bestsellers</span>
-        </div>
 
-        <div class="metric bg-white border border-slate-200/80 shadow-xs">
-            <div class="flex items-center justify-between">
-                <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Audited Catalog Items</p>
-                <span class="inline-flex size-7 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
-                    <Icon Name="dashboard" Class="size-4" />
-                </span>
+            <div class="flex flex-col justify-between rounded-xl bg-slate-50/80 p-3.5 border border-slate-100 sm:border-0 sm:bg-slate-50/50 sm:p-4">
+                <div class="flex items-center justify-between">
+                    <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Audited Catalog Items</span>
+                    <span class="inline-flex size-6 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
+                        <Icon Name="dashboard" Class="size-3.5" />
+                    </span>
+                </div>
+                <div class="mt-2">
+                    <span class="text-xl sm:text-2xl font-bold font-mono text-slate-900 tabular-nums">@Data.Items.Count</span>
+                </div>
+                <span class="mt-1 text-[11px] text-slate-400">Products with positive stock</span>
             </div>
-            <strong class="text-2xl mt-1 text-slate-900">@Data.Items.Count</strong>
-            <span class="text-xs text-slate-400 mt-0.5">Products with positive stock</span>
         </div>
     </div>
 
@@ -194,12 +204,12 @@ else
     }
 
     <!-- Detailed Inventory Velocity Table -->
-    <section class="panel bg-white shadow-xs">
+    <section class="panel bg-white shadow-xs w-full max-w-full overflow-hidden">
         <div class="panel-heading border-b border-slate-100 px-5 py-4 flex items-center justify-between">
             <h2 class="text-base font-bold text-slate-800">Inventory Velocity Roster</h2>
             <span class="text-xs font-semibold text-slate-500">@Data.Items.Count products</span>
         </div>
-        <div class="table-scroll">
+        <div class="table-scroll w-full overflow-x-auto">
             <table class="data-table">
                 <thead>
                     <tr>
@@ -238,8 +248,8 @@ else
                             <td class="text-slate-600">@item.CategoryName</td>
                             <td class="text-slate-600">@item.SupplierName</td>
                             <td class="text-right tabular-nums font-semibold text-slate-900">@item.QuantityOnHand.ToString("N0")</td>
-                            <td class="text-right tabular-nums text-slate-500">@Money(item.CostPrice)</td>
-                            <td class="text-right tabular-nums font-semibold @(item.Tier == StockVelocityTier.Dead ? "text-rose-600 font-bold" : "text-slate-800")">
+                            <td class="text-right tabular-nums text-slate-500 whitespace-nowrap font-mono">@Money(item.CostPrice)</td>
+                            <td class="text-right tabular-nums font-semibold whitespace-nowrap font-mono @(item.Tier == StockVelocityTier.Dead ? "text-rose-600 font-bold" : "text-slate-800")">
                                 @Money(item.TiedUpCapital)
                             </td>
                             <td class="text-right tabular-nums text-slate-500 text-xs">
@@ -280,14 +290,14 @@ else
                 </tbody>
                 @if (Data.Items.Count > 0)
                 {
-                    <tfoot>
-                        <tr class="font-bold bg-slate-50/80 border-t-2 border-slate-200">
-                            <th colspan="3">Total (@Data.Items.Count products)</th>
-                            <th class="text-right tabular-nums">@Data.Items.Sum(i => i.QuantityOnHand).ToString("N0")</th>
-                            <th></th>
-                            <th class="text-right tabular-nums text-indigo-700">@Money(Data.Items.Sum(i => i.TiedUpCapital))</th>
-                            <th colspan="2"></th>
-                            <th class="text-right text-rose-600">@Money(Data.TotalDeadStockCapital) dead</th>
+                    <tfoot class="border-t-2 border-slate-200">
+                        <tr class="bg-slate-100/90 text-slate-900 font-bold">
+                            <th colspan="3" class="py-2.5 px-3 uppercase tracking-wider text-[11px] text-slate-600 whitespace-nowrap">Total (@Data.Items.Count products)</th>
+                            <td class="text-right tabular-nums whitespace-nowrap font-mono py-2.5 px-3">@Data.Items.Sum(i => i.QuantityOnHand).ToString("N0")</td>
+                            <td></td>
+                            <td class="text-right tabular-nums text-indigo-700 whitespace-nowrap font-mono py-2.5 px-3">@Money(Data.Items.Sum(i => i.TiedUpCapital))</td>
+                            <td colspan="2"></td>
+                            <td class="text-right text-rose-600 whitespace-nowrap font-mono py-2.5 px-3">@Money(Data.TotalDeadStockCapital) dead</td>
                         </tr>
                     </tfoot>
                 }

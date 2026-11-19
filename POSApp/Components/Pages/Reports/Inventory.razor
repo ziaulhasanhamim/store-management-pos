@@ -68,28 +68,39 @@
             <button type="submit" class="btn-secondary">Download CSV</button>
         </form>
     </details>
-    <div class="mb-6 grid gap-4 sm:grid-cols-3">
-        <div class="metric">
-            <p>Inventory value at cost price</p>
-            <strong class="text-2xl!">@Money(Data.TotalValue)</strong>
-            <span class="metric-note">@Data.Count items · includes archived stock</span>
+    <div class="panel mb-6 overflow-hidden bg-white p-3.5 sm:p-5 shadow-xs">
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
+            <div class="flex flex-col justify-between rounded-xl bg-slate-50/80 p-3.5 border border-slate-100 sm:border-0 sm:bg-slate-50/50 sm:p-4">
+                <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Inventory value at cost</span>
+                <div class="mt-2">
+                    <span class="text-xl sm:text-2xl font-bold font-mono text-slate-900">@Money(Data.TotalValue)</span>
+                </div>
+                <span class="mt-1 text-[11px] text-slate-400">@Data.Count items · includes archived</span>
+            </div>
+            @if (Data.SupplierDue is not null)
+            {
+                var due = Data.SupplierDue.Value;
+                <div class="flex flex-col justify-between rounded-xl bg-slate-50/80 p-3.5 border border-slate-100 sm:border-0 sm:bg-slate-50/50 sm:p-4">
+                    <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Supplier balance</span>
+                    <div class="mt-2">
+                        <span class="text-xl sm:text-2xl font-bold font-mono text-amber-700">@Money(due)</span>
+                    </div>
+                    <span class="mt-1 text-[11px] text-slate-400">Outstanding payables</span>
+                </div>
+                <div class="flex flex-col justify-between rounded-xl bg-emerald-50/60 p-3.5 border border-emerald-100 sm:border-0 sm:bg-emerald-50/50 sm:p-4">
+                    <span class="text-[11px] font-semibold uppercase tracking-wider text-emerald-800">Value less supplier balance</span>
+                    <div class="mt-2">
+                        <span class="text-xl sm:text-2xl font-bold font-mono text-emerald-700">@Money(Data.TotalValue - due)</span>
+                    </div>
+                    <span class="mt-1 text-[11px] text-emerald-600/80">Net inventory equity</span>
+                </div>
+            }
         </div>
-        @if (Data.SupplierDue is not null)
-        {
-            var due = Data.SupplierDue.Value;
-            <div class="metric">
-                <p>Supplier balance</p>
-                <strong class="text-2xl!">@Money(due)</strong>
-            </div>
-            <div class="metric">
-                <p>Inventory value less supplier balance</p>
-                <strong class="text-2xl!">@Money(Data.TotalValue - due)</strong>
-            </div>
-        }
     </div>
 }
 
-<section class="panel table-scroll">
+<section class="panel w-full max-w-full overflow-hidden">
+    <div class="table-scroll w-full overflow-x-auto">
     @if (Data is null)
     {
         <table class="data-table compact-table w-full" aria-busy="true">
@@ -152,13 +163,14 @@
                 </ChildContent>
             </TemplateColumn>
         </QuickGrid>
-        @if (Data is not null && Data.Rows.Count > 0)
-        {
-            <div class="border-t border-slate-200 bg-slate-50/80 px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs">
-                <span class="font-medium text-slate-600">This page value: <strong class="text-slate-900">@Money(Data.Rows.Sum(row => row.Value))</strong></span>
-                <span class="font-medium text-slate-600">All matching items (@Data.Count): <strong class="text-emerald-700 font-bold">@Money(Data.TotalValue)</strong></span>
-            </div>
-        }
+    }
+    </div>
+    @if (Data is not null && Data.Rows.Count > 0)
+    {
+        <div class="border-t border-slate-200 bg-slate-50/90 px-4 py-3 flex flex-wrap items-center justify-between gap-3 text-xs overflow-x-auto whitespace-nowrap">
+            <span class="font-medium text-slate-600 whitespace-nowrap">This page value: <strong class="text-slate-900 font-mono">@Money(Data.Rows.Sum(row => row.Value))</strong></span>
+            <span class="font-medium text-slate-600 whitespace-nowrap">All matching items (@Data.Count): <strong class="text-emerald-700 font-bold font-mono">@Money(Data.TotalValue)</strong></span>
+        </div>
     }
 </section>
 @if (Data is not null)

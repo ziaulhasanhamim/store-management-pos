@@ -24,22 +24,43 @@
 {
     <section class="print-area">
         <p class="mb-5 text-sm text-slate-500">@Data.Range.Start.ToString("dd MMM yyyy") – @Data.Range.End.ToString("dd MMM yyyy")</p>
-        <div class="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <div class="metric">
-                <p>Net revenue</p>
-                <strong class="text-2xl!">@Money(Data.Revenue)</strong>
-            </div>
-            <div class="metric">
-                <p>Cost of goods sold</p>
-                <strong class="text-2xl!">@Money(Data.Cogs)</strong>
-            </div>
-            <div class="metric">
-                <p>Gross profit</p>
-                <strong class="text-2xl!">@Money(Data.Revenue - Data.Cogs)</strong>
-            </div>
-            <div class="metric">
-                <p>Net profit</p>
-                <strong class="text-2xl!">@Money(Data.Revenue - Data.Cogs - Data.Expenses - Data.Salaries + Data.StockVariance)</strong>
+        <div class="panel mb-6 overflow-hidden bg-white p-3.5 sm:p-5 shadow-xs">
+            <div class="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+                <div class="flex flex-col justify-between rounded-xl bg-slate-50/80 p-3.5 border border-slate-100 sm:border-0 sm:bg-slate-50/50 sm:p-4">
+                    <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Net revenue</span>
+                    <div class="mt-2">
+                        <span class="text-xl sm:text-2xl font-bold font-mono text-slate-900">@Money(Data.Revenue)</span>
+                    </div>
+                    <span class="mt-1 text-[11px] text-slate-400">Sales volume</span>
+                </div>
+                <div class="flex flex-col justify-between rounded-xl bg-slate-50/80 p-3.5 border border-slate-100 sm:border-0 sm:bg-slate-50/50 sm:p-4">
+                    <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Cost of goods sold</span>
+                    <div class="mt-2">
+                        <span class="text-xl sm:text-2xl font-bold font-mono text-slate-600">@Money(Data.Cogs)</span>
+                    </div>
+                    <span class="mt-1 text-[11px] text-slate-400">Inventory cost</span>
+                </div>
+                @{
+                    var grossProfit = Data.Revenue - Data.Cogs;
+                    var netProfit = grossProfit - Data.Expenses - Data.Salaries + Data.StockVariance;
+                }
+                <div class="flex flex-col justify-between rounded-xl bg-emerald-50/60 p-3.5 border border-emerald-100 sm:border-0 sm:bg-emerald-50/50 sm:p-4">
+                    <span class="text-[11px] font-semibold uppercase tracking-wider text-emerald-800">Gross profit</span>
+                    <div class="mt-2">
+                        <span class="text-xl sm:text-2xl font-bold font-mono text-emerald-700">@Money(grossProfit)</span>
+                    </div>
+                    @{
+                        var margin = Data.Revenue > 0 ? (grossProfit / Data.Revenue * 100) : 0;
+                    }
+                    <span class="mt-1 text-[11px] font-medium text-emerald-600">@margin.ToString("0.0")% margin</span>
+                </div>
+                <div class="flex flex-col justify-between rounded-xl @(netProfit < 0 ? "bg-rose-50/60 border-rose-100" : "bg-indigo-50/60 border-indigo-100") p-3.5 border sm:border-0 sm:p-4">
+                    <span class="text-[11px] font-semibold uppercase tracking-wider @(netProfit < 0 ? "text-rose-800" : "text-indigo-800")">Net profit</span>
+                    <div class="mt-2">
+                        <span class="text-xl sm:text-2xl font-bold font-mono @(netProfit < 0 ? "text-rose-700" : "text-indigo-700")">@Money(netProfit)</span>
+                    </div>
+                    <span class="mt-1 text-[11px] @(netProfit < 0 ? "text-rose-600/80" : "text-indigo-600/80")">After operating costs</span>
+                </div>
             </div>
         </div>
         <div class="mb-6 grid gap-6 lg:grid-cols-2">
@@ -99,55 +120,57 @@
         </div>
     </section>
 }
-<section class="panel table-scroll">
-    <table class="data-table" aria-busy="@(Data is null && Error is null)">
-        <thead>
-            <tr>
-                <th>Period start</th>
-                <th class="text-right">Revenue</th>
-                <th class="text-right">COGS</th>
-                <th class="text-right">Gross profit</th>
-                <th class="text-right">Expenses</th>
-                <th class="text-right">Salaries</th>
-                <th class="text-right">Stock gain / loss</th>
-                <th class="text-right">Net profit</th>
-            </tr>
-        </thead>
-        <tbody>
-            @if (Data is null)
-            {
-                <TableStatusRow Columns="8" Loading="@(Error is null)" Error="@(Error is not null)" Message="@(Error ?? "Calculating profit & loss…")" />
-            }
-            @foreach (var row in OrderedPeriods)
-            {
+<section class="panel w-full max-w-full overflow-hidden">
+    <div class="table-scroll w-full overflow-x-auto">
+        <table class="data-table" aria-busy="@(Data is null && Error is null)">
+            <thead>
                 <tr>
-                    <td>@row.Label</td>
-                    <td class="text-right">@Money(row.Revenue)</td>
-                    <td class="text-right">@Money(row.Cogs)</td>
-                    <td class="text-right">@Money(row.Revenue - row.Cogs)</td>
-                    <td class="text-right">@Money(row.Expenses)</td>
-                    <td class="text-right">@Money(row.Salaries)</td>
-                    <td class="text-right">@Money(row.StockVariance)</td>
-                    <td class="text-right font-semibold">@Money(row.Revenue - row.Cogs - row.Expenses - row.Salaries + row.StockVariance)</td>
+                    <th>Period start</th>
+                    <th class="text-right">Revenue</th>
+                    <th class="text-right">COGS</th>
+                    <th class="text-right">Gross profit</th>
+                    <th class="text-right">Expenses</th>
+                    <th class="text-right">Salaries</th>
+                    <th class="text-right">Stock gain / loss</th>
+                    <th class="text-right">Net profit</th>
                 </tr>
+            </thead>
+            <tbody>
+                @if (Data is null)
+                {
+                    <TableStatusRow Columns="8" Loading="@(Error is null)" Error="@(Error is not null)" Message="@(Error ?? "Calculating profit & loss…")" />
+                }
+                @foreach (var row in OrderedPeriods)
+                {
+                    <tr>
+                        <td>@row.Label</td>
+                        <td class="text-right whitespace-nowrap font-mono">@Money(row.Revenue)</td>
+                        <td class="text-right whitespace-nowrap font-mono">@Money(row.Cogs)</td>
+                        <td class="text-right whitespace-nowrap font-mono">@Money(row.Revenue - row.Cogs)</td>
+                        <td class="text-right whitespace-nowrap font-mono">@Money(row.Expenses)</td>
+                        <td class="text-right whitespace-nowrap font-mono">@Money(row.Salaries)</td>
+                        <td class="text-right whitespace-nowrap font-mono">@Money(row.StockVariance)</td>
+                        <td class="text-right whitespace-nowrap font-mono font-semibold">@Money(row.Revenue - row.Cogs - row.Expenses - row.Salaries + row.StockVariance)</td>
+                    </tr>
+                }
+            </tbody>
+            @if (Data is not null)
+            {
+                <tfoot class="border-t-2 border-slate-200">
+                    <tr class="bg-slate-100/90 text-slate-900 font-bold">
+                        <th class="py-2.5 px-3 uppercase tracking-wider text-[11px] text-slate-600 whitespace-nowrap">Period total</th>
+                        <td class="text-right whitespace-nowrap font-mono py-2.5 px-3">@Money(Data.Revenue)</td>
+                        <td class="text-right whitespace-nowrap font-mono py-2.5 px-3">@Money(Data.Cogs)</td>
+                        <td class="text-right whitespace-nowrap font-mono py-2.5 px-3">@Money(Data.Revenue - Data.Cogs)</td>
+                        <td class="text-right whitespace-nowrap font-mono py-2.5 px-3">@Money(Data.Expenses)</td>
+                        <td class="text-right whitespace-nowrap font-mono py-2.5 px-3">@Money(Data.Salaries)</td>
+                        <td class="text-right whitespace-nowrap font-mono py-2.5 px-3">@Money(Data.StockVariance)</td>
+                        <td class="text-right whitespace-nowrap font-mono py-2.5 px-3 font-bold">@Money(Data.Revenue - Data.Cogs - Data.Expenses - Data.Salaries + Data.StockVariance)</td>
+                    </tr>
+                </tfoot>
             }
-        </tbody>
-        @if (Data is not null)
-        {
-            <tfoot>
-                <tr>
-                    <th>Period total</th>
-                    <td class="text-right">@Money(Data.Revenue)</td>
-                    <td class="text-right">@Money(Data.Cogs)</td>
-                    <td class="text-right">@Money(Data.Revenue - Data.Cogs)</td>
-                    <td class="text-right">@Money(Data.Expenses)</td>
-                    <td class="text-right">@Money(Data.Salaries)</td>
-                    <td class="text-right">@Money(Data.StockVariance)</td>
-                    <td class="text-right">@Money(Data.Revenue - Data.Cogs - Data.Expenses - Data.Salaries + Data.StockVariance)</td>
-                </tr>
-            </tfoot>
-        }
-    </table>
+        </table>
+    </div>
     @if (Data is not null && Data.Periods.Count == 0)
     {
         <p class="p-6 text-sm text-slate-500">No activity in this period.</p>

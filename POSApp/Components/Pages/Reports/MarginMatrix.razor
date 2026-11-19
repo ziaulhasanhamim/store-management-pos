@@ -114,55 +114,69 @@ else
         </form>
     </div>
 
-    <!-- Summary KPI Quadrant Cards -->
-    <div class="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <!-- Stars Card -->
-        <a href="@QuadrantLink("star")" class="metric bg-white border border-indigo-200/80 shadow-xs hover:border-indigo-400 transition-all cursor-pointer @(QuadrantFilter == "star" ? "ring-2 ring-indigo-500 bg-indigo-50/20" : "")">
-            <div class="flex items-center justify-between">
-                <p class="text-xs font-bold uppercase tracking-wider text-indigo-700">⭐ Stars</p>
-                <span class="inline-flex size-7 items-center justify-center rounded-lg bg-indigo-100 text-indigo-700 text-xs font-bold">
-                    @Data.StarsCount
-                </span>
-            </div>
-            <strong class="text-2xl mt-1 text-indigo-700">@Data.StarsCount items</strong>
-            <span class="text-xs text-slate-500 mt-0.5">High Volume & High Margin</span>
-        </a>
+    <!-- Summary KPI Quadrant Strip -->
+    <div class="panel mb-6 overflow-hidden bg-white p-3.5 sm:p-5 shadow-xs">
+        <div class="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+            <!-- Stars Card -->
+            <a href="@QuadrantLink("star")" class="flex flex-col justify-between rounded-xl p-3.5 border transition-all cursor-pointer @(QuadrantFilter == "star" ? "ring-2 ring-indigo-500 bg-indigo-50/40 border-indigo-200" : "bg-slate-50/80 border-slate-100 hover:border-indigo-300 sm:border sm:border-slate-100 sm:bg-slate-50/50 sm:p-4")">
+                <div class="flex items-center justify-between">
+                    <span class="text-[11px] font-bold uppercase tracking-wider text-indigo-700">⭐ Stars</span>
+                    <span class="inline-flex size-6 items-center justify-center rounded-lg bg-indigo-100 text-indigo-700 text-xs font-bold">
+                        @Data.StarsCount
+                    </span>
+                </div>
+                <div class="mt-2">
+                    <span class="text-xl sm:text-2xl font-bold font-mono text-indigo-700 tabular-nums">@Data.StarsCount</span>
+                    <span class="text-xs text-slate-500 ml-1">items</span>
+                </div>
+                <span class="mt-1 text-[11px] text-slate-500">High Volume & High Margin</span>
+            </a>
 
-        <!-- Cash Cows Card -->
-        <a href="@QuadrantLink("cashcow")" class="metric bg-white border border-blue-200/80 shadow-xs hover:border-blue-400 transition-all cursor-pointer @(QuadrantFilter == "cashcow" ? "ring-2 ring-blue-500 bg-blue-50/20" : "")">
-            <div class="flex items-center justify-between">
-                <p class="text-xs font-bold uppercase tracking-wider text-blue-700">💰 Cash Cows</p>
-                <span class="inline-flex size-7 items-center justify-center rounded-lg bg-blue-100 text-blue-700 text-xs font-bold">
-                    @Data.CashCowsCount
-                </span>
-            </div>
-            <strong class="text-2xl mt-1 text-blue-700">@Data.CashCowsCount items</strong>
-            <span class="text-xs text-slate-500 mt-0.5">High Volume & Lower Margin</span>
-        </a>
+            <!-- Cash Cows Card -->
+            <a href="@QuadrantLink("cashcow")" class="flex flex-col justify-between rounded-xl p-3.5 border transition-all cursor-pointer @(QuadrantFilter == "cashcow" ? "ring-2 ring-blue-500 bg-blue-50/40 border-blue-200" : "bg-slate-50/80 border-slate-100 hover:border-blue-300 sm:border sm:border-slate-100 sm:bg-slate-50/50 sm:p-4")">
+                <div class="flex items-center justify-between">
+                    <span class="text-[11px] font-bold uppercase tracking-wider text-blue-700">💰 Cash Cows</span>
+                    <span class="inline-flex size-6 items-center justify-center rounded-lg bg-blue-100 text-blue-700 text-xs font-bold">
+                        @Data.CashCowsCount
+                    </span>
+                </div>
+                <div class="mt-2">
+                    <span class="text-xl sm:text-2xl font-bold font-mono text-blue-700 tabular-nums">@Data.CashCowsCount</span>
+                    <span class="text-xs text-slate-500 ml-1">items</span>
+                </div>
+                <span class="mt-1 text-[11px] text-slate-500">High Volume & Lower Margin</span>
+            </a>
 
-        <!-- Opportunities Card -->
-        <a href="@QuadrantLink("opportunity")" class="metric bg-white border border-emerald-200/80 shadow-xs hover:border-emerald-400 transition-all cursor-pointer @(QuadrantFilter == "opportunity" ? "ring-2 ring-emerald-500 bg-emerald-50/20" : "")">
-            <div class="flex items-center justify-between">
-                <p class="text-xs font-bold uppercase tracking-wider text-emerald-700">🚀 Opportunities</p>
-                <span class="inline-flex size-7 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700 text-xs font-bold">
-                    @Data.OpportunitiesCount
-                </span>
-            </div>
-            <strong class="text-2xl mt-1 text-emerald-700">@Data.OpportunitiesCount items</strong>
-            <span class="text-xs text-slate-500 mt-0.5">Low Volume & High Margin</span>
-        </a>
+            <!-- Opportunities Card -->
+            <a href="@QuadrantLink("opportunity")" class="flex flex-col justify-between rounded-xl p-3.5 border transition-all cursor-pointer @(QuadrantFilter == "opportunity" ? "ring-2 ring-emerald-500 bg-emerald-50/40 border-emerald-200" : "bg-slate-50/80 border-slate-100 hover:border-emerald-300 sm:border sm:border-slate-100 sm:bg-slate-50/50 sm:p-4")">
+                <div class="flex items-center justify-between">
+                    <span class="text-[11px] font-bold uppercase tracking-wider text-emerald-700">🚀 Opportunities</span>
+                    <span class="inline-flex size-6 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700 text-xs font-bold">
+                        @Data.OpportunitiesCount
+                    </span>
+                </div>
+                <div class="mt-2">
+                    <span class="text-xl sm:text-2xl font-bold font-mono text-emerald-700 tabular-nums">@Data.OpportunitiesCount</span>
+                    <span class="text-xs text-slate-500 ml-1">items</span>
+                </div>
+                <span class="mt-1 text-[11px] text-slate-500">Low Volume & High Margin</span>
+            </a>
 
-        <!-- Laggards Card -->
-        <a href="@QuadrantLink("laggard")" class="metric bg-white border border-slate-200/80 shadow-xs hover:border-amber-400 transition-all cursor-pointer @(QuadrantFilter == "laggard" ? "ring-2 ring-amber-500 bg-amber-50/20" : "")">
-            <div class="flex items-center justify-between">
-                <p class="text-xs font-bold uppercase tracking-wider text-slate-600">⚠️ Laggards</p>
-                <span class="inline-flex size-7 items-center justify-center rounded-lg bg-slate-100 text-slate-700 text-xs font-bold">
-                    @Data.LaggardsCount
-                </span>
-            </div>
-            <strong class="text-2xl mt-1 text-slate-700">@Data.LaggardsCount items</strong>
-            <span class="text-xs text-slate-500 mt-0.5">Low Volume & Lower Margin</span>
-        </a>
+            <!-- Laggards Card -->
+            <a href="@QuadrantLink("laggard")" class="flex flex-col justify-between rounded-xl p-3.5 border transition-all cursor-pointer @(QuadrantFilter == "laggard" ? "ring-2 ring-amber-500 bg-amber-50/40 border-amber-200" : "bg-slate-50/80 border-slate-100 hover:border-amber-300 sm:border sm:border-slate-100 sm:bg-slate-50/50 sm:p-4")">
+                <div class="flex items-center justify-between">
+                    <span class="text-[11px] font-bold uppercase tracking-wider text-slate-600">⚠️ Laggards</span>
+                    <span class="inline-flex size-6 items-center justify-center rounded-lg bg-slate-100 text-slate-700 text-xs font-bold">
+                        @Data.LaggardsCount
+                    </span>
+                </div>
+                <div class="mt-2">
+                    <span class="text-xl sm:text-2xl font-bold font-mono text-slate-700 tabular-nums">@Data.LaggardsCount</span>
+                    <span class="text-xs text-slate-500 ml-1">items</span>
+                </div>
+                <span class="mt-1 text-[11px] text-slate-500">Low Volume & Lower Margin</span>
+            </a>
+        </div>
     </div>
 
     <!-- Visual Charts & Quadrant Breakdown -->
@@ -263,7 +277,7 @@ else
     </div>
 
     <!-- Product Matrix Table -->
-    <section class="panel bg-white border border-slate-200/80 shadow-xs rounded-xl overflow-hidden mb-8">
+    <section class="panel bg-white border border-slate-200/80 shadow-xs rounded-xl overflow-hidden mb-8 w-full max-w-full">
         <div class="border-b border-slate-200/80 px-5 py-4 flex flex-wrap items-center justify-between gap-3">
             <div>
                 <h2 class="text-base font-bold text-slate-800">Product Portfolio Matrix</h2>
@@ -274,7 +288,7 @@ else
             </div>
         </div>
 
-        <div class="table-scroll">
+        <div class="table-scroll w-full overflow-x-auto">
             <table class="data-table">
                 <thead>
                     <tr>
@@ -309,9 +323,9 @@ else
                             </td>
                             <td class="text-slate-600">@item.CategoryName</td>
                             <td class="text-right tabular-nums font-semibold text-slate-800">@item.UnitsSold.ToString("N0")</td>
-                            <td class="text-right tabular-nums font-semibold text-blue-700">@Money(item.TotalRevenue)</td>
-                            <td class="text-right tabular-nums text-slate-500">@Money(item.TotalCost)</td>
-                            <td class="text-right tabular-nums font-bold @(item.TotalProfit < 0 ? "text-rose-600" : "text-emerald-700")">
+                            <td class="text-right tabular-nums font-semibold text-blue-700 whitespace-nowrap font-mono">@Money(item.TotalRevenue)</td>
+                            <td class="text-right tabular-nums text-slate-500 whitespace-nowrap font-mono">@Money(item.TotalCost)</td>
+                            <td class="text-right tabular-nums font-bold whitespace-nowrap font-mono @(item.TotalProfit < 0 ? "text-rose-600" : "text-emerald-700")">
                                 @Money(item.TotalProfit)
                             </td>
                             <td class="text-right tabular-nums">
@@ -399,14 +413,14 @@ else
                 </tbody>
                 @if (FilteredItems.Count > 0)
                 {
-                    <tfoot>
-                        <tr class="font-bold bg-slate-50/80 border-t-2 border-slate-200">
-                            <th colspan="2">Filtered Total (@FilteredItems.Count products)</th>
-                            <th class="text-right tabular-nums">@FilteredItems.Sum(i => i.UnitsSold).ToString("N0")</th>
-                            <th class="text-right tabular-nums text-blue-700">@Money(FilteredItems.Sum(i => i.TotalRevenue))</th>
-                            <th class="text-right tabular-nums text-slate-600">@Money(FilteredItems.Sum(i => i.TotalCost))</th>
-                            <th class="text-right tabular-nums text-emerald-700">@Money(FilteredItems.Sum(i => i.TotalProfit))</th>
-                            <th colspan="4"></th>
+                    <tfoot class="border-t-2 border-slate-200">
+                        <tr class="bg-slate-100/90 text-slate-900 font-bold">
+                            <th colspan="2" class="py-2.5 px-3 uppercase tracking-wider text-[11px] text-slate-600 whitespace-nowrap">Filtered Total (@FilteredItems.Count products)</th>
+                            <td class="text-right tabular-nums whitespace-nowrap font-mono py-2.5 px-3">@FilteredItems.Sum(i => i.UnitsSold).ToString("N0")</td>
+                            <td class="text-right tabular-nums text-blue-700 whitespace-nowrap font-mono py-2.5 px-3">@Money(FilteredItems.Sum(i => i.TotalRevenue))</td>
+                            <td class="text-right tabular-nums text-slate-600 whitespace-nowrap font-mono py-2.5 px-3">@Money(FilteredItems.Sum(i => i.TotalCost))</td>
+                            <td class="text-right tabular-nums text-emerald-700 whitespace-nowrap font-mono py-2.5 px-3">@Money(FilteredItems.Sum(i => i.TotalProfit))</td>
+                            <td colspan="4"></td>
                         </tr>
                     </tfoot>
                 }

@@ -121,7 +121,7 @@
     }
 
     .panel {
-        @apply w-full min-w-0 overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-xs transition duration-200;
+        @apply w-full min-w-0 max-w-full overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-xs transition duration-200;
     }
 
     .panel-heading {
@@ -209,7 +209,7 @@
     }
 
     .table-scroll {
-        @apply w-full max-w-full overflow-x-auto;
+        @apply w-full min-w-0 max-w-full overflow-x-auto;
         -webkit-overflow-scrolling: touch;
     }
 
@@ -1118,6 +1118,12 @@ table.quickgrid {
     height: 10px;
     background: #f8fafc;
     border-bottom: 1px solid #f1f5f9;
+}
+
+@media (max-width: 640px) {
+    .table-top-scroll {
+        display: none !important;
+    }
 }
 
 .table-top-scroll-inner {

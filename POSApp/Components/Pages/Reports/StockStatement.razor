@@ -64,31 +64,48 @@
 
 @if (Data is not null)
 {
-    <div class="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-        <div class="metric">
-            <p>Opening stock</p>
-            <strong>@Data.OpeningQuantity.ToString("0.###") @Data.Unit</strong>
-        </div>
-        <div class="metric">
-            <p>Total received / in</p>
-            <strong class="text-emerald-700">+@Data.InQuantity.ToString("0.###") @Data.Unit</strong>
-        </div>
-        <div class="metric">
-            <p>Total sold / out</p>
-            <strong class="text-rose-700">-@Data.OutQuantity.ToString("0.###") @Data.Unit</strong>
-        </div>
-        <div class="metric">
-            <p>Closing stock</p>
-            <strong>@Data.ClosingQuantity.ToString("0.###") @Data.Unit</strong>
-        </div>
-        <div class="metric">
-            <p>Current stock value</p>
-            <strong>@Money(Data.ClosingValue)</strong>
-            <span class="text-xs text-slate-500">@@ @Money(Data.CurrentCostPrice) / @Data.Unit</span>
+    <div class="panel mb-6 overflow-hidden bg-white p-3.5 sm:p-5 shadow-xs">
+        <div class="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-5">
+            <div class="flex flex-col justify-between rounded-xl bg-slate-50/80 p-3.5 border border-slate-100 sm:border-0 sm:bg-slate-50/50 sm:p-4">
+                <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Opening stock</span>
+                <div class="mt-2">
+                    <span class="text-lg sm:text-xl font-bold font-mono text-slate-900">@Data.OpeningQuantity.ToString("0.###") <small class="text-xs text-slate-500 font-normal">@Data.Unit</small></span>
+                </div>
+                <span class="mt-1 text-[11px] text-slate-400">Start of period</span>
+            </div>
+            <div class="flex flex-col justify-between rounded-xl bg-emerald-50/50 p-3.5 border border-emerald-100/80 sm:p-4">
+                <span class="text-[11px] font-semibold uppercase tracking-wider text-emerald-800">Total received / in</span>
+                <div class="mt-2">
+                    <span class="text-lg sm:text-xl font-bold font-mono text-emerald-700">+@Data.InQuantity.ToString("0.###") <small class="text-xs text-emerald-600 font-normal">@Data.Unit</small></span>
+                </div>
+                <span class="mt-1 text-[11px] text-emerald-600/80">Purchases & transfers</span>
+            </div>
+            <div class="flex flex-col justify-between rounded-xl bg-rose-50/50 p-3.5 border border-rose-100/80 sm:p-4">
+                <span class="text-[11px] font-semibold uppercase tracking-wider text-rose-800">Total sold / out</span>
+                <div class="mt-2">
+                    <span class="text-lg sm:text-xl font-bold font-mono text-rose-700">-@Data.OutQuantity.ToString("0.###") <small class="text-xs text-rose-600 font-normal">@Data.Unit</small></span>
+                </div>
+                <span class="mt-1 text-[11px] text-rose-600/80">Sales & write-offs</span>
+            </div>
+            <div class="flex flex-col justify-between rounded-xl bg-slate-50/80 p-3.5 border border-slate-100 sm:border-0 sm:bg-slate-50/50 sm:p-4">
+                <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Closing stock</span>
+                <div class="mt-2">
+                    <span class="text-lg sm:text-xl font-bold font-mono text-slate-900">@Data.ClosingQuantity.ToString("0.###") <small class="text-xs text-slate-500 font-normal">@Data.Unit</small></span>
+                </div>
+                <span class="mt-1 text-[11px] text-slate-400">End of period</span>
+            </div>
+            <div class="col-span-2 sm:col-span-1 flex flex-col justify-between rounded-xl bg-slate-50/80 p-3.5 border border-slate-100 sm:border-0 sm:bg-slate-50/50 sm:p-4">
+                <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Current stock value</span>
+                <div class="mt-2">
+                    <span class="text-lg sm:text-xl font-bold font-mono text-slate-900">@Money(Data.ClosingValue)</span>
+                </div>
+                <span class="mt-1 text-[11px] text-slate-400">@@ @Money(Data.CurrentCostPrice) / @Data.Unit</span>
+            </div>
         </div>
     </div>
 
-    <section class="panel table-scroll">
+    <section class="panel w-full max-w-full overflow-hidden">
+        <div class="table-scroll w-full overflow-x-auto">
         <table class="data-table">
             <thead>
                 <tr>
@@ -141,6 +158,7 @@
                 }
             </tbody>
         </table>
+        </div>
     </section>
 
     @if (TotalPages > 1)

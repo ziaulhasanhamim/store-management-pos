@@ -98,34 +98,44 @@
 }
 else
 {
-    <!-- KPI Summary Cards -->
-    <div class="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <div class="metric rounded-2xl border border-rose-100 bg-white p-5 shadow-xs">
-            <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Total Expenses</p>
-            <strong class="text-2xl! font-bold text-rose-700 tabular-nums">@Money(Data.TotalExpenses)</strong>
-            <p class="mt-1 text-xs text-slate-500">@Data.Items.Count expense entries in period</p>
-        </div>
+    <!-- KPI Summary Strip -->
+    <div class="panel mb-6 overflow-hidden bg-white p-3.5 sm:p-5 shadow-xs">
+        <div class="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+            <div class="flex flex-col justify-between rounded-xl bg-rose-50/70 p-3.5 border border-rose-200/80 sm:p-4">
+                <span class="text-[11px] font-semibold uppercase tracking-wider text-rose-700">Total Expenses</span>
+                <div class="mt-2">
+                    <span class="text-xl sm:text-2xl font-bold font-mono text-rose-700 tabular-nums">@Money(Data.TotalExpenses)</span>
+                </div>
+                <span class="mt-1 text-[11px] text-rose-600/80">@Data.Items.Count entries in period</span>
+            </div>
 
-        <div class="metric rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
-            <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Highest Spending Store</p>
-            <strong class="text-2xl! font-bold text-slate-900 truncate block">@(Data.TopLocationName ?? "—")</strong>
-            <p class="mt-1 text-xs text-slate-500 tabular-nums">
-                @Money(Data.TopLocationAmount) (@Data.TopLocationPercentage.ToString("0.0")% of company total)
-            </p>
-        </div>
+            <div class="flex flex-col justify-between rounded-xl bg-slate-50/80 p-3.5 border border-slate-100 sm:border-0 sm:bg-slate-50/50 sm:p-4">
+                <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Highest Spending Store</span>
+                <div class="mt-2 truncate">
+                    <span class="text-lg sm:text-xl font-bold text-slate-900 truncate block">@(Data.TopLocationName ?? "—")</span>
+                </div>
+                <span class="mt-1 text-[11px] font-mono text-slate-400">
+                    @Money(Data.TopLocationAmount) (@Data.TopLocationPercentage.ToString("0.0")%)
+                </span>
+            </div>
 
-        <div class="metric rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
-            <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Top Expense Category</p>
-            <strong class="text-2xl! font-bold text-slate-900 truncate block">@(Data.TopCategoryName ?? "—")</strong>
-            <p class="mt-1 text-xs text-slate-500 tabular-nums">
-                @Money(Data.TopCategoryAmount) (@Data.TopCategoryPercentage.ToString("0.0")% of spend)
-            </p>
-        </div>
+            <div class="flex flex-col justify-between rounded-xl bg-slate-50/80 p-3.5 border border-slate-100 sm:border-0 sm:bg-slate-50/50 sm:p-4">
+                <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Top Expense Category</span>
+                <div class="mt-2 truncate">
+                    <span class="text-lg sm:text-xl font-bold text-slate-900 truncate block">@(Data.TopCategoryName ?? "—")</span>
+                </div>
+                <span class="mt-1 text-[11px] font-mono text-slate-400">
+                    @Money(Data.TopCategoryAmount) (@Data.TopCategoryPercentage.ToString("0.0")%)
+                </span>
+            </div>
 
-        <div class="metric rounded-2xl border border-indigo-100 bg-white p-5 shadow-xs">
-            <p class="text-xs font-semibold text-indigo-700 uppercase tracking-wider">Payment Processing Fees</p>
-            <strong class="text-2xl! font-bold text-indigo-700 tabular-nums">@Money(Data.ProcessingFeesTotal)</strong>
-            <p class="mt-1 text-xs text-slate-500">Merchant card & wallet settlement fees</p>
+            <div class="flex flex-col justify-between rounded-xl bg-indigo-50/60 p-3.5 border border-indigo-100 sm:border-0 sm:bg-indigo-50/50 sm:p-4">
+                <span class="text-[11px] font-semibold uppercase tracking-wider text-indigo-700">Processing Fees</span>
+                <div class="mt-2">
+                    <span class="text-xl sm:text-2xl font-bold font-mono text-indigo-700 tabular-nums">@Money(Data.ProcessingFeesTotal)</span>
+                </div>
+                <span class="mt-1 text-[11px] text-indigo-600/80">Settlement fees</span>
+            </div>
         </div>
     </div>
 

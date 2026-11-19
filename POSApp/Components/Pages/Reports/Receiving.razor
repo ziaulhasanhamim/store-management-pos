@@ -30,128 +30,177 @@
             @Data.Range.Start.ToString("dd MMM yyyy") – @Data.Range.End.ToString("dd MMM yyyy") ·
             @(Data.Locations.FirstOrDefault(location => location.Id == LocationId)?.Name ?? "All locations")
         </p>
-        <div class="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-            <div class="metric">
-                <p>Purchases / supplier returns</p>
-                <strong class="text-2xl!">@Money(Data.PurchaseValue)</strong>
-            </div>
-            <div class="metric">
-                <p>Purchase payments</p>
-                <strong class="text-2xl!">@Money(Data.SupplierPaid)</strong>
-                <span class="metric-note">Unpaid / credit @Money(Data.SupplierUnpaid)</span>
-            </div>
-            <div class="metric">
-                <p>Transfers in</p>
-                <strong class="text-2xl!">@Money(Data.TransferInValue)</strong>
-            </div>
-            <div class="metric">
-                <p>Transfers out</p>
-                <strong class="text-2xl!">@Money(Data.TransferOutValue)</strong>
-            </div>
-            <div class="metric">
-                <p>Net received value</p>
-                <strong class="text-2xl!">@Money(Data.NetValue)</strong>
+        <div class="panel mb-6 overflow-hidden bg-white p-3.5 sm:p-5 shadow-xs">
+            <div class="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-5">
+                <div class="flex flex-col justify-between rounded-xl bg-slate-50/80 p-3.5 border border-slate-100 sm:border-0 sm:bg-slate-50/50 sm:p-4">
+                    <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Purchases & returns</span>
+                    <div class="mt-2">
+                        <span class="text-xl sm:text-2xl font-bold font-mono text-slate-900">@Money(Data.PurchaseValue)</span>
+                    </div>
+                    <span class="mt-1 text-[11px] text-slate-400">Total gross value</span>
+                </div>
+                <div class="flex flex-col justify-between rounded-xl bg-slate-50/80 p-3.5 border border-slate-100 sm:border-0 sm:bg-slate-50/50 sm:p-4">
+                    <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Purchase payments</span>
+                    <div class="mt-2">
+                        <span class="text-xl sm:text-2xl font-bold font-mono text-slate-900">@Money(Data.SupplierPaid)</span>
+                    </div>
+                    <span class="mt-1 text-[11px] font-mono font-medium @(Data.SupplierUnpaid > 0 ? "text-rose-600" : "text-slate-400")">
+                        @(Data.SupplierUnpaid > 0 ? "Unpaid: " : "Credit: ")@Money(Math.Abs(Data.SupplierUnpaid))
+                    </span>
+                </div>
+                <div class="flex flex-col justify-between rounded-xl bg-slate-50/80 p-3.5 border border-slate-100 sm:border-0 sm:bg-slate-50/50 sm:p-4">
+                    <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Transfers in</span>
+                    <div class="mt-2">
+                        <span class="text-xl sm:text-2xl font-bold font-mono text-emerald-700">@Money(Data.TransferInValue)</span>
+                    </div>
+                    <span class="mt-1 text-[11px] text-slate-400">Stock incoming</span>
+                </div>
+                <div class="flex flex-col justify-between rounded-xl bg-slate-50/80 p-3.5 border border-slate-100 sm:border-0 sm:bg-slate-50/50 sm:p-4">
+                    <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Transfers out</span>
+                    <div class="mt-2">
+                        <span class="text-xl sm:text-2xl font-bold font-mono text-rose-700">@Money(Data.TransferOutValue)</span>
+                    </div>
+                    <span class="mt-1 text-[11px] text-slate-400">Stock outgoing</span>
+                </div>
+                <div class="col-span-2 sm:col-span-1 flex flex-col justify-between rounded-xl bg-emerald-50/60 p-3.5 border border-emerald-100 sm:border-0 sm:bg-emerald-50/50 sm:p-4">
+                    <span class="text-[11px] font-semibold uppercase tracking-wider text-emerald-800">Net received value</span>
+                    <div class="mt-2">
+                        <span class="text-xl sm:text-2xl font-bold font-mono text-emerald-700">@Money(Data.NetValue)</span>
+                    </div>
+                    <span class="mt-1 text-[11px] text-emerald-600/80">Net stock impact</span>
+                </div>
             </div>
         </div>
     }
 
-    <div class="panel table-scroll">
-        <table id="receiving-table" class="data-table compact-table w-full" aria-busy="@(Data is null && Error is null)">
-            <thead>
-                <tr>
-                    <SortHeader Column="id" Label="ID" Sort="@Sort" Numeric="false" Class="w-24 text-center" />
-                    <SortHeader Column="date" Label="Date" Sort="@Sort" Numeric="false" Class="whitespace-nowrap" />
-                    <SortHeader Column="source" Label="From → to" Sort="@Sort" Numeric="false" />
-                    <th class="text-right whitespace-nowrap text-xs font-semibold text-slate-700">Items</th>
-                    <SortHeader Column="quantity" Label="Quantity" Sort="@Sort" Numeric="true" Class="whitespace-nowrap" />
-                    <SortHeader Column="value" Label="Stock value" Sort="@Sort" Numeric="true" Class="whitespace-nowrap" />
-                    <th class="text-right whitespace-nowrap text-xs font-semibold text-slate-700">Paid / Due</th>
-                </tr>
-            </thead>
-            <tbody>
-                @if (Data is null)
-                {
-                    <TableStatusRow Columns="7" Loading="@(Error is null)" Error="@(Error is not null)"
-                        Message="@(Error ?? "Loading receiving and transfers…")" />
-                }
-                @foreach (var row in Data?.Rows ?? [])
-                {
-                    <tr class="hover:bg-slate-50/60 transition-colors">
-                        <td class="w-24 text-center">
-                            <a href="@(row.IsTransfer ? $"/receiving?mode=transfer#transfer-{row.Id}" : $"/receiving/{row.Id}")" class="font-bold text-blue-700 text-xs hover:underline">
-                                @(row.IsTransfer ? "Transfer" : "Purchase") #@row.Id
-                            </a>
-                            <span class="mt-0.5 block text-[10px] text-slate-400">
-                                @(row.IsTransfer ? (row.Quantity >= 0 ? "Transfer in" : "Transfer out") : (row.Quantity >= 0 ? "Receiving" : "Supplier return"))
-                            </span>
-                            @if (!string.IsNullOrWhiteSpace(row.Number))
-                            {
-                                <span class="block max-w-28 truncate font-mono text-[10px] text-slate-400 mx-auto" title="@row.Number">@row.Number</span>
-                            }
-                        </td>
-                        <td class="whitespace-nowrap">
-                            <span class="text-xs text-slate-600 font-mono">@row.At.ToBusinessTime(Configuration).ToString("dd MMM yyyy, HH:mm")</span>
-                        </td>
-                        <td>
-                            <span class="text-xs font-medium text-slate-800">@row.Source → @row.Destination</span>
-                        </td>
-                        <td class="text-right whitespace-nowrap">
-                            <span class="font-mono text-xs text-slate-600">@row.Items.Count @(row.Items.Count == 1 ? "item" : "items")</span>
-                        </td>
-                        <td class="text-right whitespace-nowrap">
-                            <span class="font-mono text-xs text-slate-800">@row.Quantity.ToString("+0.###;-0.###;0")</span>
-                        </td>
-                        <td class="text-right whitespace-nowrap">
-                            <span class="font-mono text-xs font-semibold text-slate-900">@Money(row.Value)</span>
-                        </td>
-                        <td class="text-right whitespace-nowrap">
-                            @if (!row.IsTransfer)
-                            {
-                                <span class="font-mono text-xs text-slate-700">@Money(row.Paid)</span>
-                                @if (row.Unpaid != 0)
-                                {
-                                    <span class="block font-mono text-[10px] font-semibold @(row.Unpaid > 0 ? "text-rose-600" : "text-emerald-600")">
-                                        @(row.Unpaid > 0 ? "Due: " : "Credit: ")@Money(Math.Abs(row.Unpaid))
-                                    </span>
-                                }
-                            }
-                            else
-                            {
-                                <span class="text-slate-400 text-xs">—</span>
-                            }
-                        </td>
+    <div class="panel w-full max-w-full overflow-hidden">
+        <div class="table-scroll w-full overflow-x-auto">
+            <table id="receiving-table" class="data-table compact-table w-full" aria-busy="@(Data is null && Error is null)">
+                <thead>
+                    <tr>
+                        <SortHeader Column="id" Label="ID" Sort="@Sort" Numeric="false" Class="w-24 text-center" />
+                        <SortHeader Column="date" Label="Date" Sort="@Sort" Numeric="false" Class="whitespace-nowrap" />
+                        <SortHeader Column="source" Label="From → to" Sort="@Sort" Numeric="false" />
+                        <th class="text-right whitespace-nowrap text-xs font-semibold text-slate-700">Items</th>
+                        <SortHeader Column="quantity" Label="Quantity" Sort="@Sort" Numeric="true" Class="whitespace-nowrap" />
+                        <SortHeader Column="value" Label="Stock value" Sort="@Sort" Numeric="true" Class="whitespace-nowrap" />
+                        <th class="text-right whitespace-nowrap text-xs font-semibold text-slate-700">Paid / Due</th>
                     </tr>
-                    @if (row.Items.Count > 0)
+                </thead>
+                <tbody>
+                    @if (Data is null)
                     {
-                        <tr class="report-detail-row bg-slate-50/50">
-                            <td colspan="7" class="px-4 py-2 border-t-0">
-                                <details class="group">
-                                    <summary class="cursor-pointer text-xs font-semibold text-blue-700 hover:text-blue-900 inline-flex items-center gap-1.5 select-none py-1">
-                                        <span class="text-[10px] text-blue-600 transition-transform duration-150 inline-block group-open:rotate-90">▶</span>
-                                        <span>View @row.Items.Count @(row.Items.Count == 1 ? "item" : "items")</span>
-                                    </summary>
-                                    <div class="mt-2 mb-2 overflow-hidden rounded-lg border border-slate-200 bg-white p-2.5 shadow-xs">
-                                        <ReceivingLineTable Items="row.Items" />
-                                    </div>
-                                </details>
+                        <TableStatusRow Columns="7" Loading="@(Error is null)" Error="@(Error is not null)"
+                            Message="@(Error ?? "Loading receiving and transfers…")" />
+                    }
+                    @foreach (var row in Data?.Rows ?? [])
+                    {
+                        <tr class="hover:bg-slate-50/60 transition-colors">
+                            <td class="w-24 text-center">
+                                <a href="@(row.IsTransfer ? $"/receiving?mode=transfer#transfer-{row.Id}" : $"/receiving/{row.Id}")" class="font-bold text-blue-700 text-xs hover:underline">
+                                    @(row.IsTransfer ? "Transfer" : "Purchase") #@row.Id
+                                </a>
+                                <span class="mt-0.5 block text-[10px] text-slate-400">
+                                    @(row.IsTransfer ? (row.Quantity >= 0 ? "Transfer in" : "Transfer out") : (row.Quantity >= 0 ? "Receiving" : "Supplier return"))
+                                </span>
+                                @if (!string.IsNullOrWhiteSpace(row.Number))
+                                {
+                                    <span class="block max-w-28 truncate font-mono text-[10px] text-slate-400 mx-auto" title="@row.Number">@row.Number</span>
+                                }
+                            </td>
+                            <td class="whitespace-nowrap">
+                                <span class="text-xs text-slate-600 font-mono">@row.At.ToBusinessTime(Configuration).ToString("dd MMM yyyy, HH:mm")</span>
+                            </td>
+                            <td>
+                                <span class="text-xs font-medium text-slate-800">@row.Source → @row.Destination</span>
+                            </td>
+                            <td class="text-right whitespace-nowrap">
+                                <span class="font-mono text-xs text-slate-600">@row.Items.Count @(row.Items.Count == 1 ? "item" : "items")</span>
+                            </td>
+                            <td class="text-right whitespace-nowrap">
+                                <span class="font-mono text-xs text-slate-800">@row.Quantity.ToString("+0.###;-0.###;0")</span>
+                            </td>
+                            <td class="text-right whitespace-nowrap">
+                                <span class="font-mono text-xs font-semibold text-slate-900">@Money(row.Value)</span>
+                            </td>
+                            <td class="text-right whitespace-nowrap">
+                                @if (!row.IsTransfer)
+                                {
+                                    <span class="font-mono text-xs text-slate-700">@Money(row.Paid)</span>
+                                    @if (row.Unpaid != 0)
+                                    {
+                                        <span class="block font-mono text-[10px] font-semibold @(row.Unpaid > 0 ? "text-rose-600" : "text-emerald-600")">
+                                            @(row.Unpaid > 0 ? "Due: " : "Credit: ")@Money(Math.Abs(row.Unpaid))
+                                        </span>
+                                    }
+                                }
+                                else
+                                {
+                                    <span class="text-slate-400 text-xs">—</span>
+                                }
                             </td>
                         </tr>
+                        @if (row.Items.Count > 0)
+                        {
+                            <tr class="report-detail-row bg-slate-50/50">
+                                <td colspan="7" class="px-4 py-2 border-t-0">
+                                    <details class="group">
+                                        <summary class="cursor-pointer text-xs font-semibold text-blue-700 hover:text-blue-900 inline-flex items-center gap-1.5 select-none py-1">
+                                            <span class="text-[10px] text-blue-600 transition-transform duration-150 inline-block group-open:rotate-90">▶</span>
+                                            <span>View @row.Items.Count @(row.Items.Count == 1 ? "item" : "items")</span>
+                                        </summary>
+                                        <div class="mt-2 mb-2 overflow-hidden rounded-lg border border-slate-200 bg-white p-2.5 shadow-xs">
+                                            <ReceivingLineTable Items="row.Items" />
+                                        </div>
+                                    </details>
+                                </td>
+                            </tr>
+                        }
                     }
+                </tbody>
+                @if (Data is not null && Data.Rows.Count > 0)
+                {
+                    <tfoot class="border-t-2 border-slate-200 font-semibold text-xs">
+                        @if (Data.Count > Data.Rows.Count)
+                        {
+                            <tr class="bg-slate-50/90 text-slate-700">
+                                <td colspan="4" class="text-right py-2.5 px-3 uppercase tracking-wider text-[11px] text-slate-500 whitespace-nowrap">
+                                    Page total (@Data.Rows.Count):
+                                </td>
+                                <td class="text-right whitespace-nowrap font-mono py-2.5 px-3 text-slate-800">
+                                    @Data.Rows.Sum(row => row.Quantity).ToString("+0.###;-0.###;0")
+                                </td>
+                                <td class="text-right whitespace-nowrap font-mono py-2.5 px-3 text-slate-900 font-bold">
+                                    @Money(Data.Rows.Sum(row => row.Value))
+                                </td>
+                                <td class="text-right whitespace-nowrap font-mono py-2.5 px-3 text-slate-700">
+                                    @Money(Data.Rows.Sum(row => row.Paid))
+                                </td>
+                            </tr>
+                        }
+                        <tr class="bg-slate-100/90 text-slate-900 font-bold border-t border-slate-200">
+                            <td colspan="4" class="text-right py-2.5 px-3 uppercase tracking-wider text-[11px] text-slate-600 whitespace-nowrap">
+                                @(Data.Count > Data.Rows.Count ? $"All matching ({Data.Count}):" : "Total:")
+                            </td>
+                            <td class="text-right whitespace-nowrap font-mono py-2.5 px-3 text-slate-800">
+                                —
+                            </td>
+                            <td class="text-right whitespace-nowrap font-mono py-2.5 px-3 text-emerald-700 font-bold">
+                                @Money(Data.NetValue)
+                            </td>
+                            <td class="text-right whitespace-nowrap font-mono py-2.5 px-3 text-slate-800">
+                                @Money(Data.SupplierPaid)
+                            </td>
+                        </tr>
+                    </tfoot>
                 }
-            </tbody>
-        </table>
-        @if (Data is not null && Data.Rows.Count > 0)
-        {
-            <div class="border-t border-slate-200 bg-slate-50/80 px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs">
-                <span class="font-medium text-slate-600">This page (@Data.Rows.Count): <strong class="text-slate-900 font-mono">@Money(Data.Rows.Sum(row => row.Value))</strong></span>
-                <span class="font-medium text-slate-600">All matching transactions (@Data.Count): <strong class="text-emerald-700 font-bold font-mono">@Money(Data.NetValue)</strong></span>
-            </div>
-        }
+            </table>
+        </div>
         @if (Data is not null && Data.Count == 0)
         {
             <p class="p-6 text-sm text-slate-500">No receiving or transfers in this date range.</p>
         }
-        <p class="p-4 text-xs text-slate-500">Transfer values use average cost saved when stock moved. All locations includes both sides, so transfers net to zero. Net received value covers purchases, supplier returns and transfers; it is not the closing inventory value.</p>
+        <p class="p-4 text-xs text-slate-500 border-t border-slate-100">Transfer values use average cost saved when stock moved. All locations includes both sides, so transfers net to zero. Net received value covers purchases, supplier returns and transfers; it is not the closing inventory value.</p>
     </div>
     @if (Data is not null && Data.Count > 0)
     {

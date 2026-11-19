@@ -83,61 +83,73 @@ else
         </form>
     </div>
 
-    <!-- Summary KPI Cards -->
-    <div class="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-        <div class="metric bg-white border border-slate-200/80 shadow-xs">
-            <div class="flex items-center justify-between">
-                <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Categories Sold</p>
-                <span class="inline-flex size-7 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
-                    <Icon Name="box" Class="size-4" />
-                </span>
+    <!-- Summary KPI Strip -->
+    <div class="panel mb-6 overflow-hidden bg-white p-3.5 sm:p-5 shadow-xs">
+        <div class="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 lg:grid-cols-5">
+            <div class="flex flex-col justify-between rounded-xl bg-slate-50/80 p-3.5 border border-slate-100 sm:border-0 sm:bg-slate-50/50 sm:p-4">
+                <div class="flex items-center justify-between">
+                    <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Categories Sold</span>
+                    <span class="inline-flex size-6 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
+                        <Icon Name="box" Class="size-3.5" />
+                    </span>
+                </div>
+                <div class="mt-2">
+                    <span class="text-xl sm:text-2xl font-bold font-mono text-slate-900 tabular-nums">@Data.Categories.Count</span>
+                </div>
+                <span class="mt-1 text-[11px] text-slate-400">Contributing departments</span>
             </div>
-            <strong class="text-2xl mt-1 text-slate-900">@Data.Categories.Count</strong>
-            <span class="text-xs text-slate-400 mt-0.5">Contributing departments</span>
-        </div>
 
-        <div class="metric bg-white border border-slate-200/80 shadow-xs">
-            <div class="flex items-center justify-between">
-                <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Total Revenue</p>
-                <span class="inline-flex size-7 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
-                    <Icon Name="wallet" Class="size-4" />
-                </span>
+            <div class="flex flex-col justify-between rounded-xl bg-slate-50/80 p-3.5 border border-slate-100 sm:border-0 sm:bg-slate-50/50 sm:p-4">
+                <div class="flex items-center justify-between">
+                    <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Total Revenue</span>
+                    <span class="inline-flex size-6 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+                        <Icon Name="wallet" Class="size-3.5" />
+                    </span>
+                </div>
+                <div class="mt-2">
+                    <span class="text-xl sm:text-2xl font-bold font-mono text-blue-600 tabular-nums">@Money(Data.TotalRevenue)</span>
+                </div>
+                <span class="mt-1 text-[11px] text-slate-400">@EffectiveStart.ToString("dd MMM") – @EffectiveEnd.ToString("dd MMM yyyy")</span>
             </div>
-            <strong class="text-2xl mt-1 text-blue-600">@Money(Data.TotalRevenue)</strong>
-            <span class="text-xs text-slate-400 mt-0.5">@EffectiveStart.ToString("dd MMM") – @EffectiveEnd.ToString("dd MMM yyyy")</span>
-        </div>
 
-        <div class="metric bg-white border border-slate-200/80 shadow-xs">
-            <div class="flex items-center justify-between">
-                <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Cost of Goods</p>
-                <span class="inline-flex size-7 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
-                    <Icon Name="receive" Class="size-4" />
-                </span>
+            <div class="flex flex-col justify-between rounded-xl bg-slate-50/80 p-3.5 border border-slate-100 sm:border-0 sm:bg-slate-50/50 sm:p-4">
+                <div class="flex items-center justify-between">
+                    <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Cost of Goods</span>
+                    <span class="inline-flex size-6 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
+                        <Icon Name="receive" Class="size-3.5" />
+                    </span>
+                </div>
+                <div class="mt-2">
+                    <span class="text-xl sm:text-2xl font-bold font-mono text-slate-700 tabular-nums">@Money(Data.TotalCost)</span>
+                </div>
+                <span class="mt-1 text-[11px] text-slate-400">Wholesale product cost</span>
             </div>
-            <strong class="text-2xl mt-1 text-slate-700">@Money(Data.TotalCost)</strong>
-            <span class="text-xs text-slate-400 mt-0.5">Wholesale product cost</span>
-        </div>
 
-        <div class="metric bg-white border border-slate-200/80 shadow-xs">
-            <div class="flex items-center justify-between">
-                <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Gross Profit</p>
-                <span class="inline-flex size-7 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
-                    <Icon Name="history" Class="size-4" />
-                </span>
+            <div class="flex flex-col justify-between rounded-xl bg-slate-50/80 p-3.5 border border-slate-100 sm:border-0 sm:bg-slate-50/50 sm:p-4">
+                <div class="flex items-center justify-between">
+                    <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Gross Profit</span>
+                    <span class="inline-flex size-6 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
+                        <Icon Name="history" Class="size-3.5" />
+                    </span>
+                </div>
+                <div class="mt-2">
+                    <span class="text-xl sm:text-2xl font-bold font-mono text-emerald-600 tabular-nums">@Money(Data.TotalProfit)</span>
+                </div>
+                <span class="mt-1 text-[11px] text-slate-400">Retained margin</span>
             </div>
-            <strong class="text-2xl mt-1 text-emerald-600">@Money(Data.TotalProfit)</strong>
-            <span class="text-xs text-slate-400 mt-0.5">Retained margin</span>
-        </div>
 
-        <div class="metric bg-white border border-slate-200/80 shadow-xs">
-            <div class="flex items-center justify-between">
-                <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Overall Margin</p>
-                <span class="inline-flex size-7 items-center justify-center rounded-lg bg-violet-50 text-violet-600">
-                    <Icon Name="dashboard" Class="size-4" />
-                </span>
+            <div class="flex flex-col justify-between rounded-xl bg-slate-50/80 p-3.5 border border-slate-100 sm:border-0 sm:bg-slate-50/50 sm:p-4 col-span-2 sm:col-span-1">
+                <div class="flex items-center justify-between">
+                    <span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Overall Margin</span>
+                    <span class="inline-flex size-6 items-center justify-center rounded-lg bg-violet-50 text-violet-600">
+                        <Icon Name="dashboard" Class="size-3.5" />
+                    </span>
+                </div>
+                <div class="mt-2">
+                    <span class="text-xl sm:text-2xl font-bold font-mono text-violet-600 tabular-nums">@Data.OverallMarginPercent.ToString("0.0")%</span>
+                </div>
+                <span class="mt-1 text-[11px] text-slate-400">Weighted avg profit margin</span>
             </div>
-            <strong class="text-2xl mt-1 text-violet-600">@Data.OverallMarginPercent.ToString("0.0")%</strong>
-            <span class="text-xs text-slate-400 mt-0.5">Weighted avg profit margin</span>
         </div>
     </div>
 
@@ -189,12 +201,12 @@ else
     }
 
     <!-- Detailed Performance Data Table -->
-    <section class="panel bg-white shadow-xs">
+    <section class="panel bg-white shadow-xs w-full max-w-full overflow-hidden">
         <div class="panel-heading border-b border-slate-100 px-5 py-4 flex items-center justify-between">
             <h2 class="text-base font-bold text-slate-800">Category Breakdown</h2>
             <span class="text-xs font-semibold text-slate-500">@Data.Categories.Count records</span>
         </div>
-        <div class="table-scroll">
+        <div class="table-scroll w-full overflow-x-auto">
             <table class="data-table">
                 <thead>
                     <tr>
@@ -226,9 +238,9 @@ else
                             </td>
                             <td class="text-right tabular-nums text-slate-600">@cat.ProductCount</td>
                             <td class="text-right tabular-nums font-medium text-slate-900">@cat.UnitsSold.ToString("N0")</td>
-                            <td class="text-right tabular-nums font-semibold text-blue-600">@Money(cat.TotalRevenue)</td>
-                            <td class="text-right tabular-nums text-slate-500">@Money(cat.TotalCost)</td>
-                            <td class="text-right tabular-nums font-semibold text-emerald-600">@Money(cat.GrossProfit)</td>
+                            <td class="text-right tabular-nums font-semibold text-blue-600 whitespace-nowrap font-mono">@Money(cat.TotalRevenue)</td>
+                            <td class="text-right tabular-nums text-slate-500 whitespace-nowrap font-mono">@Money(cat.TotalCost)</td>
+                            <td class="text-right tabular-nums font-semibold text-emerald-600 whitespace-nowrap font-mono">@Money(cat.GrossProfit)</td>
                             <td class="text-right tabular-nums">
                                 <span class="inline-block px-2 py-0.5 rounded-full text-xs font-semibold @(cat.MarginPercent >= 30 ? "bg-emerald-50 text-emerald-700" : cat.MarginPercent >= 15 ? "bg-blue-50 text-blue-700" : "bg-amber-50 text-amber-700")">
                                     @cat.MarginPercent.ToString("0.0")%
@@ -250,17 +262,17 @@ else
                 </tbody>
                 @if (Data.Categories.Count > 0)
                 {
-                    <tfoot>
-                        <tr class="font-bold bg-slate-50/80 border-t-2 border-slate-200">
-                            <th>Total</th>
-                            <th class="text-right tabular-nums">@Data.Categories.Sum(c => c.ProductCount)</th>
-                            <th class="text-right tabular-nums">@Data.Categories.Sum(c => c.UnitsSold).ToString("N0")</th>
-                            <th class="text-right tabular-nums text-blue-700">@Money(Data.TotalRevenue)</th>
-                            <th class="text-right tabular-nums text-slate-600">@Money(Data.TotalCost)</th>
-                            <th class="text-right tabular-nums text-emerald-700">@Money(Data.TotalProfit)</th>
-                            <th class="text-right tabular-nums text-violet-700">@Data.OverallMarginPercent.ToString("0.0")%</th>
-                            <th class="text-right tabular-nums">100.0%</th>
-                            <th></th>
+                    <tfoot class="border-t-2 border-slate-200">
+                        <tr class="bg-slate-100/90 text-slate-900 font-bold">
+                            <th class="py-2.5 px-3 uppercase tracking-wider text-[11px] text-slate-600 whitespace-nowrap">Total</th>
+                            <td class="text-right tabular-nums whitespace-nowrap font-mono py-2.5 px-3">@Data.Categories.Sum(c => c.ProductCount)</td>
+                            <td class="text-right tabular-nums whitespace-nowrap font-mono py-2.5 px-3">@Data.Categories.Sum(c => c.UnitsSold).ToString("N0")</td>
+                            <td class="text-right tabular-nums text-blue-700 whitespace-nowrap font-mono py-2.5 px-3">@Money(Data.TotalRevenue)</td>
+                            <td class="text-right tabular-nums text-slate-600 whitespace-nowrap font-mono py-2.5 px-3">@Money(Data.TotalCost)</td>
+                            <td class="text-right tabular-nums text-emerald-700 whitespace-nowrap font-mono py-2.5 px-3">@Money(Data.TotalProfit)</td>
+                            <td class="text-right tabular-nums text-violet-700 whitespace-nowrap font-mono py-2.5 px-3">@Data.OverallMarginPercent.ToString("0.0")%</td>
+                            <td class="text-right tabular-nums whitespace-nowrap font-mono py-2.5 px-3">100.0%</td>
+                            <td></td>
                         </tr>
                     </tfoot>
                 }
