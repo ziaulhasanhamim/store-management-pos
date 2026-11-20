@@ -434,7 +434,7 @@ public sealed class StockIntelligenceService
     {
         await using var scope = _scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        await StoreAccess.RequireAsync(db, actor, AppRoles.InventoryManager, ct);
+        await StoreAccess.RequireAsync(db, actor, AppPolicies.ManageInventory, ct);
 
         var existing = await db.ProductAiFeedbacks
             .FirstOrDefaultAsync(f => f.ProductId == productId, ct);
