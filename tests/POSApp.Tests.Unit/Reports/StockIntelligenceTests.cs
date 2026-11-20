@@ -120,4 +120,33 @@ public class StockIntelligenceTests
         // Even though margin is 25% (< 30%), the 1000 Tk profit (> 200 Tk threshold) makes it an Opportunity (or Star if high volume)!
         await quadrant.Should().BeEqualTo(MarginQuadrant.Opportunity);
     }
+
+    [Test]
+    public async Task DeadStockMLService_ClassifiesUnsoldTiedUpInventory_AsDeadStock()
+    {
+        var catalog = new List<ProductDeadStockProfile>
+        {
+            // Unsold items with tied-up capital sitting in warehouse for 50 days
+            new(101, "BW9 4G SIM Smart Watch", 50, 0m, 0m, 3500m, 0m, 0m, 1, null),
+            new(102, "Itel Icon Smart Watch", 60, 0m, 0m, 2400m, 0m, 0m, 1, null),
+
+            // Active items with sales
+            new(201, "Fast Selling Screen Protector", 1, 1.2m, 120m, 500m, 80m, 40m, 5, null),
+            new(202, "Popular USB-C Cable", 2, 0.8m, 80m, 800m, 50m, 30m, 4, null),
+            new(203, "Fast Fast Charger", 3, 0.6m, 60m, 1200m, 120m, 35m, 3, null),
+            new(204, "Power Bank", 2, 0.5m, 50m, 1500m, 200m, 28m, 3, null),
+            new(205, "Phone Holder", 4, 0.3m, 30m, 400m, 60m, 25m, 2, null),
+            new(206, "Wired Earphones", 1, 0.7m, 70m, 700m, 90m, 32m, 4, null)
+        };
+
+        var classifications = _mlService.ClassifyCatalog(catalog);
+
+        // Unsold items with tied-up capital must be classified as Dead Stock
+        await classifications[101].IsDeadStock.Should().BeTrue();
+        await classifications[102].IsDeadStock.Should().BeTrue();
+
+        // Active selling items must not be dead stock
+        await classifications[201].IsDeadStock.Should().BeFalse();
+        await classifications[202].IsDeadStock.Should().BeFalse();
+    }
 }

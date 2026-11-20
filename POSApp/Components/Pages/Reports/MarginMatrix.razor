@@ -203,6 +203,7 @@ else
                         data-values="@JsonSerializer.Serialize(qValues)"
                         data-colors="@JsonSerializer.Serialize(qColors)">
                 </canvas>
+                <img src="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg'/>" onerror="window.JASCharts?.initDeclarativeCharts?.()" class="hidden" alt="" />
                 <script>
                     if (window.JASCharts) { window.JASCharts.initDeclarativeCharts(); }
                     else { window.addEventListener('DOMContentLoaded', () => window.JASCharts?.initDeclarativeCharts(), { once: true }); }

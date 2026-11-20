@@ -314,10 +314,16 @@ export const engine = {
             const canvasId = canvas.id;
             if (!canvasId) return;
 
-            const existingChart = Chart.getChart(canvas) || Chart.getChart(canvasId);
+            const chartOnElement = Chart.getChart(canvas);
             const payloadKey = `${type}|${canvas.dataset.labels || ''}|${canvas.dataset.values || ''}|${canvas.dataset.datasets || ''}|${canvas.dataset.colors || ''}|${canvas.dataset.horizontal || ''}`;
-            if (canvas._lastPayload === payloadKey && existingChart) {
-                return; // Up to date and chart is active
+            if (canvas._lastPayload === payloadKey && chartOnElement) {
+                return; // Up to date and chart is actively attached to this canvas
+            }
+
+            // Cleanup any stale instance tied to this ID from an old detached element
+            const staleInstance = Chart.getChart(canvasId);
+            if (staleInstance && staleInstance.canvas !== canvas) {
+                try { staleInstance.destroy(); } catch (_) {}
             }
 
             try {
@@ -354,12 +360,22 @@ function scheduleInit() {
     }, 30);
 }
 
+function hookBlazorNavigation() {
+    if (typeof window !== 'undefined' && window.Blazor && typeof window.Blazor.addEventListener === 'function') {
+        window.Blazor.addEventListener('enhancedload', scheduleInit);
+        window.Blazor.addEventListener('enhancednavigationend', scheduleInit);
+        return true;
+    }
+    return false;
+}
+
 // Initializer function called by Blazor module lifecycle
 export function initialize(blazor) {
     if (blazor && typeof blazor.addEventListener === 'function') {
         blazor.addEventListener('enhancedload', scheduleInit);
         blazor.addEventListener('enhancednavigationend', scheduleInit);
     }
+    scheduleInit();
 }
 
 // Attach globally for inline/razor/JS interop backward compatibility
@@ -373,11 +389,21 @@ if (typeof window !== 'undefined') {
         scheduleInit();
     }
 
-    // Blazor enhanced navigation DOM events
-    document.addEventListener('blazor:enhancedload', scheduleInit);
-    window.addEventListener('blazor:enhancedload', scheduleInit);
+    // Try hooking Blazor enhanced navigation immediately and poll if needed
+    if (!hookBlazorNavigation()) {
+        let attempts = 0;
+        const blazorPoller = setInterval(() => {
+            attempts++;
+            if (hookBlazorNavigation() || attempts > 50) {
+                clearInterval(blazorPoller);
+            }
+        }, 100);
+    }
+
+    // Window / Document DOM lifecycle events
     window.addEventListener('load', scheduleInit);
     window.addEventListener('pageshow', scheduleInit);
+    document.addEventListener('DOMContentLoaded', scheduleInit);
 
     // Dynamic StreamRendering & DOM insertion watcher
     if (typeof MutationObserver !== 'undefined' && document.body) {
@@ -390,10 +416,18 @@ if (typeof window !== 'undefined') {
                             return;
                         }
                     }
+                } else if (m.type === 'attributes' && m.target?.matches?.('canvas[data-chart]')) {
+                    scheduleInit();
+                    return;
                 }
             }
         });
-        observer.observe(document.body, { childList: true, subtree: true });
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true,
+            attributes: true,
+            attributeFilter: ['data-values', 'data-labels', 'data-datasets', 'data-chart']
+        });
     }
 }
 

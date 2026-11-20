@@ -171,10 +171,10 @@ public sealed class StockIntelligenceService
             var totalCost = canSeeCost ? (sales?.TotalCost ?? 0m) : 0m;
             var totalProfit = canSeeCost ? totalRev - totalCost : 0m;
 
-            // Actual realized selling price (never default MRP)
-            var realizedPrice = totalQtySold > 0 ? (totalRev / totalQtySold) : p.SellingPrice;
-            var realizedCost = totalQtySold > 0 && canSeeCost ? (totalCost / totalQtySold) : costPrice;
-            var realizedUnitProfit = canSeeCost ? (realizedPrice - realizedCost) : 0m;
+            // Actual realized selling price (never default MRP; 0 if never sold)
+            var realizedPrice = totalQtySold > 0 ? (totalRev / totalQtySold) : 0m;
+            var realizedCost = totalQtySold > 0 && canSeeCost ? (totalCost / totalQtySold) : (totalQtySold > 0 ? costPrice : 0m);
+            var realizedUnitProfit = canSeeCost && totalQtySold > 0 ? (realizedPrice - realizedCost) : 0m;
             var realizedMargin = canSeeCost && totalRev > 0 ? (totalProfit / totalRev * 100m) : 0m;
 
             // Days calculation
@@ -231,14 +231,15 @@ public sealed class StockIntelligenceService
         // 6. ML Dead Stock Classification
         var mlClassifications = _mlService.ClassifyCatalog(productProfiles);
 
-        // 7. Statistical cutoffs for portfolio role assignment
-        var profits = intermediateData.Select(x => x.TotalProfit).OrderBy(x => x).ToList();
-        var gmrois = intermediateData.Select(x => x.TiedUpCapital > 0 ? x.TotalProfit / x.TiedUpCapital : x.TotalProfit).OrderBy(x => x).ToList();
-        var velocities = intermediateData.Select(x => x.DailyVelocity).OrderBy(x => x).ToList();
+        // 7. Statistical cutoffs for portfolio role assignment (ONLY evaluated over products with actual sales history)
+        var activeItems = intermediateData.Where(x => x.TotalUnitsSold > 0).ToList();
+        var activeProfits = activeItems.Select(x => x.TotalProfit).OrderBy(x => x).ToList();
+        var activeGmrois = activeItems.Select(x => x.TiedUpCapital > 0 ? x.TotalProfit / x.TiedUpCapital : x.TotalProfit).OrderBy(x => x).ToList();
+        var activeVelocities = activeItems.Select(x => x.DailyVelocity).OrderBy(x => x).ToList();
 
-        var topProfitCutoff = GetPercentile(profits, 0.70m);
-        var topGmroiCutoff = GetPercentile(gmrois, 0.70m);
-        var highVelocityCutoff = Math.Max(0.10m, GetPercentile(velocities, 0.65m));
+        var topProfitCutoff = activeProfits.Count > 0 ? Math.Max(500m, GetPercentile(activeProfits, 0.70m)) : 500m;
+        var topGmroiCutoff = activeGmrois.Count > 0 ? Math.Max(1.0m, GetPercentile(activeGmrois, 0.70m)) : 1.0m;
+        var highVelocityCutoff = activeVelocities.Count > 0 ? Math.Max(0.10m, GetPercentile(activeVelocities, 0.65m)) : 0.10m;
 
         var rows = new List<StockIntelligenceRow>(intermediateData.Count);
 
@@ -250,9 +251,13 @@ public sealed class StockIntelligenceService
             var deadProb = mlResult?.Probability ?? 0f;
             var isOverridden = mlResult?.IsUserOverridden ?? false;
 
-            // GMROI = Total Gross Profit / Average Working Capital Invested
-            var gmroi = item.TiedUpCapital > 0 ? decimal.Round(item.TotalProfit / item.TiedUpCapital, 2, MidpointRounding.AwayFromZero) : item.TotalProfit;
-            var profitPerTk = item.TotalCost > 0 ? decimal.Round(item.TotalProfit / item.TotalCost, 2, MidpointRounding.AwayFromZero) : 0m;
+            // GMROI = Total Gross Profit / Average Working Capital Invested (0 if no sales)
+            var gmroi = item.TotalUnitsSold > 0 && item.TiedUpCapital > 0
+                ? decimal.Round(item.TotalProfit / item.TiedUpCapital, 2, MidpointRounding.AwayFromZero)
+                : (item.TotalUnitsSold > 0 ? item.TotalProfit : 0m);
+            var profitPerTk = item.TotalUnitsSold > 0 && item.TotalCost > 0
+                ? decimal.Round(item.TotalProfit / item.TotalCost, 2, MidpointRounding.AwayFromZero)
+                : 0m;
 
             // Days of supply
             var daysOfSupply = item.DailyVelocity > 0m
@@ -265,15 +270,16 @@ public sealed class StockIntelligenceService
             {
                 segment = StockIntelligenceSegment.DeadStockTrap;
             }
-            else if (item.DailyVelocity >= highVelocityCutoff || (item.OrderCount >= 8 && item.DailyVelocity >= 0.05m))
+            else if (item.TotalUnitsSold > 0 && (item.DailyVelocity >= highVelocityCutoff || (item.OrderCount >= 8 && item.DailyVelocity >= 0.05m)))
             {
                 segment = StockIntelligenceSegment.CashFlowAnchor; // High frequency essential / foot-traffic driver
             }
-            else if (gmroi >= topGmroiCutoff || profitPerTk >= 0.35m || item.TotalProfit >= topProfitCutoff)
+            else if (item.TotalUnitsSold > 0 && item.TotalProfit > 0 && gmroi > 0 &&
+                     (gmroi >= topGmroiCutoff || profitPerTk >= 0.35m || item.TotalProfit >= topProfitCutoff))
             {
-                segment = StockIntelligenceSegment.CapitalCompounder; // Top capital efficiency
+                segment = StockIntelligenceSegment.CapitalCompounder; // Top capital efficiency with verified gross profit
             }
-            else if (item.RealizedUnitProfit >= 300m || item.RealizedMarginPercent >= 40m)
+            else if (item.TotalUnitsSold > 0 && (item.RealizedUnitProfit >= 300m || item.RealizedMarginPercent >= 40m))
             {
                 segment = StockIntelligenceSegment.RareGem; // Lucrative slow mover
             }

@@ -74,13 +74,18 @@ public sealed class DeadStockMLService
             else
             {
                 // Multi-criteria boundary for pseudo-labeling:
-                // Stagnant sales AND low profit AND low velocity
-                if (p.DaysSinceLastSale >= 90 && p.DailyVelocity <= 0.02m && p.RealizedUnitProfit < medianUnitProfit)
+                // 1) Physical inventory with tied up capital that has NEVER sold for 45+ days
+                if (p.TiedUpCapital > 0 && p.LifetimeUnitsSold == 0 && p.DaysSinceLastSale >= 45)
+                {
+                    trainingInputs.Add(ToFeatureInput(p, true));
+                }
+                // 2) Stagnant sales AND low profit AND low velocity
+                else if (p.DaysSinceLastSale >= 90 && p.DailyVelocity <= 0.02m && p.RealizedUnitProfit < medianUnitProfit)
                 {
                     trainingInputs.Add(ToFeatureInput(p, true));
                 }
                 // Healthy or rare high-profit item
-                else if (p.DailyVelocity >= 0.08m || p.DaysSinceLastSale <= 30 || (p.RealizedUnitProfit >= highUnitProfit && p.DaysSinceLastSale <= 75))
+                else if (p.DailyVelocity >= 0.08m || (p.LifetimeUnitsSold > 0 && p.DaysSinceLastSale <= 30) || (p.LifetimeUnitsSold > 0 && p.RealizedUnitProfit >= highUnitProfit && p.DaysSinceLastSale <= 75))
                 {
                     trainingInputs.Add(ToFeatureInput(p, false));
                 }
@@ -108,7 +113,10 @@ public sealed class DeadStockMLService
 
                 // Rare gems with strong profit are protected from dead stock status
                 var isRareGem = p.RealizedUnitProfit >= highUnitProfit && p.LifetimeUnitsSold > 0;
-                var isDead = !isRareGem && (p.DaysSinceLastSale >= 90 && p.DailyVelocity <= 0.02m && p.RealizedUnitProfit <= medianUnitProfit);
+                var isDead = !isRareGem && (
+                    (p.TiedUpCapital > 0 && p.LifetimeUnitsSold == 0 && p.DaysSinceLastSale >= 45) ||
+                    (p.DaysSinceLastSale >= 90 && p.DailyVelocity <= 0.02m && p.RealizedUnitProfit <= medianUnitProfit)
+                );
 
                 var prob = isDead ? 0.85f : (p.DaysSinceLastSale > 60 ? 0.40f : 0.05f);
                 results[p.ProductId] = new DeadStockClassificationResult(p.ProductId, isDead, prob, IsUserOverridden: false);
@@ -160,12 +168,13 @@ public sealed class DeadStockMLService
                 {
                     // Rare gems protection: If item generates top-quartile profit per sale, do not mark dead
                     var isRareGem = p.RealizedUnitProfit >= highUnitProfit && p.LifetimeUnitsSold > 0 && p.DaysSinceLastSale <= 120;
-                    var isDead = !isRareGem && (pred.Probability >= 0.50f || pred.PredictedLabel);
+                    var isTiedDeadStock = p.TiedUpCapital > 0 && p.LifetimeUnitsSold == 0 && p.DaysSinceLastSale >= 45;
+                    var isDead = !isRareGem && (isTiedDeadStock || pred.Probability >= 0.50f || pred.PredictedLabel);
 
                     results[p.ProductId] = new DeadStockClassificationResult(
                         p.ProductId,
                         isDead,
-                        pred.Probability,
+                        isTiedDeadStock ? Math.Max(0.85f, pred.Probability) : pred.Probability,
                         IsUserOverridden: false);
                 }
             }
@@ -178,7 +187,10 @@ public sealed class DeadStockMLService
             foreach (var p in catalog)
             {
                 var isOverridden = p.UserOverride.HasValue;
-                var isDead = p.UserOverride ?? (p.DaysSinceLastSale >= 90 && p.DailyVelocity <= 0.02m && p.RealizedUnitProfit <= medianUnitProfit);
+                var isRareGem = p.RealizedUnitProfit >= highUnitProfit && p.LifetimeUnitsSold > 0;
+                var isDead = p.UserOverride ?? (!isRareGem && (
+                    (p.TiedUpCapital > 0 && p.LifetimeUnitsSold == 0 && p.DaysSinceLastSale >= 45) ||
+                    (p.DaysSinceLastSale >= 90 && p.DailyVelocity <= 0.02m && p.RealizedUnitProfit <= medianUnitProfit)));
                 results[p.ProductId] = new DeadStockClassificationResult(p.ProductId, isDead, isDead ? 0.9f : 0.1f, isOverridden);
             }
 

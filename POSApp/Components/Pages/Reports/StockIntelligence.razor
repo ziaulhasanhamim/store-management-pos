@@ -198,6 +198,11 @@ else
                 <tbody class="divide-y divide-slate-100">
                     @{
                         var filteredItems = FilterItems(Data.Items);
+                        var size = QueryPagination.Size(PageSize);
+                        var totalCount = filteredItems.Count;
+                        var totalPages = Math.Max(1, (int)Math.Ceiling(totalCount / (double)size));
+                        var currentPage = Math.Clamp(Page, 1, totalPages);
+                        var pagedItems = filteredItems.Skip((currentPage - 1) * size).Take(size).ToList();
                     }
                     @if (filteredItems.Count == 0)
                     {
@@ -207,7 +212,7 @@ else
                             </td>
                         </tr>
                     }
-                    @foreach (var item in filteredItems)
+                    @foreach (var item in pagedItems)
                     {
                         <tr class="hover:bg-slate-50/80 transition-colors @(item.ReorderUrgency == StockReorderUrgency.Critical ? "bg-rose-50/30" : "")">
                             <!-- Product Name & Category -->
@@ -281,13 +286,28 @@ else
 
                             <!-- Realized Price (Actual, not MRP) -->
                             <td class="py-3 px-3 text-right font-mono tabular-nums text-slate-800" title="Actual realized selling price from historical customer receipts">
-                                @Money(item.RealizedAvgPrice)
-                                <span class="text-[10px] text-slate-400 block">@item.RealizedMarginPercent.ToString("N1")% margin</span>
+                                @if (item.TotalUnitsSold > 0)
+                                {
+                                    <span>@Money(item.RealizedAvgPrice)</span>
+                                    <span class="text-[10px] text-slate-400 block">@item.RealizedMarginPercent.ToString("N1")% margin</span>
+                                }
+                                else
+                                {
+                                    <span class="text-slate-400 font-mono text-xs">—</span>
+                                    <span class="text-[10px] text-slate-400 block">No sales</span>
+                                }
                             </td>
 
                             <!-- Unit Profit -->
                             <td class="py-3 px-3 text-right font-mono tabular-nums font-medium text-emerald-700">
-                                @Money(item.RealizedUnitProfit)
+                                @if (item.TotalUnitsSold > 0)
+                                {
+                                    <span>@Money(item.RealizedUnitProfit)</span>
+                                }
+                                else
+                                {
+                                    <span class="text-slate-400 font-mono text-xs">—</span>
+                                }
                             </td>
 
                             <!-- GMROI -->
@@ -384,6 +404,10 @@ else
                 </tbody>
             </table>
         </div>
+        @if (filteredItems.Count > 0)
+        {
+            <PageNavigation Info="@(new PageInfo(currentPage, size, totalCount))" Label="products" />
+        }
     </div>
 }
 
@@ -396,6 +420,12 @@ else
 
     [SupplyParameterFromQuery(Name = "segment")]
     public string? ActiveSegment { get; set; }
+
+    [SupplyParameterFromQuery]
+    public int Page { get; set; } = 1;
+
+    [SupplyParameterFromQuery]
+    public int PageSize { get; set; } = 50;
 
     private StockIntelligenceReportData? Data { get; set; }
     private string? Error { get; set; }
@@ -478,6 +508,7 @@ else
         var query = new List<string>();
         if (LocationId.HasValue) query.Add($"locationId={LocationId.Value}");
         if (!string.IsNullOrEmpty(segment)) query.Add($"segment={segment}");
+        if (PageSize != 50) query.Add($"pageSize={PageSize}");
         return $"/reports/stock-intelligence?{string.Join("&", query)}";
     }
 
@@ -488,6 +519,7 @@ else
         var query = new List<string>();
         if (id.HasValue) query.Add($"locationId={id.Value}");
         if (!string.IsNullOrEmpty(ActiveSegment)) query.Add($"segment={ActiveSegment}");
+        if (PageSize != 50) query.Add($"pageSize={PageSize}");
         Navigation.NavigateTo($"/reports/stock-intelligence?{string.Join("&", query)}");
     }
 
