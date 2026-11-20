@@ -138,6 +138,10 @@ export function attachKeyboard(input, callback) {
     }
 
     function keydown(event) {
+        if (!event || typeof event.key !== 'string') {
+            return;
+        }
+
         if (event.key === 'Enter') {
             if (finish()) {
                 event.preventDefault();

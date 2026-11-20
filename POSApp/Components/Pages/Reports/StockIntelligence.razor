@@ -198,7 +198,7 @@ else
                 <tbody class="divide-y divide-slate-100">
                     @{
                         var filteredItems = FilterItems(Data.Items);
-                        var size = QueryPagination.Size(PageSize);
+                        var size = EffectivePageSize;
                         var totalCount = filteredItems.Count;
                         var totalPages = Math.Max(1, (int)Math.Ceiling(totalCount / (double)size));
                         var currentPage = Math.Clamp(Page, 1, totalPages);
@@ -445,6 +445,8 @@ else
     [SupplyParameterFromQuery]
     public int PageSize { get; set; } = 50;
 
+    private int EffectivePageSize => PageSize is 10 or 30 or 50 or 100 or 250 ? PageSize : 50;
+
     [SupplyParameterFromForm]
     public string? FeedbackAction { get; set; }
 
@@ -553,7 +555,7 @@ else
         var query = new List<string>();
         if (LocationId.HasValue) query.Add($"locationId={LocationId.Value}");
         if (!string.IsNullOrEmpty(segment)) query.Add($"segment={segment}");
-        if (PageSize != 50) query.Add($"pageSize={PageSize}");
+        if (EffectivePageSize != 50) query.Add($"pageSize={EffectivePageSize}");
         return $"/reports/stock-intelligence?{string.Join("&", query)}";
     }
 
@@ -564,7 +566,7 @@ else
         var query = new List<string>();
         if (id.HasValue) query.Add($"locationId={id.Value}");
         if (!string.IsNullOrEmpty(ActiveSegment)) query.Add($"segment={ActiveSegment}");
-        if (PageSize != 50) query.Add($"pageSize={PageSize}");
+        if (EffectivePageSize != 50) query.Add($"pageSize={EffectivePageSize}");
         Navigation.NavigateTo($"/reports/stock-intelligence?{string.Join("&", query)}");
     }
 
