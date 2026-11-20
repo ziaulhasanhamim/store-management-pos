@@ -2051,6 +2051,48 @@ namespace POSApp.Persistence.Migrations
                     b.ToTable("Products");
                 });
 
+            modelBuilder.Entity("POSApp.Persistence.Entities.ProductAiFeedback", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("CreatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<bool?>("IsDeadStockOverride")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("MarkedBy")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<int>("ProductId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<DateTimeOffset?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("UpdatedByUserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductId")
+                        .IsUnique();
+
+                    b.ToTable("ProductAiFeedbacks");
+                });
+
             modelBuilder.Entity("POSApp.Persistence.Entities.ProductAttributeDefinition", b =>
                 {
                     b.Property<int>("Id")
@@ -3970,6 +4012,17 @@ namespace POSApp.Persistence.Migrations
                     b.Navigation("Category");
 
                     b.Navigation("Supplier");
+                });
+
+            modelBuilder.Entity("POSApp.Persistence.Entities.ProductAiFeedback", b =>
+                {
+                    b.HasOne("POSApp.Persistence.Entities.Product", "Product")
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Product");
                 });
 
             modelBuilder.Entity("POSApp.Persistence.Entities.ProductAttributeOption", b =>

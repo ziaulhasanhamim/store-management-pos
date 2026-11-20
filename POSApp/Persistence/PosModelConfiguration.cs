@@ -117,6 +117,13 @@ internal static class PosModelConfiguration
             entity.Property(x => x.AllowFractionUnit).HasDefaultValue(false);
             entity.Property(x => x.ReorderLevel).HasDefaultValue(5);
         });
+        builder.Entity<ProductAiFeedback>(entity =>
+        {
+            entity.HasIndex(x => x.ProductId).IsUnique();
+            entity.Property(x => x.Reason).HasMaxLength(300);
+            entity.Property(x => x.MarkedBy).HasMaxLength(100);
+            entity.HasOne(x => x.Product).WithMany().HasForeignKey(x => x.ProductId).OnDelete(DeleteBehavior.Cascade);
+        });
         builder.Entity<ProductCostHistory>(entity =>
         {
             entity.HasIndex(h => new { h.ProductId, h.CreatedAt });

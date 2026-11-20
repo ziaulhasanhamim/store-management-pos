@@ -70,3 +70,12 @@ public sealed class Product : SoftDeletableEntity
     public ICollection<ProductAttributeValue> AttributeValues { get; set; } = [];
     public ICollection<InventoryBalance> InventoryBalances { get; set; } = [];
 }
+
+public sealed class ProductAiFeedback : AuditableEntity
+{
+    public required int ProductId { get; set; }
+    public Product? Product { get; set; }
+    public bool? IsDeadStockOverride { get; set; }
+    public string? Reason { get; set; }
+    public string? MarkedBy { get; set; }
+}

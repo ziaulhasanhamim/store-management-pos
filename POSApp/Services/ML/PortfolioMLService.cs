@@ -33,6 +33,7 @@ public sealed class ProductClusterInput
     public float Volume { get; set; }
     public float Revenue { get; set; }
     public float Margin { get; set; }
+    public float Profit { get; set; }
     public float UnitCost { get; set; }
     public float SellingPrice { get; set; }
     public float OrderCount { get; set; }
@@ -86,13 +87,19 @@ public sealed class PortfolioMLService
                 IsMlPowered: false, IsFallback: false, AnalysisMode: mode);
         }
 
-        // Calculate medians for reference and fallback
+        // Calculate robust statistical thresholds across volume, margin, profit and transaction frequency
         var sortedVols = stats.Select(p => p.Volume).OrderBy(v => v).ToList();
         var sortedMargins = stats.Select(p => p.MarginPercent).OrderBy(m => m).ToList();
-        var medianVol = sortedVols[sortedVols.Count / 2];
-        var medianMargin = Math.Max(15m, sortedMargins[sortedMargins.Count / 2]);
+        var sortedProfits = stats.Select(p => p.Profit).OrderBy(p => p).ToList();
+        var sortedOrders = stats.Select(p => (decimal)p.OrderCount).OrderBy(o => o).ToList();
 
-        // If classic mode requested or not enough data to cluster meaningfully, use classic rule-based approach
+        // 70th percentile for volume with a floor of at least 3 units
+        var thresholdVol = Math.Max(3m, Percentile(sortedVols, 0.70m));
+        var thresholdMargin = Math.Max(20m, Percentile(sortedMargins, 0.50m));
+        var thresholdProfit = Math.Max(100m, Percentile(sortedProfits, 0.65m));
+        var medianOrders = Math.Max(2m, Percentile(sortedOrders, 0.50m));
+
+        // If classic mode requested or not enough data to cluster meaningfully, use calibrated rule-based approach
         var isClassic = string.Equals(mode, "classic", StringComparison.OrdinalIgnoreCase);
         var hasEnoughData = stats.Count >= MinimumProductsForClustering;
 
@@ -100,8 +107,8 @@ public sealed class PortfolioMLService
         {
             var fallbackItems = stats.Select(p =>
             {
-                var quadrant = ComputeClassicQuadrant(p.Volume, p.MarginPercent, medianVol, medianMargin);
-                var (forecastVol, forecastMargin, trend, forecastQuad) = ComputeTrend(p, medianVol, medianMargin);
+                var quadrant = ComputeQuadrant(p, thresholdVol, thresholdMargin, thresholdProfit, medianOrders);
+                var (forecastVol, forecastMargin, trend, forecastQuad) = ComputeTrend(p, thresholdVol, thresholdMargin, thresholdProfit, medianOrders);
 
                 return new MarginMatrixRow(
                     p.ProductId,
@@ -128,8 +135,8 @@ public sealed class PortfolioMLService
                 startDate,
                 endDate,
                 locationId,
-                medianVol,
-                medianMargin,
+                thresholdVol,
+                thresholdMargin,
                 fallbackItems.Count(x => x.Quadrant == MarginQuadrant.Star),
                 fallbackItems.Count(x => x.Quadrant == MarginQuadrant.CashCow),
                 fallbackItems.Count(x => x.Quadrant == MarginQuadrant.Opportunity),
@@ -142,17 +149,17 @@ public sealed class PortfolioMLService
             );
         }
 
-        // ML.NET K-Means Clustering (K=4)
+        // ML.NET K-Means Clustering (K=4) with log-scale feature normalization
         try
         {
-            var mlItems = ExecuteKMeansClustering(stats, medianVol, medianMargin);
+            var mlItems = ExecuteKMeansClustering(stats, thresholdVol, thresholdMargin, thresholdProfit, medianOrders);
 
             return new MarginMatrixReportData(
                 startDate,
                 endDate,
                 locationId,
-                medianVol,
-                medianMargin,
+                thresholdVol,
+                thresholdMargin,
                 mlItems.Count(x => x.Quadrant == MarginQuadrant.Star),
                 mlItems.Count(x => x.Quadrant == MarginQuadrant.CashCow),
                 mlItems.Count(x => x.Quadrant == MarginQuadrant.Opportunity),
@@ -173,19 +180,22 @@ public sealed class PortfolioMLService
 
     private List<MarginMatrixRow> ExecuteKMeansClustering(
         IReadOnlyList<ProductRawStat> stats,
-        decimal medianVol,
-        decimal medianMargin)
+        decimal thresholdVol,
+        decimal thresholdMargin,
+        decimal thresholdProfit,
+        decimal medianOrders)
     {
         var mlContext = new MLContext(seed: 42); // Deterministic seed for reproducible clusters
 
         var inputs = stats.Select(p => new ProductClusterInput
         {
-            Volume = (float)p.Volume,
-            Revenue = (float)p.Revenue,
+            Volume = (float)Math.Log(1.0 + (double)p.Volume),
+            Revenue = (float)Math.Log(1.0 + (double)p.Revenue),
             Margin = (float)p.MarginPercent,
-            UnitCost = (float)p.UnitCost,
-            SellingPrice = (float)p.SellingPrice,
-            OrderCount = (float)p.OrderCount
+            Profit = (float)Math.Log(1.0 + (double)Math.Max(0m, p.Profit)),
+            UnitCost = (float)Math.Log(1.0 + (double)p.UnitCost),
+            SellingPrice = (float)Math.Log(1.0 + (double)p.SellingPrice),
+            OrderCount = (float)Math.Log(1.0 + (double)p.OrderCount)
         }).ToList();
 
         var dataView = mlContext.Data.LoadFromEnumerable(inputs);
@@ -195,6 +205,7 @@ public sealed class PortfolioMLService
                 nameof(ProductClusterInput.Volume),
                 nameof(ProductClusterInput.Revenue),
                 nameof(ProductClusterInput.Margin),
+                nameof(ProductClusterInput.Profit),
                 nameof(ProductClusterInput.UnitCost),
                 nameof(ProductClusterInput.SellingPrice),
                 nameof(ProductClusterInput.OrderCount))
@@ -207,37 +218,13 @@ public sealed class PortfolioMLService
         var predictionsData = model.Transform(dataView);
         var predictions = mlContext.Data.CreateEnumerable<ProductClusterPrediction>(predictionsData, reuseRowObject: false).ToList();
 
-        // Profile the 4 cluster centroids to align them with retail portfolio quadrants
-        var clusterProfiles = new Dictionary<uint, (decimal AvgVol, decimal AvgMargin, int Count)>();
-
-        for (uint c = 1; c <= 4; c++)
-        {
-            var clusterItems = stats.Where((_, idx) => predictions[idx].SelectedClusterId == c).ToList();
-            if (clusterItems.Count > 0)
-            {
-                var avgVol = clusterItems.Average(x => x.Volume);
-                var avgMargin = clusterItems.Average(x => x.MarginPercent);
-                clusterProfiles[c] = (avgVol, avgMargin, clusterItems.Count);
-            }
-            else
-            {
-                clusterProfiles[c] = (0m, 0m, 0);
-            }
-        }
-
-        // Map each cluster ID to the appropriate MarginQuadrant
-        var clusterToQuadrant = MapClustersToQuadrants(clusterProfiles, medianVol, medianMargin);
-
         var rows = new List<MarginMatrixRow>(stats.Count);
         for (var i = 0; i < stats.Count; i++)
         {
             var p = stats[i];
             var pred = predictions[i];
-            var quadrant = clusterToQuadrant.TryGetValue(pred.SelectedClusterId, out var q)
-                ? q
-                : ComputeClassicQuadrant(p.Volume, p.MarginPercent, medianVol, medianMargin);
-
-            var (forecastVol, forecastMargin, trend, forecastQuad) = ComputeTrend(p, medianVol, medianMargin);
+            var quadrant = ComputeQuadrant(p, thresholdVol, thresholdMargin, thresholdProfit, medianOrders);
+            var (forecastVol, forecastMargin, trend, forecastQuad) = ComputeTrend(p, thresholdVol, thresholdMargin, thresholdProfit, medianOrders);
 
             var distance = pred.Distances != null && pred.Distances.Length >= pred.SelectedClusterId && pred.SelectedClusterId > 0
                 ? pred.Distances[pred.SelectedClusterId - 1]
@@ -267,92 +254,55 @@ public sealed class PortfolioMLService
             .ToList();
     }
 
-    /// <summary>
-    /// Profiles the 4 cluster centers based on relative volume and margin and maps them to BCG quadrants.
-    /// </summary>
-    private static Dictionary<uint, MarginQuadrant> MapClustersToQuadrants(
-        Dictionary<uint, (decimal AvgVol, decimal AvgMargin, int Count)> profiles,
-        decimal medianVol,
-        decimal medianMargin)
+    private static decimal Percentile(List<decimal> sorted, decimal percentile)
     {
-        var mapping = new Dictionary<uint, MarginQuadrant>();
-        var activeClusters = profiles.Where(kvp => kvp.Value.Count > 0).ToList();
-
-        if (activeClusters.Count == 0)
-        {
-            return mapping;
-        }
-
-        // If clusters have distinct profiles, assign based on centroid relation to overall medians
-        var unassigned = new HashSet<uint>(activeClusters.Select(c => c.Key));
-
-        // 1. Identify Star: Highest combined normalized volume and margin
-        var starCandidate = activeClusters
-            .OrderByDescending(c => (c.Value.AvgVol >= medianVol ? 2 : 0) + (c.Value.AvgMargin >= medianMargin ? 2 : 0))
-            .ThenByDescending(c => c.Value.AvgVol * c.Value.AvgMargin)
-            .First();
-        mapping[starCandidate.Key] = MarginQuadrant.Star;
-        unassigned.Remove(starCandidate.Key);
-
-        // 2. Identify Cash Cow: High volume, but lower margin
-        var cowCandidate = activeClusters
-            .Where(c => unassigned.Contains(c.Key))
-            .OrderByDescending(c => c.Value.AvgVol)
-            .ThenBy(c => c.Value.AvgMargin)
-            .FirstOrDefault();
-        if (cowCandidate.Key != 0)
-        {
-            mapping[cowCandidate.Key] = MarginQuadrant.CashCow;
-            unassigned.Remove(cowCandidate.Key);
-        }
-
-        // 3. Identify Opportunity: High margin, but lower volume
-        var oppCandidate = activeClusters
-            .Where(c => unassigned.Contains(c.Key))
-            .OrderByDescending(c => c.Value.AvgMargin)
-            .ThenBy(c => c.Value.AvgVol)
-            .FirstOrDefault();
-        if (oppCandidate.Key != 0)
-        {
-            mapping[oppCandidate.Key] = MarginQuadrant.Opportunity;
-            unassigned.Remove(oppCandidate.Key);
-        }
-
-        // 4. Remaining clusters map to Laggards
-        foreach (var remaining in unassigned)
-        {
-            mapping[remaining] = MarginQuadrant.Laggard;
-        }
-
-        return mapping;
+        if (sorted.Count == 0) return 0m;
+        if (sorted.Count == 1) return sorted[0];
+        var index = (sorted.Count - 1) * percentile;
+        var lower = (int)Math.Floor(index);
+        var upper = (int)Math.Ceiling(index);
+        if (lower == upper) return sorted[lower];
+        var weight = index - lower;
+        return decimal.Round(sorted[lower] * (1m - weight) + sorted[upper] * weight, 2, MidpointRounding.AwayFromZero);
     }
 
-    private static MarginQuadrant ComputeClassicQuadrant(
-        decimal volume,
-        decimal margin,
-        decimal medianVol,
-        decimal medianMargin)
+    public static MarginQuadrant ComputeQuadrant(
+        ProductRawStat p,
+        decimal thresholdVol,
+        decimal thresholdMargin,
+        decimal thresholdProfit,
+        decimal medianOrders)
     {
-        if (volume >= medianVol && margin >= medianMargin)
+        // High Volume condition: genuine volume above upper-tier threshold or high order frequency
+        var isHighVol = p.Volume >= thresholdVol || (p.OrderCount >= medianOrders && p.Volume >= Math.Max(2m, thresholdVol * 0.7m));
+
+        // High Profitability condition: balances Margin % AND Absolute Gross Profit Taka
+        // A 2000tk item with 25% margin generating 500tk profit qualifies as high profit,
+        // while a 100tk item with 70% margin (70tk) qualifies if its profit is also above floor.
+        var isHighProfit = p.Profit >= thresholdProfit
+            || (p.MarginPercent >= thresholdMargin && p.Profit >= Math.Max(50m, thresholdProfit * 0.35m));
+
+        if (isHighVol && isHighProfit)
             return MarginQuadrant.Star;
-        if (volume >= medianVol && margin < medianMargin)
+        if (isHighVol && !isHighProfit)
             return MarginQuadrant.CashCow;
-        if (volume < medianVol && margin >= medianMargin)
+        if (!isHighVol && isHighProfit)
             return MarginQuadrant.Opportunity;
         return MarginQuadrant.Laggard;
     }
 
     private static (decimal ForecastVol, decimal ForecastMargin, ProductTrendStatus Trend, MarginQuadrant ForecastQuad) ComputeTrend(
         ProductRawStat p,
-        decimal medianVol,
-        decimal medianMargin)
+        decimal thresholdVol,
+        decimal thresholdMargin,
+        decimal thresholdProfit,
+        decimal medianOrders)
     {
-        // Periodic velocity comparison between recent and previous sales windows
+        var currentQuad = ComputeQuadrant(p, thresholdVol, thresholdMargin, thresholdProfit, medianOrders);
         var hasHistory = p.PreviousVolume > 0m || p.RecentVolume > 0m;
         if (!hasHistory)
         {
-            var fallbackQuad = ComputeClassicQuadrant(p.Volume, p.MarginPercent, medianVol, medianMargin);
-            return (p.Volume, p.MarginPercent, ProductTrendStatus.NewOrInsufficientData, fallbackQuad);
+            return (p.Volume, p.MarginPercent, ProductTrendStatus.NewOrInsufficientData, currentQuad);
         }
 
         var baseline = Math.Max(1m, p.PreviousVolume);
@@ -361,14 +311,17 @@ public sealed class PortfolioMLService
 
         var forecastVol = Math.Max(0m, Math.Round(p.Volume * (1m + clampedVelocity), 1, MidpointRounding.AwayFromZero));
         var forecastMargin = p.RecentMargin > 0m ? p.RecentMargin : p.MarginPercent;
-        var forecastQuad = ComputeClassicQuadrant(forecastVol, forecastMargin, medianVol, medianMargin);
+        var forecastProfit = p.Volume > 0 ? (p.Profit / p.Volume) * forecastVol : p.Profit;
+
+        var forecastStat = p with { Volume = forecastVol, MarginPercent = forecastMargin, Profit = forecastProfit };
+        var forecastQuad = ComputeQuadrant(forecastStat, thresholdVol, thresholdMargin, thresholdProfit, medianOrders);
 
         ProductTrendStatus trend;
-        if ((p.Volume < medianVol && forecastVol >= medianVol && forecastMargin >= medianMargin) || (velocity >= 0.25m && forecastMargin >= medianMargin))
+        if ((currentQuad != MarginQuadrant.Star && forecastQuad == MarginQuadrant.Star) || (velocity >= 0.25m && forecastMargin >= thresholdMargin))
         {
             trend = ProductTrendStatus.RisingToStar;
         }
-        else if ((p.Volume >= medianVol && forecastVol < medianVol) || (velocity <= -0.25m && p.Volume >= medianVol))
+        else if ((currentQuad != MarginQuadrant.Laggard && forecastQuad == MarginQuadrant.Laggard) || (velocity <= -0.25m && currentQuad == MarginQuadrant.CashCow))
         {
             trend = ProductTrendStatus.SlippingToLaggard;
         }

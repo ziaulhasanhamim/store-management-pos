@@ -1,0 +1,495 @@
+@page "/reports/stock-intelligence"
+@attribute [Authorize(Policy = AppPolicies.ManageInventory)]
+@using System.ComponentModel.DataAnnotations
+@using System.Text.Json
+@using POSApp.Client.DTOs
+@using POSApp.Client.Security
+@using POSApp.Services
+@inject StockIntelligenceService Intelligence
+@inject IConfiguration Configuration
+@inject NavigationManager Navigation
+
+<PageTitle>AI Stock Intelligence & Reordering · @(Configuration["StoreName"] ?? "JAS International")</PageTitle>
+
+<div class="page-heading">
+    <div>
+        <nav class="breadcrumb">
+            <a href="/">Dashboard</a>
+            <span>/</span>
+            <a href="/reports">Reports</a>
+            <span>/</span>
+            <span>AI stock intelligence & reordering</span>
+        </nav>
+        <h1 class="mt-1">AI Stock Intelligence & Reordering</h1>
+        <p class="text-sm text-slate-500">
+            Lifetime machine-learning procurement engine: GMROI capital efficiency, must-have cash-flow anchors, and ML dead-stock clearance
+        </p>
+    </div>
+    <div class="flex flex-wrap items-center gap-2 no-print">
+        <form method="post" @formname="retrain-ai" @onsubmit="RetrainAsync" data-enhance class="inline-block">
+            <AntiforgeryToken />
+            <button type="submit" class="btn-secondary text-indigo-700 bg-indigo-50 border-indigo-200 hover:bg-indigo-100 transition" title="Perform a full database re-scan and retrain ML classification models">
+                <Icon Name="refresh-cw" Class="size-4 mr-1.5" />
+                Retrain AI Engine
+            </button>
+        </form>
+        <a href="@ExportCsvUrl" class="btn-secondary" download>
+            <Icon Name="history" Class="size-4 mr-1.5" />
+            Export CSV
+        </a>
+    </div>
+</div>
+
+@if (!string.IsNullOrEmpty(SuccessMessage))
+{
+    <div class="mb-4 p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm flex items-center justify-between" role="status">
+        <div class="flex items-center gap-2">
+            <span class="text-base">✅</span>
+            <span>@SuccessMessage</span>
+        </div>
+        <button type="button" @onclick="() => SuccessMessage = null" class="text-emerald-600 hover:text-emerald-900 text-xs font-semibold">Dismiss</button>
+    </div>
+}
+
+@if (Error is not null)
+{
+    <p class="error-panel mb-4" role="alert">@Error</p>
+}
+
+@if (Data is null)
+{
+    <LoadingPanel Message="Scanning lifetime sales, purchase lead-times and training AI inventory models…" />
+}
+else
+{
+    <!-- AI Engine Meta Banner -->
+    <div class="mb-6 p-4 rounded-xl bg-slate-900 text-slate-100 flex flex-wrap items-center justify-between gap-3 shadow-xs">
+        <div class="flex items-center gap-3">
+            <div class="size-9 rounded-lg bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center text-indigo-300">
+                <span class="text-lg">🤖</span>
+            </div>
+            <div>
+                <div class="flex items-center gap-2">
+                    <span class="text-sm font-semibold text-white">ML.NET Supervised & Capital Optimization Engine</span>
+                    <span class="px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                        @(Data.IsCached ? "24h Cached Model" : "Live Retrained")
+                    </span>
+                </div>
+                <p class="text-xs text-slate-400 mt-0.5">
+                    Analyzed at @Data.ModelTrainedAt.ToLocalTime().ToString("dd MMM yyyy, hh:mm tt") • Zero static ReorderLevel reliance • True realized sales pricing (MRP excluded)
+                </p>
+            </div>
+        </div>
+        <div class="text-xs text-slate-400">
+            <span class="text-slate-200 font-semibold">@Data.Items.Count</span> SKUs Scanned
+        </div>
+    </div>
+
+    <!-- Executive KPI Summary Cards -->
+    <div class="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <!-- Urgent Reorders -->
+        <div class="stat-card bg-white rounded-xl border border-rose-200 p-5 shadow-xs bg-linear-to-br from-white to-rose-50/40">
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-bold uppercase tracking-wider text-rose-700">Urgent Reorder Required</span>
+                <span class="stat-pill bg-rose-100 text-rose-800 text-xs px-2.5 py-0.5 rounded-full font-semibold">@Data.UrgentReorderSkuCount SKUs</span>
+            </div>
+            <div class="mt-3">
+                <span class="text-2xl font-bold font-mono text-slate-900 tabular-nums">@Money(Data.UrgentReorderValue)</span>
+            </div>
+            <p class="mt-1 text-xs text-slate-500">Run-out before lead time; capital required to restock</p>
+        </div>
+
+        <!-- Capital Compounders -->
+        <div class="stat-card bg-white rounded-xl border border-indigo-200 p-5 shadow-xs bg-linear-to-br from-white to-indigo-50/40">
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-bold uppercase tracking-wider text-indigo-700">Capital Compounders</span>
+                <span class="stat-pill bg-indigo-100 text-indigo-800 text-xs px-2.5 py-0.5 rounded-full font-semibold">@Data.CapitalCompounderCount SKUs</span>
+            </div>
+            <div class="mt-3">
+                <span class="text-2xl font-bold font-mono text-indigo-900 tabular-nums">Top GMROI</span>
+            </div>
+            <p class="mt-1 text-xs text-slate-500">High gross profit per working capital Taka invested</p>
+        </div>
+
+        <!-- Cash Flow Anchors -->
+        <div class="stat-card bg-white rounded-xl border border-blue-200 p-5 shadow-xs bg-linear-to-br from-white to-blue-50/40">
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-bold uppercase tracking-wider text-blue-700">Cash Flow Anchors</span>
+                <span class="stat-pill bg-blue-100 text-blue-800 text-xs px-2.5 py-0.5 rounded-full font-semibold">@Data.CashFlowAnchorCount SKUs</span>
+            </div>
+            <div class="mt-3">
+                <span class="text-2xl font-bold font-mono text-blue-900 tabular-nums">Must-Have</span>
+            </div>
+            <p class="mt-1 text-xs text-slate-500">Fast transaction staples protecting customer retention</p>
+        </div>
+
+        <!-- Trapped Dead Capital -->
+        <div class="stat-card bg-white rounded-xl border border-slate-200 p-5 shadow-xs bg-linear-to-br from-white to-amber-50/40">
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-bold uppercase tracking-wider text-amber-700">Trapped Dead Capital</span>
+                <span class="stat-pill bg-amber-100 text-amber-800 text-xs px-2.5 py-0.5 rounded-full font-semibold">@Data.DeadStockSkuCount SKUs</span>
+            </div>
+            <div class="mt-3">
+                <span class="text-2xl font-bold font-mono text-slate-900 tabular-nums">@Money(Data.TrappedDeadStockValue)</span>
+            </div>
+            <p class="mt-1 text-xs text-slate-500">ML classified stagnant stock recommended for clearance</p>
+        </div>
+    </div>
+
+    <!-- Segment Filter Pills & Controls -->
+    <div class="mb-6 flex flex-wrap items-center justify-between gap-3">
+        <div class="flex flex-wrap items-center gap-1.5 p-1 bg-slate-100 rounded-xl border border-slate-200">
+            <a href="@FilterLink(null)" class="@(ActiveSegment == null ? "px-3 py-1.5 text-xs font-semibold rounded-lg bg-white text-slate-800 shadow-xs" : "px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-slate-900")">
+                All Products (@Data.Items.Count)
+            </a>
+            <a href="@FilterLink("urgent")" class="@(ActiveSegment == "urgent" ? "px-3 py-1.5 text-xs font-semibold rounded-lg bg-white text-rose-700 shadow-xs" : "px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-rose-600")">
+                🔴 Order Now (@Data.UrgentReorderSkuCount)
+            </a>
+            <a href="@FilterLink("compounders")" class="@(ActiveSegment == "compounders" ? "px-3 py-1.5 text-xs font-semibold rounded-lg bg-white text-indigo-700 shadow-xs" : "px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-indigo-600")">
+                💎 Capital Compounders (@Data.CapitalCompounderCount)
+            </a>
+            <a href="@FilterLink("cashflow")" class="@(ActiveSegment == "cashflow" ? "px-3 py-1.5 text-xs font-semibold rounded-lg bg-white text-blue-700 shadow-xs" : "px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-blue-600")">
+                🛒 Cash Flow Anchors (@Data.CashFlowAnchorCount)
+            </a>
+            <a href="@FilterLink("raregems")" class="@(ActiveSegment == "raregems" ? "px-3 py-1.5 text-xs font-semibold rounded-lg bg-white text-emerald-700 shadow-xs" : "px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-emerald-600")">
+                ⭐ Rare Gems (@Data.RareGemCount)
+            </a>
+            <a href="@FilterLink("deadstock")" class="@(ActiveSegment == "deadstock" ? "px-3 py-1.5 text-xs font-semibold rounded-lg bg-white text-amber-700 shadow-xs" : "px-3 py-1.5 text-xs font-medium text-slate-600 hover:text-amber-600")">
+                ⚠️ Dead Stock Clearance (@Data.DeadStockSkuCount)
+            </a>
+        </div>
+
+        <!-- Location Filter -->
+        @if (Data.Locations.Count > 1)
+        {
+            <div class="flex items-center gap-2 text-xs">
+                <span class="text-slate-500 font-medium">Location:</span>
+                <select class="form-select text-xs py-1.5 pl-2.5 pr-8 rounded-lg border-slate-200" @onchange="OnLocationChanged">
+                    <option value="" selected="@(LocationId == null)">All Selling Locations</option>
+                    @foreach (var loc in Data.Locations)
+                    {
+                        <option value="@loc.Id" selected="@(LocationId == loc.Id)">@loc.Name</option>
+                    }
+                </select>
+            </div>
+        }
+    </div>
+
+    <!-- Product Intelligence Table -->
+    <div class="bg-white rounded-xl border border-slate-200/80 shadow-xs overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse text-xs">
+                <thead>
+                    <tr class="border-b border-slate-200 bg-slate-50/75 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+                        <th class="py-3 px-3.5">Product / Category</th>
+                        <th class="py-3 px-3">Role Segment</th>
+                        <th class="py-3 px-3 text-right">Current Stock</th>
+                        <th class="py-3 px-3 text-right">Daily Velocity</th>
+                        <th class="py-3 px-3 text-right">Days Supply</th>
+                        <th class="py-3 px-3 text-right">Realized Price</th>
+                        <th class="py-3 px-3 text-right">Unit Profit</th>
+                        <th class="py-3 px-3 text-right">GMROI</th>
+                        <th class="py-3 px-3 text-center">Urgency</th>
+                        <th class="py-3 px-3 text-right">Recommended Order</th>
+                        <th class="py-3 px-3 text-right">Investment Req.</th>
+                        <th class="py-3 px-3 text-center">Dead Stock ML & Action</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    @{
+                        var filteredItems = FilterItems(Data.Items);
+                    }
+                    @if (filteredItems.Count == 0)
+                    {
+                        <tr>
+                            <td colspan="12" class="py-10 text-center text-slate-400">
+                                No products found matching the selected filter criteria.
+                            </td>
+                        </tr>
+                    }
+                    @foreach (var item in filteredItems)
+                    {
+                        <tr class="hover:bg-slate-50/80 transition-colors @(item.ReorderUrgency == StockReorderUrgency.Critical ? "bg-rose-50/30" : "")">
+                            <!-- Product Name & Category -->
+                            <td class="py-3 px-3.5 max-w-xs">
+                                <a href="/items/@item.ProductId" class="font-medium text-slate-900 hover:text-indigo-600 transition block truncate" title="@item.ProductName">
+                                    @item.ProductName
+                                </a>
+                                <div class="text-[11px] text-slate-500 flex items-center gap-1.5 mt-0.5">
+                                    <span>@item.CategoryName</span>
+                                    <span>•</span>
+                                    <span>@item.SupplierName</span>
+                                </div>
+                            </td>
+
+                            <!-- Segment -->
+                            <td class="py-3 px-3 whitespace-nowrap">
+                                @switch (item.Segment)
+                                {
+                                    case StockIntelligenceSegment.CapitalCompounder:
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                            💎 Compounder
+                                        </span>
+                                        break;
+                                    case StockIntelligenceSegment.CashFlowAnchor:
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                                            🛒 Cash Anchor
+                                        </span>
+                                        break;
+                                    case StockIntelligenceSegment.RareGem:
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                            ⭐ Rare Gem
+                                        </span>
+                                        break;
+                                    case StockIntelligenceSegment.DeadStockTrap:
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+                                            ⚠️ Dead Stock
+                                        </span>
+                                        break;
+                                    default:
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-100 text-slate-700">
+                                            Standard
+                                        </span>
+                                        break;
+                                }
+                            </td>
+
+                            <!-- Current Stock -->
+                            <td class="py-3 px-3 text-right font-mono tabular-nums @(item.CurrentStock <= 0 ? "font-bold text-rose-600" : "text-slate-800")">
+                                @item.CurrentStock.ToString("N0")
+                            </td>
+
+                            <!-- Daily Velocity -->
+                            <td class="py-3 px-3 text-right font-mono tabular-nums text-slate-700">
+                                @item.DailyVelocity.ToString("N3")
+                                <span class="text-[10px] text-slate-400 block">units/day</span>
+                            </td>
+
+                            <!-- Days of Supply -->
+                            <td class="py-3 px-3 text-right font-mono tabular-nums">
+                                @if (item.DaysOfSupply >= 999m)
+                                {
+                                    <span class="text-slate-400">∞</span>
+                                }
+                                else
+                                {
+                                    <span class="@(item.DaysOfSupply <= 7 ? "text-rose-600 font-bold" : item.DaysOfSupply <= 15 ? "text-amber-600 font-medium" : "text-slate-700")">
+                                        @item.DaysOfSupply.ToString("N0") d
+                                    </span>
+                                }
+                            </td>
+
+                            <!-- Realized Price (Actual, not MRP) -->
+                            <td class="py-3 px-3 text-right font-mono tabular-nums text-slate-800" title="Actual realized selling price from historical customer receipts">
+                                @Money(item.RealizedAvgPrice)
+                                <span class="text-[10px] text-slate-400 block">@item.RealizedMarginPercent.ToString("N1")% margin</span>
+                            </td>
+
+                            <!-- Unit Profit -->
+                            <td class="py-3 px-3 text-right font-mono tabular-nums font-medium text-emerald-700">
+                                @Money(item.RealizedUnitProfit)
+                            </td>
+
+                            <!-- GMROI -->
+                            <td class="py-3 px-3 text-right font-mono tabular-nums text-indigo-700 font-semibold" title="Gross Margin Return on Investment">
+                                @item.Gmroi.ToString("N2")x
+                            </td>
+
+                            <!-- Reorder Urgency -->
+                            <td class="py-3 px-3 text-center whitespace-nowrap">
+                                @switch (item.ReorderUrgency)
+                                {
+                                    case StockReorderUrgency.Critical:
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800">
+                                            ORDER NOW
+                                        </span>
+                                        break;
+                                    case StockReorderUrgency.OrderSoon:
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-800">
+                                            ORDER SOON
+                                        </span>
+                                        break;
+                                    case StockReorderUrgency.Liquidate:
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-200 text-slate-700">
+                                            LIQUIDATE
+                                        </span>
+                                        break;
+                                    case StockReorderUrgency.Overstocked:
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-blue-50 text-blue-700">
+                                            OVERSTOCKED
+                                        </span>
+                                        break;
+                                    default:
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-50 text-emerald-700">
+                                            HEALTHY
+                                        </span>
+                                        break;
+                                }
+                            </td>
+
+                            <!-- Recommended Order Quantity -->
+                            <td class="py-3 px-3 text-right font-mono tabular-nums font-bold @(item.RecommendedOrderQty > 0 ? "text-indigo-600 text-sm" : "text-slate-400")">
+                                @if (item.RecommendedOrderQty > 0)
+                                {
+                                    <span>+@item.RecommendedOrderQty.ToString("N0")</span>
+                                }
+                                else
+                                {
+                                    <span>0</span>
+                                }
+                            </td>
+
+                            <!-- Investment Required -->
+                            <td class="py-3 px-3 text-right font-mono tabular-nums text-slate-800">
+                                @if (item.EstimatedOrderCost > 0)
+                                {
+                                    <span>@Money(item.EstimatedOrderCost)</span>
+                                    <span class="text-[10px] text-emerald-600 block">+@Money(item.ExpectedProfitReturn) profit</span>
+                                }
+                                else
+                                {
+                                    <span class="text-slate-400">-</span>
+                                }
+                            </td>
+
+                            <!-- Dead Stock ML Probability & User Feedback Action -->
+                            <td class="py-3 px-3 text-center whitespace-nowrap">
+                                <div class="flex items-center justify-center gap-1.5">
+                                    <span class="text-[10px] font-mono text-slate-500" title="ML Model Dead Stock Probability">
+                                        @((item.DeadStockProbability * 100).ToString("N0"))%
+                                    </span>
+
+                                    @if (item.UserDeadStockOverride.HasValue)
+                                    {
+                                        <button type="button" @onclick="() => SetOverrideAsync(item.ProductId, null)" class="px-2 py-1 rounded-md text-[10px] font-semibold bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 transition" title="User override active. Click to reset to AI classification.">
+                                            @(item.UserDeadStockOverride.Value ? "User: Dead" : "User: Active") ✕
+                                        </button>
+                                    }
+                                    else if (item.IsDeadStock)
+                                    {
+                                        <button type="button" @onclick="() => SetOverrideAsync(item.ProductId, false)" class="px-2 py-1 rounded-md text-[10px] font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition" title="Teach AI that this is not dead stock">
+                                            Keep Active
+                                        </button>
+                                    }
+                                    else
+                                    {
+                                        <button type="button" @onclick="() => SetOverrideAsync(item.ProductId, true)" class="px-2 py-1 rounded-md text-[10px] font-medium text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition" title="Teach AI to classify this as dead stock">
+                                            Mark Dead
+                                        </button>
+                                    }
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+@code {
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromQuery]
+    public int? LocationId { get; set; }
+
+    [SupplyParameterFromQuery(Name = "segment")]
+    public string? ActiveSegment { get; set; }
+
+    private StockIntelligenceReportData? Data { get; set; }
+    private string? Error { get; set; }
+    private string? SuccessMessage { get; set; }
+    private string Currency => Configuration["StoreCurrency"] ?? "BDT";
+
+    private string ExportCsvUrl =>
+        $"/api/reports/export/stock-intelligence?locationId={LocationId}";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDataAsync(forceRefresh: false);
+    }
+
+    private async Task LoadDataAsync(bool forceRefresh)
+    {
+        try
+        {
+            Error = null;
+            Data = await Intelligence.GetStockIntelligenceAsync(
+                HttpContext.User,
+                LocationId,
+                forceRefresh,
+                HttpContext.RequestAborted);
+        }
+        catch (ValidationException ex)
+        {
+            Error = ex.Message;
+        }
+        catch (Exception ex)
+        {
+            Error = "Failed to load stock intelligence: " + ex.Message;
+        }
+    }
+
+    private async Task RetrainAsync()
+    {
+        await LoadDataAsync(forceRefresh: true);
+        SuccessMessage = "AI Stock Intelligence model successfully retrained against full database history.";
+    }
+
+    private async Task SetOverrideAsync(int productId, bool? isDeadStock)
+    {
+        try
+        {
+            await Intelligence.SetUserDeadStockOverrideAsync(
+                HttpContext.User,
+                productId,
+                isDeadStock,
+                isDeadStock.HasValue ? (isDeadStock.Value ? "Marked as dead stock by manager" : "Confirmed active by manager") : null,
+                HttpContext.RequestAborted);
+
+            SuccessMessage = isDeadStock.HasValue
+                ? (isDeadStock.Value ? "Product marked as Dead Stock. ML model updated." : "Product confirmed Active. ML model updated.")
+                : "Product override cleared. Reverted to ML classification.";
+
+            await LoadDataAsync(forceRefresh: true);
+        }
+        catch (Exception ex)
+        {
+            Error = "Failed to update AI feedback: " + ex.Message;
+        }
+    }
+
+    private List<StockIntelligenceRow> FilterItems(IReadOnlyList<StockIntelligenceRow> items)
+    {
+        return ActiveSegment switch
+        {
+            "urgent" => items.Where(x => x.ReorderUrgency == StockReorderUrgency.Critical || x.ReorderUrgency == StockReorderUrgency.OrderSoon).ToList(),
+            "compounders" => items.Where(x => x.Segment == StockIntelligenceSegment.CapitalCompounder).ToList(),
+            "cashflow" => items.Where(x => x.Segment == StockIntelligenceSegment.CashFlowAnchor).ToList(),
+            "raregems" => items.Where(x => x.Segment == StockIntelligenceSegment.RareGem).ToList(),
+            "deadstock" => items.Where(x => x.Segment == StockIntelligenceSegment.DeadStockTrap).ToList(),
+            _ => items.ToList()
+        };
+    }
+
+    private string FilterLink(string? segment)
+    {
+        var query = new List<string>();
+        if (LocationId.HasValue) query.Add($"locationId={LocationId.Value}");
+        if (!string.IsNullOrEmpty(segment)) query.Add($"segment={segment}");
+        return $"/reports/stock-intelligence?{string.Join("&", query)}";
+    }
+
+    private void OnLocationChanged(ChangeEventArgs e)
+    {
+        var val = e.Value?.ToString();
+        var id = int.TryParse(val, out var parsed) ? (int?)parsed : null;
+        var query = new List<string>();
+        if (id.HasValue) query.Add($"locationId={id.Value}");
+        if (!string.IsNullOrEmpty(ActiveSegment)) query.Add($"segment={ActiveSegment}");
+        Navigation.NavigateTo($"/reports/stock-intelligence?{string.Join("&", query)}");
+    }
+
+    private string Money(decimal amount) => $"{amount:N2} {Currency}";
+}

@@ -10,7 +10,7 @@
 @inject NavigationManager Navigation
 @inject IJSRuntime JS
 
-<PageTitle>Profit Margin Matrix · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
+<PageTitle>Profit Margin Matrix · @(Configuration["StoreName"] ?? "JAS International")</PageTitle>
 
 <div class="page-heading">
     <div>
@@ -194,26 +194,27 @@ else
                 @{
                     var qLabels = new[] { "⭐ Stars", "💰 Cash Cows", "🚀 Opportunities", "⚠️ Laggards" };
                     var qValues = new[] { Data.StarsCount, Data.CashCowsCount, Data.OpportunitiesCount, Data.LaggardsCount };
-                    var qColors = new[] { "#4f46e5", "#3b82f6", "#10b981", "#64748b" };
+                    var qColors = new[] { "#4f46e5", "#3b82f6", "#10b981", "#94a3b8" };
                 }
-                <canvas id="margin-quadrant-donut"
+                <canvas id="quadrant-donut-chart"
                         data-chart="donut"
-                        data-currency=""
+                        data-currency="items"
                         data-labels="@JsonSerializer.Serialize(qLabels)"
                         data-values="@JsonSerializer.Serialize(qValues)"
                         data-colors="@JsonSerializer.Serialize(qColors)">
                 </canvas>
+                <script>
+                    if (window.JASCharts) { window.JASCharts.initDeclarativeCharts(); }
+                    else { window.addEventListener('DOMContentLoaded', () => window.JASCharts?.initDeclarativeCharts(), { once: true }); }
+                </script>
             </div>
         </div>
 
-        <!-- Strategy Matrix Legend & Guide -->
+        <!-- Strategic Guidance Card -->
         <div class="chart-card bg-white rounded-xl border border-slate-200/80 p-5 shadow-xs flex flex-col justify-between">
             <div>
-                <div class="flex items-center justify-between mb-3">
-                    <h2 class="text-base font-bold text-slate-800">Matrix Strategic Directives</h2>
-                    <span class="stat-pill bg-slate-100 text-slate-700 font-semibold text-xs px-2.5 py-1 rounded-full">Guide</span>
-                </div>
-                <p class="text-xs text-slate-500 mb-4">Actionable merchandising recommendations according to sales velocity and margins:</p>
+                <h2 class="text-base font-bold text-slate-800 mb-1">Strategic Playbook</h2>
+                <p class="text-xs text-slate-500 mb-4">Action plan based on product quadrant distribution</p>
 
                 <div class="space-y-3">
                     <div class="flex items-start gap-3 p-2.5 rounded-lg bg-indigo-50/60 border border-indigo-100">
@@ -509,7 +510,7 @@ else
     {
         try
         {
-            await JS.InvokeVoidAsync("PosCharts.initDeclarativeCharts");
+            await JS.InvokeVoidAsync("JASCharts.initDeclarativeCharts");
         }
         catch
         {

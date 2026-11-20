@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Caching.Hybrid;
 using POSApp.Client.Services;
 using POSApp.Services.ML;
 
@@ -7,6 +8,15 @@ public static class InventoryServiceExtensions
 {
     public static IServiceCollection AddInventoryUi(this IServiceCollection services)
     {
+        services.AddMemoryCache();
+        services.AddHybridCache(options =>
+        {
+            options.DefaultEntryOptions = new HybridCacheEntryOptions
+            {
+                Expiration = TimeSpan.FromHours(24),
+                LocalCacheExpiration = TimeSpan.FromHours(24)
+            };
+        });
         services.AddHttpContextAccessor();
         services.AddScoped<UserTimeZone>(sp =>
             BusinessTime.ResolveUserTimeZone(
@@ -52,6 +62,8 @@ public static class InventoryServiceExtensions
         services.AddScoped<ReceivingReportService>();
         services.AddSingleton<PortfolioMLService>();
         services.AddScoped<AnalyticsService>();
+        services.AddSingleton<DeadStockMLService>();
+        services.AddScoped<StockIntelligenceService>();
         services.AddScoped<ISalesClient, ServerSalesClient>();
         services.AddScoped<IReceivingClient, ServerReceivingClient>();
         services.AddScoped<IAttributeDefinitionClient, ServerAttributeDefinitionClient>();

@@ -304,7 +304,7 @@ export const engine = {
 
     initDeclarativeCharts: function () {
         if (typeof Chart === 'undefined') {
-            setTimeout(engine.initDeclarativeCharts, 60);
+            setTimeout(engine.initDeclarativeCharts, 50);
             return;
         }
 
@@ -314,9 +314,10 @@ export const engine = {
             const canvasId = canvas.id;
             if (!canvasId) return;
 
+            const existingChart = Chart.getChart(canvas) || Chart.getChart(canvasId);
             const payloadKey = `${type}|${canvas.dataset.labels || ''}|${canvas.dataset.values || ''}|${canvas.dataset.datasets || ''}|${canvas.dataset.colors || ''}|${canvas.dataset.horizontal || ''}`;
-            if (canvas._lastPayload === payloadKey && Chart.getChart(canvas)) {
-                return; // Up to date
+            if (canvas._lastPayload === payloadKey && existingChart) {
+                return; // Up to date and chart is active
             }
 
             try {
@@ -326,16 +327,16 @@ export const engine = {
                 if (type === 'donut') {
                     const data = JSON.parse(canvas.dataset.values || '[]');
                     const colors = canvas.dataset.colors ? JSON.parse(canvas.dataset.colors) : null;
-                    engine.renderDonut(canvasId, labels, data, currency, colors);
+                    engine.renderDonut(canvas, labels, data, currency, colors);
                     canvas._lastPayload = payloadKey;
                 } else if (type === 'bar') {
                     const datasets = JSON.parse(canvas.dataset.datasets || '[]');
                     const isHorizontal = canvas.dataset.horizontal === 'true';
-                    engine.renderBar(canvasId, labels, datasets, currency, isHorizontal);
+                    engine.renderBar(canvas, labels, datasets, currency, isHorizontal);
                     canvas._lastPayload = payloadKey;
                 } else if (type === 'line') {
                     const datasets = JSON.parse(canvas.dataset.datasets || '[]');
-                    engine.renderLine(canvasId, labels, datasets, currency);
+                    engine.renderLine(canvas, labels, datasets, currency);
                     canvas._lastPayload = payloadKey;
                 }
             } catch (e) {
@@ -350,7 +351,7 @@ function scheduleInit() {
     clearTimeout(scheduleTimer);
     scheduleTimer = setTimeout(() => {
         requestAnimationFrame(() => engine.initDeclarativeCharts());
-    }, 40);
+    }, 30);
 }
 
 // Initializer function called by Blazor module lifecycle
@@ -371,6 +372,12 @@ if (typeof window !== 'undefined') {
     } else {
         scheduleInit();
     }
+
+    // Blazor enhanced navigation DOM events
+    document.addEventListener('blazor:enhancedload', scheduleInit);
+    window.addEventListener('blazor:enhancedload', scheduleInit);
+    window.addEventListener('load', scheduleInit);
+    window.addEventListener('pageshow', scheduleInit);
 
     // Dynamic StreamRendering & DOM insertion watcher
     if (typeof MutationObserver !== 'undefined' && document.body) {

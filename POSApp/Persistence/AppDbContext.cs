@@ -44,6 +44,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<ProductAttributeOption> ProductAttributeOptions { get; set; } = null!;
     public DbSet<ProductAttributeValue> ProductAttributeValues { get; set; } = null!;
     public DbSet<Product> Products { get; set; } = null!;
+    public DbSet<ProductAiFeedback> ProductAiFeedbacks { get; set; } = null!;
     public DbSet<ProductCostHistory> ProductCostHistories { get; set; } = null!;
     public DbSet<Customer> Customers { get; set; } = null!;
     public DbSet<Supplier> Suppliers { get; set; } = null!;

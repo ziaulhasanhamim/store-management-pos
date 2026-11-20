@@ -260,6 +260,30 @@ public static class ReportEndpoints
             return Results.File(Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(expenseCsv)).ToArray(),
                 "text/csv; charset=utf-8", $"expense-report-{period ?? "custom"}-{DateTime.UtcNow:yyyyMMddHHmmss}.csv");
         }
+        else if (kind == "stock-intelligence")
+        {
+            var intelligence = context.RequestServices.GetRequiredService<StockIntelligenceService>();
+            var data = await intelligence.GetStockIntelligenceAsync(context.User, locationId, false, context.RequestAborted);
+            count = data.Items.Count;
+            rows.Add([
+                "Product ID", "Product Name", "Barcode", "Category", "Supplier",
+                "Current Stock", "Cost Price", "Realized Selling Price", "Realized Margin %",
+                "Realized Unit Profit", "Total Units Sold", "Total Revenue", "Total Profit",
+                "Daily Velocity", "Days Of Supply", "Days Since Last Sale", "Tied Up Capital",
+                "GMROI", "Profit Per Tk Invested", "Role Segment", "Reorder Urgency",
+                "Recommended Order Qty", "Estimated Order Cost", "Expected Profit Gain", "Is Dead Stock"
+            ]);
+            rows.AddRange(data.Items.Take(limit).Select(i => new[]
+            {
+                Number(i.ProductId), i.ProductName, i.Barcode ?? "", i.CategoryName, i.SupplierName,
+                Number(i.CurrentStock), Number(i.CostPrice), Number(i.RealizedAvgPrice), Number(i.RealizedMarginPercent),
+                Number(i.RealizedUnitProfit), Number(i.TotalUnitsSold), Number(i.TotalRevenue), Number(i.TotalGrossProfit),
+                Number(i.DailyVelocity), Number(i.DaysOfSupply), i.DaysSinceLastSale.ToString(), Number(i.TiedUpCapital),
+                Number(i.Gmroi), Number(i.ProfitPerInvestmentTk), i.Segment.ToString(), i.ReorderUrgency.ToString(),
+                Number(i.RecommendedOrderQty), Number(i.EstimatedOrderCost), Number(i.ExpectedProfitReturn),
+                i.IsDeadStock ? "Yes" : "No"
+            }));
+        }
         else
         {
             return Results.NotFound();
