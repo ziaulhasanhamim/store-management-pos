@@ -381,11 +381,8 @@ else
 
                                     @if (item.UserDeadStockOverride.HasValue)
                                     {
-                                        <form method="post" @formname="@($"fb-clear-{item.ProductId}")" data-enhance class="inline">
+                                        <form method="post" @formname="@($"fb-clear-{item.ProductId}")" @onsubmit="() => SetOverrideAsync(item.ProductId, null)" data-enhance class="inline">
                                             <AntiforgeryToken />
-                                            <input type="hidden" name="FeedbackAction" value="override" />
-                                            <input type="hidden" name="FeedbackProductId" value="@item.ProductId" />
-                                            <input type="hidden" name="FeedbackValue" value="clear" />
                                             <button type="submit" class="px-2 py-1 rounded-md text-[10px] font-semibold bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 transition cursor-pointer" title="User override active. Click to reset to AI classification.">
                                                 @(item.UserDeadStockOverride.Value ? "User: Dead" : "User: Active") ✕
                                             </button>
@@ -393,11 +390,8 @@ else
                                     }
                                     else if (item.IsDeadStock)
                                     {
-                                        <form method="post" @formname="@($"fb-active-{item.ProductId}")" data-enhance class="inline">
+                                        <form method="post" @formname="@($"fb-active-{item.ProductId}")" @onsubmit="() => SetOverrideAsync(item.ProductId, false)" data-enhance class="inline">
                                             <AntiforgeryToken />
-                                            <input type="hidden" name="FeedbackAction" value="override" />
-                                            <input type="hidden" name="FeedbackProductId" value="@item.ProductId" />
-                                            <input type="hidden" name="FeedbackValue" value="active" />
                                             <button type="submit" class="px-2 py-1 rounded-md text-[10px] font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition cursor-pointer" title="Teach AI that this is not dead stock">
                                                 Keep Active
                                             </button>
@@ -405,11 +399,8 @@ else
                                     }
                                     else
                                     {
-                                        <form method="post" @formname="@($"fb-dead-{item.ProductId}")" data-enhance class="inline">
+                                        <form method="post" @formname="@($"fb-dead-{item.ProductId}")" @onsubmit="() => SetOverrideAsync(item.ProductId, true)" data-enhance class="inline">
                                             <AntiforgeryToken />
-                                            <input type="hidden" name="FeedbackAction" value="override" />
-                                            <input type="hidden" name="FeedbackProductId" value="@item.ProductId" />
-                                            <input type="hidden" name="FeedbackValue" value="dead" />
                                             <button type="submit" class="px-2 py-1 rounded-md text-[10px] font-medium text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition cursor-pointer" title="Teach AI to classify this as dead stock">
                                                 Mark Dead
                                             </button>
@@ -447,15 +438,6 @@ else
 
     private int EffectivePageSize => PageSize is 10 or 30 or 50 or 100 or 250 ? PageSize : 50;
 
-    [SupplyParameterFromForm]
-    public string? FeedbackAction { get; set; }
-
-    [SupplyParameterFromForm]
-    public int? FeedbackProductId { get; set; }
-
-    [SupplyParameterFromForm]
-    public string? FeedbackValue { get; set; }
-
     private StockIntelligenceReportData? Data { get; set; }
     private string? Error { get; set; }
     private string? SuccessMessage { get; set; }
@@ -467,24 +449,6 @@ else
     protected override async Task OnInitializedAsync()
     {
         await LoadDataAsync(forceRefresh: false);
-    }
-
-    protected override async Task OnParametersSetAsync()
-    {
-        if (HttpMethods.IsPost(HttpContext.Request.Method) && FeedbackAction == "override" && FeedbackProductId.HasValue)
-        {
-            var id = FeedbackProductId.Value;
-            bool? isDead = FeedbackValue switch
-            {
-                "dead" => true,
-                "active" => false,
-                _ => null
-            };
-            FeedbackAction = null;
-            FeedbackProductId = null;
-            FeedbackValue = null;
-            await SetOverrideAsync(id, isDead);
-        }
     }
 
     private async Task LoadDataAsync(bool forceRefresh)
