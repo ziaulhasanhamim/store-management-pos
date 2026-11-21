@@ -426,6 +426,7 @@ public partial class SalesEditor
             return;
         }
         LocationId = location;
+        SearchCache.Clear();
         try
         {
             Products = await Sales.SearchAsync(LocationId, Search);
@@ -469,6 +470,7 @@ public partial class SalesEditor
                 {
                     await Recovery.ClearAsync();
                 }
+                UpdateStateAfterSale(command.Lines);
                 NewSale();
                 Navigation.NavigateTo($"/sales/{result.Id}/bill");
             }
@@ -521,6 +523,7 @@ public partial class SalesEditor
             Notes = draft.Notes;
             Notice = "Draft resumed.";
             Error = null;
+            SearchCache.Clear();
             Products = await Sales.SearchAsync(LocationId, null);
         }
         catch (Exception exception)
@@ -531,6 +534,17 @@ public partial class SalesEditor
         {
             Busy = false;
         }
+    }
+
+    private void UpdateStateAfterSale(IReadOnlyList<SalesLine> soldLines)
+    {
+        if (soldLines.Count == 0) return;
+        var deltas = soldLines.GroupBy(l => l.ProductId).ToDictionary(g => g.Key, g => g.Sum(l => l.Quantity));
+        if (Products.Count > 0)
+        {
+            Products = Products.Select(item => deltas.TryGetValue(item.Id, out var delta) ? item with { Available = item.Available - delta } : item).ToArray();
+        }
+        SearchCache.Clear();
     }
 
     private void NewSale()
@@ -559,6 +573,7 @@ public partial class SalesEditor
         Notice = null;
         Error = null;
         Completed = false;
+        SearchCache.Clear();
     }
 
     private async Task DiscardActiveDraftAsync()

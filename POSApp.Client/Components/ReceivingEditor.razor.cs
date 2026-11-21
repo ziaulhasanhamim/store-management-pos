@@ -73,7 +73,19 @@ public partial class ReceivingEditor
     private int SelectedResultIndex = -1;
     private string PartyName = "";
     private int SupplierId;
-    private int LocationId;
+    private int _locationId;
+    private int LocationId
+    {
+        get => _locationId;
+        set
+        {
+            if (_locationId != value)
+            {
+                _locationId = value;
+                SearchCache.Clear();
+            }
+        }
+    }
     private IReadOnlyList<PaymentInput> Payments = [];
     private decimal Paid => Payments.Sum(payment => payment.Amount);
     private decimal OpeningDue;
@@ -126,7 +138,8 @@ public partial class ReceivingEditor
             return;
         }
 
-        if (SearchCache.TryGetValue(term, out var cached))
+        var cacheKey = $"{LocationId}:{term}";
+        if (SearchCache.TryGetValue(cacheKey, out var cached))
         {
             Results = cached;
             Searching = false;
@@ -144,7 +157,7 @@ public partial class ReceivingEditor
                 {
                     SearchCache.Clear();
                 }
-                SearchCache[term] = found;
+                SearchCache[cacheKey] = found;
                 Results = found;
                 SelectedResultIndex = found.Length > 0 ? 0 : -1;
             }
@@ -322,6 +335,7 @@ public partial class ReceivingEditor
             var item = await Inventory.SaveProductAsync(NewItem);
             AddLine(item);
             Dialog = null;
+            SearchCache.Clear();
         }
         catch (Exception exception)
         {
@@ -395,6 +409,7 @@ public partial class ReceivingEditor
             };
             Completed = await Inventory.ReceiveAsync(command);
             Options = await Inventory.OptionsAsync();
+            UpdateStateAfterReceive(lines);
         }
         catch (Exception exception)
         {
@@ -404,6 +419,17 @@ public partial class ReceivingEditor
         {
             Busy = false;
         }
+    }
+
+    private void UpdateStateAfterReceive(IReadOnlyList<ReceiveLine> receivedLines)
+    {
+        if (receivedLines.Count == 0) return;
+        var deltas = receivedLines.GroupBy(l => l.ProductId).ToDictionary(g => g.Key, g => g.Sum(l => l.Quantity));
+        if (Results.Count > 0)
+        {
+            Results = Results.Select(item => deltas.TryGetValue(item.Id, out var delta) ? item with { Stock = item.Stock + delta } : item).ToArray();
+        }
+        SearchCache.Clear();
     }
 
     private void NewReceipt()
@@ -422,6 +448,7 @@ public partial class ReceivingEditor
         Completed = null;
         Error = null;
         RequestId = Guid.NewGuid();
+        SearchCache.Clear();
     }
 
     private void Report(Exception exception)
