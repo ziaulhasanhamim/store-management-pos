@@ -2,6 +2,7 @@
 @attribute [Authorize(Policy = AppPolicies.ManageUsers)]
 @attribute [StreamRendering]
 @using System.ComponentModel.DataAnnotations
+@using System.Globalization
 @inject DebtService DebtAccounts
 @inject NavigationManager Navigation
 
@@ -13,6 +14,21 @@
 @if (Error is not null)
 {
     <p class="error-panel" role="alert">@Error</p>
+}
+@if (Saved)
+{
+    var message = SavedKind == DebtEntryKind.Repayment
+        ? $"Recorded repayment of {Money(SavedAmt ?? 0)} to {SavedLender ?? "lender"} successfully. Ready for a new entry."
+        : $"Recorded borrowing of {Money(SavedAmt ?? 0)} from {SavedLender ?? "lender"} successfully. Ready for a new entry.";
+    <div class="mb-4 rounded-xl border border-emerald-200 bg-emerald-50/90 p-4 text-sm font-medium text-emerald-800 flex items-center justify-between" role="status">
+        <div class="flex items-center gap-2">
+            <svg class="size-5 text-emerald-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+            </svg>
+            <span>@message</span>
+        </div>
+        <a href="@($"/finance/debt/payments?lenderId={LenderId}")" class="text-emerald-700 hover:text-emerald-900 text-xs font-semibold">Dismiss</a>
+    </div>
 }
 @if (Data is null && Error is null)
 {
@@ -58,7 +74,7 @@ else if (Data is not null)
                     </div>
                     <div>
                         <label for="debt-amount" class="field-label">Amount</label>
-                        <input id="debt-amount" class="field" name="Input.Amount" value="@Input.Amount" inputmode="decimal" required />
+                        <input id="debt-amount" class="field" name="Input.Amount" value="@(Input.Amount > 0 ? Input.Amount.ToString("0.##", CultureInfo.InvariantCulture) : "")" placeholder="0.00" inputmode="decimal" required />
                     </div>
                     <div>
                         <label for="debt-method" class="field-label">Payment method</label>
@@ -99,7 +115,7 @@ else if (Data is not null)
                     }
                     <div class="sm:col-span-2">
                         <label for="debt-notes" class="field-label">Notes / reference (optional)</label>
-                        <textarea id="debt-notes" class="field" name="Input.Notes" maxlength="2000">@Input?.Notes</textarea>
+                        <textarea id="debt-notes" class="field" name="Input.Notes" maxlength="2000" placeholder="Optional reference notes">@Input?.Notes</textarea>
                     </div>
                 </div>
                 <button class="btn-primary mt-4" data-pending-text="Recording…">
@@ -176,6 +192,15 @@ else if (Data is not null)
     [SupplyParameterFromQuery]
     public bool Saved { get; set; }
 
+    [SupplyParameterFromQuery]
+    public DebtEntryKind? SavedKind { get; set; }
+
+    [SupplyParameterFromQuery]
+    public decimal? SavedAmt { get; set; }
+
+    [SupplyParameterFromQuery]
+    public string? SavedLender { get; set; }
+
     [CascadingParameter]
     private HttpContext HttpContext { get; set; } = default!;
 
@@ -201,12 +226,16 @@ else if (Data is not null)
         try
         {
             Data = await DebtAccounts.ReadAsync(HttpContext.User, LenderId, HttpContext.RequestAborted, pageSize: PageSize, historyPage: Page);
-            Input ??= new()
+            if (Saved || HttpContext.Request.Method != "POST" || Input is null)
             {
-                WorkingDate = Data.WorkingDate,
-                LenderId = LenderId ?? 0,
-                CashLocationId = Data.Locations.Count == 1 ? Data.Locations[0].Id : null
-            };
+                Input = new()
+                {
+                    RequestId = Guid.NewGuid(),
+                    WorkingDate = Data.WorkingDate,
+                    LenderId = LenderId ?? 0,
+                    CashLocationId = Data.Locations.Count == 1 ? Data.Locations[0].Id : null
+                };
+            }
         }
         catch (ValidationException exception)
         {
@@ -222,8 +251,20 @@ else if (Data is not null)
             {
                 Input.TransactionTime = BusinessTime.FromBusinessWallClockToUtc(Input.TransactionTime.Value.DateTime, Configuration);
             }
+            var kind = Input!.Kind;
+            var amt = Input.Amount;
+            var lender = Data?.Lenders.FirstOrDefault(l => l.Id == Input.LenderId)?.Name ?? "Lender";
+            var reqId = Input.RequestId;
+            var lenderId = Input.LenderId;
             await DebtAccounts.PostAsync(HttpContext.User, Input!, HttpContext.RequestAborted);
-            Navigation.NavigateTo($"/finance/debt/payments?saved=true&savedRequest={Input!.RequestId}&lenderId={Input!.LenderId}");
+            Input = new()
+            {
+                RequestId = Guid.NewGuid(),
+                WorkingDate = Input.WorkingDate,
+                LenderId = lenderId,
+                CashLocationId = Input.CashLocationId
+            };
+            Navigation.NavigateTo($"/finance/debt/payments?saved=true&savedRequest={reqId}&savedKind={kind}&savedAmt={amt.ToString(CultureInfo.InvariantCulture)}&savedLender={Uri.EscapeDataString(lender)}&lenderId={lenderId}");
         }
         catch (ValidationException exception)
         {

@@ -142,7 +142,7 @@ public sealed partial class MoneyEntryService(IServiceScopeFactory scopes, IConf
             .Select(l => new StockLocationOption(l.Id, l.Name)).ToListAsync(ct);
         var userLocation = await db.Users.Where(u => u.Id == actorId).Select(u => u.CashLocationId).FirstOrDefaultAsync(ct);
 
-        return new(kind, working, selected, selected == working && !closed, admin, total, count, categories, parties, rows)
+        return new(kind, working, selected, !closed, admin, total, count, categories, parties, rows)
         {
             CanBackdate = true,
             Pagination = pagination,

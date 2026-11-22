@@ -13,7 +13,7 @@
     }
     <a href="/cash-drawer?view=history" class="@(View == "history" ? "filter-chip active" : "filter-chip")">Session history</a>
 </nav>
-<DrawerControls Data="Data" View="@View" Location="Location" Transfer="Transfer" Assignment="Assignment" SelectLocationAsync="SelectLocationAsync" TransferAsync="TransferAsync" AssignAsync="AssignAsync" />
+<DrawerControls Data="Data" View="@View" Location="Location" Transfer="Transfer" Assignment="Assignment" SelectLocationAsync="SelectLocationAsync" TransferAsync="TransferAsync" AssignAsync="AssignAsync" Saved="@Saved" SavedAmt="@SavedAmt" SavedSrc="@SavedSrc" SavedDst="@SavedDst" />
 
 
 @if (View == "drawer" && Data is not null)
@@ -656,6 +656,18 @@
 
     [Parameter]
     public EventCallback DepositServicingProfitAsync { get; set; }
+
+    [Parameter]
+    public string? Saved { get; set; }
+
+    [Parameter]
+    public decimal? SavedAmt { get; set; }
+
+    [Parameter]
+    public string? SavedSrc { get; set; }
+
+    [Parameter]
+    public string? SavedDst { get; set; }
 
     private string Currency => Configuration["CurrencyCode"] ?? "BDT";
 

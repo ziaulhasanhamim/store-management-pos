@@ -1,6 +1,7 @@
 @page "/cash-drawer"
 @attribute [Authorize(Policy = AppPolicies.ManageDrawer)]
 @using System.ComponentModel.DataAnnotations
+@using System.Globalization
 @inject CashDrawerService Drawers
 @inject FinanceService Finance
 @inject NavigationManager Navigation
@@ -20,7 +21,7 @@
 }
 @if (Data is not null)
 {
-    <DrawerView View="@View" Data="Data" Open="Open!" Close="Close!" Adjustment="Adjustment!" Location="Location!" Transfer="Transfer!" Assignment="Assignment!" CountInput="CountInput!" AcceptVarianceInput="AcceptVarianceInput!" DeleteCount="DeleteCount!" SelectLocationAsync="SelectLocationAsync" TransferAsync="TransferAsync" AssignAsync="AssignAsync" OpenAsync="OpenAsync" CloseAsync="CloseAsync" AdjustAsync="AdjustAsync" SubmitCountAsync="SubmitCountAsync" AcceptVarianceAsync="AcceptVarianceAsync" DeleteCountAsync="DeleteCountAsync" DepositServicingProfitAsync="DepositServicingProfitAsync" />
+    <DrawerView View="@View" Data="Data" Open="Open!" Close="Close!" Adjustment="Adjustment!" Location="Location!" Transfer="Transfer!" Assignment="Assignment!" CountInput="CountInput!" AcceptVarianceInput="AcceptVarianceInput!" DeleteCount="DeleteCount!" SelectLocationAsync="SelectLocationAsync" TransferAsync="TransferAsync" AssignAsync="AssignAsync" OpenAsync="OpenAsync" CloseAsync="CloseAsync" AdjustAsync="AdjustAsync" SubmitCountAsync="SubmitCountAsync" AcceptVarianceAsync="AcceptVarianceAsync" DeleteCountAsync="DeleteCountAsync" DepositServicingProfitAsync="DepositServicingProfitAsync" Saved="@Saved" SavedAmt="@SavedAmt" SavedSrc="@SavedSrc" SavedDst="@SavedDst" />
 }
 else
 {
@@ -73,6 +74,18 @@ else
     [SupplyParameterFromQuery(Name = "to")]
     public string? ToDateStr { get; set; }
 
+    [SupplyParameterFromQuery]
+    public string? Saved { get; set; }
+
+    [SupplyParameterFromQuery]
+    public decimal? SavedAmt { get; set; }
+
+    [SupplyParameterFromQuery]
+    public string? SavedSrc { get; set; }
+
+    [SupplyParameterFromQuery]
+    public string? SavedDst { get; set; }
+
     private CashDrawerPage? Data;
     private string? Error;
 
@@ -83,7 +96,10 @@ else
         Close ??= new();
         Adjustment ??= new();
         Location ??= new();
-        Transfer ??= new();
+        if (Saved == "transfer" || HttpContext.Request.Method != "POST" || Transfer is null)
+        {
+            Transfer = new() { RequestId = Guid.NewGuid() };
+        }
         Assignment ??= new();
         CountInput ??= new();
         AcceptVarianceInput ??= new();
@@ -120,7 +136,14 @@ else
     }
 
     private Task SelectLocationAsync() => SubmitAsync(() => Drawers.SelectLocationAsync(HttpContext.User, Location!.LocationId, HttpContext.RequestAborted), "/cash-drawer");
-    private Task TransferAsync() => SubmitAsync(() => Drawers.TransferAsync(HttpContext.User, Transfer!, HttpContext.RequestAborted), "/cash-drawer?view=transfer");
+    private async Task TransferAsync()
+    {
+        var amt = Transfer!.Amount;
+        var src = Data?.Locations.FirstOrDefault(l => l.Id == Transfer.SourceLocationId)?.Name ?? "Source";
+        var dst = Data?.Locations.FirstOrDefault(l => l.Id == Transfer.DestinationLocationId)?.Name ?? "Destination";
+        await SubmitAsync(() => Drawers.TransferAsync(HttpContext.User, Transfer!, HttpContext.RequestAborted),
+            $"/cash-drawer?view=transfer&saved=transfer&savedAmt={amt.ToString(CultureInfo.InvariantCulture)}&savedSrc={Uri.EscapeDataString(src)}&savedDst={Uri.EscapeDataString(dst)}");
+    }
     private Task AssignAsync() => SubmitAsync(() => Drawers.AssignAsync(HttpContext.User, Assignment!, HttpContext.RequestAborted), "/cash-drawer?view=locations");
 
     private Task OpenAsync() => SubmitAsync(async () => await Drawers.OpenAsync(HttpContext.User, Open!, HttpContext.RequestAborted));

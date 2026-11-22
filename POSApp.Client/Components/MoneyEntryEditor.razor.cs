@@ -51,7 +51,7 @@ public partial class MoneyEntryEditor
     private bool LoadingRows;
     private bool DraftReady = true;
     private bool IsBackdating;
-    private DateTime? BatchTransactionTime;
+    private TimeOnly SelectedTime = new(12, 0);
     private IReadOnlySet<int> PendingIds => Lines
         .Where(line => line.Input.Id.HasValue)
         .Select(line => line.Input.Id!.Value)
@@ -97,7 +97,7 @@ public partial class MoneyEntryEditor
         Error = null;
         Notice = null;
         IsBackdating = false;
-        BatchTransactionTime = null;
+        SelectedTime = new(12, 0);
         BatchId = Guid.NewGuid();
         Lines = [];
         AddLine();
@@ -157,9 +157,19 @@ public partial class MoneyEntryEditor
         var committed = false;
         try
         {
-            if (Data.CanBackdate && IsBackdating && BatchTransactionTime.HasValue)
+            if (Data.Date != Data.WorkingDate)
             {
-                var converted = UserTime.ToUtcFromLocal(BatchTransactionTime.Value);
+                var localDt = Data.Date.ToDateTime(SelectedTime);
+                var converted = UserTime.ToUtcFromLocal(localDt);
+                foreach (var line in Lines)
+                {
+                    line.Input.TransactionTime = converted;
+                }
+            }
+            else if (Data.CanBackdate && IsBackdating)
+            {
+                var localDt = Data.WorkingDate.ToDateTime(SelectedTime);
+                var converted = UserTime.ToUtcFromLocal(localDt);
                 foreach (var line in Lines)
                 {
                     line.Input.TransactionTime = converted;
@@ -176,15 +186,15 @@ public partial class MoneyEntryEditor
                 }
             }
 
-            var result = await Entries.SaveAsync(Data.Kind, new MoneyEntryCommand(BatchId, Data.WorkingDate,
+            var result = await Entries.SaveAsync(Data.Kind, new MoneyEntryCommand(BatchId, Data.Date,
                 Lines.Select(line => line.Input).ToArray()));
             committed = true;
             BatchId = Guid.NewGuid();
             IsBackdating = false;
-            BatchTransactionTime = null;
+            SelectedTime = new(12, 0);
             Lines = [];
             AddLine();
-            Notice = $"Saved {result.Ids.Count} {(result.Ids.Count == 1 ? "entry" : "entries")}. Ready for a new entry.";
+            Notice = $"Saved {result.Ids.Count} {(result.Ids.Count == 1 ? "entry" : "entries")} for {Data.Date:dd MMM yyyy}. Ready for a new entry.";
             Data = await Entries.ReadAsync(Data.Kind, Data.Date, Data.Pagination?.Number ?? 1, Data.Pagination?.Size ?? 30);
         }
         catch (Exception exception)

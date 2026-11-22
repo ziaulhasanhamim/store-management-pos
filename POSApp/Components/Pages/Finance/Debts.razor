@@ -2,6 +2,7 @@
 @attribute [Authorize(Policy = AppPolicies.ManageUsers)]
 @attribute [StreamRendering]
 @using System.ComponentModel.DataAnnotations
+@using System.Globalization
 @inject DebtService DebtAccounts
 @inject NavigationManager Navigation
 
@@ -96,7 +97,7 @@ else
                     </div>
                     <div>
                         <label for="lender-opening" class="field-label">Existing debt (optional)</label>
-                        <input id="lender-opening" name="Input.OpeningBalance" value="@Input.OpeningBalance" class="field" inputmode="decimal" required />
+                        <input id="lender-opening" name="Input.OpeningBalance" value="@(Input.OpeningBalance > 0 ? Input.OpeningBalance.ToString("0.##", CultureInfo.InvariantCulture) : "")" placeholder="0.00" class="field" inputmode="decimal" />
                     </div>
                 </div>
                 <p class="mt-3 text-xs text-slate-500">Existing debt is carried into the working day without adding cash or bank funds. Record new money using Borrow / repay.</p>

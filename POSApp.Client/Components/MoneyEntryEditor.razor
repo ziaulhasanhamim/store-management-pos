@@ -29,25 +29,48 @@
     <section class="panel mb-6">
         <div class="panel-heading">
             <h2>Add @Label.ToLowerInvariant()</h2>
-            <span class="text-xs text-slate-500">Working day · @Data.WorkingDate.ToString("dd MMM yyyy")</span>
+            <span class="text-xs text-slate-500">
+                @(Data.Date == Data.WorkingDate ? $"Working day · {Data.WorkingDate:dd MMM yyyy}" : $"Historical day · {Data.Date:dd MMM yyyy}")
+            </span>
         </div>
-        @if (Data.CanBackdate)
+        @if (Data.Date != Data.WorkingDate)
         {
             <div class="px-5 pt-4 pb-1">
                 <div class="rounded-xl border border-blue-200 bg-blue-50/70 p-3 space-y-2">
-                    <label class="inline-flex items-center gap-2 cursor-pointer text-xs font-semibold text-blue-900 select-none">
-                        <input type="checkbox" class="rounded border-blue-300 text-blue-600 focus:ring-blue-500 cursor-pointer" @bind="IsBackdating" />
-                        <span>Record historical entries (batch backdate)</span>
-                    </label>
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                        <div class="flex items-center gap-2 text-xs font-semibold text-blue-900">
+                            <span class="inline-flex items-center justify-center size-5 rounded-full bg-blue-200 text-blue-800 text-[11px] font-bold">i</span>
+                            <span>Recording entries for historical day: <strong>@Data.Date.ToString("dd MMM yyyy")</strong></span>
+                        </div>
+                        <label class="flex items-center gap-2 text-xs font-medium text-blue-900">
+                            <span>Entry time:</span>
+                            <input type="time" class="field bg-white text-xs py-1 px-2.5 max-w-[130px]" @bind="SelectedTime" />
+                        </label>
+                    </div>
+                    <p class="text-[11px] text-blue-700">All entries in this batch will be posted to @Data.Date.ToString("dd MMM yyyy") at the selected time (defaults to 12:00 PM).</p>
+                </div>
+            </div>
+        }
+        else if (Data.CanBackdate)
+        {
+            <div class="px-5 pt-4 pb-1">
+                <div class="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-2">
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                        <label class="inline-flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-700 select-none">
+                            <input type="checkbox" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer" @bind="IsBackdating" />
+                            <span>Specify custom time for this batch (backdate on today)</span>
+                        </label>
+                        @if (IsBackdating)
+                        {
+                            <label class="flex items-center gap-2 text-xs font-medium text-slate-800">
+                                <span>Entry time:</span>
+                                <input type="time" class="field bg-white text-xs py-1 px-2.5 max-w-[130px]" @bind="SelectedTime" />
+                            </label>
+                        }
+                    </div>
                     @if (IsBackdating)
                     {
-                        <div class="flex flex-wrap items-center gap-3 pt-1">
-                            <label class="flex items-center gap-2">
-                                <span class="text-xs font-medium text-blue-900">Transaction Date & Time:</span>
-                                <input type="datetime-local" class="field bg-white text-xs max-w-xs" @bind="BatchTransactionTime" />
-                            </label>
-                            <span class="text-[11px] text-blue-700">Applies to all entries in this batch.</span>
-                        </div>
+                        <p class="text-[11px] text-slate-500">Entries will be timestamped at the specified time on today's working day (@Data.WorkingDate.ToString("dd MMM yyyy")).</p>
                     }
                 </div>
             </div>
@@ -191,8 +214,8 @@
 else
 {
     <p class="mb-6 text-sm text-slate-500">
-        Viewing a historical or closed day. Entries can be added on the current open working day.
-        <a href="/accounting-date" class="font-semibold text-blue-700">Working day</a>
+        Viewing a closed (non-trading) day. Entries cannot be added to closed days.
+        <a href="/finance/day" class="font-semibold text-blue-700 ml-1">Day closing</a>
     </p>
 }
 

@@ -1,6 +1,7 @@
 @page "/accounts/{Kind}"
 @attribute [Authorize(Policy = AppPolicies.ManageUsers)]
 @using System.ComponentModel.DataAnnotations
+@using System.Globalization
 @inject PartyAccountService AccountsService
 @inject InventoryService Inventory
 @inject SalesService Sales
@@ -15,6 +16,18 @@
 @if (Error is not null)
 {
     <p class="error-panel" role="alert">@Error</p>
+}
+@if (Saved == "collection")
+{
+    <div class="mb-4 rounded-xl border border-emerald-200 bg-emerald-50/90 p-4 text-sm font-medium text-emerald-800 flex items-center justify-between" role="status">
+        <div class="flex items-center gap-2">
+            <svg class="size-5 text-emerald-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+            </svg>
+            <span>Payment of @Money(SavedAmt ?? 0) received from <strong>@SavedParty</strong> successfully. Ready for next entry.</span>
+        </div>
+        <a href="@($"/accounts/customers?partyId={PartyId}")" class="text-emerald-700 hover:text-emerald-900 text-xs font-semibold">Dismiss</a>
+    </div>
 }
 @if (Data is null)
 {
@@ -59,7 +72,7 @@ else
                     </div>
                     <div>
                         <label class="field-label" for="collection-amount">Amount received</label>
-                        <input id="collection-amount" name="Collection.Amount" class="field" inputmode="decimal" required />
+                        <input id="collection-amount" name="Collection.Amount" class="field" inputmode="decimal" value="@(Collection?.Amount > 0 ? Collection.Amount.ToString("0.##", CultureInfo.InvariantCulture) : "")" placeholder="0.00" required />
                     </div>
                     <div>
                         <label class="field-label" for="collection-method">Method</label>
@@ -74,7 +87,7 @@ else
                 <div class="grid gap-4 sm:grid-cols-2 mt-4">
                     <div>
                         <label class="field-label" for="collection-note">Reference / notes</label>
-                        <input id="collection-note" name="Collection.Notes" class="field" maxlength="2000" required />
+                        <input id="collection-note" name="Collection.Notes" class="field" maxlength="2000" placeholder="e.g. Due balance settlement" value="@Collection?.Notes" required />
                     </div>
                     @if (CanBackdate)
                     {
@@ -188,6 +201,15 @@ else
     [SupplyParameterFromQuery]
     public int HistoryPage { get; set; } = 1;
 
+    [SupplyParameterFromQuery]
+    public string? Saved { get; set; }
+
+    [SupplyParameterFromQuery]
+    public decimal? SavedAmt { get; set; }
+
+    [SupplyParameterFromQuery]
+    public string? SavedParty { get; set; }
+
     private PartyPage? Data;
     private string? Error;
     private int PaginationNumber => Data?.Pagination?.Number ?? 1;
@@ -197,7 +219,10 @@ else
 
     protected override async Task OnParametersSetAsync()
     {
-        Collection ??= new();
+        if (Saved == "collection" || HttpContext.Request.Method != "POST" || Collection is null)
+        {
+            Collection = new() { RequestId = Guid.NewGuid(), CustomerId = PartyId ?? 0 };
+        }
         Create ??= new();
         Data = await AccountsService.ReadAsync(HttpContext.User, Suppliers, PartyId, HttpContext.RequestAborted, Page, PageSize, HistoryPage);
     }
@@ -212,12 +237,16 @@ else
 
     private Task CollectAsync() => SubmitAsync(async () =>
     {
+        var amt = Collection!.Amount;
+        var custId = Collection.CustomerId;
+        var party = (Data!.AllParties ?? Data.Parties).FirstOrDefault(p => p.Id == custId)?.Name ?? "Customer";
         if (Collection?.IsBackdate == true && Collection?.TransactionTime.HasValue == true)
         {
             Collection.TransactionTime = BusinessTime.FromBusinessWallClockToUtc(Collection.TransactionTime.Value.DateTime, Configuration);
         }
         await AccountsService.ReceiveAsync(HttpContext.User, Collection!, HttpContext.RequestAborted);
-        Navigation.NavigateTo($"/accounts/customers?partyId={Collection!.CustomerId}");
+        Collection = new() { RequestId = Guid.NewGuid(), CustomerId = custId };
+        Navigation.NavigateTo($"/accounts/customers?partyId={custId}&saved=collection&savedAmt={amt.ToString(CultureInfo.InvariantCulture)}&savedParty={Uri.EscapeDataString(party)}");
     });
 
     private async Task SubmitAsync(Func<Task> action)
