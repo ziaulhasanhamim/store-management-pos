@@ -1,9 +1,11 @@
 @page "/payroll"
 @attribute [Authorize(Policy = AppPolicies.ManageUsers)]
 @using System.ComponentModel.DataAnnotations
+@using System.Globalization
 @inject FinanceService Finance
 @inject ClosingService Closings
 @inject NavigationManager Navigation
+@inject RecordAdministration Records
 @inject ILogger<Payroll> Logger
 
 <PageTitle>Payroll · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
@@ -23,13 +25,43 @@ else if (HttpMethods.IsGet(HttpContext.Request.Method))
 {
     <FinanceLoad TData="FinancePage" Load="LoadAsync" Message="Loading payroll…">
         <ChildContent Context="loaded">
-            <PayrollView Data="loaded" PayrollForm="PayrollForm!" Period="@Period" Start="Start" End="End" Saved="Saved" AddPayrollAsync="AddPayrollAsync" />
+            <PayrollView
+                Data="loaded"
+                PayrollForm="PayrollForm!"
+                Period="@Period"
+                Start="Start"
+                End="End"
+                Saved="Saved"
+                SavedEmp="@SavedEmp"
+                SavedAmt="@SavedAmt"
+                SavedKind="@SavedKind"
+                SavedMethod="@SavedMethod"
+                Voided="Voided"
+                VoidedEmp="@VoidedEmp"
+                VoidedAmt="@VoidedAmt"
+                AddPayrollAsync="AddPayrollAsync"
+                VoidPayrollAsync="VoidPayrollAsync" />
         </ChildContent>
     </FinanceLoad>
 }
 else if (Data is not null)
 {
-    <PayrollView Data="Data" PayrollForm="PayrollForm!" Period="@Period" Start="Start" End="End" Saved="Saved" AddPayrollAsync="AddPayrollAsync" />
+    <PayrollView
+        Data="Data"
+        PayrollForm="PayrollForm!"
+        Period="@Period"
+        Start="Start"
+        End="End"
+        Saved="Saved"
+        SavedEmp="@SavedEmp"
+        SavedAmt="@SavedAmt"
+        SavedKind="@SavedKind"
+        SavedMethod="@SavedMethod"
+        Voided="Voided"
+        VoidedEmp="@VoidedEmp"
+        VoidedAmt="@VoidedAmt"
+        AddPayrollAsync="AddPayrollAsync"
+        VoidPayrollAsync="VoidPayrollAsync" />
 }
 
 @code {
@@ -50,6 +82,27 @@ else if (Data is not null)
 
     [SupplyParameterFromQuery]
     public bool Saved { get; set; }
+
+    [SupplyParameterFromQuery]
+    public string? SavedEmp { get; set; }
+
+    [SupplyParameterFromQuery]
+    public decimal? SavedAmt { get; set; }
+
+    [SupplyParameterFromQuery]
+    public string? SavedKind { get; set; }
+
+    [SupplyParameterFromQuery]
+    public string? SavedMethod { get; set; }
+
+    [SupplyParameterFromQuery]
+    public bool Voided { get; set; }
+
+    [SupplyParameterFromQuery]
+    public string? VoidedEmp { get; set; }
+
+    [SupplyParameterFromQuery]
+    public decimal? VoidedAmt { get; set; }
 
     [SupplyParameterFromQuery]
     public int? EmployeeId { get; set; }
@@ -73,7 +126,16 @@ else if (Data is not null)
             Start = selected;
             End = Start;
         }
-        PayrollForm ??= new() { Date = selected, Month = SalaryMonth ?? selected, EmployeeId = EmployeeId ?? 0 };
+        if (Saved || Voided || PayrollForm is null)
+        {
+            PayrollForm = new()
+            {
+                RequestId = Guid.NewGuid(),
+                Date = selected,
+                Month = SalaryMonth ?? selected,
+                EmployeeId = (Saved || Voided) ? 0 : (EmployeeId ?? 0)
+            };
+        }
         Initialized = true;
         try
         {
@@ -88,7 +150,15 @@ else if (Data is not null)
         }
     }
 
-    private Task<FinancePage> LoadAsync() => Finance.ReadAsync(HttpContext.User, Period, Start, End, Page, HttpContext.RequestAborted, PayrollForm is null ? null : new DateOnly(PayrollForm.Month.Year, PayrollForm.Month.Month, 1), payrollOnly: true);
+    private Task<FinancePage> LoadAsync() => Finance.ReadAsync(
+        HttpContext.User,
+        Period,
+        Start,
+        End,
+        Page,
+        HttpContext.RequestAborted,
+        PayrollForm is null ? null : new DateOnly(PayrollForm.Month.Year, PayrollForm.Month.Month, 1),
+        payrollOnly: true);
 
     private Task AddPayrollAsync() => SaveAsync(async () =>
     {
@@ -108,8 +178,34 @@ else if (Data is not null)
     {
         try
         {
+            var staffList = Data?.Staff;
+            if (staffList is null)
+            {
+                var preloaded = await LoadAsync();
+                staffList = preloaded.Staff;
+            }
+            var empName = PayrollForm?.EmployeeId > 0
+                ? staffList.FirstOrDefault(e => e.Id == PayrollForm.EmployeeId)?.Name ?? "Employee"
+                : "Employee";
+            var amt = PayrollForm?.Amount ?? 0;
+            var kind = PayrollForm?.Kind.ToString() ?? "Salary";
+            var method = PayrollForm?.Method.ToString() ?? "Cash";
+
             await action();
-            Navigation.NavigateTo($"/payroll?saved=true&savedRequest={PayrollForm!.RequestId}");
+
+            var queryParams = new Dictionary<string, object?>
+            {
+                ["period"] = string.IsNullOrWhiteSpace(Period) ? null : Period,
+                ["start"] = Start?.ToString("yyyy-MM-dd"),
+                ["end"] = End?.ToString("yyyy-MM-dd"),
+                ["saved"] = "true",
+                ["savedEmp"] = empName,
+                ["savedAmt"] = amt.ToString(CultureInfo.InvariantCulture),
+                ["savedKind"] = kind,
+                ["savedMethod"] = method
+            };
+            var url = Navigation.GetUriWithQueryParameters("/payroll", queryParams);
+            Navigation.NavigateTo(url);
         }
         catch (ValidationException exception)
         {
@@ -122,4 +218,36 @@ else if (Data is not null)
         }
     }
 
+    private async Task VoidPayrollAsync((int Id, string Employee, decimal Paid) entry)
+    {
+        try
+        {
+            await Records.ChangeAsync(HttpContext.User, "payroll", entry.Id, new RecordCorrectionInput
+            {
+                Reason = "Voided by user from payroll history"
+            }, delete: true, HttpContext.RequestAborted);
+
+            var queryParams = new Dictionary<string, object?>
+            {
+                ["period"] = string.IsNullOrWhiteSpace(Period) ? null : Period,
+                ["start"] = Start?.ToString("yyyy-MM-dd"),
+                ["end"] = End?.ToString("yyyy-MM-dd"),
+                ["page"] = Page > 1 ? Page.ToString() : null,
+                ["voided"] = "true",
+                ["voidedEmp"] = entry.Employee,
+                ["voidedAmt"] = entry.Paid.ToString(CultureInfo.InvariantCulture)
+            };
+            var url = Navigation.GetUriWithQueryParameters("/payroll", queryParams);
+            Navigation.NavigateTo(url);
+        }
+        catch (ValidationException exception)
+        {
+            Error = exception.Message;
+        }
+        catch (Exception exception)
+        {
+            Logger.LogError(exception, "Finance entry void failed for payroll {Id}", entry.Id);
+            Error = "Unable to void payroll entry: " + exception.Message;
+        }
+    }
 }

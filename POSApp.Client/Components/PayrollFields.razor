@@ -49,7 +49,7 @@
     </div>
     <div>
         <label class="field-label" for="payroll-amount">Amount to pay now (@Currency)</label>
-        <input id="payroll-amount" name="PayrollForm.Amount" class="field" inputmode="decimal" data-select-on-focus="true" @bind="Amount" @bind:event="oninput" required />
+        <input id="payroll-amount" name="PayrollForm.Amount" class="field" inputmode="decimal" data-select-on-focus="true" @bind="Amount" @bind:event="oninput" placeholder="0.00" required />
     </div>
 </div>
 @if (Selected is { Salary: not null } previewEmployee && decimal.TryParse(Amount, NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out var amount) && amount > 0)
@@ -82,6 +82,10 @@
     [Parameter]
     public string Currency { get; set; } = "BDT";
 
+    [Parameter]
+    public Guid RequestId { get; set; }
+
+    private Guid _lastRequestId;
     private int? _selectedId;
     private int? SelectedId
     {
@@ -112,9 +116,24 @@
 
     protected override void OnInitialized()
     {
+        _lastRequestId = RequestId;
+        ApplyInitial();
+    }
+
+    protected override void OnParametersSet()
+    {
+        if (RequestId != Guid.Empty && RequestId != _lastRequestId)
+        {
+            _lastRequestId = RequestId;
+            ApplyInitial();
+        }
+    }
+
+    private void ApplyInitial()
+    {
         _selectedId = InitialEmployeeId > 0 ? InitialEmployeeId : null;
         Kind = InitialKind == PayrollKind.Bonus ? PayrollKind.Bonus : PayrollKind.Salary;
-        Amount = InitialAmount == 0 ? "" : InitialAmount.ToString(CultureInfo.InvariantCulture);
+        Amount = InitialAmount > 0 ? InitialAmount.ToString(CultureInfo.InvariantCulture) : "";
         if (string.IsNullOrWhiteSpace(Amount) && _selectedId is not null)
         {
             var emp = Employees.SingleOrDefault(e => e.Id == _selectedId.Value);
