@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
+using POSApp.Client.Enums;
 using POSApp.Persistence;
 using POSApp.Persistence.Entities;
 using POSApp.Security;
@@ -19,7 +20,9 @@ public record PartyLedgerReport(
     decimal TotalDebit,
     decimal TotalCredit,
     decimal ClosingBalance,
-    IReadOnlyList<PartyLedgerRow> Entries
+    IReadOnlyList<PartyLedgerRow> Entries,
+    bool IncludeVoided = false,
+    int VoidedCount = 0
 );
 
 public record PartyLedgerRow(
@@ -29,7 +32,8 @@ public record PartyLedgerRow(
     decimal? Debit,
     decimal? Credit,
     decimal Balance,
-    string? Remarks
+    string? Remarks,
+    bool IsVoided = false
 );
 
 public sealed class LedgerService(IServiceScopeFactory scopes, IConfiguration configuration)
@@ -109,8 +113,58 @@ public sealed class LedgerService(IServiceScopeFactory scopes, IConfiguration co
         return parts.Any(p => p.Length >= 20 && p.All(Uri.IsHexDigit));
     }
 
+    private static bool IsVoidedCustomerEntry(CustomerBalanceEntry entry)
+    {
+        if (entry.Sale is not null && (entry.Sale.IsDeleted || entry.Sale.Status == SaleStatus.Voided))
+        {
+            return true;
+        }
+        if (entry.Payment is not null && entry.Payment.IsVoided)
+        {
+            return true;
+        }
+        if (entry.Type == BalanceEntryType.Adjustment && !string.IsNullOrWhiteSpace(entry.Notes))
+        {
+            var note = entry.Notes;
+            if (note.StartsWith("Void ", StringComparison.OrdinalIgnoreCase) ||
+                note.StartsWith("Sale void", StringComparison.OrdinalIgnoreCase) ||
+                note.Contains(" void #", StringComparison.OrdinalIgnoreCase) ||
+                note.Contains("voided", StringComparison.OrdinalIgnoreCase) ||
+                note.Contains("Reversal", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static bool IsVoidedSupplierEntry(SupplierBalanceEntry entry)
+    {
+        if (entry.Purchase is not null && (entry.Purchase.IsDeleted || entry.Purchase.Status == PurchaseStatus.Cancelled))
+        {
+            return true;
+        }
+        if (entry.SupplierPayment is not null && entry.SupplierPayment.IsVoided)
+        {
+            return true;
+        }
+        if (entry.Type == BalanceEntryType.Adjustment && !string.IsNullOrWhiteSpace(entry.Notes))
+        {
+            var note = entry.Notes;
+            if (note.StartsWith("Void ", StringComparison.OrdinalIgnoreCase) ||
+                note.StartsWith("Purchase void", StringComparison.OrdinalIgnoreCase) ||
+                note.Contains(" void #", StringComparison.OrdinalIgnoreCase) ||
+                note.Contains("voided", StringComparison.OrdinalIgnoreCase) ||
+                note.Contains("Reversal", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public async Task<PartyLedgerReport> ReadCustomerLedgerAsync(
-        ClaimsPrincipal actor, int customerId, string? period, DateOnly? start, DateOnly? end, CancellationToken ct = default)
+        ClaimsPrincipal actor, int customerId, string? period, DateOnly? start, DateOnly? end, bool includeVoided = false, CancellationToken ct = default)
     {
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -181,6 +235,7 @@ public sealed class LedgerService(IServiceScopeFactory scopes, IConfiguration co
         decimal runningBalance = openingBalance;
         decimal totalDebit = 0m;
         decimal totalCredit = 0m;
+        int voidedCount = 0;
 
         foreach (var entry in periodEntries)
         {
@@ -188,6 +243,16 @@ public sealed class LedgerService(IServiceScopeFactory scopes, IConfiguration co
             if (entry.Type == BalanceEntryType.OpeningBalance && entry.Amount == 0m && string.IsNullOrWhiteSpace(entry.Notes))
             {
                 continue;
+            }
+
+            var isVoided = IsVoidedCustomerEntry(entry);
+            if (isVoided)
+            {
+                voidedCount++;
+                if (!includeVoided)
+                {
+                    continue;
+                }
             }
 
             decimal? debit = null;
@@ -250,7 +315,8 @@ public sealed class LedgerService(IServiceScopeFactory scopes, IConfiguration co
                 Debit: debit,
                 Credit: credit,
                 Balance: runningBalance,
-                Remarks: FormatRemarks(rawNote)
+                Remarks: FormatRemarks(rawNote),
+                IsVoided: isVoided
             ));
         }
 
@@ -267,12 +333,14 @@ public sealed class LedgerService(IServiceScopeFactory scopes, IConfiguration co
             TotalDebit: totalDebit,
             TotalCredit: totalCredit,
             ClosingBalance: runningBalance,
-            Entries: rows
+            Entries: rows,
+            IncludeVoided: includeVoided,
+            VoidedCount: voidedCount
         );
     }
 
     public async Task<PartyLedgerReport> ReadSupplierLedgerAsync(
-        ClaimsPrincipal actor, int supplierId, string? period, DateOnly? start, DateOnly? end, CancellationToken ct = default)
+        ClaimsPrincipal actor, int supplierId, string? period, DateOnly? start, DateOnly? end, bool includeVoided = false, CancellationToken ct = default)
     {
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -343,6 +411,7 @@ public sealed class LedgerService(IServiceScopeFactory scopes, IConfiguration co
         decimal runningBalance = openingBalance;
         decimal totalDebit = 0m;
         decimal totalCredit = 0m;
+        int voidedCount = 0;
 
         foreach (var entry in periodEntries)
         {
@@ -350,6 +419,16 @@ public sealed class LedgerService(IServiceScopeFactory scopes, IConfiguration co
             if (entry.Type == BalanceEntryType.OpeningBalance && entry.Amount == 0m && string.IsNullOrWhiteSpace(entry.Notes))
             {
                 continue;
+            }
+
+            var isVoided = IsVoidedSupplierEntry(entry);
+            if (isVoided)
+            {
+                voidedCount++;
+                if (!includeVoided)
+                {
+                    continue;
+                }
             }
 
             decimal? debit = null;
@@ -415,7 +494,8 @@ public sealed class LedgerService(IServiceScopeFactory scopes, IConfiguration co
                 Debit: debit,
                 Credit: credit,
                 Balance: runningBalance,
-                Remarks: FormatRemarks(rawNote)
+                Remarks: FormatRemarks(rawNote),
+                IsVoided: isVoided
             ));
         }
 
@@ -432,7 +512,9 @@ public sealed class LedgerService(IServiceScopeFactory scopes, IConfiguration co
             TotalDebit: totalDebit,
             TotalCredit: totalCredit,
             ClosingBalance: runningBalance,
-            Entries: rows
+            Entries: rows,
+            IncludeVoided: includeVoided,
+            VoidedCount: voidedCount
         );
     }
 }

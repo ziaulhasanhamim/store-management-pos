@@ -94,4 +94,32 @@ public class LedgerServiceTests
 
         await closing.Should().BeEqualTo(1400m);
     }
+
+    [Test]
+    public async Task PartyLedgerReport_WhenIncludeVoidedFalse_DefaultsToCleanStatement()
+    {
+        var row1 = new PartyLedgerRow(DateTimeOffset.UtcNow, "Purchase #1", "#1", 500m, null, 500m, "Valid");
+        var report = new PartyLedgerReport(
+            PartyId: 1,
+            PartyName: "Test Supplier",
+            Phone: "01700000000",
+            Address: "Test Address",
+            IsSupplier: true,
+            Start: new DateOnly(2026, 11, 1),
+            End: new DateOnly(2026, 11, 30),
+            Period: "month",
+            OpeningBalance: 0m,
+            TotalDebit: 500m,
+            TotalCredit: 0m,
+            ClosingBalance: 500m,
+            Entries: [row1],
+            IncludeVoided: false,
+            VoidedCount: 2
+        );
+
+        await report.IncludeVoided.Should().BeFalse();
+        await report.VoidedCount.Should().BeEqualTo(2);
+        await report.Entries.Count.Should().BeEqualTo(1);
+        await report.Entries[0].IsVoided.Should().BeFalse();
+    }
 }

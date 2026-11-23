@@ -34,6 +34,12 @@ h1:focus { outline: none; }
     break-inside: avoid;
 }
 
+.ledger-table-container {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
 /* Print Rules - Critical for High-Quality Multi-Page Printing & Thermal Roll */
 @media print {
     .no-print,
@@ -84,6 +90,23 @@ h1:focus { outline: none; }
         margin: 0 !important;
         border: none !important;
         box-shadow: none !important;
+    }
+
+    .ledger-table-container {
+        overflow: visible !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        width: 100% !important;
+    }
+
+    .ledger-table {
+        min-width: 100% !important;
+        width: 100% !important;
+        table-layout: fixed !important;
+    }
+
+    .summary-grid {
+        grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
     }
 
     body:not(.print-mode-thermal) #invoice-thermal-sheet {

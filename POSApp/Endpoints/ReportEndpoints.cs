@@ -284,6 +284,50 @@ public static class ReportEndpoints
                 i.IsDeadStock ? "Yes" : "No"
             }));
         }
+        else if (kind == "customer-ledger")
+        {
+            var ledgerService = context.RequestServices.GetRequiredService<LedgerService>();
+            var id = context.Request.Query.TryGetValue("id", out var idVal) && int.TryParse(idVal, out var cid) ? cid : 0;
+            var voided = context.Request.Query.TryGetValue("voided", out var vVal) && bool.TryParse(vVal, out var v) && v;
+            var data = await ledgerService.ReadCustomerLedgerAsync(context.User, id, period, start, end, voided, context.RequestAborted);
+            range = new ReportRange(data.Start, data.End, DateTimeOffset.MinValue, DateTimeOffset.MaxValue);
+            count = data.Entries.Count;
+            rows.Add(["Date", "Subject", "Reference", "In (Debit)", "Out (Credit)", "Balance", "Remarks"]);
+            rows.Add([data.Start.ToString("yyyy-MM-dd"), "Opening Balance", "", "", "", Number(data.OpeningBalance), "Brought forward"]);
+            rows.AddRange(data.Entries.Select(e => new[]
+            {
+                e.Date.ToBusinessTime(context.RequestServices.GetRequiredService<IConfiguration>()).ToString("yyyy-MM-dd HH:mm"),
+                e.Subject + (e.IsVoided ? " [VOIDED]" : ""),
+                e.Reference ?? "",
+                e.Debit.HasValue ? Number(e.Debit.Value) : "",
+                e.Credit.HasValue ? Number(e.Credit.Value) : "",
+                Number(e.Balance),
+                e.Remarks ?? ""
+            }));
+            rows.Add(["TOTAL", "", "", Number(data.TotalDebit), Number(data.TotalCredit), Number(data.ClosingBalance), ""]);
+        }
+        else if (kind == "supplier-ledger")
+        {
+            var ledgerService = context.RequestServices.GetRequiredService<LedgerService>();
+            var id = context.Request.Query.TryGetValue("id", out var idVal) && int.TryParse(idVal, out var sid) ? sid : 0;
+            var voided = context.Request.Query.TryGetValue("voided", out var vVal) && bool.TryParse(vVal, out var v) && v;
+            var data = await ledgerService.ReadSupplierLedgerAsync(context.User, id, period, start, end, voided, context.RequestAborted);
+            range = new ReportRange(data.Start, data.End, DateTimeOffset.MinValue, DateTimeOffset.MaxValue);
+            count = data.Entries.Count;
+            rows.Add(["Date", "Subject", "Reference", "In (Debit)", "Out (Credit)", "Balance", "Remarks"]);
+            rows.Add([data.Start.ToString("yyyy-MM-dd"), "Opening Balance", "", "", "", Number(data.OpeningBalance), "Brought forward"]);
+            rows.AddRange(data.Entries.Select(e => new[]
+            {
+                e.Date.ToBusinessTime(context.RequestServices.GetRequiredService<IConfiguration>()).ToString("yyyy-MM-dd HH:mm"),
+                e.Subject + (e.IsVoided ? " [VOIDED]" : ""),
+                e.Reference ?? "",
+                e.Debit.HasValue ? Number(e.Debit.Value) : "",
+                e.Credit.HasValue ? Number(e.Credit.Value) : "",
+                Number(e.Balance),
+                e.Remarks ?? ""
+            }));
+            rows.Add(["TOTAL", "", "", Number(data.TotalDebit), Number(data.TotalCredit), Number(data.ClosingBalance), ""]);
+        }
         else
         {
             return Results.NotFound();
