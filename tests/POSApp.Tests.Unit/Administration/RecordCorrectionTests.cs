@@ -58,4 +58,14 @@ public class RecordCorrectionTests
         // ((-2 * 6) + (4 * 8)) / 2 = (-12 + 32) / 2 = 20 / 2 = 10
         await cost.Should().BeEqualTo(10m);
     }
+
+    [Test]
+    public async Task RolePermissionService_VoidSalePolicy_IsAdminOnly()
+    {
+        var mapped = POSApp.Security.RolePermissionService.MapRoleOrPolicyToPolicy(POSApp.Security.AppPolicies.VoidSale);
+        await mapped.Should().BeEqualTo(POSApp.Security.AppPolicies.ManageUsers);
+
+        var isConfigurable = POSApp.Security.RolePermissionService.ConfigurablePolicies.Any(p => p.PolicyName == POSApp.Security.AppPolicies.VoidSale);
+        await isConfigurable.Should().BeFalse();
+    }
 }

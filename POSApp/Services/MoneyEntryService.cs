@@ -64,7 +64,7 @@ public sealed partial class MoneyEntryService(IServiceScopeFactory scopes, IConf
                 : closed ? "Accounting period closed"
                 : selected != working ? "Select this working day to edit"
                 : invoice ? "Linked receipt payment"
-                : !admin && entity.CreatedByUserId != actorId ? "Only the creator or admin can edit"
+                : !admin ? "Only administrators can edit recorded entries"
                 : cashClosedIds.Contains(entity.Id) ? "Cash drawer already closed" : null;
             return new(entity.Id, at, partyId, party, categoryId, category, amount, method, notes ?? "", receipt,
                 (entity.UpdatedAt ?? entity.CreatedAt).UtcTicks, reason is null, reason)
@@ -144,7 +144,7 @@ public sealed partial class MoneyEntryService(IServiceScopeFactory scopes, IConf
 
         return new(kind, working, selected, !closed, admin, total, count, categories, parties, rows)
         {
-            CanBackdate = true,
+            CanBackdate = admin,
             Pagination = pagination,
             Locations = activeLocations,
             UserDefaultLocationId = userLocation

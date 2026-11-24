@@ -48,7 +48,6 @@ public static class RolePermissionService
         (AppPolicies.ManagePayroll, "Manage payroll & staff accounts", "Allow viewing staff balances and recording salary/bonus advances."),
         (AppPolicies.ManageParties, "Manage customers & suppliers", "Allow creating, updating, and managing customer and supplier directories."),
         (AppPolicies.ApplyDiscount, "Apply sales discounts", "Allow applying line-item or invoice discounts during checkout."),
-        (AppPolicies.VoidSale, "Void or edit completed sales", "Allow modifying or voiding completed sales transactions."),
         (AppPolicies.ViewFinancialReports, "View financial reports", "Allow viewing profit & loss statements and period closing summaries.")
     ];
 
@@ -71,7 +70,7 @@ public static class RolePermissionService
 
     public static string MapRoleOrPolicyToPolicy(string roleOrPolicy) => roleOrPolicy switch
     {
-        AppRoles.Admin or AppPolicies.ManageUsers => AppPolicies.ManageUsers,
+        AppRoles.Admin or AppPolicies.ManageUsers or AppPolicies.VoidSale => AppPolicies.ManageUsers,
         AppPolicies.ManageStockAdjustment => AppPolicies.ManageStockAdjustment,
         AppRoles.InventoryManager or AppPolicies.ManageInventory => AppPolicies.ManageInventory,
         AppPolicies.ManageDrawer => AppPolicies.ManageDrawer,

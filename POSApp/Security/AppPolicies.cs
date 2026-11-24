@@ -32,7 +32,7 @@ public static class AppPolicies
             options.AddPolicy(ManagePayroll, policy => policy.Requirements.Add(new DynamicPolicyRequirement(ManagePayroll)));
             options.AddPolicy(ManageParties, policy => policy.Requirements.Add(new DynamicPolicyRequirement(ManageParties)));
             options.AddPolicy(ApplyDiscount, policy => policy.Requirements.Add(new DynamicPolicyRequirement(ApplyDiscount)));
-            options.AddPolicy(VoidSale, policy => policy.Requirements.Add(new DynamicPolicyRequirement(VoidSale)));
+            options.AddPolicy(VoidSale, policy => policy.RequireRole(AppRoles.Admin));
             options.AddPolicy(ViewFinancialReports, policy => policy.Requirements.Add(new DynamicPolicyRequirement(ViewFinancialReports)));
         });
     }

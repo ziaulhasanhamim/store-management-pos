@@ -250,10 +250,7 @@ public sealed class RecordAdministration(IServiceScopeFactory scopes, IConfigura
             var isAdmin = await CashDrawerService.IsAdminAsync(db, actorId, ct);
             if (!isAdmin)
             {
-                if (kind != "sale" || !delete)
-                {
-                    throw new UnauthorizedAccessException("Only administrators can perform this action.");
-                }
+                throw new UnauthorizedAccessException("Only administrators can edit or void records.");
             }
             var activeDate = await AccountingCalendar.SelectedAsync(db, actorId, configuration, ct);
             var effectiveAt = AccountingCalendar.At(activeDate, configuration);
@@ -284,13 +281,6 @@ public sealed class RecordAdministration(IServiceScopeFactory scopes, IConfigura
                     }
                     ValidateRevision(sale, sale.IsDeleted || sale.Status == SaleStatus.Voided, input);
                     var saleDate = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(sale.SoldAt, zone).DateTime);
-                    if (!isAdmin)
-                    {
-                        if (sale.CashierId != actorId || saleDate != activeDate)
-                        {
-                            throw new UnauthorizedAccessException("Cashiers can only void their own sales in the current open working day. Voiding older sales or sales made by other staff requires an administrator with a reason.");
-                        }
-                    }
                     // Enforce closed-period immutability on BOTH edit and void
                     await AccountingCalendar.EnsureOpenAsync(db, saleDate, ct);
                     if (delete && activeDate != saleDate)

@@ -102,6 +102,14 @@ public sealed class SupplierService(IServiceScopeFactory scopes, IConfiguration?
             {
                 input.TransactionTime = null;
             }
+            if (input.IsBackdate || input.TransactionTime.HasValue)
+            {
+                var isAdmin = await CashDrawerService.IsAdminAsync(db, actorId, ct);
+                if (!isAdmin)
+                {
+                    throw new UnauthorizedAccessException("Only administrators can record backdated supplier payments.");
+                }
+            }
             var at = input.TransactionTime.HasValue ? input.TransactionTime.Value.ToUniversalTime() : AccountingCalendar.At(await AccountingCalendar.SelectedAsync(db, actorId, configuration, ct), configuration);
             var businessDate = input.TransactionTime.HasValue ? DateOnly.FromDateTime(at.ToBusinessTime(configuration).DateTime) : await AccountingCalendar.SelectedAsync(db, actorId, configuration, ct);
             await AccountingCalendar.EnsureOpenAsync(db, businessDate, ct);

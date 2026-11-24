@@ -36,6 +36,10 @@ public sealed partial class MoneyEntryService
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             var actorId = await StoreAccess.RequireAsync(db, actor, requiredRole, ct);
             var admin = await CashDrawerService.IsAdminAsync(db, actorId, ct);
+            if (input.Rows.Any(row => row.TransactionTime.HasValue) && !admin)
+            {
+                throw new UnauthorizedAccessException("Only administrators can record backdated entries.");
+            }
             await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
             var payloadHash = "v2:" + StoreOperation.Fingerprint(input);
             var previous = await db.FinancialEntryBatches.SingleOrDefaultAsync(batch => batch.RequestId == input.RequestId, ct);
@@ -119,9 +123,9 @@ public sealed partial class MoneyEntryService
                     {
                         throw new ValidationException("This card or wallet collection has already been settled in a bank payout. Void it instead of editing.");
                     }
-                    if (!admin && entity.CreatedByUserId != actorId)
+                    if (!admin)
                     {
-                        throw new UnauthorizedAccessException();
+                        throw new UnauthorizedAccessException("Only administrators can edit recorded entries.");
                     }
                     if ((entity.UpdatedAt ?? entity.CreatedAt).UtcTicks != row.Revision)
                     {
@@ -410,6 +414,10 @@ public sealed partial class MoneyEntryService
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             var actorId = await StoreAccess.RequireAsync(db, actor, requiredRole, ct);
             var admin = await CashDrawerService.IsAdminAsync(db, actorId, ct);
+            if (!admin)
+            {
+                throw new UnauthorizedAccessException("Only administrators can void recorded entries.");
+            }
             await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
 
             var date = await AccountingCalendar.SelectedAsync(db, actorId, configuration, ct);
@@ -428,17 +436,8 @@ public sealed partial class MoneyEntryService
                     throw new ValidationException("Receipt-linked supplier payments must be voided or corrected through their receiving receipt.");
                 }
 
-                if (!admin && payment.CreatedByUserId != actorId)
-                {
-                    throw new UnauthorizedAccessException("Only the creator or admin can void this payment.");
-                }
-
                 var occurred = payment.PaidAt;
                 var entryDate = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(occurred, AccountingCalendar.Zone(configuration)).DateTime);
-                if (!admin && entryDate != date)
-                {
-                    throw new ValidationException("Only entries in the current open working day can be voided. Voiding earlier entries requires an administrator.");
-                }
                 await AccountingCalendar.EnsureOpenAsync(db, entryDate, ct);
 
                 var before = Snapshot(payment);
@@ -497,17 +496,8 @@ public sealed partial class MoneyEntryService
                     throw new ValidationException("Clearing payout fee expenses cannot be voided directly.");
                 }
 
-                if (!admin && expense.CreatedByUserId != actorId)
-                {
-                    throw new UnauthorizedAccessException("Only the creator or admin can void this expense.");
-                }
-
                 var occurred = expense.OccurredAt;
                 var entryDate = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(occurred, AccountingCalendar.Zone(configuration)).DateTime);
-                if (!admin && entryDate != date)
-                {
-                    throw new ValidationException("Only entries in the current open working day can be voided. Voiding earlier entries requires an administrator.");
-                }
                 await AccountingCalendar.EnsureOpenAsync(db, entryDate, ct);
 
                 var before = Snapshot(expense);
@@ -542,17 +532,8 @@ public sealed partial class MoneyEntryService
                     .SingleOrDefaultAsync(p => p.Id == id && p.SaleId == null && !p.IsVoided, ct)
                     ?? throw new ValidationException("Customer collection not found or already voided.");
 
-                if (!admin && payment.CreatedByUserId != actorId)
-                {
-                    throw new UnauthorizedAccessException("Only the creator or admin can void this collection.");
-                }
-
                 var occurred = payment.PaidAt;
                 var entryDate = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(occurred, AccountingCalendar.Zone(configuration)).DateTime);
-                if (!admin && entryDate != date)
-                {
-                    throw new ValidationException("Only entries in the current open working day can be voided. Voiding earlier entries requires an administrator.");
-                }
                 await AccountingCalendar.EnsureOpenAsync(db, entryDate, ct);
 
                 var before = Snapshot(payment);

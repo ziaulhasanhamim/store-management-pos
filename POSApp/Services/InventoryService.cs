@@ -896,11 +896,12 @@ public sealed class InventoryService(IServiceScopeFactory scopes, IConfiguration
             .ToListAsync(ct);
 
         var definitions = await AttributeDefinitionQuery(db).ToListAsync(ct);
+        var isAdmin = await CashDrawerService.IsAdminAsync(db, actorId, ct);
         return new(suppliers, locations)
         {
             WorkingDate = await AccountingCalendar.SelectedAsync(db, actorId, configuration, ct),
             Attributes = definitions,
-            CanBackdate = true
+            CanBackdate = isAdmin
         };
     }
 
@@ -1332,6 +1333,11 @@ public sealed class InventoryService(IServiceScopeFactory scopes, IConfiguration
             var effectiveAt = (command.TransactionTime?.ToUniversalTime()) ?? AccountingCalendar.At(businessDate, configuration);
             if (command.TransactionTime.HasValue)
             {
+                var isAdmin = await CashDrawerService.IsAdminAsync(db, actorId, ct);
+                if (!isAdmin)
+                {
+                    throw new UnauthorizedAccessException("Only administrators can record backdated purchases.");
+                }
                 businessDate = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(effectiveAt, AccountingCalendar.Zone(configuration)).DateTime);
             }
             await AccountingCalendar.EnsureOpenAsync(db, businessDate, ct, locationId: command.LocationId);
