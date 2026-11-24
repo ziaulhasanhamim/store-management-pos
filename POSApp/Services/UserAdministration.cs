@@ -9,7 +9,7 @@ using POSApp.Security;
 
 namespace POSApp.Services;
 
-public sealed class UserAdministration(AppDbContext db, UserManager<User> users)
+public sealed class UserAdministration(AppDbContext db, UserManager<User> users, PasswordChangeTracker? passwordTracker = null)
 {
     public async Task<IReadOnlyList<UserListItem>> ListAsync(ClaimsPrincipal actor, CancellationToken cancellationToken = default)
     {
@@ -112,6 +112,8 @@ public sealed class UserAdministration(AppDbContext db, UserManager<User> users)
             return result;
         }
 
+        passwordTracker?.Set(user.Id, false);
+
         return await users.UpdateSecurityStampAsync(user);
     }
 
@@ -135,6 +137,7 @@ public sealed class UserAdministration(AppDbContext db, UserManager<User> users)
             user = new User { UserName = username, MustChangePassword = mustChangePassword, CashLocationId = cashLocationId };
             result = await users.CreateAsync(user, password!);
             if (!result.Succeeded) return result;
+            passwordTracker?.Set(user.Id, mustChangePassword);
         }
         else
         {
@@ -152,6 +155,7 @@ public sealed class UserAdministration(AppDbContext db, UserManager<User> users)
             user.CashLocationId = cashLocationId;
             result = await users.UpdateAsync(user);
             if (!result.Succeeded) return result;
+            passwordTracker?.Set(user.Id, mustChangePassword);
             if (!string.IsNullOrEmpty(password))
             {
                 var token = await users.GeneratePasswordResetTokenAsync(user);

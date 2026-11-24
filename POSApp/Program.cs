@@ -84,6 +84,7 @@ builder.Services.AddPosAuthorization();
 builder.Services.AddCascadingAuthenticationState();
 builder.Services.AddPosIdentityValidation();
 builder.Services.AddScoped<UserAdministration>();
+builder.Services.AddSingleton<PasswordChangeTracker>();
 builder.Services.AddInventoryUi();
 builder.Services.AddHostedService<ImportWorker>();
 
@@ -110,7 +111,7 @@ app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages:
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseAntiforgery();
-var passwordChangeCache = new System.Collections.Concurrent.ConcurrentDictionary<int, (bool MustChange, DateTimeOffset CachedAt)>();
+var passwordChangeTracker = app.Services.GetRequiredService<PasswordChangeTracker>();
 app.Use(async (context, next) =>
 {
     if (HttpMethods.IsGet(context.Request.Method)
@@ -124,21 +125,14 @@ app.Use(async (context, next) =>
         var userIdStr = context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
         if (int.TryParse(userIdStr, out var uid))
         {
-            var now = DateTimeOffset.UtcNow;
-            if (!passwordChangeCache.TryGetValue(uid, out var cached) || (now - cached.CachedAt).TotalSeconds > 60)
-            {
-                var db = context.RequestServices.GetRequiredService<AppDbContext>();
-                var mustChange = await db.Users.AsNoTracking()
-                    .Where(u => u.Id == uid)
-                    .Select(u => u.MustChangePassword)
-                    .FirstOrDefaultAsync(context.RequestAborted);
-                cached = (mustChange, now);
-                passwordChangeCache[uid] = cached;
-            }
+            var db = context.RequestServices.GetRequiredService<AppDbContext>();
+            var mustChange = await passwordChangeTracker.MustChangePasswordAsync(uid, db, context.RequestAborted);
 
-            if (cached.MustChange)
+            if (mustChange)
             {
-                context.Response.Redirect("/account/change-password");
+                var pathAndQuery = context.Request.Path + context.Request.QueryString;
+                var returnUrl = Uri.EscapeDataString(pathAndQuery);
+                context.Response.Redirect($"/account/change-password?returnUrl={returnUrl}");
                 return;
             }
         }
