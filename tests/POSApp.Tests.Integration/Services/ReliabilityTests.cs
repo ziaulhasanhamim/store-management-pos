@@ -68,8 +68,8 @@ public class ReliabilityTests : PosIntegrationTestBase
         await using var scope = CreateScope();
         var sales = scope.ServiceProvider.GetRequiredService<SalesService>();
         var command = Sale() with { TransactionTime = DateTimeOffset.UtcNow.AddDays(-2) };
-        await sales.SaveAsync(SalesUser, command, true);
-        await Assert.ThrowsAsync<ValidationException>(() => sales.SaveAsync(SalesUser, command with { TransactionTime = command.TransactionTime.Value.AddDays(1) }, true));
+        await sales.SaveAsync(AdminUser, command, true);
+        await Assert.ThrowsAsync<ValidationException>(() => sales.SaveAsync(AdminUser, command with { TransactionTime = command.TransactionTime.Value.AddDays(1) }, true));
     }
 
     [Test]
@@ -81,7 +81,7 @@ public class ReliabilityTests : PosIntegrationTestBase
         db.NonTradingDays.Add(new NonTradingDay { MarkedById = 1, Date = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(at, AccountingCalendar.Zone(null)).DateTime), Reason = "Closed" });
         await db.SaveChangesAsync();
         var sales = scope.ServiceProvider.GetRequiredService<SalesService>();
-        await Assert.ThrowsAsync<ValidationException>(() => sales.SaveAsync(SalesUser, Sale() with { TransactionTime = at }, true));
+        await Assert.ThrowsAsync<ValidationException>(() => sales.SaveAsync(AdminUser, Sale() with { TransactionTime = at }, true));
         await Assert.That(await db.Sales.CountAsync()).IsEqualTo(0);
         await Assert.That(await db.Payments.CountAsync()).IsEqualTo(0);
     }
@@ -96,9 +96,30 @@ public class ReliabilityTests : PosIntegrationTestBase
         await db.SaveChangesAsync();
         var inventory = scope.ServiceProvider.GetRequiredService<InventoryService>();
         var command = new ReceiveCommand(Guid.NewGuid(), 1, 1, [new ReceiveLine(1, 1m, 100m)], 0m, PaymentMethod.Cash, null, "Regression") { TransactionTime = AccountingCalendar.At(date, null) };
-        await Assert.ThrowsAsync<ValidationException>(() => inventory.ReceiveAsync(InventoryUser, command));
+        await Assert.ThrowsAsync<ValidationException>(() => inventory.ReceiveAsync(AdminUser, command));
         await Assert.That(await db.Purchases.CountAsync()).IsEqualTo(0);
         await Assert.That(await db.InventoryMovements.CountAsync()).IsEqualTo(0);
+    }
+
+    [Test]
+    public async Task BackdatedSale_NonAdmin_ThrowsUnauthorizedAccessException()
+    {
+        await using var scope = CreateScope();
+        var sales = scope.ServiceProvider.GetRequiredService<SalesService>();
+        var command = Sale() with { TransactionTime = DateTimeOffset.UtcNow.AddDays(-1) };
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => sales.SaveAsync(SalesUser, command, true));
+    }
+
+    [Test]
+    public async Task BackdatedReceiving_NonAdmin_ThrowsUnauthorizedAccessException()
+    {
+        await using var scope = CreateScope();
+        var inventory = scope.ServiceProvider.GetRequiredService<InventoryService>();
+        var command = new ReceiveCommand(Guid.NewGuid(), 1, 1, [new ReceiveLine(1, 1m, 100m)], 0m, PaymentMethod.Cash, null, "Regression")
+        {
+            TransactionTime = DateTimeOffset.UtcNow.AddDays(-1)
+        };
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => inventory.ReceiveAsync(InventoryUser, command));
     }
 
     [Test]
