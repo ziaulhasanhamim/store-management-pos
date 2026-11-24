@@ -17,7 +17,8 @@
 }
 @if (Saved)
 {
-    var message = SavedKind == DebtEntryKind.Repayment
+    var isRepayment = string.Equals(SavedKind, nameof(DebtEntryKind.Repayment), StringComparison.OrdinalIgnoreCase);
+    var message = isRepayment
         ? $"Recorded repayment of {Money(SavedAmt ?? 0)} to {SavedLender ?? "lender"} successfully. Ready for a new entry."
         : $"Recorded borrowing of {Money(SavedAmt ?? 0)} from {SavedLender ?? "lender"} successfully. Ready for a new entry.";
     <div class="mb-4 rounded-xl border border-emerald-200 bg-emerald-50/90 p-4 text-sm font-medium text-emerald-800 flex items-center justify-between" role="status">
@@ -193,7 +194,7 @@ else if (Data is not null)
     public bool Saved { get; set; }
 
     [SupplyParameterFromQuery]
-    public DebtEntryKind? SavedKind { get; set; }
+    public string? SavedKind { get; set; }
 
     [SupplyParameterFromQuery]
     public decimal? SavedAmt { get; set; }
