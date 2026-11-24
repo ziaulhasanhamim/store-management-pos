@@ -18,12 +18,13 @@ public sealed class DebtService(IServiceScopeFactory scopes, IConfiguration conf
             .Where(lender => !lender.IsDeleted)
             .OrderBy(lender => lender.Name).ThenBy(lender => lender.Id)
             .Select(lender => new LenderRow(lender.Id, lender.Name, lender.Phone,
-                lender.Balance!.OpeningBalance, lender.Balance.CurrentBalance));
+                lender.Balance != null ? lender.Balance.OpeningBalance : 0m,
+                lender.Balance != null ? lender.Balance.CurrentBalance : 0m));
         var lenderPage = page is not null ? await lenderQuery.ToPageAsync(page.Value, pageSize, ct) : null;
         var lenders = lenderPage?.Items ?? await lenderQuery.ToArrayAsync(ct);
-        var outstanding = await db.LenderBalances
-            .Where(balance => !balance.Lender!.IsDeleted)
-            .Select(balance => (decimal?)balance.CurrentBalance).SumAsync(ct) ?? 0;
+        var outstanding = await db.Lenders
+            .Where(lender => !lender.IsDeleted && lender.Balance != null)
+            .Select(lender => (decimal?)lender.Balance!.CurrentBalance).SumAsync(ct) ?? 0;
         if (lenderId is not null && !await db.Lenders.AnyAsync(lender => lender.Id == lenderId && !lender.IsDeleted, ct))
         {
             throw new ValidationException("Lender not found.");
@@ -35,10 +36,12 @@ public sealed class DebtService(IServiceScopeFactory scopes, IConfiguration conf
         var today = await db.DebtEntries.Where(entry => !entry.IsVoided && entry.BusinessDate == date)
             .Select(entry => new { entry.Kind, entry.Amount }).ToArrayAsync(ct);
         var historyQuery = db.DebtEntries.AsNoTracking()
-            .Where(entry => !entry.IsVoided && (lenderId == null || entry.LenderBalance!.LenderId == lenderId))
+            .Where(entry => !entry.IsVoided && (lenderId == null || (entry.LenderBalance != null && entry.LenderBalance.LenderId == lenderId)))
             .OrderByDescending(entry => entry.BusinessDate).ThenByDescending(entry => entry.Id)
-            .Select(entry => new DebtHistoryRow(entry.Id, entry.BusinessDate, entry.LenderBalance!.LenderId,
-                entry.LenderBalance.Lender!.Name, entry.Kind, entry.Amount, entry.BalanceAfter, entry.Method,
+            .Select(entry => new DebtHistoryRow(entry.Id, entry.BusinessDate,
+                entry.LenderBalance != null ? entry.LenderBalance.LenderId : 0,
+                entry.LenderBalance != null && entry.LenderBalance.Lender != null ? entry.LenderBalance.Lender.Name : (entry.Notes ?? "Lender"),
+                entry.Kind, entry.Amount, entry.BalanceAfter, entry.Method,
                 entry.CashLocation == null ? null : entry.CashLocation.Name, entry.Notes ?? ""));
         var historyResult = historyPage is not null
             ? await historyQuery.ToPageAsync(historyPage.Value, pageSize, ct) : null;

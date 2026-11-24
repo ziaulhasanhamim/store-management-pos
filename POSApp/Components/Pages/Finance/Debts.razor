@@ -132,8 +132,19 @@ else
 
     protected override async Task OnParametersSetAsync()
     {
-        Data = await DebtAccounts.ReadAsync(HttpContext.User, ct: HttpContext.RequestAborted, page: Page, pageSize: PageSize);
-        Input ??= new() { WorkingDate = Data.WorkingDate };
+        try
+        {
+            Data = await DebtAccounts.ReadAsync(HttpContext.User, ct: HttpContext.RequestAborted, page: Page, pageSize: PageSize);
+            Input ??= new() { WorkingDate = Data.WorkingDate };
+        }
+        catch (ValidationException exception)
+        {
+            Error = exception.Message;
+        }
+        catch (Exception exception)
+        {
+            Error = exception.Message;
+        }
     }
 
     private async Task SaveAsync()
