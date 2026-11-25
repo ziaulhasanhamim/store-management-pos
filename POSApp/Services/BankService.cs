@@ -3,6 +3,7 @@ using System.Data;
 using System.Security.Claims;
 using Microsoft.EntityFrameworkCore;
 using POSApp.Persistence;
+using POSApp.Security;
 
 namespace POSApp.Services;
 
@@ -12,7 +13,7 @@ public sealed class BankService(IServiceScopeFactory scopes, IConfiguration conf
     {
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var actorId = await StoreAccess.RequireAsync(db, actor, AppRoles.Admin, ct);
+        var actorId = await StoreAccess.RequireAsync(db, actor, AppPolicies.ManageDebtAndBanking, ct);
         var workingDate = await AccountingCalendar.SelectedAsync(db, actorId, configuration, ct);
         var monthStart = new DateOnly(workingDate.Year, workingDate.Month, 1);
         var account = await db.BankAccounts.AsNoTracking().SingleOrDefaultAsync(account => account.Code == "MAIN", ct);
@@ -66,7 +67,15 @@ public sealed class BankService(IServiceScopeFactory scopes, IConfiguration conf
             }
             await using var scope = scopes.CreateAsyncScope();
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            var actorId = await StoreAccess.RequireAsync(db, actor, AppRoles.Admin, ct);
+            var actorId = await StoreAccess.RequireAsync(db, actor, AppPolicies.ManageDebtAndBanking, ct);
+            if (input.IsBackdate)
+            {
+                var isAdmin = await CashDrawerService.IsAdminAsync(db, actorId, ct);
+                if (!isAdmin)
+                {
+                    throw new UnauthorizedAccessException("Only administrators can record backdated bank transfers.");
+                }
+            }
             await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
             var hash = StoreOperation.Fingerprint(new { input.RequestId, input.Amount, input.Action, input.Notes, input.IsBackdate, input.OccurredAt });
             var previous = await db.BankMovements.SingleOrDefaultAsync(move => move.RequestId == input.RequestId, ct);

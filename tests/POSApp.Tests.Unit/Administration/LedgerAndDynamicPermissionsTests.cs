@@ -20,7 +20,7 @@ public class DynamicPermissionsAndCashShortageTests
         await RolePermissionService.GetDefaultPermission(AppRoles.InventoryManager, AppPolicies.ApplyDiscount).Should().BeEqualTo(true);
         await RolePermissionService.GetDefaultPermission(AppRoles.InventoryManager, AppPolicies.ViewFinancialReports).Should().BeEqualTo(true);
         await RolePermissionService.GetDefaultPermission(AppRoles.InventoryManager, AppPolicies.ManageStockAdjustment).Should().BeEqualTo(false);
-        await RolePermissionService.GetDefaultPermission(AppRoles.InventoryManager, AppPolicies.ManageDebt).Should().BeEqualTo(false);
+        await RolePermissionService.GetDefaultPermission(AppRoles.InventoryManager, AppPolicies.ManageDebtAndBanking).Should().BeEqualTo(false);
 
         // SalesAssociate defaults
         await RolePermissionService.GetDefaultPermission(AppRoles.SalesAssociate, AppPolicies.MakeSales).Should().BeEqualTo(true);
@@ -28,18 +28,18 @@ public class DynamicPermissionsAndCashShortageTests
         await RolePermissionService.GetDefaultPermission(AppRoles.SalesAssociate, AppPolicies.ApplyDiscount).Should().BeEqualTo(true);
         await RolePermissionService.GetDefaultPermission(AppRoles.SalesAssociate, AppPolicies.ManageDrawer).Should().BeEqualTo(false);
         await RolePermissionService.GetDefaultPermission(AppRoles.SalesAssociate, AppPolicies.RecordExpense).Should().BeEqualTo(false);
-        await RolePermissionService.GetDefaultPermission(AppRoles.SalesAssociate, AppPolicies.ManageDebt).Should().BeEqualTo(false);
+        await RolePermissionService.GetDefaultPermission(AppRoles.SalesAssociate, AppPolicies.ManageDebtAndBanking).Should().BeEqualTo(false);
 
         // InventoryViewer defaults
         await RolePermissionService.GetDefaultPermission(AppRoles.InventoryViewer, AppPolicies.MakeSales).Should().BeEqualTo(false);
         await RolePermissionService.GetDefaultPermission(AppRoles.InventoryViewer, AppPolicies.ViewCostPrice).Should().BeEqualTo(true);
         await RolePermissionService.GetDefaultPermission(AppRoles.InventoryViewer, AppPolicies.ViewFinancialReports).Should().BeEqualTo(true);
         await RolePermissionService.GetDefaultPermission(AppRoles.InventoryViewer, AppPolicies.ManageInventory).Should().BeEqualTo(false);
-        await RolePermissionService.GetDefaultPermission(AppRoles.InventoryViewer, AppPolicies.ManageDebt).Should().BeEqualTo(false);
+        await RolePermissionService.GetDefaultPermission(AppRoles.InventoryViewer, AppPolicies.ManageDebtAndBanking).Should().BeEqualTo(false);
 
         // Admin default
-        await RolePermissionService.GetDefaultPermission(AppRoles.Admin, AppPolicies.ManageDebt).Should().BeEqualTo(true);
-        await RolePermissionService.ConfigurablePolicies.Any(p => p.PolicyName == AppPolicies.ManageDebt).Should().BeTrue();
+        await RolePermissionService.GetDefaultPermission(AppRoles.Admin, AppPolicies.ManageDebtAndBanking).Should().BeEqualTo(true);
+        await RolePermissionService.ConfigurablePolicies.Any(p => p.PolicyName == AppPolicies.ManageDebtAndBanking).Should().BeTrue();
     }
 
     [Test]

@@ -13,7 +13,7 @@ public sealed class DebtService(IServiceScopeFactory scopes, IConfiguration conf
     {
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var actorId = await StoreAccess.RequireAsync(db, actor, AppPolicies.ManageDebt, ct);
+        var actorId = await StoreAccess.RequireAsync(db, actor, AppPolicies.ManageDebtAndBanking, ct);
         var workingDate = await AccountingCalendar.SelectedAsync(db, actorId, configuration, ct);
         var viewDate = date ?? workingDate;
         var lenderQuery = db.Lenders.AsNoTracking()
@@ -104,7 +104,7 @@ public sealed class DebtService(IServiceScopeFactory scopes, IConfiguration conf
             }
             await using var scope = scopes.CreateAsyncScope();
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            var actorId = await StoreAccess.RequireAsync(db, actor, AppPolicies.ManageDebt, ct);
+            var actorId = await StoreAccess.RequireAsync(db, actor, AppPolicies.ManageDebtAndBanking, ct);
             await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
             var previous = await db.Lenders.Include(lender => lender.Balance)
                 .SingleOrDefaultAsync(lender => lender.RequestId == input.RequestId, ct);
@@ -168,7 +168,7 @@ public sealed class DebtService(IServiceScopeFactory scopes, IConfiguration conf
             }
             await using var scope = scopes.CreateAsyncScope();
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            var actorId = await StoreAccess.RequireAsync(db, actor, AppPolicies.ManageDebt, ct);
+            var actorId = await StoreAccess.RequireAsync(db, actor, AppPolicies.ManageDebtAndBanking, ct);
             await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
             var amount = input.Kind == DebtEntryKind.Repayment ? -input.Amount : input.Amount;
             var locationId = input.Method == PaymentMethod.Cash ? input.CashLocationId : null;

@@ -14,7 +14,7 @@
     <AuthorizeView Policy="@AppPolicies.ManageInventory">
         <HubCard Href="/suppliers/payments" Title="Supplier payments" Hint="Settle supplier balances" IconName="receive" />
     </AuthorizeView>
-    <AuthorizeView Policy="@AppPolicies.ManageDebt">
+    <AuthorizeView Policy="@AppPolicies.ManageDebtAndBanking">
         <HubCard Href="/finance/debt" Title="Loans & debt" Hint="Borrow funds and make principal repayments" IconName="wallet" />
     </AuthorizeView>
     <AuthorizeView Policy="@AppPolicies.ManagePayroll">

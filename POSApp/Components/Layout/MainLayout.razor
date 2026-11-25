@@ -127,11 +127,11 @@
                             <NavLink href="/finance/day">Daily financial summary</NavLink>
                             <NavLink href="/finance/month">Monthly financial summary</NavLink>
                         </AuthorizeView>
-                        <AuthorizeView Policy="@AppPolicies.ManageUsers" Context="bankAuth">
+                        <AuthorizeView Policy="@AppPolicies.ManageDebtAndBanking" Context="bankAuth">
                             <NavLink href="/finance/bank">Bank & digital accounts</NavLink>
                         </AuthorizeView>
                         <NavLink href="/finance/clearing">Card & wallet clearing</NavLink>
-                        <AuthorizeView Policy="@AppPolicies.ManageDebt" Context="debtAuth">
+                        <AuthorizeView Policy="@AppPolicies.ManageDebtAndBanking" Context="debtAuth">
                             <NavLink href="/finance/debt">Loans & borrowings</NavLink>
                         </AuthorizeView>
                     </SidebarGroup>

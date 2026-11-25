@@ -253,7 +253,7 @@ public class DebtServiceTests
         var (scopes, config, db) = CreateTestEnvironment(Guid.NewGuid().ToString());
         RolePermissionService.SetCache(new Dictionary<(string RoleName, string PolicyName), bool>
         {
-            [(AppRoles.InventoryManager, AppPolicies.ManageDebt)] = false
+            [(AppRoles.InventoryManager, AppPolicies.ManageDebtAndBanking)] = false
         });
 
         db.Roles.Add(new() { Id = 2, Name = AppRoles.InventoryManager, NormalizedName = "INVENTORYMANAGER" });
@@ -278,7 +278,7 @@ public class DebtServiceTests
         var (scopes, config, db) = CreateTestEnvironment(Guid.NewGuid().ToString());
         RolePermissionService.SetCache(new Dictionary<(string RoleName, string PolicyName), bool>
         {
-            [(AppRoles.InventoryManager, AppPolicies.ManageDebt)] = true
+            [(AppRoles.InventoryManager, AppPolicies.ManageDebtAndBanking)] = true
         });
 
         db.Roles.Add(new() { Id = 2, Name = AppRoles.InventoryManager, NormalizedName = "INVENTORYMANAGER" });
@@ -287,7 +287,7 @@ public class DebtServiceTests
         db.RolePermissions.Add(new()
         {
             RoleName = AppRoles.InventoryManager,
-            PolicyName = AppPolicies.ManageDebt,
+            PolicyName = AppPolicies.ManageDebtAndBanking,
             IsGranted = true,
             CreatedAt = DateTimeOffset.UtcNow
         });
@@ -300,6 +300,64 @@ public class DebtServiceTests
         ], "test"));
 
         var service = new DebtService(scopes, config);
+        var page = await service.ReadAsync(cashier);
+        await page.Should().NotBeNull();
+    }
+
+    [Test]
+    public async Task BankService_ReadAsync_CashierWithoutPermission_ThrowsUnauthorizedAccessException()
+    {
+        var (scopes, config, db) = CreateTestEnvironment(Guid.NewGuid().ToString());
+        RolePermissionService.SetCache(new Dictionary<(string RoleName, string PolicyName), bool>
+        {
+            [(AppRoles.InventoryManager, AppPolicies.ManageDebtAndBanking)] = false
+        });
+
+        db.Roles.Add(new() { Id = 2, Name = AppRoles.InventoryManager, NormalizedName = "INVENTORYMANAGER" });
+        db.Users.Add(new() { Id = 2, UserName = "cashier1", NormalizedUserName = "CASHIER1" });
+        db.UserRoles.Add(new() { RoleId = 2, UserId = 2 });
+        await db.SaveChangesAsync();
+
+        var cashier = new ClaimsPrincipal(new ClaimsIdentity([
+            new(ClaimTypes.NameIdentifier, "2"),
+            new(ClaimTypes.Name, "cashier1"),
+            new(ClaimTypes.Role, AppRoles.InventoryManager)
+        ], "test"));
+
+        var service = new BankService(scopes, config);
+        var act = async () => await service.ReadAsync(cashier);
+        await Assert.That(act).Throws<UnauthorizedAccessException>();
+    }
+
+    [Test]
+    public async Task BankService_ReadAsync_CashierWithGrantedPermission_Succeeds()
+    {
+        var (scopes, config, db) = CreateTestEnvironment(Guid.NewGuid().ToString());
+        RolePermissionService.SetCache(new Dictionary<(string RoleName, string PolicyName), bool>
+        {
+            [(AppRoles.InventoryManager, AppPolicies.ManageDebtAndBanking)] = true
+        });
+
+        db.Roles.Add(new() { Id = 2, Name = AppRoles.InventoryManager, NormalizedName = "INVENTORYMANAGER" });
+        db.Users.Add(new() { Id = 2, UserName = "cashier1", NormalizedUserName = "CASHIER1" });
+        db.UserRoles.Add(new() { RoleId = 2, UserId = 2 });
+        db.RolePermissions.Add(new()
+        {
+            RoleName = AppRoles.InventoryManager,
+            PolicyName = AppPolicies.ManageDebtAndBanking,
+            IsGranted = true,
+            CreatedAt = DateTimeOffset.UtcNow
+        });
+        db.BankAccounts.Add(new BankAccount { Code = "MAIN", OpeningBalance = 1000m, CurrentBalance = 1000m });
+        await db.SaveChangesAsync();
+
+        var cashier = new ClaimsPrincipal(new ClaimsIdentity([
+            new(ClaimTypes.NameIdentifier, "2"),
+            new(ClaimTypes.Name, "cashier1"),
+            new(ClaimTypes.Role, AppRoles.InventoryManager)
+        ], "test"));
+
+        var service = new BankService(scopes, config);
         var page = await service.ReadAsync(cashier);
         await page.Should().NotBeNull();
     }
