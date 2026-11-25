@@ -131,7 +131,7 @@
                             <NavLink href="/finance/bank">Bank & digital accounts</NavLink>
                         </AuthorizeView>
                         <NavLink href="/finance/clearing">Card & wallet clearing</NavLink>
-                        <AuthorizeView Policy="@AppPolicies.ManageUsers" Context="debtAuth">
+                        <AuthorizeView Policy="@AppPolicies.ManageDebt" Context="debtAuth">
                             <NavLink href="/finance/debt">Loans & borrowings</NavLink>
                         </AuthorizeView>
                     </SidebarGroup>

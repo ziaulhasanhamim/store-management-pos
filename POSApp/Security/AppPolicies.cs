@@ -16,6 +16,7 @@ public static class AppPolicies
     public const string ApplyDiscount = "ApplyDiscount";
     public const string VoidSale = "VoidSale";
     public const string ViewFinancialReports = "ViewFinancialReports";
+    public const string ManageDebt = "ManageDebt";
 
     public static IServiceCollection AddPosAuthorization(this IServiceCollection services)
     {
@@ -34,6 +35,7 @@ public static class AppPolicies
             options.AddPolicy(ApplyDiscount, policy => policy.Requirements.Add(new DynamicPolicyRequirement(ApplyDiscount)));
             options.AddPolicy(VoidSale, policy => policy.RequireRole(AppRoles.Admin));
             options.AddPolicy(ViewFinancialReports, policy => policy.Requirements.Add(new DynamicPolicyRequirement(ViewFinancialReports)));
+            options.AddPolicy(ManageDebt, policy => policy.Requirements.Add(new DynamicPolicyRequirement(ManageDebt)));
         });
     }
 }

@@ -48,7 +48,8 @@ public static class RolePermissionService
         (AppPolicies.ManagePayroll, "Manage payroll & staff accounts", "Allow viewing staff balances and recording salary/bonus advances."),
         (AppPolicies.ManageParties, "Manage customers & suppliers", "Allow creating, updating, and managing customer and supplier directories."),
         (AppPolicies.ApplyDiscount, "Apply sales discounts", "Allow applying line-item or invoice discounts during checkout."),
-        (AppPolicies.ViewFinancialReports, "View financial reports", "Allow viewing profit & loss statements and period closing summaries.")
+        (AppPolicies.ViewFinancialReports, "View financial reports", "Allow viewing profit & loss statements and period closing summaries."),
+        (AppPolicies.ManageDebt, "Manage loans & borrowings", "Allow viewing lender balances and recording borrowing and repayments.")
     ];
 
     public static readonly string[] ConfigurableRoles =
@@ -76,6 +77,7 @@ public static class RolePermissionService
         AppPolicies.ManageDrawer => AppPolicies.ManageDrawer,
         AppRoles.SalesAssociate or AppPolicies.MakeSales => AppPolicies.MakeSales,
         AppRoles.InventoryViewer or AppPolicies.ViewCostPrice => AppPolicies.ViewCostPrice,
+        AppPolicies.ManageDebt => AppPolicies.ManageDebt,
         _ => roleOrPolicy
     };
 

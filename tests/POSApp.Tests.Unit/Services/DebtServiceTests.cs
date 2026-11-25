@@ -7,10 +7,12 @@ using POSApp.Client.Enums;
 using POSApp.Client.Security;
 using POSApp.Persistence;
 using POSApp.Persistence.Entities;
+using POSApp.Security;
 using POSApp.Services;
 
 namespace POSApp.Tests.Unit.Services;
 
+[NotInParallel]
 public class DebtServiceTests
 {
     private static (IServiceScopeFactory Scopes, IConfiguration Config, AppDbContext Db) CreateTestEnvironment(string dbName)
@@ -243,5 +245,62 @@ public class DebtServiceTests
         // Working day stats remain today's
         await yesterdayPage.BorrowedToday.Should().BeEqualTo(10000m);
         await yesterdayPage.RepaidToday.Should().BeEqualTo(4000m);
+    }
+
+    [Test]
+    public async Task ReadAsync_CashierWithoutPermission_ThrowsUnauthorizedAccessException()
+    {
+        var (scopes, config, db) = CreateTestEnvironment(Guid.NewGuid().ToString());
+        RolePermissionService.SetCache(new Dictionary<(string RoleName, string PolicyName), bool>
+        {
+            [(AppRoles.InventoryManager, AppPolicies.ManageDebt)] = false
+        });
+
+        db.Roles.Add(new() { Id = 2, Name = AppRoles.InventoryManager, NormalizedName = "INVENTORYMANAGER" });
+        db.Users.Add(new() { Id = 2, UserName = "cashier1", NormalizedUserName = "CASHIER1" });
+        db.UserRoles.Add(new() { RoleId = 2, UserId = 2 });
+        await db.SaveChangesAsync();
+
+        var cashier = new ClaimsPrincipal(new ClaimsIdentity([
+            new(ClaimTypes.NameIdentifier, "2"),
+            new(ClaimTypes.Name, "cashier1"),
+            new(ClaimTypes.Role, AppRoles.InventoryManager)
+        ], "test"));
+
+        var service = new DebtService(scopes, config);
+        var act = async () => await service.ReadAsync(cashier);
+        await Assert.That(act).Throws<UnauthorizedAccessException>();
+    }
+
+    [Test]
+    public async Task ReadAsync_CashierWithGrantedPermission_Succeeds()
+    {
+        var (scopes, config, db) = CreateTestEnvironment(Guid.NewGuid().ToString());
+        RolePermissionService.SetCache(new Dictionary<(string RoleName, string PolicyName), bool>
+        {
+            [(AppRoles.InventoryManager, AppPolicies.ManageDebt)] = true
+        });
+
+        db.Roles.Add(new() { Id = 2, Name = AppRoles.InventoryManager, NormalizedName = "INVENTORYMANAGER" });
+        db.Users.Add(new() { Id = 2, UserName = "cashier1", NormalizedUserName = "CASHIER1" });
+        db.UserRoles.Add(new() { RoleId = 2, UserId = 2 });
+        db.RolePermissions.Add(new()
+        {
+            RoleName = AppRoles.InventoryManager,
+            PolicyName = AppPolicies.ManageDebt,
+            IsGranted = true,
+            CreatedAt = DateTimeOffset.UtcNow
+        });
+        await db.SaveChangesAsync();
+
+        var cashier = new ClaimsPrincipal(new ClaimsIdentity([
+            new(ClaimTypes.NameIdentifier, "2"),
+            new(ClaimTypes.Name, "cashier1"),
+            new(ClaimTypes.Role, AppRoles.InventoryManager)
+        ], "test"));
+
+        var service = new DebtService(scopes, config);
+        var page = await service.ReadAsync(cashier);
+        await page.Should().NotBeNull();
     }
 }
