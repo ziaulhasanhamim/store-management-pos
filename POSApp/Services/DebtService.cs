@@ -8,12 +8,13 @@ namespace POSApp.Services;
 
 public sealed class DebtService(IServiceScopeFactory scopes, IConfiguration configuration)
 {
-    public async Task<DebtPage> ReadAsync(ClaimsPrincipal actor, int? lenderId = null, CancellationToken ct = default, int? page = null, int pageSize = 30, int? historyPage = null)
+    public async Task<DebtPage> ReadAsync(ClaimsPrincipal actor, int? lenderId = null, CancellationToken ct = default, int? page = null, int pageSize = 30, int? historyPage = null, DateOnly? date = null)
     {
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var actorId = await StoreAccess.RequireAsync(db, actor, AppRoles.Admin, ct);
-        var date = await AccountingCalendar.SelectedAsync(db, actorId, configuration, ct);
+        var workingDate = await AccountingCalendar.SelectedAsync(db, actorId, configuration, ct);
+        var viewDate = date ?? workingDate;
         var lenderQuery = db.Lenders.AsNoTracking()
             .Where(lender => !lender.IsDeleted)
             .OrderBy(lender => lender.Name).ThenBy(lender => lender.Id)
@@ -33,8 +34,36 @@ public sealed class DebtService(IServiceScopeFactory scopes, IConfiguration conf
             .OrderBy(location => location.Name)
             .Select(location => new DebtLocation(location.Id, location.Name)).ToArrayAsync(ct);
         var closed = false;
-        var today = await db.DebtEntries.Where(entry => !entry.IsVoided && entry.BusinessDate == date)
-            .Select(entry => new { entry.Kind, entry.Amount }).ToArrayAsync(ct);
+
+        var dayEntriesQuery = db.DebtEntries.AsNoTracking()
+            .Where(entry => !entry.IsVoided && entry.BusinessDate == viewDate && (lenderId == null || (entry.LenderBalance != null && entry.LenderBalance.LenderId == lenderId)))
+            .OrderBy(entry => entry.OccurredAt).ThenBy(entry => entry.Id)
+            .Select(entry => new DebtHistoryRow(entry.Id, entry.BusinessDate,
+                entry.LenderBalance != null ? entry.LenderBalance.LenderId : 0,
+                entry.LenderBalance != null && entry.LenderBalance.Lender != null ? entry.LenderBalance.Lender.Name : (entry.Notes ?? "Lender"),
+                entry.Kind, entry.Amount, entry.BalanceAfter, entry.Method,
+                entry.CashLocation == null ? null : entry.CashLocation.Name, entry.Notes ?? "",
+                entry.OccurredAt, entry.IsVoided));
+        var dayEntries = await dayEntriesQuery.ToArrayAsync(ct);
+        var dayBorrowed = dayEntries.Where(entry => entry.Kind == DebtEntryKind.Borrowing).Sum(entry => Math.Abs(entry.Amount));
+        var dayRepaid = dayEntries.Where(entry => entry.Kind == DebtEntryKind.Repayment).Sum(entry => Math.Abs(entry.Amount));
+
+        decimal borrowedToday;
+        decimal repaidToday;
+        if (viewDate == workingDate && lenderId == null)
+        {
+            borrowedToday = dayBorrowed;
+            repaidToday = dayRepaid;
+        }
+        else
+        {
+            var workingEntries = await db.DebtEntries.AsNoTracking()
+                .Where(entry => !entry.IsVoided && entry.BusinessDate == workingDate)
+                .Select(entry => new { entry.Kind, entry.Amount }).ToArrayAsync(ct);
+            borrowedToday = workingEntries.Where(entry => entry.Kind == DebtEntryKind.Borrowing).Sum(entry => Math.Abs(entry.Amount));
+            repaidToday = workingEntries.Where(entry => entry.Kind == DebtEntryKind.Repayment).Sum(entry => Math.Abs(entry.Amount));
+        }
+
         var historyQuery = db.DebtEntries.AsNoTracking()
             .Where(entry => !entry.IsVoided && (lenderId == null || (entry.LenderBalance != null && entry.LenderBalance.LenderId == lenderId)))
             .OrderByDescending(entry => entry.BusinessDate).ThenByDescending(entry => entry.Id)
@@ -42,14 +71,19 @@ public sealed class DebtService(IServiceScopeFactory scopes, IConfiguration conf
                 entry.LenderBalance != null ? entry.LenderBalance.LenderId : 0,
                 entry.LenderBalance != null && entry.LenderBalance.Lender != null ? entry.LenderBalance.Lender.Name : (entry.Notes ?? "Lender"),
                 entry.Kind, entry.Amount, entry.BalanceAfter, entry.Method,
-                entry.CashLocation == null ? null : entry.CashLocation.Name, entry.Notes ?? ""));
+                entry.CashLocation == null ? null : entry.CashLocation.Name, entry.Notes ?? "",
+                entry.OccurredAt, entry.IsVoided));
         var historyResult = historyPage is not null
             ? await historyQuery.ToPageAsync(historyPage.Value, pageSize, ct) : null;
         var history = historyResult?.Items ?? await historyQuery.Take(200).ToArrayAsync(ct);
-        return new(date, !closed, lenders, locations,
-            today.Where(entry => entry.Kind == DebtEntryKind.Borrowing).Sum(entry => entry.Amount),
-            -today.Where(entry => entry.Kind == DebtEntryKind.Repayment).Sum(entry => entry.Amount), history)
+
+        return new(workingDate, !closed, lenders, locations, borrowedToday, repaidToday, history)
         {
+            ViewDate = viewDate,
+            DayBorrowed = dayBorrowed,
+            DayRepaid = dayRepaid,
+            DayCount = dayEntries.Length,
+            DayEntries = dayEntries,
             LenderPagination = lenderPage?.Pagination,
             HistoryPagination = historyResult?.Pagination,
             TotalOutstanding = outstanding

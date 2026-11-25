@@ -24,23 +24,137 @@
 }
 else
 {
-    <div class="mb-6 grid gap-4 sm:grid-cols-3">
+    <div class="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div class="metric">
             <p>Outstanding debt</p>
             <strong class="text-2xl!">@Money(Data.TotalOutstanding)</strong>
+            <span class="metric-note">Across all lenders</span>
         </div>
         <div class="metric">
             <p>Borrowed · @Data.WorkingDate.ToString("dd MMM yyyy")</p>
-            <strong class="text-2xl!">@Money(Data.BorrowedToday)</strong>
+            <strong class="text-2xl! text-emerald-700">@Money(Data.BorrowedToday)</strong>
+            <span class="metric-note text-emerald-600">Debt taken today</span>
         </div>
         <div class="metric">
-            <p>Repaid · working day</p>
-            <strong class="text-2xl!">@Money(Data.RepaidToday)</strong>
+            <p>Repaid · @Data.WorkingDate.ToString("dd MMM yyyy")</p>
+            <strong class="text-2xl! text-amber-700">@Money(Data.RepaidToday)</strong>
+            <span class="metric-note text-amber-600">Debt paid today</span>
+        </div>
+        <div class="metric">
+            <p>Net debt change · @Data.WorkingDate.ToString("dd MMM yyyy")</p>
+            <strong class="text-2xl! @(Data.DayNet > 0 ? "text-rose-700" : Data.DayNet < 0 ? "text-emerald-700" : "")">
+                @(Data.DayNet > 0 ? $"+{Money(Data.DayNet)}" : Money(Data.DayNet))
+            </strong>
+            <span class="metric-note">@Data.DayCount @(Data.DayCount == 1 ? "entry" : "entries") today</span>
         </div>
     </div>
+
     <section class="panel mb-6 table-scroll">
         <div class="panel-heading">
-            <h2>Lenders</h2>
+            <div>
+                <h2>Today's debt activity · @Data.WorkingDate.ToString("dd MMM yyyy")</h2>
+                <p class="text-xs text-slate-500">Borrowings and repayments recorded on the current working day.</p>
+            </div>
+            <a href="/finance/debt/payments" class="btn-primary text-xs">
+                <Icon Name="wallet" />
+                Borrow / repay
+            </a>
+        </div>
+        @if (Data.DayEntries.Count > 0)
+        {
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Time / Ref</th>
+                        <th>Lender</th>
+                        <th>Type</th>
+                        <th>Method</th>
+                        <th>Notes</th>
+                        <th class="text-right">Borrowed (+)</th>
+                        <th class="text-right">Repaid (-)</th>
+                        <th class="text-right">Balance after</th>
+                        <th>
+                            <span class="sr-only">Actions</span>
+                        </th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in Data.DayEntries)
+                    {
+                        <tr>
+                            <td>
+                                <span class="font-medium">#@row.Id</span>
+                                @if (row.OccurredAt.HasValue)
+                                {
+                                    <span class="block text-xs text-slate-500">@UserTime.Format(row.OccurredAt.Value, "hh:mm tt")</span>
+                                }
+                            </td>
+                            <td class="font-medium">@row.Lender</td>
+                            <td>
+                                @if (row.Kind == DebtEntryKind.Borrowing)
+                                {
+                                    <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">Borrowing</span>
+                                }
+                                else if (row.Kind == DebtEntryKind.Repayment)
+                                {
+                                    <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">Repayment</span>
+                                }
+                                else
+                                {
+                                    <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold bg-slate-100 text-slate-700">Opening</span>
+                                }
+                            </td>
+                            <td>
+                                <span>@(row.Method.HasValue ? SplitPayments.MethodName(row.Method.Value) : "—")</span>
+                                @if (!string.IsNullOrWhiteSpace(row.CashLocation))
+                                {
+                                    <span class="block text-xs text-slate-500">@row.CashLocation</span>
+                                }
+                            </td>
+                            <td class="max-w-xs truncate">@row.Notes</td>
+                            <td class="text-right text-emerald-700 font-medium tabular-nums whitespace-nowrap">
+                                @(row.Kind == DebtEntryKind.Borrowing ? Money(Math.Abs(row.Amount)) : "—")
+                            </td>
+                            <td class="text-right text-amber-700 font-medium tabular-nums whitespace-nowrap">
+                                @(row.Kind == DebtEntryKind.Repayment ? Money(Math.Abs(row.Amount)) : "—")
+                            </td>
+                            <td class="text-right font-semibold tabular-nums whitespace-nowrap">@Money(row.BalanceAfter)</td>
+                            <td>
+                                @if (row.Kind != DebtEntryKind.OpeningBalance)
+                                {
+                                    <a href="@($"/admin/records/debt/{row.Id}/edit")" class="btn-secondary text-xs" title="Edit or void transaction">Edit / Void</a>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+                <tfoot>
+                    <tr class="font-bold bg-slate-50 border-t-2 border-slate-300">
+                        <td colspan="5" class="py-3 px-4 text-right text-slate-700">
+                            Today's totals (@Data.DayEntries.Count @(Data.DayEntries.Count == 1 ? "entry" : "entries")):
+                        </td>
+                        <td class="text-right py-3 px-4 text-emerald-700 tabular-nums whitespace-nowrap">@Money(Data.DayBorrowed)</td>
+                        <td class="text-right py-3 px-4 text-amber-700 tabular-nums whitespace-nowrap">@Money(Data.DayRepaid)</td>
+                        <td class="text-right py-3 px-4 font-extrabold tabular-nums whitespace-nowrap @(Data.DayNet > 0 ? "text-rose-700" : Data.DayNet < 0 ? "text-emerald-700" : "text-slate-800")">
+                            Net: @(Data.DayNet > 0 ? $"+{Money(Data.DayNet)}" : Money(Data.DayNet))
+                        </td>
+                        <td></td>
+                    </tr>
+                </tfoot>
+            </table>
+        }
+        else
+        {
+            <div class="empty-state">
+                <p>No borrowings or repayments recorded today (@Data.WorkingDate.ToString("dd MMM yyyy")).</p>
+                <a href="/finance/debt/payments" class="btn-secondary mt-2 inline-block">Record borrowing or repayment</a>
+            </div>
+        }
+    </section>
+
+    <section class="panel mb-6 table-scroll">
+        <div class="panel-heading">
+            <h2>Lenders & balances</h2>
         </div>
         <table class="data-table">
             <thead>
@@ -60,8 +174,8 @@ else
                     <tr>
                         <td>@lender.Name</td>
                         <td>@(string.IsNullOrWhiteSpace(lender.Phone) ? "—" : lender.Phone)</td>
-                        <td class="text-right">@Money(lender.Opening)</td>
-                        <td class="text-right font-semibold">@Money(lender.Balance)</td>
+                        <td class="text-right tabular-nums whitespace-nowrap">@Money(lender.Opening)</td>
+                        <td class="text-right font-semibold tabular-nums whitespace-nowrap">@Money(lender.Balance)</td>
                         <td>
                             <a href="@($"/finance/debt/payments?lenderId={lender.Id}")" class="btn-secondary">Payments / history</a>
                         </td>

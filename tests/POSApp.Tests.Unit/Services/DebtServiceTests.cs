@@ -77,7 +77,7 @@ public class DebtServiceTests
             Name = "Bank Asia Loan",
             Phone = "01700000000",
             OpeningBalance = 50000m,
-            WorkingDate = new DateOnly(2026, 11, 24)
+            WorkingDate = AccountingCalendar.Today(config)
         });
 
         var page = await service.ReadAsync(admin, historyPage: 1);
@@ -147,5 +147,101 @@ public class DebtServiceTests
         await page.Should().NotBeNull();
         await page.History.Count.Should().BeEqualTo(1);
         await page.History[0].Lender.Should().BeEqualTo("Apex Lender");
+    }
+
+    [Test]
+    public async Task ReadAsync_WithDayEntries_CalculatesDayTotalsAndEntriesCorrectly()
+    {
+        var (scopes, config, db) = CreateTestEnvironment(Guid.NewGuid().ToString());
+        
+        db.Roles.Add(new() { Id = 1, Name = AppRoles.Admin, NormalizedName = "ADMIN" });
+        db.Users.Add(new() { Id = 1, UserName = "superuser", NormalizedUserName = "SUPERUSER" });
+        db.UserRoles.Add(new() { RoleId = 1, UserId = 1 });
+
+        var lender = new Lender { Id = 1, Name = "Premier Lender", RequestId = Guid.NewGuid() };
+        db.Lenders.Add(lender);
+        var balance = new LenderBalance
+        {
+            Id = 1,
+            LenderId = 1,
+            OpeningDate = new DateOnly(2026, 11, 24),
+            CurrentBalance = 16000m
+        };
+        db.LenderBalances.Add(balance);
+
+        var today = AccountingCalendar.Today(config);
+        var yesterday = today.AddDays(-1);
+
+        // 1. Borrowing today (10,000)
+        db.DebtEntries.Add(new()
+        {
+            RequestId = Guid.NewGuid(),
+            LenderBalanceId = 1,
+            BusinessDate = today,
+            Kind = DebtEntryKind.Borrowing,
+            Amount = 10000m,
+            BalanceAfter = 10000m,
+            Notes = "Borrowed cash",
+            OccurredAt = DateTimeOffset.UtcNow,
+            CreatedByUserId = 1
+        });
+
+        // 2. Repayment today (-4,000)
+        db.DebtEntries.Add(new()
+        {
+            RequestId = Guid.NewGuid(),
+            LenderBalanceId = 1,
+            BusinessDate = today,
+            Kind = DebtEntryKind.Repayment,
+            Amount = -4000m,
+            BalanceAfter = 6000m,
+            Notes = "Repaid partial",
+            OccurredAt = DateTimeOffset.UtcNow.AddMinutes(10),
+            CreatedByUserId = 1
+        });
+
+        // 3. Borrowing yesterday (5,000)
+        db.DebtEntries.Add(new()
+        {
+            RequestId = Guid.NewGuid(),
+            LenderBalanceId = 1,
+            BusinessDate = yesterday,
+            Kind = DebtEntryKind.Borrowing,
+            Amount = 5000m,
+            BalanceAfter = 5000m,
+            Notes = "Borrowed yesterday",
+            OccurredAt = DateTimeOffset.UtcNow.AddDays(-1),
+            CreatedByUserId = 1
+        });
+
+        await db.SaveChangesAsync();
+
+        var service = new DebtService(scopes, config);
+        var admin = CreateAdminPrincipal();
+
+        // Query today (default)
+        var todayPage = await service.ReadAsync(admin);
+        await todayPage.Should().NotBeNull();
+        await todayPage.ViewDate.Should().BeEqualTo(today);
+        await todayPage.DayCount.Should().BeEqualTo(2);
+        await todayPage.DayEntries.Count.Should().BeEqualTo(2);
+        await todayPage.DayBorrowed.Should().BeEqualTo(10000m);
+        await todayPage.DayRepaid.Should().BeEqualTo(4000m);
+        await todayPage.DayNet.Should().BeEqualTo(6000m);
+        await todayPage.BorrowedToday.Should().BeEqualTo(10000m);
+        await todayPage.RepaidToday.Should().BeEqualTo(4000m);
+
+        // Query yesterday
+        var yesterdayPage = await service.ReadAsync(admin, date: yesterday);
+        await yesterdayPage.Should().NotBeNull();
+        await yesterdayPage.ViewDate.Should().BeEqualTo(yesterday);
+        await yesterdayPage.DayCount.Should().BeEqualTo(1);
+        await yesterdayPage.DayEntries.Count.Should().BeEqualTo(1);
+        await yesterdayPage.DayBorrowed.Should().BeEqualTo(5000m);
+        await yesterdayPage.DayRepaid.Should().BeEqualTo(0m);
+        await yesterdayPage.DayNet.Should().BeEqualTo(5000m);
+        // Working day stats remain today's
+        await yesterdayPage.BorrowedToday.Should().BeEqualTo(10000m);
+        await yesterdayPage.RepaidToday.Should().BeEqualTo(4000m);
     }
 }

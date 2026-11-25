@@ -29,11 +29,17 @@ public sealed record LenderRow(int Id, string Name, string? Phone, decimal Openi
 public sealed record DebtLocation(int Id, string Name);
 public sealed record DebtHistoryRow(int Id, DateOnly Date, int LenderId, string Lender,
     DebtEntryKind Kind, decimal Amount, decimal BalanceAfter, PaymentMethod? Method,
-    string? CashLocation, string Notes);
+    string? CashLocation, string Notes, DateTimeOffset? OccurredAt = null, bool IsVoided = false);
 public sealed record DebtPage(DateOnly WorkingDate, bool CanPost, IReadOnlyList<LenderRow> Lenders,
     IReadOnlyList<DebtLocation> Locations, decimal BorrowedToday, decimal RepaidToday,
     IReadOnlyList<DebtHistoryRow> History)
 {
+    public DateOnly ViewDate { get; init; } = WorkingDate;
+    public decimal DayBorrowed { get; init; }
+    public decimal DayRepaid { get; init; }
+    public decimal DayNet => DayBorrowed - DayRepaid;
+    public int DayCount { get; init; }
+    public IReadOnlyList<DebtHistoryRow> DayEntries { get; init; } = [];
     public PageInfo? LenderPagination { get; init; }
     public PageInfo? HistoryPagination { get; init; }
     public decimal TotalOutstanding { get; init; }

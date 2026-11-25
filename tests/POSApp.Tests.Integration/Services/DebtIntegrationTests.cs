@@ -22,4 +22,25 @@ public class DebtIntegrationTests : PosIntegrationTestBase
         var response = await AdminClient.GetAsync("/finance/debt/payments");
         await response.IsSuccessStatusCode.Should().BeTrue();
     }
+
+    [Test]
+    public async Task Debts_Endpoint_GetAsync_ReturnsOk()
+    {
+        var response = await AdminClient.GetAsync("/finance/debt");
+        await response.IsSuccessStatusCode.Should().BeTrue();
+    }
+
+    [Test]
+    public async Task DebtPayments_Endpoint_WithDate_ReturnsOk()
+    {
+        var response = await AdminClient.GetAsync("/finance/debt/payments?date=2026-11-24");
+        await response.IsSuccessStatusCode.Should().BeTrue();
+    }
+
+    [Test]
+    public async Task DebtPayments_Endpoint_WithViewAll_ReturnsOk()
+    {
+        var response = await AdminClient.GetAsync("/finance/debt/payments?view=all");
+        await response.IsSuccessStatusCode.Should().BeTrue();
+    }
 }

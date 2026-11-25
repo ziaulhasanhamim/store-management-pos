@@ -6,10 +6,13 @@
 @inject DebtService DebtAccounts
 @inject NavigationManager Navigation
 
-<PageTitle>Borrowing & repayments · @(Configuration["StoreName"] ?? "JAS International")</PageTitle>
+<PageTitle>Borrowing & repayments · @(Configuration["StoreName"] ?? "RetailPOS")</PageTitle>
 <div class="page-heading">
     <h1>Borrowing & repayments</h1>
-    <a href="/finance/debt" class="btn-secondary">Lenders</a>
+    <div class="flex gap-3">
+        <a href="/finance/debt" class="btn-secondary">Lenders</a>
+        <a href="/finance" class="btn-secondary">Finance</a>
+    </div>
 </div>
 @if (Error is not null)
 {
@@ -28,29 +31,72 @@
             </svg>
             <span>@message</span>
         </div>
-        <a href="@($"/finance/debt/payments?lenderId={LenderId}")" class="text-emerald-700 hover:text-emerald-900 text-xs font-semibold">Dismiss</a>
+        <a href="@($"/finance/debt/payments?lenderId={LenderId}{(Date.HasValue ? $"&date={Date.Value:yyyy-MM-dd}" : "")}")" class="text-emerald-700 hover:text-emerald-900 text-xs font-semibold">Dismiss</a>
     </div>
 }
+<form method="get" action="/finance/debt/payments" class="mb-6 flex flex-wrap items-end gap-3" data-enhance data-submit-indication="true">
+    @if (LenderId.HasValue)
+    {
+        <input type="hidden" name="lenderId" value="@LenderId.Value" />
+    }
+    <div>
+        <label class="field-label" for="entry-date">View day</label>
+        <input id="entry-date" name="date" type="date" class="field" value="@((Date ?? Data?.ViewDate)?.ToString("yyyy-MM-dd"))" required />
+    </div>
+    <button class="btn-secondary">View</button>
+    <a class="btn-secondary" href="@($"/finance/debt/payments{(LenderId.HasValue ? $"?lenderId={LenderId.Value}" : "")}")">Current working day</a>
+    @if (IsAllHistory)
+    {
+        <a class="btn-secondary" href="@($"/finance/debt/payments{(LenderId.HasValue ? $"?lenderId={LenderId.Value}" : "")}")">Today's transactions</a>
+    }
+    else
+    {
+        <a class="btn-secondary" href="@($"/finance/debt/payments?view=all{(LenderId.HasValue ? $"&lenderId={LenderId.Value}" : "")}")">All history</a>
+    }
+</form>
+
 @if (Data is null && Error is null)
 {
-    <LoadingPanel Message="Loading debt history…" />
+    <LoadingPanel Message="Loading debt activity…" />
 }
 else if (Data is not null)
 {
-    <div class="mb-6 grid gap-4 sm:grid-cols-2">
+    <div class="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div class="metric">
             <p>@(Selected is null ? "Total outstanding debt" : $"Outstanding · {Selected.Name}")</p>
             <strong class="text-2xl!">@Money(Selected?.Balance ?? Data.TotalOutstanding)</strong>
+            <span class="metric-note">@(Selected is null ? "Across all active lenders" : "Current balance due")</span>
         </div>
         <div class="metric">
-            <p>Today's date</p>
-            <strong>@Data.WorkingDate.ToString("dd MMM yyyy")</strong>
-            <span class="metric-note text-emerald-700">Continuous timeline active</span>
+            <p>Borrowed · @Data.ViewDate.ToString("dd MMM yyyy")</p>
+            <strong class="text-2xl! text-emerald-700">@Money(Data.DayBorrowed)</strong>
+            <span class="metric-note text-emerald-600">Debt taken (cash/bank in)</span>
+        </div>
+        <div class="metric">
+            <p>Repaid · @Data.ViewDate.ToString("dd MMM yyyy")</p>
+            <strong class="text-2xl! text-amber-700">@Money(Data.DayRepaid)</strong>
+            <span class="metric-note text-amber-600">Debt repaid (cash/bank out)</span>
+        </div>
+        <div class="metric">
+            <p>Net debt change · @Data.ViewDate.ToString("dd MMM yyyy")</p>
+            <strong class="text-2xl! @(Data.DayNet > 0 ? "text-rose-700" : Data.DayNet < 0 ? "text-emerald-700" : "")">
+                @(Data.DayNet > 0 ? $"+{Money(Data.DayNet)}" : Money(Data.DayNet))
+            </strong>
+            <span class="metric-note">@Data.DayCount @(Data.DayCount == 1 ? "entry" : "entries") recorded</span>
         </div>
     </div>
     @if (Data.CanPost && Data.Lenders.Count > 0)
     {
         <section class="panel mb-6 max-w-3xl p-6">
+            <div class="mb-4">
+                <h2 class="font-semibold text-base">Record transaction</h2>
+                @if (Data.ViewDate != Data.WorkingDate)
+                {
+                    <p class="text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded-lg p-2 mt-2">
+                        Viewing historical day: <strong>@Data.ViewDate.ToString("dd MMM yyyy")</strong>. Current working day is <strong>@Data.WorkingDate.ToString("dd MMM yyyy")</strong>. Check "Record historical transaction (backdate)" below to timestamp entries to the viewed day.
+                    </p>
+                }
+            </div>
             <form method="post" @formname="debt-payment" data-draft-instance="@Input?.RequestId" data-draft-key="debt" data-draft-success="@Saved" @onsubmit="SaveAsync" data-enhance data-submit-indication="true">
                 <AntiforgeryToken />
                 <input type="hidden" name="Input.RequestId" value="@Input?.RequestId" />
@@ -109,7 +155,7 @@ else if (Data is not null)
                             <div id="debt-backdate-box" class="@(Input?.IsBackdate == true ? "" : "hidden")">
                                 <label for="debt-time" class="field-label text-blue-900 text-xs">Transaction Date & Time</label>
                                 <input id="debt-time" type="datetime-local" class="field bg-white mt-1 text-xs max-w-xs" name="Input.TransactionTime"
-                                       value="@(Input?.TransactionTime?.ToString("yyyy-MM-ddTHH:mm"))" />
+                                       value="@(Input?.TransactionTime?.ToString("yyyy-MM-ddTHH:mm") ?? (Data.ViewDate != Data.WorkingDate ? $"{Data.ViewDate:yyyy-MM-dd}T12:00" : ""))" />
                                 <p class="text-[11px] text-blue-700 mt-1">Backfills land on earlier dates without interrupting live accounts.</p>
                             </div>
                         </div>
@@ -130,63 +176,235 @@ else if (Data is not null)
     {
         <p class="mb-6 text-sm text-slate-500">@(Data.Lenders.Count == 0 ? "Add a lender first." : "The working day is closed. Open the next day to record transactions.")</p>
     }
-    <section class="panel table-scroll">
-        <div class="panel-heading">
-            <h2>Transaction history</h2>
-            <form method="get" class="flex gap-3" data-enhance data-submit-indication="true">
-                <select class="field" name="lenderId" aria-label="Filter lender">
-                    <option value="">All lenders</option>
-                    @foreach (var lender in Data.Lenders)
+
+    @if (!IsAllHistory)
+    {
+        <section class="panel table-scroll">
+            <div class="panel-heading">
+                <div>
+                    <h2>Debt activity · @Data.ViewDate.ToString("dd MMM yyyy")</h2>
+                    <p class="text-xs text-slate-500">Borrowings and repayments recorded on @Data.ViewDate.ToString("dd MMM yyyy").</p>
+                </div>
+                <form method="get" action="/finance/debt/payments" class="flex gap-2 items-center" data-enhance data-submit-indication="true">
+                    @if (Date.HasValue)
                     {
-                        <option value="@lender.Id" selected="@(LenderId == lender.Id)">@lender.Name</option>
+                        <input type="hidden" name="date" value="@Date.Value.ToString("yyyy-MM-dd")" />
                     }
-                </select>
-                <button class="btn-secondary">View</button>
-            </form>
-        </div>
-        <table class="data-table">
-            <thead>
-                <tr>
-                    <th>Date</th>
-                    <th>Lender</th>
-                    <th>Type</th>
-                    <th>Method / location</th>
-                    <th>Notes</th>
-                    <th class="text-right">Debt change</th>
-                    <th class="text-right">Balance after</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var row in Data.History)
-                {
+                    <select class="field text-xs py-1.5" name="lenderId" aria-label="Filter lender">
+                        <option value="">All lenders</option>
+                        @foreach (var lender in Data.Lenders)
+                        {
+                            <option value="@lender.Id" selected="@(LenderId == lender.Id)">@lender.Name</option>
+                        }
+                    </select>
+                    <button class="btn-secondary text-xs">Filter</button>
+                </form>
+            </div>
+            <table class="data-table">
+                <thead>
                     <tr>
-                        <td>@row.Date.ToString("dd MMM yyyy")</td>
-                        <td>@row.Lender</td>
-                        <td>@(row.Kind == DebtEntryKind.OpeningBalance ? "Opening debt" : row.Kind.ToString())</td>
-                        <td>
-                            <span>@(row.Method is not null ? SplitPayments.MethodName(row.Method.Value) : "—")</span>
-                            @if (row.CashLocation is not null)
-                            {
-                                <span class="block text-xs text-slate-500">@row.CashLocation</span>
-                            }
-                        </td>
-                        <td>@row.Notes</td>
-                        <td class="text-right">@Money(row.Amount)</td>
-                        <td class="text-right">@Money(row.BalanceAfter)</td>
+                        <th>Time / Ref</th>
+                        <th>Lender</th>
+                        <th>Type</th>
+                        <th>Method / Account</th>
+                        <th>Notes</th>
+                        <th class="text-right">Borrowed (+)</th>
+                        <th class="text-right">Repaid (-)</th>
+                        <th class="text-right">Balance after</th>
+                        @if (CanEdit)
+                        {
+                            <th>
+                                <span class="sr-only">Actions</span>
+                            </th>
+                        }
                     </tr>
-                }
-            </tbody>
-        </table>
-        @if (Data.HistoryPagination is not null)
-        {
-            <PageNavigation Info="Data.HistoryPagination" Label="transactions" />
-        }
-        @if (Data.History.Count == 0)
-        {
-            <p class="empty-state">No transactions yet.</p>
-        }
-        <p class="p-4 text-xs text-slate-500">Borrowing increases debt; repayment reduces it. No interest is charged.</p>
-    </section>
+                </thead>
+                <tbody>
+                    @foreach (var row in Data.DayEntries)
+                    {
+                        <tr>
+                            <td>
+                                <span class="font-medium">#@row.Id</span>
+                                @if (row.OccurredAt.HasValue)
+                                {
+                                    <span class="block text-xs text-slate-500">@UserTime.Format(row.OccurredAt.Value, "hh:mm tt")</span>
+                                }
+                            </td>
+                            <td class="font-medium">@row.Lender</td>
+                            <td>
+                                @if (row.Kind == DebtEntryKind.Borrowing)
+                                {
+                                    <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">Borrowing</span>
+                                }
+                                else if (row.Kind == DebtEntryKind.Repayment)
+                                {
+                                    <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">Repayment</span>
+                                }
+                                else
+                                {
+                                    <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold bg-slate-100 text-slate-700">Opening</span>
+                                }
+                            </td>
+                            <td>
+                                <span>@(row.Method.HasValue ? SplitPayments.MethodName(row.Method.Value) : "—")</span>
+                                @if (!string.IsNullOrWhiteSpace(row.CashLocation))
+                                {
+                                    <span class="block text-xs text-slate-500">@row.CashLocation</span>
+                                }
+                            </td>
+                            <td class="max-w-xs truncate">@row.Notes</td>
+                            <td class="text-right text-emerald-700 font-medium tabular-nums whitespace-nowrap">
+                                @(row.Kind == DebtEntryKind.Borrowing ? Money(Math.Abs(row.Amount)) : "—")
+                            </td>
+                            <td class="text-right text-amber-700 font-medium tabular-nums whitespace-nowrap">
+                                @(row.Kind == DebtEntryKind.Repayment ? Money(Math.Abs(row.Amount)) : "—")
+                            </td>
+                            <td class="text-right font-semibold tabular-nums whitespace-nowrap">@Money(row.BalanceAfter)</td>
+                            @if (CanEdit)
+                            {
+                                <td>
+                                    @if (row.Kind != DebtEntryKind.OpeningBalance)
+                                    {
+                                        <a href="@($"/admin/records/debt/{row.Id}/edit")" class="btn-secondary text-xs" title="Edit or void transaction">Edit / Void</a>
+                                    }
+                                </td>
+                            }
+                        </tr>
+                    }
+                </tbody>
+                <tfoot>
+                    <tr class="font-bold bg-slate-50 border-t-2 border-slate-300">
+                        <td colspan="5" class="py-3 px-4 text-right text-slate-700">
+                            Totals for @Data.ViewDate.ToString("dd MMM yyyy") (@Data.DayCount @(Data.DayCount == 1 ? "entry" : "entries")):
+                        </td>
+                        <td class="text-right py-3 px-4 text-emerald-700 tabular-nums whitespace-nowrap">@Money(Data.DayBorrowed)</td>
+                        <td class="text-right py-3 px-4 text-amber-700 tabular-nums whitespace-nowrap">@Money(Data.DayRepaid)</td>
+                        <td class="text-right py-3 px-4 font-extrabold tabular-nums whitespace-nowrap @(Data.DayNet > 0 ? "text-rose-700" : Data.DayNet < 0 ? "text-emerald-700" : "text-slate-800")">
+                            Net: @(Data.DayNet > 0 ? $"+{Money(Data.DayNet)}" : Money(Data.DayNet))
+                        </td>
+                        @if (CanEdit)
+                        {
+                            <td></td>
+                        }
+                    </tr>
+                </tfoot>
+            </table>
+            @if (Data.DayEntries.Count == 0)
+            {
+                <div class="empty-state">
+                    <p>No borrowing or repayments recorded for @Data.ViewDate.ToString("dd MMM yyyy").</p>
+                    <a href="@($"/finance/debt/payments?view=all{(LenderId.HasValue ? $"&lenderId={LenderId.Value}" : "")}")" class="btn-secondary mt-2 inline-block">View all transaction history</a>
+                </div>
+            }
+            <div class="p-4 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500 border-t border-slate-100">
+                <span>Borrowing increases debt; repayment reduces it. No interest is charged.</span>
+                <a href="@($"/finance/debt/payments?view=all{(LenderId.HasValue ? $"&lenderId={LenderId.Value}" : "")}")" class="font-semibold text-blue-700 hover:underline">View full historical ledger &rarr;</a>
+            </div>
+        </section>
+    }
+    else
+    {
+        <section class="panel table-scroll">
+            <div class="panel-heading">
+                <div>
+                    <h2>All transaction history</h2>
+                    <p class="text-xs text-slate-500">Historical transactions across all dates.</p>
+                </div>
+                <form method="get" action="/finance/debt/payments" class="flex gap-2 items-center" data-enhance data-submit-indication="true">
+                    <input type="hidden" name="view" value="all" />
+                    <select class="field text-xs py-1.5" name="lenderId" aria-label="Filter lender">
+                        <option value="">All lenders</option>
+                        @foreach (var lender in Data.Lenders)
+                        {
+                            <option value="@lender.Id" selected="@(LenderId == lender.Id)">@lender.Name</option>
+                        }
+                    </select>
+                    <button class="btn-secondary text-xs">Filter</button>
+                </form>
+            </div>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Date & Time</th>
+                        <th>Lender</th>
+                        <th>Type</th>
+                        <th>Method / location</th>
+                        <th>Notes</th>
+                        <th class="text-right">Debt change</th>
+                        <th class="text-right">Balance after</th>
+                        @if (CanEdit)
+                        {
+                            <th>
+                                <span class="sr-only">Actions</span>
+                            </th>
+                        }
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in Data.History)
+                    {
+                        <tr>
+                            <td>
+                                <span>@row.Date.ToString("dd MMM yyyy")</span>
+                                @if (row.OccurredAt.HasValue)
+                                {
+                                    <span class="block text-xs text-slate-500">@UserTime.Format(row.OccurredAt.Value, "hh:mm tt")</span>
+                                }
+                            </td>
+                            <td class="font-medium">@row.Lender</td>
+                            <td>
+                                @if (row.Kind == DebtEntryKind.Borrowing)
+                                {
+                                    <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">Borrowing</span>
+                                }
+                                else if (row.Kind == DebtEntryKind.Repayment)
+                                {
+                                    <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">Repayment</span>
+                                }
+                                else
+                                {
+                                    <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold bg-slate-100 text-slate-700">Opening debt</span>
+                                }
+                            </td>
+                            <td>
+                                <span>@(row.Method is not null ? SplitPayments.MethodName(row.Method.Value) : "—")</span>
+                                @if (row.CashLocation is not null)
+                                {
+                                    <span class="block text-xs text-slate-500">@row.CashLocation</span>
+                                }
+                            </td>
+                            <td class="max-w-xs truncate">@row.Notes</td>
+                            <td class="text-right font-medium tabular-nums whitespace-nowrap @(row.Kind == DebtEntryKind.Repayment ? "text-amber-700" : "text-emerald-700")">
+                                @(row.Kind == DebtEntryKind.Repayment ? $"-{Money(Math.Abs(row.Amount))}" : $"+{Money(Math.Abs(row.Amount))}")
+                            </td>
+                            <td class="text-right font-semibold tabular-nums whitespace-nowrap">@Money(row.BalanceAfter)</td>
+                            @if (CanEdit)
+                            {
+                                <td>
+                                    @if (row.Kind != DebtEntryKind.OpeningBalance)
+                                    {
+                                        <a href="@($"/admin/records/debt/{row.Id}/edit")" class="btn-secondary text-xs" title="Edit or void transaction">Edit / Void</a>
+                                    }
+                                </td>
+                            }
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            @if (Data.HistoryPagination is not null)
+            {
+                <PageNavigation Info="Data.HistoryPagination" Label="transactions" />
+            }
+            @if (Data.History.Count == 0)
+            {
+                <p class="empty-state">No transactions recorded yet.</p>
+            }
+            <div class="p-4 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500 border-t border-slate-100">
+                <span>Borrowing increases debt; repayment reduces it. No interest is charged.</span>
+                <a href="@($"/finance/debt/payments{(LenderId.HasValue ? $"?lenderId={LenderId.Value}" : "")}")" class="font-semibold text-blue-700 hover:underline">&larr; Return to today's transactions</a>
+            </div>
+        </section>
+    }
 }
 
 @code {
@@ -201,6 +419,12 @@ else if (Data is not null)
 
     [SupplyParameterFromQuery]
     public string? SavedLender { get; set; }
+
+    [SupplyParameterFromQuery(Name = "date")]
+    public DateOnly? Date { get; set; }
+
+    [SupplyParameterFromQuery(Name = "view")]
+    public string? View { get; set; }
 
     [CascadingParameter]
     private HttpContext HttpContext { get; set; } = default!;
@@ -221,12 +445,14 @@ else if (Data is not null)
     private string? Error;
     private LenderRow? Selected => Data?.Lenders.FirstOrDefault(lender => lender.Id == LenderId);
     private bool CanBackdate => HttpContext?.User?.IsInRole(AppRoles.Admin) == true;
+    private bool CanEdit => HttpContext?.User?.IsInRole(AppRoles.Admin) == true;
+    private bool IsAllHistory => string.Equals(View, "all", StringComparison.OrdinalIgnoreCase);
 
     protected override async Task OnParametersSetAsync()
     {
         try
         {
-            Data = await DebtAccounts.ReadAsync(HttpContext.User, LenderId, HttpContext.RequestAborted, pageSize: PageSize, historyPage: Page);
+            Data = await DebtAccounts.ReadAsync(HttpContext.User, LenderId, HttpContext.RequestAborted, pageSize: PageSize, historyPage: Page, date: Date);
             if (Saved || HttpContext.Request.Method != "POST" || Input is null)
             {
                 Input = new()
@@ -273,7 +499,8 @@ else if (Data is not null)
                 LenderId = lenderId,
                 CashLocationId = Input.CashLocationId
             };
-            Navigation.NavigateTo($"/finance/debt/payments?saved=true&savedRequest={reqId}&savedKind={kind}&savedAmt={amt.ToString(CultureInfo.InvariantCulture)}&savedLender={Uri.EscapeDataString(lender)}&lenderId={lenderId}");
+            var dateParam = Date.HasValue ? $"&date={Date.Value:yyyy-MM-dd}" : "";
+            Navigation.NavigateTo($"/finance/debt/payments?saved=true&savedRequest={reqId}&savedKind={kind}&savedAmt={amt.ToString(CultureInfo.InvariantCulture)}&savedLender={Uri.EscapeDataString(lender)}&lenderId={lenderId}{dateParam}");
         }
         catch (ValidationException exception)
         {
