@@ -127,12 +127,26 @@ public class ReliabilityTests : PosIntegrationTestBase
     {
         await using var scope = CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        db.UserRoles.RemoveRange(await db.UserRoles.Where(r => r.UserId == 1).ToListAsync());
+        var user = new User
+        {
+            UserName = "tempadmin",
+            NormalizedUserName = "TEMPADMIN",
+            CashLocationId = 1,
+            SecurityStamp = Guid.NewGuid().ToString("D"),
+            ConcurrencyStamp = Guid.NewGuid().ToString("D")
+        };
+        db.Users.Add(user);
         await db.SaveChangesAsync();
-        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => StoreAccess.RequireAsync(db, AdminUser, POSApp.Client.Security.AppRoles.Admin));
-        await Assert.That(await StoreAccess.HasPolicyAsync(db, AdminUser, POSApp.Client.Security.AppRoles.Admin)).IsFalse();
+        db.UserRoles.Add(new Microsoft.AspNetCore.Identity.IdentityUserRole<int> { UserId = user.Id, RoleId = 1 });
+        await db.SaveChangesAsync();
+
+        var principal = CreatePrincipal(user.Id, "tempadmin", POSApp.Client.Security.AppRoles.Admin);
+        db.UserRoles.RemoveRange(await db.UserRoles.Where(r => r.UserId == user.Id).ToListAsync());
+        await db.SaveChangesAsync();
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => StoreAccess.RequireAsync(db, principal, POSApp.Client.Security.AppRoles.Admin));
+        await Assert.That(await StoreAccess.HasPolicyAsync(db, principal, POSApp.Client.Security.AppRoles.Admin)).IsFalse();
         var requirement = new DynamicPolicyRequirement(AppPolicies.ManageUsers);
-        var context = new Microsoft.AspNetCore.Authorization.AuthorizationHandlerContext([requirement], AdminUser, null);
+        var context = new Microsoft.AspNetCore.Authorization.AuthorizationHandlerContext([requirement], principal, null);
         var handler = new DynamicPolicyAuthorizationHandler(scope.ServiceProvider.GetRequiredService<IServiceScopeFactory>());
         await handler.HandleAsync(context);
         await Assert.That(context.HasSucceeded).IsFalse();

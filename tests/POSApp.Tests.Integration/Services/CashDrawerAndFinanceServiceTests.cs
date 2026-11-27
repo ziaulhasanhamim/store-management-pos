@@ -1462,4 +1462,63 @@ public class CashDrawerAndFinanceServiceTests : PosIntegrationTestBase
         // Closing balance MUST match the bank's CurrentBalance exactly (no extra 7320)
         await statement.Closing.Should().BeEqualTo(bank.CurrentBalance);
     }
+
+    [Test]
+    public async Task PhysicalCashCount_WhenBookBalanceIsNegative_AllowsSubmissionAndSetsAccurateCheckpoint()
+    {
+        await using var scope = CreateScope();
+        var drawerService = scope.ServiceProvider.GetRequiredService<CashDrawerService>();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        var drawer = await db.CashDrawers.FirstAsync(d => d.StockLocationId == 1);
+        var baseCash = drawer.CurrentCash;
+
+        // Post a large cash expense movement to make drawer balance negative
+        var negativeExpense = new CashMovement
+        {
+            RequestId = Guid.NewGuid(),
+            CashDrawerId = drawer.Id,
+            BusinessDate = AccountingCalendar.Today(null),
+            OccurredAt = DateTimeOffset.UtcNow.AddMinutes(-10),
+            Kind = CashMovementKind.Expense,
+            Amount = -(baseCash + 500m),
+            Notes = "Emergency large cash expense",
+            CreatedByUserId = 1
+        };
+        db.CashMovements.Add(negativeExpense);
+        drawer.CurrentCash = -500m;
+        await db.SaveChangesAsync();
+
+        var readBefore = await drawerService.ReadAsync(AdminUser);
+        await readBefore.CurrentCash.Should().BeLessThan(0m);
+
+        // Submit physical count of 200 BDT in hand
+        var countId = await drawerService.SubmitCountAsync(AdminUser, new CashCountInput
+        {
+            LocationId = 1,
+            CountedCash = 200m,
+            Notes = "Reconciling negative drawer with actual cash in hand"
+        });
+
+        var countEntity = await db.CashCounts.SingleAsync(c => c.Id == countId);
+        await countEntity.ExpectedCash.Should().BeLessThan(0m);
+        await countEntity.CountedCash.Should().BeEqualTo(200m);
+        // Variance = 200 - (-500) = +700
+        await countEntity.Difference.Should().BeEqualTo(700m);
+        await countEntity.Status.Should().BeEqualTo(CashCountStatus.PendingReview);
+
+        // Admin accepts the variance
+        await drawerService.AcceptVarianceAsync(AdminUser, new AcceptVarianceInput
+        {
+            CountId = countId,
+            Notes = "Approved positive adjustment to reconcile negative drawer"
+        });
+
+        var readAfter = await drawerService.ReadAsync(AdminUser);
+        await readAfter.CurrentCash.Should().BeEqualTo(200m);
+        var acceptedRow = readAfter.CountHistory.First(c => c.Id == countId);
+        await acceptedRow.ExpectedCash.Should().BeLessThan(0m);
+        await acceptedRow.CountedCash.Should().BeEqualTo(200m);
+        await acceptedRow.Variance.Should().BeEqualTo(700m);
+    }
 }

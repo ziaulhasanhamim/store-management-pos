@@ -66,6 +66,12 @@
             <div class="metric">
                 <p>Last physically counted</p>
                 <strong class="text-2xl!">@(Data.LastCount is not null ? Money(Data.LastCount.CountedCash) : "—")</strong>
+                @if (Data.LastCount?.HasVarianceDrift == true)
+                {
+                    <span class="metric-note text-amber-700 font-medium">
+                        Accepted: @(Data.LastCount.AcceptedVariance == 0 ? $"Balanced ({Money(0)})" : Money(Data.LastCount.AcceptedVariance ?? 0)) · Now: @(Data.LastCount.LiveVariance == 0 ? $"Balanced ({Money(0)})" : Money(Data.LastCount.LiveVariance))
+                    </span>
+                }
             </div>
             <div class="metric">
                 <p>Pending variance</p>
@@ -124,6 +130,13 @@
                                 @(Data.PendingCount.Variance < 0 ? $"Shortage of {Money(Math.Abs(Data.PendingCount.Variance))} missing" : Data.PendingCount.Variance > 0 ? $"Over of {Money(Data.PendingCount.Variance)} extra" : "Balanced")
                             </strong>
                         </p>
+                        @if (Math.Round(Data.PendingCount.Difference, 2) != Math.Round(Data.PendingCount.LiveVariance, 2))
+                        {
+                            <div class="mt-2 text-xs bg-amber-100/90 border border-amber-300 rounded p-2 text-amber-950 font-medium">
+                                <div><span class="text-amber-800">Submitted discrepancy:</span> <strong>@(Data.PendingCount.Difference < 0 ? $"Shortage {Money(Math.Abs(Data.PendingCount.Difference))}" : Data.PendingCount.Difference > 0 ? $"Over {Money(Data.PendingCount.Difference)}" : $"Balanced ({Money(0)})")</strong></div>
+                                <div><span class="text-amber-800">Current live discrepancy:</span> <strong class="@(Data.PendingCount.LiveVariance < 0 ? "text-rose-700" : Data.PendingCount.LiveVariance > 0 ? "text-blue-700" : "text-emerald-700")">@(Data.PendingCount.LiveVariance < 0 ? $"Shortage {Money(Math.Abs(Data.PendingCount.LiveVariance))}" : Data.PendingCount.LiveVariance > 0 ? $"Over {Money(Data.PendingCount.LiveVariance)}" : $"Balanced ({Money(0)})")</strong> <span class="text-[10px] text-amber-700 font-normal">(Shifted by retroactive entries)</span></div>
+                            </div>
+                        }
                         @if (!string.IsNullOrWhiteSpace(Data.PendingCount.Notes))
                         {
                             <p class="text-xs text-slate-600 mt-2 bg-white/70 p-2 rounded border border-amber-100">
@@ -195,8 +208,20 @@
                         <h2 class="font-semibold text-lg text-slate-900">Physical Cash Count</h2>
                         <p class="text-xs text-slate-500">Verify and record the physical cash currently in this drawer.</p>
                     </div>
-                    <span class="text-xs font-semibold px-2.5 py-1 bg-slate-100 rounded text-slate-700">Book balance: @Money(Data.CurrentCash)</span>
+                    <span class="text-xs font-semibold px-2.5 py-1 @(Data.CurrentCash < 0 ? "bg-amber-100 text-amber-800 border border-amber-300" : "bg-slate-100 text-slate-700") rounded">Book balance: @Money(Data.CurrentCash)</span>
                 </div>
+                @if (Data.CurrentCash < 0)
+                {
+                    <div id="negative-balance-warning-banner" class="mb-4 rounded-xl border border-amber-300 bg-amber-50 p-3.5 text-amber-950 flex items-start gap-3" role="alert">
+                        <svg class="size-5 text-amber-600 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                        </svg>
+                        <div class="text-xs space-y-0.5">
+                            <strong class="font-bold text-amber-900 block">Negative Book Balance Warning (@Money(Data.CurrentCash))</strong>
+                            <p class="text-amber-800">The drawer book balance before this count is negative. Recording physical cash will reconcile the drawer and establish a new cash checkpoint.</p>
+                        </div>
+                    </div>
+                }
                 <form id="cash-count-form" method="post" @formname="cash-count" @onsubmit="SubmitCountAsync" data-enhance data-submit-indication="true"
                       data-book-cash="@(Data.CurrentCash.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture))"
                       data-currency="@Currency">
@@ -340,42 +365,60 @@
                             }
                         </td>
                         <td>@count.CountedBy</td>
-                        <td class="text-right">@Money(count.ExpectedCash)</td>
+                        <td class="text-right">
+                            @if (count.HasVarianceDrift && Math.Round(count.ExpectedCash, 2) != Math.Round(count.LiveExpectedCash, 2))
+                            {
+                                <div class="text-xs text-slate-500 font-normal">
+                                    <span>Was:</span> @Money(count.ExpectedCash)
+                                </div>
+                                <div class="text-xs font-semibold text-slate-800">
+                                    <span>Now:</span> @Money(count.LiveExpectedCash)
+                                </div>
+                            }
+                            else
+                            {
+                                @Money(count.ExpectedCash)
+                            }
+                        </td>
                         <td class="text-right font-medium">@Money(count.CountedCash)</td>
                         <td class="text-right">
                             @if (count.HasVarianceDrift)
                             {
-                                <div class="text-xs text-slate-500 font-normal">
-                                    Accepted:
-                                    @if (count.AcceptedVariance == 0)
-                                    {
-                                        <span class="font-semibold text-emerald-700">Balanced</span>
-                                    }
-                                    else if (count.AcceptedVariance < 0)
-                                    {
-                                        <span class="font-semibold text-rose-700">Shortage @Money(Math.Abs(count.AcceptedVariance ?? 0))</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="font-semibold text-blue-700">Over @Money(count.AcceptedVariance ?? 0)</span>
-                                    }
+                                <div class="text-xs space-y-0.5">
+                                    <div class="text-slate-600 font-medium">
+                                        <span class="text-slate-500 font-normal">Accepted:</span>
+                                        @if (count.AcceptedVariance == 0)
+                                        {
+                                            <span class="font-bold text-emerald-700">Balanced (@Money(0))</span>
+                                        }
+                                        else if (count.AcceptedVariance < 0)
+                                        {
+                                            <span class="font-bold text-rose-700">Shortage @Money(Math.Abs(count.AcceptedVariance ?? 0))</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="font-bold text-blue-700">Over @Money(count.AcceptedVariance ?? 0)</span>
+                                        }
+                                    </div>
+                                    <div class="text-slate-900 font-semibold mt-0.5">
+                                        <span class="text-slate-500 font-normal">Now:</span>
+                                        @if (count.LiveVariance == 0)
+                                        {
+                                            <span class="font-bold text-emerald-700">Balanced (@Money(0))</span>
+                                        }
+                                        else if (count.LiveVariance < 0)
+                                        {
+                                            <span class="font-bold text-rose-700">Shortage @Money(Math.Abs(count.LiveVariance))</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="font-bold text-blue-700">Over @Money(count.LiveVariance)</span>
+                                        }
+                                    </div>
+                                    <div class="text-[10px] text-amber-700 font-medium bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5 mt-1 inline-block">
+                                        Shifted by retroactive entries
+                                    </div>
                                 </div>
-                                <div class="text-xs font-bold mt-0.5">
-                                    Now:
-                                    @if (count.LiveVariance == 0)
-                                    {
-                                        <span class="text-emerald-700">Balanced (0.00)</span>
-                                    }
-                                    else if (count.LiveVariance < 0)
-                                    {
-                                        <span class="text-rose-700">Shortage @Money(Math.Abs(count.LiveVariance))</span>
-                                    }
-                                    else
-                                    {
-                                        <span class="text-blue-700">Over @Money(count.LiveVariance)</span>
-                                    }
-                                </div>
-                                <div class="text-[10px] text-amber-600 font-normal">(Shifted by retroactive entries)</div>
                             }
                             else
                             {

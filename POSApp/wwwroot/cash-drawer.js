@@ -40,6 +40,8 @@
 
         var currentBookCash = getBookCash();
         var expected = (isBackdate && historicalExpectedCash !== null) ? historicalExpectedCash : currentBookCash;
+        var form = document.getElementById('cash-count-form');
+        var currency = (form && form.dataset && form.dataset.currency) || 'BDT';
 
         // If counted cash is empty or invalid
         if (rawVal === '' || isNaN(val) || val < 0) {
@@ -58,6 +60,7 @@
         }
 
         var diff = Math.round((val - expected) * 100) / 100;
+        var negBookNote = expected < 0 ? ' ⚠️ Warning: Drawer book balance before count is negative (' + currency + ' ' + expected.toFixed(2) + ').' : '';
 
         if (card) {
             card.classList.remove('hidden', 'bg-emerald-50', 'border-emerald-300', 'text-emerald-950', 'bg-rose-50', 'border-rose-300', 'text-rose-950', 'bg-blue-50', 'border-blue-300', 'text-blue-950');
@@ -66,11 +69,11 @@
                 card.classList.add('bg-emerald-50', 'border-emerald-300', 'text-emerald-950');
                 if (iconEl) iconEl.innerHTML = '<svg class="w-4 h-4 text-emerald-600 inline shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>';
                 if (titleEl) titleEl.textContent = isBackdate ? 'Balanced (Historical Count)' : 'Cash Count Balanced';
-                if (amountEl) amountEl.innerHTML = '<span class="text-emerald-700 font-extrabold text-base">BDT 0.00</span>';
+                if (amountEl) amountEl.innerHTML = '<span class="text-emerald-700 font-extrabold text-base">' + currency + ' 0.00</span>';
                 if (detailEl) {
-                    detailEl.textContent = isBackdate
+                    detailEl.textContent = (isBackdate
                         ? 'Counted cash exactly matches historical expected cash at the selected count time.'
-                        : 'Counted cash exactly matches current book cash balance.';
+                        : 'Counted cash exactly matches current book cash balance.') + negBookNote;
                 }
                 if (notesEl && !notesEl.value) {
                     notesEl.placeholder = 'Optional: physical cash matches book cash.';
@@ -80,28 +83,28 @@
                 card.classList.add('bg-rose-50', 'border-rose-300', 'text-rose-950');
                 if (iconEl) iconEl.innerHTML = '<svg class="w-4 h-4 text-rose-600 inline shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>';
                 if (titleEl) titleEl.textContent = isBackdate ? 'Shortage (Historical Count)' : 'Cash Shortage (Missing Cash)';
-                if (amountEl) amountEl.innerHTML = '<span class="text-rose-700 font-extrabold text-base">Shortage: BDT ' + missingAmount + ' missing</span>';
+                if (amountEl) amountEl.innerHTML = '<span class="text-rose-700 font-extrabold text-base">Shortage: ' + currency + ' ' + missingAmount + ' missing</span>';
                 if (detailEl) {
-                    detailEl.textContent = isBackdate
-                        ? 'Counted BDT ' + val.toFixed(2) + ' vs Historical Expected BDT ' + expected.toFixed(2) + ' at that time (-BDT ' + missingAmount + ' missing)'
-                        : 'Counted BDT ' + val.toFixed(2) + ' vs Current Book BDT ' + expected.toFixed(2) + ' (-BDT ' + missingAmount + ' missing)';
+                    detailEl.textContent = (isBackdate
+                        ? 'Counted ' + currency + ' ' + val.toFixed(2) + ' vs Historical Expected ' + currency + ' ' + expected.toFixed(2) + ' at that time (-' + currency + ' ' + missingAmount + ' missing)'
+                        : 'Counted ' + currency + ' ' + val.toFixed(2) + ' vs Current Book ' + currency + ' ' + expected.toFixed(2) + ' (-' + currency + ' ' + missingAmount + ' missing)') + negBookNote;
                 }
                 if (notesEl && !notesEl.value) {
-                    notesEl.placeholder = 'Required: explain why cash is short by BDT ' + missingAmount + '...';
+                    notesEl.placeholder = 'Required: explain why cash is short by ' + currency + ' ' + missingAmount + '...';
                 }
             } else {
                 var extraAmount = diff.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
                 card.classList.add('bg-blue-50', 'border-blue-300', 'text-blue-950');
                 if (iconEl) iconEl.innerHTML = '<svg class="w-4 h-4 text-blue-600 inline shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>';
                 if (titleEl) titleEl.textContent = isBackdate ? 'Over (Historical Count)' : 'Cash Over (Extra Cash)';
-                if (amountEl) amountEl.innerHTML = '<span class="text-blue-700 font-extrabold text-base">Over: BDT ' + extraAmount + ' extra</span>';
+                if (amountEl) amountEl.innerHTML = '<span class="text-blue-700 font-extrabold text-base">Over: ' + currency + ' ' + extraAmount + ' extra</span>';
                 if (detailEl) {
-                    detailEl.textContent = isBackdate
-                        ? 'Counted BDT ' + val.toFixed(2) + ' vs Historical Expected BDT ' + expected.toFixed(2) + ' at that time (+BDT ' + extraAmount + ' extra)'
-                        : 'Counted BDT ' + val.toFixed(2) + ' vs Current Book BDT ' + expected.toFixed(2) + ' (+BDT ' + extraAmount + ' extra)';
+                    detailEl.textContent = (isBackdate
+                        ? 'Counted ' + currency + ' ' + val.toFixed(2) + ' vs Historical Expected ' + currency + ' ' + expected.toFixed(2) + ' at that time (+' + currency + ' ' + extraAmount + ' extra)'
+                        : 'Counted ' + currency + ' ' + val.toFixed(2) + ' vs Current Book ' + currency + ' ' + expected.toFixed(2) + ' (+' + currency + ' ' + extraAmount + ' extra)') + negBookNote;
                 }
                 if (notesEl && !notesEl.value) {
-                    notesEl.placeholder = 'Required: explain why cash has an extra BDT ' + extraAmount + '...';
+                    notesEl.placeholder = 'Required: explain why cash has an extra ' + currency + ' ' + extraAmount + '...';
                 }
             }
         }
@@ -257,6 +260,37 @@
         }
     });
 
+    function validateNegativeCountSubmission(e) {
+        var bookCash = getBookCash();
+        var backdateCheckbox = document.querySelector('input[name="CountInput.IsBackdate"]') || document.getElementById('count-backdate-toggle');
+        var isBackdate = backdateCheckbox && backdateCheckbox.checked;
+        var expected = (isBackdate && historicalExpectedCash !== null) ? historicalExpectedCash : bookCash;
+        if (expected < 0) {
+            var form = document.getElementById('cash-count-form');
+            var currency = (form && form.dataset && form.dataset.currency) || 'BDT';
+            var msg = '⚠️ Warning: The drawer book balance before this physical count is negative (' + currency + ' ' + expected.toFixed(2) + ').\n\nSubmitting this physical count will establish a new cash checkpoint. Do you want to proceed?';
+            if (!confirm(msg)) {
+                if (e && e.preventDefault) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                }
+                return false;
+            }
+        }
+        return true;
+    }
+
+    document.addEventListener('submit', function (e) {
+        if (!e.target) return;
+        if (e.target.id === 'cash-count-form') {
+            if (!validateNegativeCountSubmission(e)) {
+                e.preventDefault();
+                e.stopPropagation();
+                return false;
+            }
+        }
+    });
+
     // Support both initial load and Blazor enhanced navigation
     document.addEventListener('DOMContentLoaded', initCashDrawerCount);
     window.addEventListener('blazor:navigated', initCashDrawerCount);
@@ -267,4 +301,5 @@
     window.toggleBackdateCount = toggleBackdateCount;
     window.fetchHistoricalExpectedCash = fetchHistoricalExpectedCash;
     window.initCashDrawerCount = initCashDrawerCount;
+    window.validateNegativeCountSubmission = validateNegativeCountSubmission;
 })();
